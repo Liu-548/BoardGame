@@ -1,0 +1,150 @@
+import { describe, expect, it } from "vitest";
+import { reduce } from "../src/core/reduce";
+import type { GameState } from "../src/core/types";
+
+function makeState(overrides: Partial<GameState> = {}): GameState {
+  return {
+    players: [
+      { id: "a", name: "a", role: "sheriff", hp: 3, maxHp: 5, hand: ["beer_1"], equipment: [], alive: true },
+      { id: "b", name: "b", role: "outlaw", hp: 2, maxHp: 4, hand: [], equipment: [], alive: true },
+      { id: "c", name: "c", role: "outlaw", hp: 4, maxHp: 4, hand: [], equipment: [], alive: true }, // đã đầy máu
+      { id: "d", name: "d", role: "renegade", hp: 0, maxHp: 4, hand: [], equipment: [], alive: false },
+    ],
+    deck: ["card_1", "card_2", "card_3", "card_4"],
+    discardPile: [],
+    pending: [],
+    currentPlayerIndex: 0,
+    turnPhase: "play",
+    rngState: 1,
+    winner: null,
+    ...overrides,
+  };
+}
+
+describe("reduce — PLAY_CARD (Beer)", () => {
+  it("hồi 1 máu cho chính mình, không quá maxHp", () => {
+    const { state: next, events } = reduce(makeState(), {
+      type: "PLAY_CARD",
+      playerId: "a",
+      cardId: "beer_1",
+    });
+
+    expect(next.players[0].hp).toBe(4);
+    expect(next.discardPile).toEqual(["beer_1"]);
+    expect(events).toEqual([
+      { type: "CARD_PLAYED", playerId: "a", cardId: "beer_1" },
+      { type: "HP_RESTORED", playerId: "a", amount: 1 },
+    ]);
+  });
+
+  it("đã đầy máu thì không hồi thêm, không bắn event HP_RESTORED", () => {
+    const state = makeState({
+      players: [
+        { id: "a", name: "a", role: "sheriff", hp: 5, maxHp: 5, hand: ["beer_1"], equipment: [], alive: true },
+        ...makeState().players.slice(1),
+      ],
+    });
+    const { state: next, events } = reduce(state, { type: "PLAY_CARD", playerId: "a", cardId: "beer_1" });
+
+    expect(next.players[0].hp).toBe(5);
+    expect(events).toEqual([{ type: "CARD_PLAYED", playerId: "a", cardId: "beer_1" }]);
+  });
+});
+
+describe("reduce — PLAY_CARD (Saloon)", () => {
+  it("hồi 1 máu cho mọi người còn sống, bỏ qua người đã chết và người đầy máu", () => {
+    const state = makeState({
+      players: [
+        { id: "a", name: "a", role: "sheriff", hp: 3, maxHp: 5, hand: ["saloon_1"], equipment: [], alive: true },
+        { id: "b", name: "b", role: "outlaw", hp: 2, maxHp: 4, hand: [], equipment: [], alive: true },
+        { id: "c", name: "c", role: "outlaw", hp: 4, maxHp: 4, hand: [], equipment: [], alive: true },
+        { id: "d", name: "d", role: "renegade", hp: 0, maxHp: 4, hand: [], equipment: [], alive: false },
+      ],
+    });
+
+    const { state: next, events } = reduce(state, {
+      type: "PLAY_CARD",
+      playerId: "a",
+      cardId: "saloon_1",
+    });
+
+    expect(next.players[0].hp).toBe(4); // a: 3 -> 4
+    expect(next.players[1].hp).toBe(3); // b: 2 -> 3
+    expect(next.players[2].hp).toBe(4); // c: đầy máu, không đổi
+    expect(next.players[3].hp).toBe(0); // d: đã chết, không đổi
+
+    expect(events).toEqual([
+      { type: "CARD_PLAYED", playerId: "a", cardId: "saloon_1" },
+      { type: "HP_RESTORED", playerId: "a", amount: 1 },
+      { type: "HP_RESTORED", playerId: "b", amount: 1 },
+    ]);
+  });
+});
+
+describe("reduce — PLAY_CARD (Stagecoach / Wells Fargo)", () => {
+  it("Stagecoach rút đúng 2 lá từ đỉnh deck", () => {
+    const state = makeState({
+      players: [
+        { id: "a", name: "a", role: "sheriff", hp: 3, maxHp: 5, hand: ["stagecoach_1"], equipment: [], alive: true },
+        ...makeState().players.slice(1),
+      ],
+    });
+
+    const { state: next, events } = reduce(state, {
+      type: "PLAY_CARD",
+      playerId: "a",
+      cardId: "stagecoach_1",
+    });
+
+    expect(next.players[0].hand).toEqual(["card_4", "card_3"]);
+    expect(next.deck).toEqual(["card_1", "card_2"]);
+    expect(events).toEqual([
+      { type: "CARD_PLAYED", playerId: "a", cardId: "stagecoach_1" },
+      { type: "CARDS_DRAWN", playerId: "a", count: 2 },
+    ]);
+  });
+
+  it("Wells Fargo rút đúng 3 lá từ đỉnh deck", () => {
+    const state = makeState({
+      players: [
+        { id: "a", name: "a", role: "sheriff", hp: 3, maxHp: 5, hand: ["wells_fargo_1"], equipment: [], alive: true },
+        ...makeState().players.slice(1),
+      ],
+    });
+
+    const { state: next, events } = reduce(state, {
+      type: "PLAY_CARD",
+      playerId: "a",
+      cardId: "wells_fargo_1",
+    });
+
+    expect(next.players[0].hand).toEqual(["card_4", "card_3", "card_2"]);
+    expect(next.deck).toEqual(["card_1"]);
+    expect(events).toEqual([
+      { type: "CARD_PLAYED", playerId: "a", cardId: "wells_fargo_1" },
+      { type: "CARDS_DRAWN", playerId: "a", count: 3 },
+    ]);
+  });
+});
+
+describe("reduce — không sửa state gốc khi đánh các lá này", () => {
+  it("Beer/Saloon/Stagecoach/Wells Fargo đều không đụng state truyền vào", () => {
+    const cases: Array<[string, string]> = [
+      ["beer_1", "a"],
+      ["stagecoach_1", "a"],
+      ["wells_fargo_1", "a"],
+    ];
+
+    for (const [cardId, playerId] of cases) {
+      const state = makeState({
+        players: [
+          { id: "a", name: "a", role: "sheriff", hp: 3, maxHp: 5, hand: [cardId], equipment: [], alive: true },
+          ...makeState().players.slice(1),
+        ],
+      });
+      const snapshot = JSON.parse(JSON.stringify(state));
+      reduce(state, { type: "PLAY_CARD", playerId, cardId });
+      expect(state).toEqual(snapshot);
+    }
+  });
+});

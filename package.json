@@ -1,0 +1,29 @@
+{
+  "name": "boardgame",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "dev": "vite",
+    "build": "vite build"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Liu-548/BoardGame.git"
+  },
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Liu-548/BoardGame/issues"
+  },
+  "homepage": "https://github.com/Liu-548/BoardGame#readme",
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260724.1",
+    "typescript": "^7.0.2",
+    "vite": "^8.1.5",
+    "vitest": "^4.1.10",
+    "wrangler": "^4.114.0"
+  }
+}

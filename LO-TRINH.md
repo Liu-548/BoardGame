@@ -50,7 +50,7 @@
 | # | Việc | Xong khi nào |
 |---|---|---|
 | 2.1 | HTML/CSS/DOM cơ bản | Tự tạo được trang có nút bấm và đổi nội dung |
-| 2.2 | Vẽ state ra màn hình | Nhìn màn hình biết được ai còn mấy máu, có bài gì |
+| 2.2 | Vẽ state ra màn hình | Nhìn màn hình biết được ai còn mấy máu, có bài gì (hiển thị bằng chữ/tên, vd "Bang!" — **chưa cần hình ảnh**, ảnh gắn dần ở việc 4.6) |
 | 2.3 | Bấm lá bài → gọi `reduce` | Chơi được ván hoàn chỉnh trên 1 máy |
 | 2.4 | Hiện stack `pending` cho người dùng | Người chơi biết "đang chờ B trả lời" |
 | 2.5 | Chế độ hotseat | 4 người ngồi chung 1 máy chơi hết ván |
@@ -83,6 +83,7 @@
 | 4.3 | Xử lý người bỏ ván giữa chừng | Ván không bị treo |
 | 4.4 | Giao diện dễ nhìn hơn, responsive | Chơi được trên điện thoại |
 | 4.5 | Kiểm tra hạn mức Cloudflare | Xem dashboard, duration/ngày gần 0 |
+| 4.6 | Hình ảnh lá bài | Ảnh để trong `public/sprites/`, bổ sung dần và gắn vào từng lá tương ứng trong game — **không vội**, có ảnh tới đâu gắn tới đó, thiếu ảnh vẫn hiển thị bằng chữ như cũ |
 
 ---
 
@@ -95,6 +96,36 @@
 | 5.3 | Bật/tắt house rules | Cấu hình theo phòng |
 | 5.4 | Expansion | Chỉ là thêm file dữ liệu + hook nếu 5.1 làm đúng |
 | 5.5 | Board game thứ hai | Chung `server/`, khác `core/` |
+
+### Ghi chú cho 5.3 — ý tưởng luật bổ sung (house rules)
+
+Chưa thiết kế chi tiết, chỉ ghi lại để không quên. Nguyên tắc chung:
+
+- Luật gốc = luật chuẩn BANG! (những gì đang cài trong giai đoạn 1).
+- Chủ phòng chọn **0 hoặc nhiều** luật bổ sung cho **một ván cụ thể** — các luật này ghi đè lên luật gốc chỉ trong ván đó, không đổi luật gốc, không ảnh hưởng ván khác.
+- Có thể bật nhiều luật bổ sung cùng lúc.
+
+Vài ý tưởng đã nghĩ ra (mỗi luật khi thiết kế thật sẽ nói rõ chi tiết hơn, đây chỉ là danh sách nháp, chưa chốt):
+
+- Tăng khoảng cách mặc định giữa 2 người chơi (vd từ 1 lên 2)
+- Yêu cầu phải có trang bị súng mới được đánh Bang! (bỏ súng ngầm định)
+- Cho phép đánh Bang! nhiều lần trong 1 lượt, nhưng không được dùng 2 lá trùng tên
+- Cho phép dùng nhiều lá trùng tên trong 1 lượt
+- Cho phép dùng Beer kể cả khi chỉ còn 2 người sống (bỏ ngoại lệ luật gốc)
+- Cho phép gộp 2 lá Beer để hồi máu cho 1 người chơi khác (thay vì chỉ hồi cho chính mình)
+
+### Biến thể theo số người chơi (2 / 3 / 8) — ngoài phạm vi 4–7 người mặc định
+
+Cũng là ý tưởng nháp cho 5.3, chưa thiết kế chi tiết:
+
+- **2 người:** không chia vai. Giết người kia là thắng.
+- **3 người:** chia ngẫu nhiên 3 vai **cảnh sát / tội phạm / kẻ phản bội**, mục tiêu xếp vòng tròn:
+  cảnh sát → giết tội phạm, tội phạm → giết kẻ phản bội, kẻ phản bội → giết cảnh sát.
+  Ai giết đúng mục tiêu của mình thì thắng ngay lập tức.
+  Nếu mục tiêu chết nhưng **không phải do đúng người săn nó giết** (vd giết nhầm, chết vì Dynamite...),
+  ván quay về luật 2 người ở trên với 2 người còn sống — ai sống đến cuối thì thắng.
+  > Chưa rõ cách engine xác định "ai là người giết" (ai đánh lá khiến máu về 0) — cần làm rõ khi thiết kế 5.3.
+- **8 người:** giống 7 người mặc định, cộng thêm 1 kẻ phản bội (renegade) nữa.
 
 ---
 

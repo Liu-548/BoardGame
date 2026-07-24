@@ -120,9 +120,9 @@ Nguyên tắc chung:
 
 > Cập nhật dòng này mỗi khi xong một giai đoạn. Xem `LO-TRINH.md`.
 
-**Đang ở:** Giai đoạn 0 — chuẩn bị. Chưa có code.
+**Đang ở:** Giai đoạn 1 — engine luật chơi. Đã xong tới việc 1.9 (bài nâu tấn công: Bang!, Missed!, Beer, Saloon, Stagecoach, Wells Fargo, Indians!, Duel, Gatling, General Store, Panic!, Cat Balou). 76 test đều pass.
 
-**Việc tiếp theo:** 1.1 định nghĩa kiểu dữ liệu state.
+**Việc tiếp theo:** 1.10 cơ chế "draw!" (lật bài kiểm tra) — cần cho Jail, Dynamite, Barrel ở việc 1.11.
 
 ## Chưa làm tới, đừng đụng vào
 
