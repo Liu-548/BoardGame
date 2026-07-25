@@ -16,13 +16,15 @@ import type { PlayerView } from "./core/view";
 // ----- Client → Server -----
 
 export type ClientMessage =
-  // Việc đầu tiên khi vừa kết nối: cho server biết mình là ai trong ván —
-  // WebSocket không tự mang theo danh tính, phải tự giới thiệu.
-  | { type: "join"; playerId: string }
-  // Tạm thời (CHƯA có lobby thật — việc 3.9): người chơi tự gõ đúng danh sách
-  // playerId muốn chơi cùng + seed để bắt đầu ván mới trong phòng này. Nếu
-  // phòng đã có ván đang chơi, server bỏ qua (không ghi đè ván đang chơi dở).
-  | { type: "start_game"; playerIds: string[]; seed: number }
+  // Việc đầu tiên khi vừa kết nối: cho server biết mình là ai + tên hiển thị
+  // — WebSocket không tự mang theo danh tính, phải tự giới thiệu. Server
+  // dùng `name` để hiện trong danh sách chờ ở lobby (việc 3.9).
+  | { type: "join"; playerId: string; name: string }
+  // Bắt đầu ván mới trong phòng này — dùng ĐÚNG những người đang kết nối và
+  // đã "join" (server tự biết, không cần client liệt kê lại — khác việc 3.7
+  // lúc CHƯA có lobby thật, phải gõ tay playerIds). Nếu phòng đã có ván đang
+  // chơi, server bỏ qua (không ghi đè ván đang chơi dở).
+  | { type: "start_game"; seed: number }
   // Một hành động luật chơi (rút bài, đánh bài, trả lời...) — forward nguyên
   // si vào reduce(state, action) ở server.
   | { type: "action"; action: Action }
@@ -34,11 +36,15 @@ export type ClientMessage =
 // ----- Server → Client -----
 
 export type ServerMessage =
+  // Danh sách người đang có mặt trong phòng (đã "join", CHƯA CHẮC đã bắt đầu
+  // ván) — dùng để vẽ màn hình lobby (việc 3.9): ai đã vào, đủ người chưa.
+  // Gửi lại cho CẢ PHÒNG mỗi khi có người vào/rời phòng.
+  | { type: "lobby"; players: { id: string; name: string }[] }
   // State đã LỌC RIÊNG cho từng người nhận (viewFor(), việc 3.6) — KHÔNG BAO
   // GIỜ gửi state đầy đủ (quy tắc 6 CLAUDE.md).
   | { type: "state"; view: PlayerView; events: GameEvent[] }
-  // Hành động bị từ chối (reduce() ném lỗi) — CHỈ gửi lại cho đúng người vừa
-  // gửi hành động đó, không phát cho cả phòng.
+  // Hành động bị từ chối (reduce()/setupGame() ném lỗi) — CHỈ gửi lại cho
+  // đúng người vừa gửi hành động đó, không phát cho cả phòng.
   | { type: "action_error"; message: string }
   // Tin nhắn chat đã chuyển tiếp. `scope` cho client biết cách hiển thị
   // ("An nói với cả phòng" hay "An nhắn riêng cho bạn"). QUAN TRỌNG: với tin

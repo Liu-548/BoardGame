@@ -26,6 +26,7 @@ export class RoomConnection {
   constructor(
     private readonly url: string,
     private readonly playerId: string,
+    private readonly name: string,
     private readonly handlers: NetHandlers
   ) {
     this.connect();
@@ -36,7 +37,7 @@ export class RoomConnection {
     this.ws = ws;
 
     ws.addEventListener("open", () => {
-      this.send({ type: "join", playerId: this.playerId });
+      this.send({ type: "join", playerId: this.playerId, name: this.name });
       this.handlers.onConnected?.();
     });
 

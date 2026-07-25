@@ -13,21 +13,19 @@
 // class sẽ mất vì code có thể chạy lại từ constructor mới sau khi thức dậy.
 //
 // Việc 3.5 (giao thức tin nhắn — xem src/protocol.ts): phần CHAT nối thật vào
-// đây (không phụ thuộc state ván đấu). Mỗi socket tự giới thiệu bằng
-// ClientMessage "join", server nhớ playerId của socket đó bằng
-// serializeAttachment.
+// đây (không phụ thuộc state ván đấu).
 //
 // Việc 3.6 (core/view.ts): viewFor() lọc state riêng cho từng người xem.
 //
 // Việc 3.7: GameState của ván đấu lưu trong `ctx.storage` (khoá "gameState")
 // — KHÔNG BAO GIỜ giữ trong field thường của class, giống lý do ở việc 3.3.
-// Mỗi lần xử lý "action" đều: đọc state từ storage -> reduce() -> ghi state
-// mới lại storage -> gửi viewFor() riêng cho từng socket đang mở. Nhờ vậy
-// Worker có bị khởi động lại/deploy lại giữa ván (Durable Object bị evict)
-// thì lần request kế tiếp storage vẫn còn nguyên, ván không mất.
 //
-// CHƯA có lobby thật (việc 3.9) nên "start_game" tạm nhận thẳng danh sách
-// playerId từ client thay vì tự quản lý danh sách người đã vào phòng.
+// Việc 3.9 (lobby): KHÔNG lưu riêng "danh sách người trong phòng" ở đâu cả —
+// `ctx.getWebSockets()` + `deserializeAttachment()` của từng socket ĐANG MỞ
+// đã CHÍNH LÀ danh sách người có mặt, luôn đúng, không cần đồng bộ 2 nơi.
+// "start_game" giờ tự lấy danh sách này thay vì client gõ tay playerIds như
+// tạm bợ ở việc 3.7. Mỗi khi có người join/rời phòng, phát lại ServerMessage
+// "lobby" cho cả phòng để ai cũng thấy đúng danh sách hiện tại.
 
 import { reduce } from "../core/reduce";
 import { setupGame } from "../core/setup";
@@ -37,6 +35,7 @@ import type { ClientMessage, ServerMessage } from "../protocol";
 
 interface SocketAttachment {
   playerId: string;
+  name: string;
 }
 
 const GAME_STATE_KEY = "gameState";
@@ -78,13 +77,13 @@ export class Room {
 
     switch (parsed.type) {
       case "join":
-        await this.handleJoin(ws, parsed.playerId);
+        await this.handleJoin(ws, parsed.playerId, parsed.name);
         return;
       case "chat":
         this.broadcastChat(ws, parsed.text, parsed.to);
         return;
       case "start_game":
-        await this.handleStartGame(ws, parsed.playerIds, parsed.seed);
+        await this.handleStartGame(ws, parsed.seed);
         return;
       case "action":
         await this.handleAction(ws, parsed.action);
@@ -96,9 +95,11 @@ export class Room {
     }
   }
 
-  private async handleJoin(ws: WebSocket, playerId: string): Promise<void> {
-    const attachment: SocketAttachment = { playerId };
+  private async handleJoin(ws: WebSocket, playerId: string, name: string): Promise<void> {
+    const attachment: SocketAttachment = { playerId, name };
     ws.serializeAttachment(attachment);
+
+    this.broadcastLobby();
 
     // Vừa vào lại phòng (vd sau khi deploy lại/mất mạng) mà ván đã có sẵn ->
     // gửi ngay state hiện tại, không cần chờ có action mới mới thấy.
@@ -108,12 +109,15 @@ export class Room {
     }
   }
 
-  private async handleStartGame(ws: WebSocket, playerIds: string[], seed: number): Promise<void> {
+  private async handleStartGame(ws: WebSocket, seed: number): Promise<void> {
     const existing = await this.ctx.storage.get<GameState>(GAME_STATE_KEY);
     if (existing) {
       this.sendError(ws, "Phòng này đã có ván đang chơi, không thể bắt đầu ván mới");
       return;
     }
+
+    const joined = this.joinedPlayers();
+    const playerIds = joined.map((p) => p.id);
 
     let state: GameState;
     try {
@@ -121,6 +125,12 @@ export class Room {
     } catch (e) {
       this.sendError(ws, e instanceof Error ? e.message : "Không tạo được ván mới");
       return;
+    }
+
+    // setupGame() tạm dùng id làm tên hiển thị — gán lại tên thật đã "join".
+    for (const player of state.players) {
+      const info = joined.find((p) => p.id === player.id);
+      if (info) player.name = info.name;
     }
 
     await this.ctx.storage.put(GAME_STATE_KEY, state);
@@ -144,6 +154,25 @@ export class Room {
 
     await this.ctx.storage.put(GAME_STATE_KEY, result.state);
     this.broadcastState(result.state, result.events);
+  }
+
+  // Danh sách người ĐANG kết nối và đã "join" — lấy trực tiếp từ các socket
+  // đang mở (không lưu riêng ở đâu cả, xem ghi chú đầu file).
+  private joinedPlayers(): { id: string; name: string }[] {
+    const players: { id: string; name: string }[] = [];
+    for (const socket of this.ctx.getWebSockets()) {
+      const attachment = socket.deserializeAttachment() as SocketAttachment | null;
+      if (attachment?.playerId) players.push({ id: attachment.playerId, name: attachment.name });
+    }
+    return players;
+  }
+
+  private broadcastLobby(): void {
+    const message: ServerMessage = { type: "lobby", players: this.joinedPlayers() };
+    const payload = JSON.stringify(message);
+    for (const socket of this.ctx.getWebSockets()) {
+      socket.send(payload);
+    }
   }
 
   // Gửi viewFor() RIÊNG cho từng socket đang mở — không phải cùng 1 gói tin
@@ -210,6 +239,18 @@ export class Room {
       ws.close(code, reason);
     } catch {
       // Mã đóng không hợp lệ để gửi lại — bỏ qua, không ảnh hưởng gì thêm.
+    }
+
+    // Báo cho người còn lại biết phòng vừa vơi đi 1 người — loại trừ chính
+    // socket đang đóng (getWebSockets() có thể vẫn còn liệt kê nó lúc này).
+    const closingAttachment = ws.deserializeAttachment() as SocketAttachment | null;
+    const message: ServerMessage = {
+      type: "lobby",
+      players: this.joinedPlayers().filter((p) => p.id !== closingAttachment?.playerId),
+    };
+    const payload = JSON.stringify(message);
+    for (const socket of this.ctx.getWebSockets()) {
+      if (socket !== ws) socket.send(payload);
     }
   }
 }
