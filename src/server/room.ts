@@ -13,10 +13,13 @@
 // class sẽ mất vì code có thể chạy lại từ constructor mới sau khi thức dậy.
 //
 // Việc 3.5 (giao thức tin nhắn — xem src/protocol.ts): phần CHAT nối thật vào
-// đây luôn (không phụ thuộc state ván đấu nên không cần chờ view.ts ở việc
-// 3.6). Mỗi socket tự giới thiệu bằng ClientMessage "join", server nhớ
-// playerId của socket đó bằng serializeAttachment. Phần "action" (đánh bài
-// thật) CHƯA xử lý ở đây — để dành việc 3.6 trở đi, sau khi có viewFor().
+// đây luôn (không phụ thuộc state ván đấu nên không cần chờ view.ts). Mỗi
+// socket tự giới thiệu bằng ClientMessage "join", server nhớ playerId của
+// socket đó bằng serializeAttachment.
+//
+// Việc 3.6 (core/view.ts): viewFor() đã có, nhưng phần "action" (đánh bài
+// thật) CHƯA xử lý ở đây — Room còn chưa có chỗ LƯU state ván đấu (việc 3.7:
+// lưu vào ctx.storage), nên chưa có gì để gọi reduce()/viewFor() lên.
 //
 // Dùng chung tên "Room" cho lớp Durable Object luật chơi thật sau này (từ
 // việc 3.4 đã có mã phòng riêng, 1 phòng = 1 instance).
@@ -73,7 +76,7 @@ export class Room {
       return;
     }
 
-    // parsed.type === "action": để dành việc 3.6 trở đi (cần viewFor() trước).
+    // parsed.type === "action": để dành việc 3.7 trở đi (Room chưa có chỗ lưu state ván đấu).
   }
 
   // Không có `to` -> gửi cho CẢ PHÒNG. Có `to` -> CHỈ gửi cho đúng người gửi

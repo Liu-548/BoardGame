@@ -135,18 +135,18 @@ Nguyên tắc chung:
 
 > Cập nhật dòng này mỗi khi xong một giai đoạn. Xem `LO-TRINH.md`.
 
-**Đang ở:** Giai đoạn 3 — mạng (Giai đoạn 1 + 2 đã HOÀN THÀNH TOÀN BỘ). **XONG việc 3.1 → 3.5** (+ bonus chat công khai/riêng tư):
+**Đang ở:** Giai đoạn 3 — mạng (Giai đoạn 1 + 2 đã HOÀN THÀNH TOÀN BỘ). **XONG việc 3.1 → 3.6** (+ bonus chat công khai/riêng tư):
 
-- 3.1: `src/server/index.ts` là Worker entry, đã deploy thật lên Cloudflare (tài khoản `nguyenngoctuan548@gmail.com`) — link: **https://bang-boardgame.nguyenngoctuan548.workers.dev** (⚠️ link này đang chạy CODE CŨ, chưa deploy lại từ sau việc 3.2 — chỉ mới `wrangler dev` local cho 3.3/3.4/3.5, nói trước khi deploy lại nếu cần).
+- 3.1: `src/server/index.ts` là Worker entry, đã deploy thật lên Cloudflare (tài khoản `nguyenngoctuan548@gmail.com`) — link: **https://bang-boardgame.nguyenngoctuan548.workers.dev** (⚠️ link này đang chạy CODE CŨ, chưa deploy lại từ sau việc 3.2 — 3.3/3.4/3.5/3.6 mới chỉ chạy `wrangler dev` local, cần deploy lại để lên bản mới nhất).
 - 3.2: `src/server/room.ts` — Durable Object `Room`, đếm lượt truy cập bằng `ctx.storage`. `wrangler.jsonc` có `durable_objects.bindings` + `migrations` (`new_sqlite_classes`).
 - 3.3: WebSocket + Hibernation — bắt buộc `ctx.acceptWebSocket()`, không `server.accept()` (quy tắc 7). `webSocketClose()` bọc `try/catch` vì mã đóng "dự phòng" (1005/1006) từ trình duyệt có thể khiến `ws.close()` tự ném lỗi (phát hiện qua log lúc kiểm thử).
 - 3.4: `index.ts` định tuyến `/room/<mã phòng>` — `env.ROOM.idFromName(roomCode)` tự đảm bảo "cùng mã → cùng Room".
-- 3.5 + bonus: `src/protocol.ts` (**mới, lệch cấu trúc gốc** — xem mục "Cấu trúc thư mục" ở trên) định nghĩa `ClientMessage`/`ServerMessage`. Đã NỐI THẬT phần chat vào `room.ts` (không chờ view.ts việc 3.6 vì chat không đụng state ván đấu): gửi `{type:"join", playerId}` để server nhớ danh tính socket (`ws.serializeAttachment()` — sống sót qua hibernate, khác biến JS thường); gửi `{type:"chat", text, to?}` — không có `to` thì phát cho CẢ PHÒNG, có `to` thì **server chỉ gửi cho đúng người gửi + người nhận đó, không ai khác trong phòng nhận được gói tin** (không phải kiểu ẩn ở giao diện). Phần `{type:"action"}` (đánh bài thật) CHƯA xử lý — để dành việc 3.6 trở đi khi có `viewFor()`.
-- Đã tự kiểm bằng 3 tab trình duyệt thật (An/Bình/Chi tự `join`): nhắn cả phòng cả 3 đều thấy; An nhắn riêng cho Bình và Bình trả lời riêng — cả 2 chiều đúng người nhận, Chi hoàn toàn không thấy nội dung tin riêng (kiểm tra mảng tin nhận được ở tab Chi, không chỉ nhìn giao diện). Không lỗi console, không lỗi log server.
+- 3.5 + bonus: `src/protocol.ts` (**mới, lệch cấu trúc gốc** — xem mục "Cấu trúc thư mục" ở trên) định nghĩa `ClientMessage`/`ServerMessage`. Đã NỐI THẬT phần chat vào `room.ts` (không chờ view.ts vì chat không đụng state ván đấu): gửi `{type:"join", playerId}` để server nhớ danh tính socket (`ws.serializeAttachment()` — sống sót qua hibernate, khác biến JS thường); gửi `{type:"chat", text, to?}` — không có `to` thì phát cho CẢ PHÒNG, có `to` thì **server chỉ gửi cho đúng người gửi + người nhận đó, không ai khác trong phòng nhận được gói tin** (không phải kiểu ẩn ở giao diện). Đã tự kiểm bằng 3 tab trình duyệt thật (An/Bình/Chi tự `join`): nhắn cả phòng cả 3 đều thấy; nhắn riêng cả 2 chiều đúng người nhận, người thứ 3 hoàn toàn không thấy nội dung (kiểm tra mảng tin nhận được, không chỉ nhìn giao diện). Không lỗi console/server.
+- 3.6: `core/view.ts` — `viewFor(state, playerId): PlayerView`. Ẩn với người khác: nội dung bài trên tay (chỉ lộ `handCount`), vai trò (`role`) — trừ chính mình/Cảnh sát trưởng (luôn công khai)/người đã chết (lật vai khi bị loại, đúng luật gốc); và nội dung bộ bài rút (chỉ lộ `deckCount`). Máu, trang bị, còn sống/chết, chồng bỏ, `pending`, lượt, kết quả ván đều giữ nguyên (vốn công khai). Kiểm bằng 9 test Vitest riêng (`test/view.test.ts`) — không cần trình duyệt vì là hàm thuần, test chắc chắn hơn nhìn DevTools bằng mắt. `protocol.ts`'s `ServerMessage.state.view` đổi từ `unknown` sang `PlayerView` thật. Phần `{type:"action"}` (đánh bài thật qua mạng) VẪN CHƯA nối vào `room.ts` — chờ việc 3.7 (Room chưa có chỗ lưu state ván đấu).
 
-153 test đều pass (không đổi gì ở `src/core/`).
+162 test đều pass.
 
-**Việc tiếp theo:** 3.6 — lọc view theo người chơi (`core/view.ts`, `viewFor()`) — cần xong trước khi nối phần `action`/state thật vào giao thức 3.5.
+**Việc tiếp theo:** deploy lại bản server mới nhất (3.3-3.6) lên Cloudflare, rồi 3.7 — lưu state vào DO storage.
 
 ## Chưa làm tới, đừng đụng vào
 
