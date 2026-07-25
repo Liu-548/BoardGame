@@ -8,7 +8,9 @@
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "dev": "vite",
-    "build": "vite build"
+    "build": "vite build",
+    "server:dev": "wrangler dev",
+    "deploy": "wrangler deploy"
   },
   "repository": {
     "type": "git",
