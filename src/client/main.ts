@@ -6,6 +6,11 @@
 // màn hình thiết lập (giữ nguyên tên cũ) để chơi ván khác, không cần tải lại
 // trang.
 //
+// Việc 3.9: thêm màn hình chọn cách chơi (chung 1 máy / qua mạng) + lobby
+// (tạo phòng / vào phòng bằng mã 6 ký tự). Màn hình bàn chơi qua mạng CHỈ
+// hiển thị tối giản (đọc PlayerView, chưa bấm bài được) — nối tương tác thật
+// để dành việc 3.10.
+//
 // `selection`/`discardSelectionIds`/`error` là trạng thái TẠM THỜI chỉ có ý
 // nghĩa ở client (không phải trong GameState) — vd "đã bấm lá Bang!, đang chờ
 // bấm chọn mục tiêu". Reset về "idle" sau mỗi lần reduce() thành công.
@@ -15,8 +20,18 @@ import type { CardName } from "../core/cards";
 import { reduce } from "../core/reduce";
 import { setupGame } from "../core/setup";
 import type { Action, GameState } from "../core/types";
-import { renderApp, renderSetupScreen } from "./ui";
-import type { Selection } from "./ui";
+import type { PlayerView } from "../core/view";
+import { RoomConnection } from "./net";
+import type { ServerMessage } from "../protocol";
+import {
+  renderApp,
+  renderHomeScreen,
+  renderNetworkGameReadOnly,
+  renderNetworkLobby,
+  renderNetworkLobbyForm,
+  renderSetupScreen,
+} from "./ui";
+import type { LobbyPlayer, Selection } from "./ui";
 
 const root = document.getElementById("game-root") as HTMLDivElement;
 
@@ -26,42 +41,86 @@ const NEEDS_TARGET = new Set<CardName>(["bang", "duel", "jail", "panic", "cat_ba
 
 const DEFAULT_PLAYER_NAMES = ["An", "Bình", "Chi", "Dũng"];
 
-let screen: "setup" | "game" = "setup";
+type Screen = "home" | "local-setup" | "local-game" | "network-form" | "network-lobby" | "network-game";
+
+let screen: Screen = "home";
+
+// ----- Chế độ chơi chung 1 máy (hotseat, việc 2.x) -----
 let playerNames: string[] = [...DEFAULT_PLAYER_NAMES];
 let setupError: string | null = null;
-
-// Chỉ tồn tại sau khi bấm "Bắt đầu ván" — trước đó chưa có state nào cả.
-let state: GameState;
+let state: GameState; // chỉ tồn tại sau khi bấm "Bắt đầu ván"
 let selection: Selection = { step: "idle" };
 let discardSelectionIds: string[] = [];
 let error: string | null = null;
 
-function render(): void {
-  if (screen === "setup") {
-    renderSetupScreen(root, playerNames, setupError, {
-      onNameChange,
-      onAddPlayer,
-      onRemovePlayer,
-      onStartGame,
-    });
-    return;
-  }
+// ----- Chế độ chơi qua mạng (việc 3.9) -----
+let networkName = "";
+let networkCode = "";
+let networkError: string | null = null;
+let netConnection: RoomConnection | null = null;
+let myPlayerId = "";
+let lobbyPlayers: LobbyPlayer[] = [];
+let networkView: PlayerView | null = null;
 
-  renderApp(root, state, { selection, discardSelection: discardSelectionIds, error }, {
-    onDrawCards,
-    onEndTurn,
-    onToggleDiscardCard,
-    onConfirmDiscard,
-    onHandCardClick,
-    onEquipmentClick,
-    onPlayerClick,
-    onStoreOptionClick,
-    onZoneClick,
-    onRespondTakeConsequence,
-    onCancelSelection,
-    onPlayAgain,
-  });
+function render(): void {
+  switch (screen) {
+    case "home":
+      renderHomeScreen(root, { onPlayLocal, onPlayNetwork });
+      return;
+    case "local-setup":
+      renderSetupScreen(root, playerNames, setupError, {
+        onNameChange,
+        onAddPlayer,
+        onRemovePlayer,
+        onStartGame,
+      });
+      return;
+    case "local-game":
+      renderApp(root, state, { selection, discardSelection: discardSelectionIds, error }, {
+        onDrawCards,
+        onEndTurn,
+        onToggleDiscardCard,
+        onConfirmDiscard,
+        onHandCardClick,
+        onEquipmentClick,
+        onPlayerClick,
+        onStoreOptionClick,
+        onZoneClick,
+        onRespondTakeConsequence,
+        onCancelSelection,
+        onPlayAgain,
+      });
+      return;
+    case "network-form":
+      renderNetworkLobbyForm(root, networkName, networkCode, networkError, {
+        onNameChange: onNetworkNameChange,
+        onCodeChange: onNetworkCodeChange,
+        onGenerateCode,
+        onJoinRoom,
+      });
+      return;
+    case "network-lobby":
+      renderNetworkLobby(root, networkCode, lobbyPlayers, networkError, { onStartGame: onNetworkStartGame });
+      return;
+    case "network-game":
+      if (networkView) renderNetworkGameReadOnly(root, networkView);
+      return;
+  }
 }
+
+// ----- Màn hình chọn cách chơi -----
+
+function onPlayLocal(): void {
+  screen = "local-setup";
+  render();
+}
+
+function onPlayNetwork(): void {
+  screen = "network-form";
+  render();
+}
+
+// ----- Chế độ chơi chung 1 máy (hotseat) -----
 
 // KHÔNG render() ở đây — render lại giữa lúc đang gõ sẽ xoá và tạo lại input
 // mới, làm mất con trỏ đang gõ (xem ghi chú ở ui.ts).
@@ -98,7 +157,7 @@ function onStartGame(): void {
     player.name = trimmedNames[index];
   });
 
-  screen = "game";
+  screen = "local-game";
   selection = { step: "idle" };
   discardSelectionIds = [];
   error = null;
@@ -106,7 +165,7 @@ function onStartGame(): void {
 }
 
 function onPlayAgain(): void {
-  screen = "setup";
+  screen = "local-setup";
   render();
 }
 
@@ -246,6 +305,104 @@ function onRespondTakeConsequence(): void {
 function onCancelSelection(): void {
   selection = { step: "idle" };
   render();
+}
+
+// ----- Chế độ chơi qua mạng (việc 3.9) -----
+
+const ROOM_CODE_LENGTH = 6;
+// Bỏ các ký tự dễ nhầm khi đọc/gõ tay: 0/O, 1/I/L.
+const ROOM_CODE_CHARS = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+
+function randomRoomCode(): string {
+  let code = "";
+  for (let i = 0; i < ROOM_CODE_LENGTH; i++) {
+    code += ROOM_CODE_CHARS[Math.floor(Math.random() * ROOM_CODE_CHARS.length)];
+  }
+  return code;
+}
+
+// URL của server phòng. Mặc định dùng CÙNG gốc với trang (đúng cho lúc deploy
+// thật, client + server chung domain) — lúc phát triển cục bộ (client chạy
+// Vite ở 1 cổng, server chạy wrangler ở cổng khác) truyền qua query string
+// ?server=host:port để trỏ đúng, vd http://localhost:5173/?server=127.0.0.1:8787
+function roomWebSocketUrl(code: string): string {
+  const params = new URLSearchParams(location.search);
+  const host = params.get("server") ?? location.host;
+  const protocol = location.protocol === "https:" ? "wss" : "ws";
+  return `${protocol}://${host}/room/${code}`;
+}
+
+function onNetworkNameChange(value: string): void {
+  networkName = value;
+}
+
+function onNetworkCodeChange(value: string): void {
+  networkCode = value;
+}
+
+function onGenerateCode(): void {
+  networkCode = randomRoomCode();
+  render();
+}
+
+function onJoinRoom(): void {
+  const trimmedName = networkName.trim();
+  const trimmedCode = networkCode.trim().toUpperCase();
+
+  if (trimmedName.length === 0) {
+    networkError = "Bạn cần nhập tên trước khi vào phòng";
+    render();
+    return;
+  }
+  if (trimmedCode.length !== ROOM_CODE_LENGTH) {
+    networkError = `Mã phòng phải có đúng ${ROOM_CODE_LENGTH} ký tự`;
+    render();
+    return;
+  }
+
+  networkError = null;
+  networkCode = trimmedCode;
+  myPlayerId = `p-${Math.random().toString(36).slice(2, 10)}`;
+  lobbyPlayers = [];
+  networkView = null;
+
+  netConnection = new RoomConnection(roomWebSocketUrl(trimmedCode), myPlayerId, trimmedName, {
+    onMessage: onNetworkMessage,
+    onDisconnected: () => {
+      networkError = "Mất kết nối, đang thử nối lại...";
+      render();
+    },
+  });
+
+  screen = "network-lobby";
+  render();
+}
+
+function onNetworkMessage(message: ServerMessage): void {
+  networkError = null;
+
+  switch (message.type) {
+    case "lobby":
+      lobbyPlayers = message.players;
+      if (screen === "network-lobby") render();
+      return;
+    case "state":
+      networkView = message.view;
+      screen = "network-game";
+      render();
+      return;
+    case "action_error":
+      networkError = message.message;
+      render();
+      return;
+    case "chat":
+      // Chưa có UI chat qua mạng — để dành khi nối tương tác thật (việc 3.10).
+      return;
+  }
+}
+
+function onNetworkStartGame(): void {
+  netConnection?.send({ type: "start_game", seed: Date.now() });
 }
 
 render();

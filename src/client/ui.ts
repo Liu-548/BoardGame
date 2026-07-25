@@ -6,6 +6,7 @@
 import { cardNameFromId } from "../core/cards";
 import type { CardName } from "../core/cards";
 import type { GameState, PendingAction, PlayerState, Role } from "../core/types";
+import type { PlayerView } from "../core/view";
 
 const CARD_LABELS: Record<CardName, string> = {
   bang: "Bang!",
@@ -494,4 +495,192 @@ export function renderSetupScreen(
   container.appendChild(controls);
 
   container.appendChild(button("Bắt đầu ván", () => handlers.onStartGame()));
+}
+
+// ----- Việc 3.9: chọn chế độ chơi + lobby qua mạng (tạo phòng / vào phòng
+// bằng mã 6 ký tự). Màn hình bàn chơi qua mạng ở đây CHỈ hiển thị tối giản
+// (đọc PlayerView, KHÔNG bấm bài được) — nối tương tác thật để dành việc 3.10.
+
+export interface HomeHandlers {
+  onPlayLocal(): void;
+  onPlayNetwork(): void;
+}
+
+export function renderHomeScreen(container: HTMLElement, handlers: HomeHandlers): void {
+  container.replaceChildren();
+
+  const heading = document.createElement("h2");
+  heading.textContent = "Chọn cách chơi";
+  container.appendChild(heading);
+
+  const panel = document.createElement("div");
+  panel.className = "panel";
+  panel.appendChild(button("Chơi chung 1 máy (hotseat)", () => handlers.onPlayLocal()));
+  panel.appendChild(button("Chơi qua mạng", () => handlers.onPlayNetwork()));
+  container.appendChild(panel);
+}
+
+export interface NetworkLobbyFormHandlers {
+  onNameChange(value: string): void;
+  onCodeChange(value: string): void;
+  onGenerateCode(): void;
+  onJoinRoom(): void;
+}
+
+export function renderNetworkLobbyForm(
+  container: HTMLElement,
+  name: string,
+  code: string,
+  error: string | null,
+  handlers: NetworkLobbyFormHandlers
+): void {
+  container.replaceChildren();
+
+  const heading = document.createElement("h2");
+  heading.textContent = "Chơi qua mạng";
+  container.appendChild(heading);
+
+  if (error) {
+    const errorEl = document.createElement("p");
+    errorEl.className = "error";
+    errorEl.textContent = error;
+    container.appendChild(errorEl);
+  }
+
+  const nameLabel = document.createElement("p");
+  nameLabel.textContent = "Tên của bạn:";
+  container.appendChild(nameLabel);
+  const nameInput = document.createElement("input");
+  nameInput.type = "text";
+  nameInput.value = name;
+  nameInput.placeholder = "Tên hiển thị";
+  nameInput.addEventListener("input", () => handlers.onNameChange(nameInput.value));
+  container.appendChild(nameInput);
+
+  const codeLabel = document.createElement("p");
+  codeLabel.textContent = "Mã phòng (6 ký tự) — tạo mới hoặc nhập mã bạn bè gửi:";
+  container.appendChild(codeLabel);
+  const codeInput = document.createElement("input");
+  codeInput.type = "text";
+  codeInput.value = code;
+  codeInput.placeholder = "VD: AB12CD";
+  codeInput.addEventListener("input", () => handlers.onCodeChange(codeInput.value.toUpperCase()));
+  container.appendChild(codeInput);
+
+  const controls = document.createElement("div");
+  controls.className = "panel";
+  controls.appendChild(button("Tạo mã ngẫu nhiên", () => handlers.onGenerateCode()));
+  controls.appendChild(button("Vào phòng", () => handlers.onJoinRoom()));
+  container.appendChild(controls);
+}
+
+export interface LobbyPlayer {
+  id: string;
+  name: string;
+}
+
+export interface NetworkLobbyHandlers {
+  onStartGame(): void;
+}
+
+const MIN_NETWORK_PLAYERS = 4;
+
+export function renderNetworkLobby(
+  container: HTMLElement,
+  roomCode: string,
+  players: LobbyPlayer[],
+  error: string | null,
+  handlers: NetworkLobbyHandlers
+): void {
+  container.replaceChildren();
+
+  const heading = document.createElement("h2");
+  heading.textContent = "Phòng chờ";
+  container.appendChild(heading);
+
+  const codeEl = document.createElement("p");
+  codeEl.className = "summary";
+  codeEl.textContent = `Mã phòng: ${roomCode} — chia sẻ mã này cho bạn bè để họ vào cùng`;
+  container.appendChild(codeEl);
+
+  if (error) {
+    const errorEl = document.createElement("p");
+    errorEl.className = "error";
+    errorEl.textContent = error;
+    container.appendChild(errorEl);
+  }
+
+  const listLabel = document.createElement("p");
+  listLabel.textContent = `Đã vào phòng (${players.length}):`;
+  container.appendChild(listLabel);
+
+  const list = document.createElement("ul");
+  for (const player of players) {
+    const li = document.createElement("li");
+    li.textContent = player.name;
+    list.appendChild(li);
+  }
+  container.appendChild(list);
+
+  const startBtn = button("Bắt đầu ván", () => handlers.onStartGame());
+  startBtn.disabled = players.length < MIN_NETWORK_PLAYERS;
+  container.appendChild(startBtn);
+
+  if (players.length < MIN_NETWORK_PLAYERS) {
+    const hint = document.createElement("p");
+    hint.textContent = `Cần ít nhất ${MIN_NETWORK_PLAYERS} người mới bắt đầu được.`;
+    container.appendChild(hint);
+  }
+}
+
+// Màn hình bàn chơi qua mạng — CHỈ hiển thị tối giản (đọc PlayerView, không
+// bấm bài được), để dành việc 3.10 nối tương tác thật. Cố tình KHÔNG dùng lại
+// renderApp() ở trên vì đó vẽ từ GameState đầy đủ (chế độ hotseat cùng máy,
+// thấy hết mọi người) — còn PlayerView (việc 3.6) chỉ có bài của CHÍNH MÌNH,
+// hình dạng dữ liệu khác hẳn.
+export function renderNetworkGameReadOnly(container: HTMLElement, view: PlayerView): void {
+  container.replaceChildren();
+
+  const summary = document.createElement("p");
+  summary.className = "summary";
+  summary.textContent =
+    `Giai đoạn lượt: ${TURN_PHASE_LABELS[view.turnPhase]} · Bộ bài còn ${view.deckCount} lá` +
+    (view.winner ? ` · VÁN KẾT THÚC — phe thắng: ${WINNER_LABELS[view.winner]}` : "");
+  container.appendChild(summary);
+
+  const note = document.createElement("p");
+  note.textContent = "(Bấm bài qua mạng để dành việc 3.10 — đây chỉ là màn hình xem tạm.)";
+  container.appendChild(note);
+
+  const playersEl = document.createElement("div");
+  playersEl.className = "players";
+  view.players.forEach((player, index) => {
+    const el = document.createElement("article");
+    el.className = "player";
+    if (index === view.currentPlayerIndex) el.classList.add("player--current");
+    if (!player.alive) el.classList.add("player--dead");
+
+    const nameHeading = document.createElement("h3");
+    nameHeading.textContent = player.name + (index === view.currentPlayerIndex ? " ← đang tới lượt" : "");
+    el.appendChild(nameHeading);
+
+    const roleText = player.role ? ROLE_LABELS[player.role] : "(ẩn)";
+    const info = document.createElement("p");
+    info.textContent = `${roleText} · Máu: ${player.hp}/${player.maxHp} · ${player.alive ? "Còn sống" : "Đã chết"}`;
+    el.appendChild(info);
+
+    const handText = document.createElement("p");
+    handText.textContent =
+      player.id === view.viewerId
+        ? `Bài trên tay (${player.handCount}): ${player.hand && player.hand.length > 0 ? player.hand.map(cardLabel).join(", ") : "(không có)"}`
+        : `Bài trên tay: ${player.handCount} lá (ẩn)`;
+    el.appendChild(handText);
+
+    const equipText = document.createElement("p");
+    equipText.textContent = `Trang bị: ${player.equipment.length > 0 ? player.equipment.map(cardLabel).join(", ") : "(không có)"}`;
+    el.appendChild(equipText);
+
+    playersEl.appendChild(el);
+  });
+  container.appendChild(playersEl);
 }
