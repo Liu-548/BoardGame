@@ -135,19 +135,22 @@ Nguyên tắc chung:
 
 > Cập nhật dòng này mỗi khi xong một giai đoạn. Xem `LO-TRINH.md`.
 
-**Đang ở:** Giai đoạn 3 — mạng (Giai đoạn 1 + 2 đã HOÀN THÀNH TOÀN BỘ). **XONG việc 3.1 → 3.9** (+ bonus chat công khai/riêng tư):
+**Đang ở:** Giai đoạn 3 — mạng. **Kỹ thuật đã XONG việc 3.1 → 3.10** (+ bonus chat công khai/riêng tư) — chỉ còn thiếu đúng 1 việc CHỈ CHỦ DỰ ÁN LÀM ĐƯỢC (xem cảnh báo bên dưới):
 
-- 3.1-3.4 (gọn lại): `src/server/index.ts` + `src/server/room.ts` (Durable Object `Room`) — deploy thật ở **https://bang-boardgame.nguyenngoctuan548.workers.dev** (⚠️ chưa deploy lại kể từ việc 3.7, link công khai đang chạy code cũ hơn — chỉ mới test bằng `wrangler dev` local cho 3.7-3.9). WebSocket dùng Hibernation API đúng cách (`ctx.acceptWebSocket()`, không `server.accept()` — quy tắc 7). Định tuyến `/room/<mã phòng>`.
+- 3.1-3.4 (gọn lại): `src/server/index.ts` + `src/server/room.ts` (Durable Object `Room`) — deploy thật ở **https://bang-boardgame.nguyenngoctuan548.workers.dev** (⚠️ chưa deploy lại kể từ việc 3.7 — link công khai đang chạy code CŨ HƠN nhiều so với local, mọi thứ từ 3.7 trở đi mới chỉ test bằng `wrangler dev`). WebSocket dùng Hibernation API đúng cách (`ctx.acceptWebSocket()`, không `server.accept()` — quy tắc 7). Định tuyến `/room/<mã phòng>`.
 - 3.5 + bonus: `src/protocol.ts` (**mới, lệch cấu trúc gốc**) định nghĩa `ClientMessage`/`ServerMessage`. Chat công khai/riêng tư hoạt động thật.
 - 3.6: `core/view.ts` — `viewFor()` ẩn bài tay + vai trò người khác (trừ chính mình/Sheriff/người đã chết).
 - 3.7: `room.ts` lưu `GameState` thật vào `ctx.storage`. `{type:"action"}` xử lý thật qua `reduce()`.
-- 3.8: `src/client/net.ts` — `RoomConnection` tự động kết nối lại (1 giây cố định) sau khi mất kết nối, tự `join` lại, tự nhận lại đúng ván nhờ state đã lưu ở 3.7.
-- **3.9 (mới)**: Lobby thật — `protocol.ts`: `join` giờ có thêm `name`; `start_game` bỏ tham số `playerIds` (server TỰ lấy danh sách người đang kết nối qua `ctx.getWebSockets()` + `deserializeAttachment()` — không lưu riêng ở đâu, luôn đúng theo thời gian thực); thêm `ServerMessage` mới `{type:"lobby", players}` phát mỗi khi có người vào/rời phòng. `room.ts`: `joinedPlayers()` đọc trực tiếp từ socket đang mở; `webSocketClose()` cũng phát lại "lobby" khi có người rời. `main.ts`/`ui.ts` thêm màn hình MỚI: chọn "chơi chung 1 máy" hay "chơi qua mạng" → form nhập tên + mã phòng (nút "Tạo mã ngẫu nhiên" sinh mã 6 ký tự, bỏ ký tự dễ nhầm 0/O/1/I/L) → phòng chờ hiện mã + danh sách người đã vào (tự cập nhật realtime) + nút "Bắt đầu ván" (cần ≥4 người) → màn hình bàn chơi qua mạng CHỈ HIỂN THỊ TỐI GIẢN (đọc `PlayerView`, CHƯA bấm bài được qua mạng — nối tương tác thật để dành việc 3.10, không dùng lại `renderApp()` vì hình dạng dữ liệu GameState đầy đủ khác PlayerView đã lọc).
-- Đã tự kiểm bằng 4 tab trình duyệt thật (An/Bình/Chi/Dũng), qua `net.ts` thật (không giả lập): mỗi tab tự tạo/vào đúng 1 phòng bằng mã 6 ký tự, danh sách lobby tự đồng bộ real-time giữa các tab không cần thao tác gì thêm, bấm "Bắt đầu ván" ở 1 tab thì CẢ 4 tab đều chuyển màn hình và mỗi tab chỉ thấy ĐÚNG bài + vai trò của chính mình (người khác ẩn) — đúng cả việc 3.6 lẫn 3.9 cùng lúc. Không lỗi console/server.
+- 3.8: `src/client/net.ts` — `RoomConnection` tự động kết nối lại sau khi mất kết nối, tự `join` lại, tự nhận lại đúng ván nhờ state đã lưu ở 3.7.
+- 3.9: Lobby thật (tạo phòng / vào phòng bằng mã 6 ký tự) — `protocol.ts` có `{type:"lobby", players}`, `room.ts` tự lấy danh sách người đang kết nối qua `ctx.getWebSockets()`, `main.ts`/`ui.ts` có màn hình chọn chế độ + form lobby.
+- **3.10 (mới)**: bàn chơi qua mạng giờ TƯƠNG TÁC THẬT — `ui.ts` có `renderNetworkGame()` (thay hẳn `renderNetworkGameReadOnly()` tạm bợ của 3.9), gần như song song với `renderApp()` (hotseat) nhưng có 2 khác biệt cố ý: (1) đọc `PlayerView` (bài người khác `null`+`handCount`) thay vì `GameState` đầy đủ; (2) CHỈ chính người xem (`view.viewerId`) được bấm bài của mình, người khác luôn chỉ xem — khác hotseat (ai cũng bấm được vì tin tưởng cùng ngồi 1 máy). Panic!/Cat Balou dùng `handCount` (luôn đúng) thay vì `hand.length` (ẩn với người khác) để quyết định có cần hỏi thêm bước hay không. `main.ts` có `networkDispatch()` gửi action qua `net.ts` rồi CHỜ phản hồi bất đồng bộ (`state` hoặc `action_error`) thay vì biết kết quả ngay như hotseat.
+- Đã tự kiểm bằng 4 tab trình duyệt thật (An/Bình/Chi/Dũng, qua `net.ts` thật, không giả lập gì): tạo phòng bằng mã 6 ký tự, cả 4 vào cùng phòng, bắt đầu ván, rồi chơi thật several lượt — rút bài, đánh Bang! có chọn mục tiêu qua mạng (pending hiện đúng ở TẤT CẢ các tab), người bị nhắm chịu mất máu (hp giảm đúng), bỏ bài thừa cuối lượt, chuyển lượt đúng người kế tiếp, tự trang bị súng — tất cả qua các tab RIÊNG BIỆT, mỗi tab luôn chỉ thấy đúng bài/vai trò của chính mình. Không lỗi console/server.
+
+**⚠️ Phần "chơi thử thật với bạn bè, 4 nơi khác nhau" (mục "Xong khi nào" gốc của việc 3.10) CHƯA làm được và KHÔNG THỂ làm thay — cần chính chủ dự án tự deploy bản mới nhất rồi rủ bạn bè thật vào chơi từ máy/mạng khác nhau.** Phần mình vừa làm chỉ chứng minh cơ chế kỹ thuật đúng (4 tab trình duyệt trên cùng 1 máy), không thay thế được việc chơi thật.
 
 162 test đều pass.
 
-**Việc tiếp theo:** 3.10 — chơi thử thật với bạn bè (1 ván hoàn chỉnh, 4 người, 4 nơi khác nhau) — cần nối tương tác bấm bài thật qua mạng trước (thay `renderNetworkGameReadOnly()` tạm thời).
+**Việc tiếp theo:** deploy bản mới nhất lên Cloudflare, rồi thử chơi thật với bạn bè để hoàn tất đúng nghĩa việc 3.10 (mốc 🎉 kết thúc Giai đoạn 3).
 
 ## Chưa làm tới, đừng đụng vào
 
