@@ -130,7 +130,10 @@ Nguyên tắc chung:
 
 > Cập nhật dòng này mỗi khi xong một giai đoạn. Xem `LO-TRINH.md`.
 
-**Đang ở:** Giai đoạn 3 — mạng (Giai đoạn 1 + 2 đã HOÀN THÀNH TOÀN BỘ). **XONG việc 3.1 + 3.2 + 3.3**:
+**Đang ở:** Giai đoạn 3 — mạng (Giai đoạn 1 + 2 đã HOÀN THÀNH TOÀN BỘ). **XONG việc 3.1 + 3.2 + 3.3 + 3.4**:
+
+- Việc 3.4: `index.ts` định tuyến theo đường dẫn `/room/<mã phòng>` — `env.ROOM.idFromName(roomCode)` luôn trả về cùng 1 ID cho cùng 1 chuỗi mã, nên "cùng mã → cùng Room" tự động đúng, không cần tự lưu bảng ánh xạ. Đường dẫn không có `/room/...` trả về 404 kèm hướng dẫn. Chưa có màn hình lobby để tự sinh mã (việc 3.9) — ai gõ mã gì trên URL thì vào đúng phòng đó, kể cả mã tự bịa.
+- Đã tự kiểm bằng `curl`: `/room/ABC` đếm 1→2, `/room/XYZ` (mã khác) đếm riêng từ 1, quay lại `/room/ABC` tiếp tục từ 3 — xác nhận 2 phòng hoàn toàn độc lập. Kiểm thêm bằng 3 tab trình duyệt thật: 2 tab cùng `/room/ABC` chat được với nhau qua WebSocket, tab thứ 3 ở `/room/XYZ` KHÔNG nhận được tin nhắn của phòng ABC — đúng "1 phòng = 1 DO". Không lỗi console.
 
 - Việc 3.1: `src/server/index.ts` là Worker entry. Đã deploy thật lên Cloudflare (chủ dự án tự `wrangler login`, tài khoản `nguyenngoctuan548@gmail.com`) — link công khai: **https://bang-boardgame.nguyenngoctuan548.workers.dev**. Lưu ý: ngay sau deploy gọi thử có thể gặp lỗi tạm thời (DNS/route chưa lan truyền hết, `error code 1104`/404) — thử lại sau ~5-10 giây là hết.
 - Việc 3.2: `src/server/room.ts` — Durable Object đầu tiên (`Room`), đếm số lần truy cập bằng `ctx.storage.get`/`put` (khoá `"visitCount"`) cho request KHÔNG phải WebSocket. `wrangler.jsonc` có `durable_objects.bindings` (`ROOM` → class `Room`) + `migrations` (`new_sqlite_classes: ["Room"]`, SQLite-backed — cách khuyến nghị hiện nay thay vì kiểu KV cũ).
@@ -139,7 +142,7 @@ Nguyên tắc chung:
 
 153 test đều pass (không đổi gì ở `src/core/`).
 
-**Việc tiếp theo:** 3.4 — định tuyến theo mã phòng (cùng mã → cùng Durable Object instance; hiện tại mọi request đều dùng chung 1 Room tên `"demo"`).
+**Việc tiếp theo:** 3.5 — giao thức tin nhắn (định nghĩa các loại message giữa client/server, viết ra trước khi cài).
 
 ## Chưa làm tới, đừng đụng vào
 
