@@ -120,9 +120,9 @@ Nguyên tắc chung:
 
 > Cập nhật dòng này mỗi khi xong một giai đoạn. Xem `LO-TRINH.md`.
 
-**Đang ở:** Giai đoạn 1 — engine luật chơi. Đã xong việc 1.13 (chết, thưởng/phạt, điều kiện thắng). File mới `src/core/win.ts`: `checkWinCondition()` — Renegade chỉ thắng khi là người sống sót DUY NHẤT; hết sạch Outlaw+Renegade thì phe Sheriff+Deputy thắng; Cảnh sát trưởng chết (và chưa rơi vào ca Renegade sống một mình) thì Outlaw thắng mặc định, kể cả không còn Outlaw nào sống hay còn nhiều Renegade cùng sống (biến thể 8 người sau này). Trong `reduce.ts`: `applyDamage()`/`eliminatePlayer()` xử lý chết — bỏ hết bài tay+sân vào chồng bỏ, thưởng 3 lá cho người kết liễu Outlaw, phạt Sheriff giết nhầm Deputy (mất hết bài), rồi gọi `checkWinCondition()` và set `state.winner`. "Người kết liễu" chỉ tính đòn đánh trực tiếp (Bang!/Gatling/Indians!/Duel — qua `top.source.from` hoặc `top.opponent`); tự nổ Dynamite không có killer, không thưởng/phạt. Người chết đang là người tới lượt (thua Duel với chính mình, hoặc tự nổ Dynamite Bước 0) thì tự `advanceTurn()` luôn. `reduce()` chặn mọi action nếu `state.winner` đã có giá trị. 149 test đều pass.
+**Đang ở:** Giai đoạn 1 — engine luật chơi. **HOÀN THÀNH việc 1.14, tức là HOÀN THÀNH TOÀN BỘ Giai đoạn 1.** File test mới `test/bot-simulation.test.ts` (không đụng `src/core/`): bot sinh action ứng viên hợp lý cho mọi tình huống rồi để `reduce()` thật quyết định đúng/sai (thử-sai, xáo bằng RNG có seed từ `rng.ts` để tái hiện được nếu lỗi); chỉ nuốt lỗi từ chối luật (`new Error(...)` trơn), lỗi khác (bug thật) phải bung ra làm fail test. Đã chạy 1000 ván ngẫu nhiên 4 người + 300 ván mỗi cỡ bàn 5/6/7 người — **0 crash, 0 ván treo**. 153 test đều pass.
 
-**Việc tiếp theo:** 1.14 — 4 bot đánh ngẫu nhiên, chạy 1000 ván liên tiếp không crash/không treo (cột mốc thật sự trước khi sang Giai đoạn 2).
+**Việc tiếp theo:** Giai đoạn 2 — giao diện tối giản (HTML/CSS/DOM thuần, chưa có mạng). Xem `LO-TRINH.md` việc 2.1 trở đi.
 
 ## Chưa làm tới, đừng đụng vào
 
