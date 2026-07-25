@@ -1,10 +1,21 @@
-// Việc 3.1: Worker "hello world" — bước đầu tiên của Giai đoạn 3 (mạng).
-// Chỉ cần trả lời được request để xác nhận Worker chạy trên Cloudflare.
-// Chưa có Durable Object (việc 3.2), chưa có WebSocket (việc 3.3), chưa định
-// tuyến theo mã phòng (việc 3.4) — cố tình để trống, thêm dần từng việc một.
+// Việc 3.1: Worker "hello world". Việc 3.2: chuyển request sang Durable
+// Object (Room) — mỗi request đều dùng CHUNG đúng 1 Room (đặt tên cố định
+// "demo"), số lần truy cập đếm và lưu bền trong Room đó. Chưa định tuyến
+// theo mã phòng thật (mỗi mã 1 Room riêng) — đó là việc 3.4. Chưa có
+// WebSocket (việc 3.3).
+
+import { Room } from "./room";
+
+export interface Env {
+  ROOM: DurableObjectNamespace;
+}
 
 export default {
-  async fetch(_request: Request): Promise<Response> {
-    return new Response("Bang! server đang chạy.");
+  async fetch(request: Request, env: Env): Promise<Response> {
+    const id = env.ROOM.idFromName("demo");
+    const stub = env.ROOM.get(id);
+    return stub.fetch(request);
   },
 };
+
+export { Room };
