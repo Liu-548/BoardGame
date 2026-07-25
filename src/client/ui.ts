@@ -6,7 +6,7 @@
 import { cardNameFromId } from "../core/cards";
 import type { CardName } from "../core/cards";
 import type { GameState, PendingAction, PlayerState, Role } from "../core/types";
-import type { PlayerView } from "../core/view";
+import type { PlayerHandView, PlayerView } from "../core/view";
 
 const CARD_LABELS: Record<CardName, string> = {
   bang: "Bang!",
@@ -633,13 +633,328 @@ export function renderNetworkLobby(
   }
 }
 
-// Màn hình bàn chơi qua mạng — CHỈ hiển thị tối giản (đọc PlayerView, không
-// bấm bài được), để dành việc 3.10 nối tương tác thật. Cố tình KHÔNG dùng lại
-// renderApp() ở trên vì đó vẽ từ GameState đầy đủ (chế độ hotseat cùng máy,
-// thấy hết mọi người) — còn PlayerView (việc 3.6) chỉ có bài của CHÍNH MÌNH,
-// hình dạng dữ liệu khác hẳn.
-export function renderNetworkGameReadOnly(container: HTMLElement, view: PlayerView): void {
+// ----- Việc 3.10: bàn chơi TƯƠNG TÁC THẬT qua mạng — thay hẳn
+// renderNetworkGameReadOnly() tạm bợ của việc 3.9. Cố tình KHÔNG dùng lại
+// renderApp()/renderPlayer() ở trên vì 2 lý do:
+// 1. Hình dạng dữ liệu khác: GameState có `hand: string[]` cho MỌI người
+//    (hotseat tin tưởng ai cũng thấy hết, cùng ngồi 1 máy); PlayerView chỉ có
+//    `hand` thật cho CHÍNH MÌNH (`handCount` cho người khác, xem việc 3.6).
+// 2. Ai được bấm khác hẳn: hotseat cho phép bấm bài của "người đang tới lượt"
+//    bất kể ai đang cầm chuột (rồi cùng 1 máy); qua mạng CHỈ CHÍNH MÌNH
+//    (`view.viewerId`) được bấm bài của mình — người khác tự bấm bên máy của
+//    họ, dù có đúng lượt của mình hay không cũng không đụng được bài người ta.
+
+export interface NetworkGameHandlers {
+  onDrawCards(): void;
+  onEndTurn(): void;
+  onToggleDiscardCard(cardId: string): void;
+  onConfirmDiscard(): void;
+  onHandCardClick(cardId: string): void;
+  onEquipmentClick(ownerId: string, cardId: string): void;
+  onPlayerClick(targetId: string): void;
+  onStoreOptionClick(cardId: string): void;
+  onZoneClick(zone: "hand" | "equipment"): void;
+  onRespondTakeConsequence(): void;
+  onCancelSelection(): void;
+}
+
+export interface NetworkGameOptions {
+  selection: Selection;
+  error: string | null;
+  discardSelection: string[];
+}
+
+function networkRenderHandSection(
+  container: HTMLElement,
+  view: PlayerView,
+  player: PlayerHandView,
+  options: NetworkGameOptions,
+  handlers: NetworkGameHandlers
+): void {
+  const { selection, discardSelection } = options;
+  const wrapper = document.createElement("div");
+  wrapper.className = "cards";
+
+  const isMe = player.id === view.viewerId;
+
+  // Không phải mình -> KHÔNG bao giờ có nút bấm, chỉ hiện số lượng (bài thật
+  // luôn là null với người khác — xem viewFor()).
+  if (!isMe || player.hand === null) {
+    if (player.handCount > 0) {
+      const span = document.createElement("span");
+      span.className = "card card--inert";
+      span.textContent = `${player.handCount} lá (ẩn)`;
+      wrapper.appendChild(span);
+    }
+    container.appendChild(wrapper);
+    return;
+  }
+
+  const top = view.pending[view.pending.length - 1];
+  const isCurrentTurnToPlay =
+    view.pending.length === 0 && view.turnPhase === "play" && view.players[view.currentPlayerIndex]?.id === player.id;
+  const isDiscarding =
+    view.pending.length === 0 && view.turnPhase === "discard" && view.players[view.currentPlayerIndex]?.id === player.id;
+  const isResponding = top !== undefined && top.player === player.id;
+  const respondableName = isResponding ? respondableCardName(top.kind) : null;
+  const isDiscardFromHand = isResponding && top.kind === "NEED_DISCARD_FROM_ZONE" && top.zone === "hand";
+
+  for (const cardId of player.hand) {
+    const name = cardNameFromId(cardId);
+    const label = cardLabel(cardId);
+
+    if (isDiscarding) {
+      const selected = discardSelection.includes(cardId);
+      const el = button(selected ? `✓ ${label}` : label, () => handlers.onToggleDiscardCard(cardId));
+      if (selected) el.classList.add("card--selected");
+      wrapper.appendChild(el);
+      continue;
+    }
+
+    if (isDiscardFromHand) {
+      wrapper.appendChild(button(label, () => handlers.onHandCardClick(cardId)));
+      continue;
+    }
+
+    if (respondableName !== null) {
+      if (name === respondableName) {
+        wrapper.appendChild(button(label, () => handlers.onHandCardClick(cardId)));
+      } else {
+        const span = document.createElement("span");
+        span.className = "card card--inert";
+        span.textContent = label;
+        wrapper.appendChild(span);
+      }
+      continue;
+    }
+
+    if (isCurrentTurnToPlay && name !== "missed") {
+      const armed = selection.step === "picking-target" && selection.cardId === cardId;
+      const el = button(label, () => handlers.onHandCardClick(cardId));
+      if (armed) el.classList.add("card--selected");
+      wrapper.appendChild(el);
+      continue;
+    }
+
+    const span = document.createElement("span");
+    span.className = "card card--inert";
+    span.textContent = label;
+    wrapper.appendChild(span);
+  }
+
+  container.appendChild(wrapper);
+}
+
+function networkRenderEquipmentSection(
+  container: HTMLElement,
+  view: PlayerView,
+  player: PlayerHandView,
+  selection: Selection,
+  handlers: NetworkGameHandlers
+): void {
+  const wrapper = document.createElement("div");
+  wrapper.className = "cards";
+
+  const top = view.pending[view.pending.length - 1];
+  const isDiscardFromEquipment =
+    top !== undefined && top.player === player.id && top.kind === "NEED_DISCARD_FROM_ZONE" && top.zone === "equipment";
+  const isPickingPanicTarget = selection.step === "picking-panic-equipment" && selection.targetId === player.id;
+
+  for (const cardId of player.equipment) {
+    const label = cardLabel(cardId);
+    const isDynamite = cardNameFromId(cardId) === "dynamite";
+
+    if (!isDynamite && (isDiscardFromEquipment || isPickingPanicTarget)) {
+      wrapper.appendChild(button(label, () => handlers.onEquipmentClick(player.id, cardId)));
+      continue;
+    }
+
+    const span = document.createElement("span");
+    span.className = "card card--inert";
+    span.textContent = label;
+    wrapper.appendChild(span);
+  }
+
+  container.appendChild(wrapper);
+}
+
+function networkRenderPlayer(
+  view: PlayerView,
+  player: PlayerHandView,
+  index: number,
+  options: NetworkGameOptions,
+  handlers: NetworkGameHandlers
+): HTMLElement {
+  const { selection } = options;
+  const el = document.createElement("article");
+  el.className = "player";
+  if (index === view.currentPlayerIndex) el.classList.add("player--current");
+  if (!player.alive) el.classList.add("player--dead");
+
+  const heading = document.createElement("h3");
+  heading.textContent =
+    player.name +
+    (index === view.currentPlayerIndex ? " ← đang tới lượt" : "") +
+    (player.id === view.viewerId ? " (bạn)" : "");
+  el.appendChild(heading);
+
+  const roleText = player.role ? ROLE_LABELS[player.role] : "(ẩn)";
+  const roleAndHp = document.createElement("p");
+  roleAndHp.textContent = `${roleText} · Máu: ${player.hp}/${player.maxHp} · ${player.alive ? "Còn sống" : "Đã chết"}`;
+  el.appendChild(roleAndHp);
+
+  const handLabel = document.createElement("p");
+  handLabel.textContent = "Bài trên tay:";
+  el.appendChild(handLabel);
+  networkRenderHandSection(el, view, player, options, handlers);
+
+  const equipmentLabel = document.createElement("p");
+  equipmentLabel.textContent = "Trang bị:";
+  el.appendChild(equipmentLabel);
+  networkRenderEquipmentSection(el, view, player, selection, handlers);
+
+  // Chọn mục tiêu: chỉ hiện nút này khi CHÍNH MÌNH đang chọn mục tiêu, cho
+  // người KHÁC mình (không tự nhắm vào bản thân).
+  if (selection.step === "picking-target" && player.alive && player.id !== view.viewerId) {
+    el.appendChild(button("Chọn làm mục tiêu", () => handlers.onPlayerClick(player.id)));
+  }
+
+  // Cat Balou: sau khi chọn xong mục tiêu, hỏi bỏ tay hay bỏ sân — chỉ hỏi
+  // cho ĐÚNG người vừa được chọn, và chỉ hiện lựa chọn nào còn bài để bỏ.
+  // Dùng handCount (LUÔN đúng, không bị ẩn) thay vì hand.length.
+  if (selection.step === "picking-cat-balou-zone" && selection.targetId === player.id) {
+    const zoneWrapper = document.createElement("div");
+    zoneWrapper.className = "cards";
+    if (player.handCount > 0) {
+      zoneWrapper.appendChild(button("Bắt bỏ bài trên tay", () => handlers.onZoneClick("hand")));
+    }
+    if (player.equipment.some((id) => cardNameFromId(id) !== "dynamite")) {
+      zoneWrapper.appendChild(button("Bắt bỏ bài trên sân", () => handlers.onZoneClick("equipment")));
+    }
+    el.appendChild(zoneWrapper);
+  }
+
+  return el;
+}
+
+function networkRenderPendingPanel(container: HTMLElement, view: PlayerView, handlers: NetworkGameHandlers): void {
+  if (view.pending.length === 0) return;
+
+  const panel = document.createElement("div");
+  panel.className = "panel panel--pending";
+
+  const heading = document.createElement("p");
+  heading.className = "pending-heading";
+  heading.textContent =
+    view.pending.length > 1
+      ? `Đang có ${view.pending.length} việc chờ xử lý (việc mới phát sinh luôn xử lý trước):`
+      : "Đang chờ xử lý:";
+  panel.appendChild(heading);
+
+  const findName = (id: string) => view.players.find((p) => p.id === id)?.name ?? id;
+  const describe = (item: PendingAction): string => {
+    const name = findName(item.player);
+    switch (item.kind) {
+      case "NEED_MISSED":
+        return `${name} đỡ Bang! bằng Missed! (hoặc chịu mất máu)`;
+      case "NEED_DISCARD_BANG":
+        return `${name} bỏ 1 lá Bang! (hoặc chịu mất máu)`;
+      case "NEED_DUEL_RESPONSE":
+        return `${name} bỏ 1 lá Bang! trong Đấu tay đôi (hoặc chịu mất máu)`;
+      case "NEED_PICK_STORE_CARD":
+        return `${name} chọn 1 lá từ Cửa hàng tổng hợp`;
+      case "NEED_DISCARD_FROM_ZONE":
+        return `${name} chọn 1 lá để bỏ (${item.zone === "hand" ? "trên tay" : "trên sân"})`;
+      case "NEED_DRAW_CHECK":
+        return `${name} lật bài kiểm tra (draw!)`;
+      default: {
+        const neverKind: never = item;
+        throw new Error(`Chưa biết mô tả cho pending: ${JSON.stringify(neverKind)}`);
+      }
+    }
+  };
+
+  const list = document.createElement("ol");
+  list.className = "pending-list";
+  for (let i = view.pending.length - 1; i >= 0; i--) {
+    const item = view.pending[i];
+    const isTop = i === view.pending.length - 1;
+    const li = document.createElement("li");
+    li.className = isTop ? "pending-item pending-item--current" : "pending-item";
+    li.textContent = isTop ? `Đang chờ: ${describe(item)}` : `Sắp tới: ${describe(item)}`;
+    list.appendChild(li);
+  }
+  panel.appendChild(list);
+
+  // Nút phản hồi CHỈ hiện khi ĐÚNG là CHÍNH MÌNH đang bị chờ trả lời — người
+  // khác cũng đang chờ (vd Gatling bắn cả phòng) thì mỗi người chỉ thấy nút ở
+  // đúng lượt phản hồi của họ trên máy của họ.
+  const top = view.pending[view.pending.length - 1];
+  if (top.player === view.viewerId) {
+    if (top.kind === "NEED_PICK_STORE_CARD") {
+      const wrapper = document.createElement("div");
+      wrapper.className = "cards";
+      for (const cardId of top.options) {
+        wrapper.appendChild(button(cardLabel(cardId), () => handlers.onStoreOptionClick(cardId)));
+      }
+      panel.appendChild(wrapper);
+    } else if (top.kind === "NEED_DRAW_CHECK") {
+      panel.appendChild(button("Lật bài", () => handlers.onRespondTakeConsequence()));
+    } else if (top.kind === "NEED_MISSED" || top.kind === "NEED_DISCARD_BANG" || top.kind === "NEED_DUEL_RESPONSE") {
+      panel.appendChild(button("Chịu mất máu (không đỡ)", () => handlers.onRespondTakeConsequence()));
+    }
+  }
+
+  container.appendChild(panel);
+}
+
+function networkRenderPhaseActions(
+  container: HTMLElement,
+  view: PlayerView,
+  options: NetworkGameOptions,
+  handlers: NetworkGameHandlers
+): void {
+  if (view.pending.length > 0 || view.winner) return;
+
+  const me = view.players.find((p) => p.id === view.viewerId);
+  const isMyTurn = me && view.players[view.currentPlayerIndex]?.id === view.viewerId;
+  if (!isMyTurn) return; // không phải lượt mình -> không có nút hành động nào cả
+
+  const panel = document.createElement("div");
+  panel.className = "panel";
+
+  if (view.turnPhase === "draw") {
+    panel.appendChild(button("Rút bài", () => handlers.onDrawCards()));
+  } else if (view.turnPhase === "discard") {
+    const excess = me.handCount - me.hp;
+    const selectedCount = options.discardSelection.length;
+    const info = document.createElement("p");
+    info.textContent = `Cần bỏ ${excess} lá — đã chọn ${selectedCount}`;
+    panel.appendChild(info);
+    const confirmBtn = button("Xác nhận bỏ bài", () => handlers.onConfirmDiscard());
+    confirmBtn.disabled = selectedCount !== excess;
+    panel.appendChild(confirmBtn);
+  } else {
+    panel.appendChild(button("Kết thúc lượt", () => handlers.onEndTurn()));
+  }
+
+  container.appendChild(panel);
+}
+
+export function renderNetworkGame(
+  container: HTMLElement,
+  view: PlayerView,
+  options: NetworkGameOptions,
+  handlers: NetworkGameHandlers
+): void {
   container.replaceChildren();
+
+  if (options.error) {
+    const errorEl = document.createElement("p");
+    errorEl.className = "error";
+    errorEl.textContent = options.error;
+    container.appendChild(errorEl);
+  }
 
   const summary = document.createElement("p");
   summary.className = "summary";
@@ -648,39 +963,21 @@ export function renderNetworkGameReadOnly(container: HTMLElement, view: PlayerVi
     (view.winner ? ` · VÁN KẾT THÚC — phe thắng: ${WINNER_LABELS[view.winner]}` : "");
   container.appendChild(summary);
 
-  const note = document.createElement("p");
-  note.textContent = "(Bấm bài qua mạng để dành việc 3.10 — đây chỉ là màn hình xem tạm.)";
-  container.appendChild(note);
+  if (options.selection.step !== "idle") {
+    const hint = document.createElement("div");
+    hint.className = "panel panel--selection";
+    hint.appendChild(document.createTextNode("Đang chọn mục tiêu... "));
+    hint.appendChild(button("Huỷ", () => handlers.onCancelSelection()));
+    container.appendChild(hint);
+  }
+
+  networkRenderPendingPanel(container, view, handlers);
+  networkRenderPhaseActions(container, view, options, handlers);
 
   const playersEl = document.createElement("div");
   playersEl.className = "players";
   view.players.forEach((player, index) => {
-    const el = document.createElement("article");
-    el.className = "player";
-    if (index === view.currentPlayerIndex) el.classList.add("player--current");
-    if (!player.alive) el.classList.add("player--dead");
-
-    const nameHeading = document.createElement("h3");
-    nameHeading.textContent = player.name + (index === view.currentPlayerIndex ? " ← đang tới lượt" : "");
-    el.appendChild(nameHeading);
-
-    const roleText = player.role ? ROLE_LABELS[player.role] : "(ẩn)";
-    const info = document.createElement("p");
-    info.textContent = `${roleText} · Máu: ${player.hp}/${player.maxHp} · ${player.alive ? "Còn sống" : "Đã chết"}`;
-    el.appendChild(info);
-
-    const handText = document.createElement("p");
-    handText.textContent =
-      player.id === view.viewerId
-        ? `Bài trên tay (${player.handCount}): ${player.hand && player.hand.length > 0 ? player.hand.map(cardLabel).join(", ") : "(không có)"}`
-        : `Bài trên tay: ${player.handCount} lá (ẩn)`;
-    el.appendChild(handText);
-
-    const equipText = document.createElement("p");
-    equipText.textContent = `Trang bị: ${player.equipment.length > 0 ? player.equipment.map(cardLabel).join(", ") : "(không có)"}`;
-    el.appendChild(equipText);
-
-    playersEl.appendChild(el);
+    playersEl.appendChild(networkRenderPlayer(view, player, index, options, handlers));
   });
   container.appendChild(playersEl);
 }

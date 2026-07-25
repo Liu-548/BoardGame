@@ -7,9 +7,15 @@
 // trang.
 //
 // Việc 3.9: thêm màn hình chọn cách chơi (chung 1 máy / qua mạng) + lobby
-// (tạo phòng / vào phòng bằng mã 6 ký tự). Màn hình bàn chơi qua mạng CHỈ
-// hiển thị tối giản (đọc PlayerView, chưa bấm bài được) — nối tương tác thật
-// để dành việc 3.10.
+// (tạo phòng / vào phòng bằng mã 6 ký tự).
+//
+// Việc 3.10: bàn chơi qua mạng giờ TƯƠNG TÁC THẬT — bấm bài gửi qua
+// `netConnection.send({type:"action",...})` thay vì gọi reduce() cục bộ.
+// Không biết ngay kết quả đúng/sai như hotseat (đồng bộ) — phải CHỜ server
+// trả lời `{type:"state"}` (thành công, view mới) hay `{type:"action_error"}`
+// (bị từ chối) rồi mới vẽ lại. Chọn mục tiêu (Panic!/Cat Balou cần biết tay
+// mục tiêu có bài hay không) dùng `handCount` (luôn đúng) thay vì
+// `hand.length` (chỉ có với chính mình, xem core/view.ts).
 //
 // `selection`/`discardSelectionIds`/`error` là trạng thái TẠM THỜI chỉ có ý
 // nghĩa ở client (không phải trong GameState) — vd "đã bấm lá Bang!, đang chờ
@@ -26,7 +32,7 @@ import type { ServerMessage } from "../protocol";
 import {
   renderApp,
   renderHomeScreen,
-  renderNetworkGameReadOnly,
+  renderNetworkGame,
   renderNetworkLobby,
   renderNetworkLobbyForm,
   renderSetupScreen,
@@ -61,6 +67,8 @@ let netConnection: RoomConnection | null = null;
 let myPlayerId = "";
 let lobbyPlayers: LobbyPlayer[] = [];
 let networkView: PlayerView | null = null;
+let networkSelection: Selection = { step: "idle" };
+let networkDiscardSelectionIds: string[] = [];
 
 function render(): void {
   switch (screen) {
@@ -103,7 +111,26 @@ function render(): void {
       renderNetworkLobby(root, networkCode, lobbyPlayers, networkError, { onStartGame: onNetworkStartGame });
       return;
     case "network-game":
-      if (networkView) renderNetworkGameReadOnly(root, networkView);
+      if (networkView) {
+        renderNetworkGame(
+          root,
+          networkView,
+          { selection: networkSelection, error: networkError, discardSelection: networkDiscardSelectionIds },
+          {
+            onDrawCards: onNetworkDrawCards,
+            onEndTurn: onNetworkEndTurn,
+            onToggleDiscardCard: onNetworkToggleDiscardCard,
+            onConfirmDiscard: onNetworkConfirmDiscard,
+            onHandCardClick: onNetworkHandCardClick,
+            onEquipmentClick: onNetworkEquipmentClick,
+            onPlayerClick: onNetworkPlayerClick,
+            onStoreOptionClick: onNetworkStoreOptionClick,
+            onZoneClick: onNetworkZoneClick,
+            onRespondTakeConsequence: onNetworkRespondTakeConsequence,
+            onCancelSelection: onNetworkCancelSelection,
+          }
+        );
+      }
       return;
   }
 }
@@ -396,13 +423,139 @@ function onNetworkMessage(message: ServerMessage): void {
       render();
       return;
     case "chat":
-      // Chưa có UI chat qua mạng — để dành khi nối tương tác thật (việc 3.10).
+      // Chưa có UI chat qua mạng trong ván — bonus việc 3.5 mới kiểm ở mức
+      // giao thức/console, chưa gắn vào giao diện chơi bài.
       return;
   }
 }
 
 function onNetworkStartGame(): void {
   netConnection?.send({ type: "start_game", seed: Date.now() });
+}
+
+// Gửi action qua mạng — KHÔNG biết ngay kết quả (khác dispatch() cục bộ của
+// hotseat): phải chờ server trả lời {type:"state"} (thành công) hoặc
+// {type:"action_error"} (bị từ chối) rồi mới vẽ lại theo kết quả đó. Reset
+// selection/discardSelection NGAY khi gửi (không chờ phản hồi) — khớp đúng
+// cảm giác "đã bấm xong" của hotseat, dù kết quả đến sau vài chục mili giây.
+function networkDispatch(action: Action): void {
+  netConnection?.send({ type: "action", action });
+  networkSelection = { step: "idle" };
+  networkDiscardSelectionIds = [];
+  render();
+}
+
+function onNetworkDrawCards(): void {
+  networkDispatch({ type: "DRAW_CARDS", playerId: myPlayerId });
+}
+
+function onNetworkEndTurn(): void {
+  networkDispatch({ type: "END_TURN", playerId: myPlayerId });
+}
+
+function onNetworkToggleDiscardCard(cardId: string): void {
+  const index = networkDiscardSelectionIds.indexOf(cardId);
+  if (index === -1) {
+    networkDiscardSelectionIds.push(cardId);
+  } else {
+    networkDiscardSelectionIds.splice(index, 1);
+  }
+  render();
+}
+
+function onNetworkConfirmDiscard(): void {
+  networkDispatch({ type: "DISCARD_CARDS", playerId: myPlayerId, cardIds: networkDiscardSelectionIds });
+}
+
+function onNetworkHandCardClick(cardId: string): void {
+  if (!networkView) return;
+  const top = networkView.pending[networkView.pending.length - 1];
+  if (top) {
+    networkDispatch({ type: "RESPOND", playerId: top.player, cardId });
+    return;
+  }
+
+  const name = cardNameFromId(cardId);
+  if (NEEDS_TARGET.has(name)) {
+    networkSelection = { step: "picking-target", cardId, cardName: name };
+    render();
+  } else {
+    networkDispatch({ type: "PLAY_CARD", playerId: myPlayerId, cardId });
+  }
+}
+
+function onNetworkEquipmentClick(ownerId: string, cardId: string): void {
+  if (networkSelection.step === "picking-panic-equipment") {
+    networkDispatch({
+      type: "PLAY_CARD",
+      playerId: myPlayerId,
+      cardId: networkSelection.cardId,
+      targetId: networkSelection.targetId,
+      targetCardId: cardId,
+    });
+    return;
+  }
+
+  if (!networkView) return;
+  const top = networkView.pending[networkView.pending.length - 1];
+  if (top && top.kind === "NEED_DISCARD_FROM_ZONE" && top.player === ownerId) {
+    networkDispatch({ type: "RESPOND", playerId: top.player, cardId });
+  }
+}
+
+// Panic!/Cat Balou cần biết tay mục tiêu có bài hay không — dùng `handCount`
+// (LUÔN đúng, kể cả với người khác) thay vì `hand.length` (chỉ có với chính
+// mình qua mạng, xem core/view.ts).
+function onNetworkPlayerClick(targetId: string): void {
+  if (networkSelection.step !== "picking-target" || !networkView) return;
+  const { cardId, cardName } = networkSelection;
+
+  if (cardName === "panic") {
+    const target = networkView.players.find((p) => p.id === targetId)!;
+    if (target.handCount > 0) {
+      networkDispatch({ type: "PLAY_CARD", playerId: myPlayerId, cardId, targetId });
+    } else {
+      networkSelection = { step: "picking-panic-equipment", cardId, targetId };
+      render();
+    }
+    return;
+  }
+
+  if (cardName === "cat_balou") {
+    networkSelection = { step: "picking-cat-balou-zone", cardId, targetId };
+    render();
+    return;
+  }
+
+  networkDispatch({ type: "PLAY_CARD", playerId: myPlayerId, cardId, targetId });
+}
+
+function onNetworkStoreOptionClick(cardId: string): void {
+  if (!networkView) return;
+  const top = networkView.pending[networkView.pending.length - 1];
+  if (top) networkDispatch({ type: "RESPOND", playerId: top.player, cardId });
+}
+
+function onNetworkZoneClick(zone: "hand" | "equipment"): void {
+  if (networkSelection.step !== "picking-cat-balou-zone") return;
+  networkDispatch({
+    type: "PLAY_CARD",
+    playerId: myPlayerId,
+    cardId: networkSelection.cardId,
+    targetId: networkSelection.targetId,
+    targetZone: zone,
+  });
+}
+
+function onNetworkRespondTakeConsequence(): void {
+  if (!networkView) return;
+  const top = networkView.pending[networkView.pending.length - 1];
+  if (top) networkDispatch({ type: "RESPOND", playerId: top.player });
+}
+
+function onNetworkCancelSelection(): void {
+  networkSelection = { step: "idle" };
+  render();
 }
 
 render();
