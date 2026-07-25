@@ -39,6 +39,11 @@ interface SocketAttachment {
 }
 
 const GAME_STATE_KEY = "gameState";
+// Chủ phòng — người ĐẦU TIÊN join vào phòng trống, CHỈ họ được gửi
+// "start_game" (yêu cầu thêm sau việc 3.10). Ghi theo playerId (không phải
+// socket) trong ctx.storage, giống lý do state ván đấu không nằm ở field
+// thường của class (xem ghi chú đầu file) — sống sót qua hibernate/reconnect.
+const OWNER_KEY = "ownerId";
 
 export class Room {
   private readonly ctx: DurableObjectState;
@@ -99,7 +104,15 @@ export class Room {
     const attachment: SocketAttachment = { playerId, name };
     ws.serializeAttachment(attachment);
 
-    this.broadcastLobby();
+    // Chưa có chủ phòng (phòng mới toanh, hoặc vừa trống hẳn rồi có người
+    // join lại — xem webSocketClose) -> người ĐẦU TIÊN join lúc này tự thành
+    // chủ phòng mới.
+    const ownerId = await this.getOwnerId();
+    if (!ownerId) {
+      await this.ctx.storage.put(OWNER_KEY, playerId);
+    }
+
+    await this.broadcastLobby();
 
     // Vừa vào lại phòng (vd sau khi deploy lại/mất mạng) mà ván đã có sẵn ->
     // gửi ngay state hiện tại, không cần chờ có action mới mới thấy.
@@ -109,7 +122,18 @@ export class Room {
     }
   }
 
+  private async getOwnerId(): Promise<string | null> {
+    return (await this.ctx.storage.get<string>(OWNER_KEY)) ?? null;
+  }
+
   private async handleStartGame(ws: WebSocket, seed: number): Promise<void> {
+    const attachment = ws.deserializeAttachment() as SocketAttachment | null;
+    const ownerId = await this.getOwnerId();
+    if (!attachment?.playerId || attachment.playerId !== ownerId) {
+      this.sendError(ws, "Chỉ chủ phòng mới có quyền bắt đầu ván mới");
+      return;
+    }
+
     const existing = await this.ctx.storage.get<GameState>(GAME_STATE_KEY);
     if (existing) {
       this.sendError(ws, "Phòng này đã có ván đang chơi, không thể bắt đầu ván mới");
@@ -167,8 +191,8 @@ export class Room {
     return players;
   }
 
-  private broadcastLobby(): void {
-    const message: ServerMessage = { type: "lobby", players: this.joinedPlayers() };
+  private async broadcastLobby(): Promise<void> {
+    const message: ServerMessage = { type: "lobby", players: this.joinedPlayers(), ownerId: await this.getOwnerId() };
     const payload = JSON.stringify(message);
     for (const socket of this.ctx.getWebSockets()) {
       socket.send(payload);
@@ -244,10 +268,26 @@ export class Room {
     // Báo cho người còn lại biết phòng vừa vơi đi 1 người — loại trừ chính
     // socket đang đóng (getWebSockets() có thể vẫn còn liệt kê nó lúc này).
     const closingAttachment = ws.deserializeAttachment() as SocketAttachment | null;
-    const message: ServerMessage = {
-      type: "lobby",
-      players: this.joinedPlayers().filter((p) => p.id !== closingAttachment?.playerId),
-    };
+    const remaining = this.joinedPlayers().filter((p) => p.id !== closingAttachment?.playerId);
+
+    // Chủ phòng vừa rời (mất socket cuối cùng của họ) -> tự chuyển quyền cho
+    // người đang có mặt kế tiếp; hết sạch người thì để trống — ai join đầu
+    // tiên sau đó sẽ tự thành chủ phòng mới (xem handleJoin). LƯU Ý: đây là
+    // chuyển NGAY khi mất kết nối, không phân biệt được "rời hẳn" hay "chỉ
+    // mất mạng tạm, sắp tự reconnect" — nếu chủ phòng mất mạng chớp nhoáng
+    // lúc còn người khác trong phòng, quyền sẽ đổi chủ ngay, không tự trả lại
+    // khi họ nối lại.
+    const ownerId = await this.getOwnerId();
+    if (closingAttachment?.playerId && closingAttachment.playerId === ownerId) {
+      const nextOwnerId = remaining[0]?.id;
+      if (nextOwnerId) {
+        await this.ctx.storage.put(OWNER_KEY, nextOwnerId);
+      } else {
+        await this.ctx.storage.delete(OWNER_KEY);
+      }
+    }
+
+    const message: ServerMessage = { type: "lobby", players: remaining, ownerId: await this.getOwnerId() };
     const payload = JSON.stringify(message);
     for (const socket of this.ctx.getWebSockets()) {
       if (socket !== ws) socket.send(payload);

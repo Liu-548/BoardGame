@@ -39,7 +39,10 @@ export type ServerMessage =
   // Danh sách người đang có mặt trong phòng (đã "join", CHƯA CHẮC đã bắt đầu
   // ván) — dùng để vẽ màn hình lobby (việc 3.9): ai đã vào, đủ người chưa.
   // Gửi lại cho CẢ PHÒNG mỗi khi có người vào/rời phòng.
-  | { type: "lobby"; players: { id: string; name: string }[] }
+  // `ownerId`: người duy nhất được phép gửi "start_game" (mới, theo yêu cầu
+  // sau việc 3.10) — người ĐẦU TIÊN join vào phòng trống. null nếu phòng vừa
+  // trống hẳn (ai join tiếp theo sẽ tự thành chủ phòng mới, xem room.ts).
+  | { type: "lobby"; players: { id: string; name: string }[]; ownerId: string | null }
   // State đã LỌC RIÊNG cho từng người nhận (viewFor(), việc 3.6) — KHÔNG BAO
   // GIỜ gửi state đầy đủ (quy tắc 6 CLAUDE.md).
   | { type: "state"; view: PlayerView; events: GameEvent[] }

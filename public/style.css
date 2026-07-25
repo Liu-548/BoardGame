@@ -96,6 +96,15 @@ button {
   font-weight: bold;
 }
 
+.draw-check-notice {
+  border: 1px solid #26a;
+  border-radius: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  margin: 0.5rem 0;
+  background: #eef4fb;
+  font-weight: bold;
+}
+
 .pending-heading {
   font-weight: bold;
   margin: 0 0 0.5rem;

@@ -37,7 +37,7 @@ import {
   renderNetworkLobbyForm,
   renderSetupScreen,
 } from "./ui";
-import type { LobbyPlayer, Selection } from "./ui";
+import type { DrawCheckNotice, LobbyPlayer, Selection } from "./ui";
 
 const root = document.getElementById("game-root") as HTMLDivElement;
 
@@ -58,6 +58,9 @@ let state: GameState; // chỉ tồn tại sau khi bấm "Bắt đầu ván"
 let selection: Selection = { step: "idle" };
 let discardSelectionIds: string[] = [];
 let error: string | null = null;
+// Lá vừa lật khi draw! (Barrel/Jail/Dynamite...), tính lại sau MỖI dispatch —
+// yêu cầu thiết kế: check bài phải công khai cho tất cả mọi người xem.
+let lastDrawCheck: DrawCheckNotice = null;
 
 // ----- Chế độ chơi qua mạng (việc 3.9) -----
 let networkName = "";
@@ -66,9 +69,11 @@ let networkError: string | null = null;
 let netConnection: RoomConnection | null = null;
 let myPlayerId = "";
 let lobbyPlayers: LobbyPlayer[] = [];
+let lobbyOwnerId: string | null = null;
 let networkView: PlayerView | null = null;
 let networkSelection: Selection = { step: "idle" };
 let networkDiscardSelectionIds: string[] = [];
+let networkLastDrawCheck: DrawCheckNotice = null;
 
 function render(): void {
   switch (screen) {
@@ -84,7 +89,7 @@ function render(): void {
       });
       return;
     case "local-game":
-      renderApp(root, state, { selection, discardSelection: discardSelectionIds, error }, {
+      renderApp(root, state, { selection, discardSelection: discardSelectionIds, error, lastDrawCheck }, {
         onDrawCards,
         onEndTurn,
         onToggleDiscardCard,
@@ -108,14 +113,21 @@ function render(): void {
       });
       return;
     case "network-lobby":
-      renderNetworkLobby(root, networkCode, lobbyPlayers, networkError, { onStartGame: onNetworkStartGame });
+      renderNetworkLobby(root, networkCode, lobbyPlayers, lobbyOwnerId, myPlayerId, networkError, {
+        onStartGame: onNetworkStartGame,
+      });
       return;
     case "network-game":
       if (networkView) {
         renderNetworkGame(
           root,
           networkView,
-          { selection: networkSelection, error: networkError, discardSelection: networkDiscardSelectionIds },
+          {
+            selection: networkSelection,
+            error: networkError,
+            discardSelection: networkDiscardSelectionIds,
+            lastDrawCheck: networkLastDrawCheck,
+          },
           {
             onDrawCards: onNetworkDrawCards,
             onEndTurn: onNetworkEndTurn,
@@ -204,6 +216,14 @@ function dispatch(action: Action): void {
     const result = reduce(state, action);
     state = result.state;
     error = null;
+    const checkEvent = result.events.find((e) => e.type === "DRAW_CHECK_RESOLVED");
+    lastDrawCheck = checkEvent
+      ? {
+          playerName: state.players.find((p) => p.id === checkEvent.playerId)!.name,
+          cardId: checkEvent.cardId,
+          matched: checkEvent.matched,
+        }
+      : null;
   } catch (e) {
     error = e instanceof Error ? e.message : "Có lỗi không rõ khi thực hiện hành động";
   }
@@ -391,6 +411,7 @@ function onJoinRoom(): void {
   networkCode = trimmedCode;
   myPlayerId = `p-${Math.random().toString(36).slice(2, 10)}`;
   lobbyPlayers = [];
+  lobbyOwnerId = null;
   networkView = null;
 
   netConnection = new RoomConnection(roomWebSocketUrl(trimmedCode), myPlayerId, trimmedName, {
@@ -411,13 +432,23 @@ function onNetworkMessage(message: ServerMessage): void {
   switch (message.type) {
     case "lobby":
       lobbyPlayers = message.players;
+      lobbyOwnerId = message.ownerId;
       if (screen === "network-lobby") render();
       return;
-    case "state":
+    case "state": {
       networkView = message.view;
+      const checkEvent = message.events.find((e) => e.type === "DRAW_CHECK_RESOLVED");
+      networkLastDrawCheck = checkEvent
+        ? {
+            playerName: networkView.players.find((p) => p.id === checkEvent.playerId)!.name,
+            cardId: checkEvent.cardId,
+            matched: checkEvent.matched,
+          }
+        : null;
       screen = "network-game";
       render();
       return;
+    }
     case "action_error":
       networkError = message.message;
       render();
