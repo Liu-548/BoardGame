@@ -129,7 +129,7 @@ describe("Bước 0 đầu lượt — Dynamite", () => {
     ]);
   });
 
-  it("draw! khớp Bích 2-9: nổ, trừ 3 máu (sàn 0), bỏ Dynamite", () => {
+  it("draw! khớp Bích 2-9: nổ, trừ 3 máu (sàn 0), bỏ Dynamite, chết vì tự nổ nên tự chuyển lượt", () => {
     const state = makeState({
       deck: ["missed_6"], // spades, 2 — khớp
       players: [
@@ -149,13 +149,18 @@ describe("Bước 0 đầu lượt — Dynamite", () => {
     const { state: next, events } = reduce(state, { type: "RESPOND", playerId: "b" });
 
     expect(next.players[1].hp).toBe(0); // 2 máu - 3 sát thương, sàn ở 0
+    expect(next.players[1].alive).toBe(false); // tự nổ chết, không ai "giết"
     expect(next.players[1].equipment).toEqual([]);
     // "missed_6" = lá vừa lật ra, "dynamite_1" = chính quả Dynamite phát nổ
     expect(next.discardPile).toEqual(["missed_6", "dynamite_1"]);
     expect(next.pending).toEqual([]);
+    // b vừa chết mà đang là người tới lượt -> tự chuyển sang c (bỏ qua rút/đánh/bỏ bài)
+    expect(next.currentPlayerIndex).toBe(2);
+    expect(next.turnPhase).toBe("draw");
     expect(events).toEqual([
       { type: "DRAW_CHECK_RESOLVED", playerId: "b", cardId: "missed_6", matched: true },
       { type: "DYNAMITE_EXPLODED", playerId: "b", amount: 2 },
+      { type: "PLAYER_ELIMINATED", playerId: "b", killedBy: null },
     ]);
   });
 

@@ -7,6 +7,7 @@ import { computeDistance, getWeaponRange } from "./distance";
 import { giveCardToPlayer, transferDynamiteToNextPlayer } from "./equipment";
 import { nextRandom, shuffle } from "./rng";
 import type { Action, GameEvent, GameState, PendingAction, PlayerState } from "./types";
+import { checkWinCondition } from "./win";
 
 export interface Result {
   state: GameState;
@@ -16,6 +17,10 @@ export interface Result {
 const DRAW_COUNT = 2;
 
 export function reduce(state: GameState, action: Action): Result {
+  if (state.winner) {
+    throw new Error("Ván đã kết thúc, không thể tiếp tục hành động");
+  }
+
   switch (action.type) {
     case "DRAW_CARDS":
       return handleDrawCards(state, action);
@@ -597,9 +602,9 @@ function handleRespond(state: GameState, action: Action & { type: "RESPOND" }): 
 
   switch (top.kind) {
     case "NEED_MISSED":
-      return respondDiscardOrDamage(state, action, "missed", "MISSED_PLAYED");
+      return respondDiscardOrDamage(state, action, "missed", "MISSED_PLAYED", top.source.from);
     case "NEED_DISCARD_BANG":
-      return respondDiscardOrDamage(state, action, "bang", "BANG_DISCARDED");
+      return respondDiscardOrDamage(state, action, "bang", "BANG_DISCARDED", top.source.from);
     case "NEED_DUEL_RESPONSE":
       return respondToDuel(state, action, top);
     case "NEED_PICK_STORE_CARD":
@@ -622,7 +627,8 @@ function respondDiscardOrDamage(
   state: GameState,
   action: Action & { type: "RESPOND" },
   requiredCardName: CardName,
-  playedEventType: "MISSED_PLAYED" | "BANG_DISCARDED"
+  playedEventType: "MISSED_PLAYED" | "BANG_DISCARDED",
+  attackerId: string
 ): Result {
   const next = cloneState(state);
   next.pending.pop();
@@ -643,9 +649,7 @@ function respondDiscardOrDamage(
     return { state: next, events: [{ type: playedEventType, playerId: player.id }] };
   }
 
-  // Chưa xử lý chết/loại (để dành việc 1.13).
-  player.hp -= 1;
-  return { state: next, events: [{ type: "DAMAGE_DEALT", playerId: player.id, amount: 1 }] };
+  return { state: next, events: applyDamage(next, player, 1, attackerId) };
 }
 
 function respondToDuel(
@@ -681,8 +685,7 @@ function respondToDuel(
     return { state: next, events: [{ type: "BANG_DISCARDED", playerId: player.id }] };
   }
 
-  player.hp -= 1;
-  return { state: next, events: [{ type: "DAMAGE_DEALT", playerId: player.id, amount: 1 }] };
+  return { state: next, events: applyDamage(next, player, 1, top.opponent) };
 }
 
 function respondToStorePick(state: GameState, action: Action & { type: "RESPOND" }): Result {
@@ -804,13 +807,15 @@ function resolveDrawCheck(
       const amount = Math.min(3, holder.hp);
       holder.hp -= amount;
       events.push({ type: "DYNAMITE_EXPLODED", playerId: holder.id, amount });
+      // Tự nổ, không ai "giết" cả -> killerId = null, không có thưởng/phạt.
+      events.push(...eliminateIfDead(next, holder, null));
     } else {
       transferDynamiteToNextPlayer(next.players, holder);
       events.push({ type: "DYNAMITE_PASSED", playerId: holder.id });
     }
-    // "(còn sống) có Jail" — alive chưa từng bị set false ở đâu (chết/loại để
-    // dành việc 1.13), nên điều kiện này hiện luôn đúng nếu holder có Jail;
-    // viết đủ điều kiện để tự đúng khi 1.13 cài xong, không cần sửa lại đây.
+    // holder có thể vừa chết ở trên (eliminateIfDead) — nếu vậy alive đã false,
+    // bỏ qua Jail-check (người chết không cần thoát tù) và eliminatePlayer() đã
+    // tự chuyển lượt (advanceTurn) nếu cần rồi, không phải lo ở đây.
     if (holder.alive) applyJailCheck(next, holder);
     return { state: next, events };
   }
@@ -833,6 +838,83 @@ function resolveDrawCheck(
   }
 
   return { state: next, events };
+}
+
+// ----- Việc 1.13: chết, thưởng/phạt, điều kiện thắng -----
+
+// Gây damage cho `target`, phát DAMAGE_DEALT, rồi xử lý chết nếu hp về 0.
+// `killerId` = người trực tiếp gây đòn đánh (Bang!/Gatling/Indians!/Duel);
+// truyền null nếu tự chết (Dynamite) — không có thưởng/phạt trong ca đó.
+function applyDamage(
+  next: GameState,
+  target: PlayerState,
+  amount: number,
+  killerId: string | null
+): GameEvent[] {
+  target.hp -= amount;
+  return [
+    { type: "DAMAGE_DEALT", playerId: target.id, amount },
+    ...eliminateIfDead(next, target, killerId),
+  ];
+}
+
+// Kiểm tra hp sau khi ĐÃ trừ máu (bởi applyDamage() hoặc trực tiếp như
+// Dynamite) — tách riêng để Dynamite không bị phát thêm DAMAGE_DEALT chồng
+// lên DYNAMITE_EXPLODED đã có sẵn ý nghĩa tương đương.
+function eliminateIfDead(next: GameState, target: PlayerState, killerId: string | null): GameEvent[] {
+  if (target.hp > 0) return [];
+  return eliminatePlayer(next, target, killerId);
+}
+
+function eliminatePlayer(next: GameState, target: PlayerState, killerId: string | null): GameEvent[] {
+  target.alive = false;
+  target.hp = 0;
+
+  // Bỏ hết bài trên tay + trang bị trên sân vào chồng bỏ — người chết không giữ gì cả.
+  next.discardPile.push(...target.hand, ...target.equipment);
+  target.hand = [];
+  target.equipment = [];
+
+  const events: GameEvent[] = [{ type: "PLAYER_ELIMINATED", playerId: target.id, killedBy: killerId }];
+
+  const killer = killerId ? next.players.find((p) => p.id === killerId) : undefined;
+  if (killer) {
+    if (target.role === "outlaw") {
+      // Thưởng hạ gục Outlaw: rút 3 lá (có thể ít hơn nếu deck+chồng bỏ cạn giữa chừng).
+      let drawnCount = 0;
+      for (let i = 0; i < 3; i++) {
+        const card = drawTopCard(next);
+        if (!card) break;
+        giveCardToPlayer(next.players, killer, card);
+        drawnCount++;
+      }
+      events.push({ type: "OUTLAW_BOUNTY_DRAWN", playerId: killer.id, count: drawnCount });
+    } else if (killer.role === "sheriff" && target.role === "deputy") {
+      // Phạt Cảnh sát trưởng giết nhầm Phó cảnh sát trưởng: bỏ hết bài của
+      // CHÍNH killer (không phải của người vừa chết) tay lẫn sân.
+      next.discardPile.push(...killer.hand, ...killer.equipment);
+      killer.hand = [];
+      killer.equipment = [];
+      events.push({ type: "SHERIFF_KILLED_DEPUTY_PENALTY", playerId: killer.id });
+    }
+  }
+
+  const winner = checkWinCondition(next.players);
+  if (winner) {
+    next.winner = winner;
+    events.push({ type: "GAME_ENDED", winner });
+    return events;
+  }
+
+  // Người vừa chết đang là người tới lượt (chỉ có thể xảy ra khi tự thua Duel
+  // với chính mình, hoặc tự nổ Dynamite ở Bước 0 đầu lượt) và không còn việc
+  // gì khác đang chờ -> chuyển lượt ngay, người chết không thể tự rút/đánh/bỏ bài.
+  const isCurrentPlayer = next.players[next.currentPlayerIndex].id === target.id;
+  if (isCurrentPlayer && next.pending.length === 0) {
+    advanceTurn(next);
+  }
+
+  return events;
 }
 
 // ----- Hàm phụ trợ -----
