@@ -13,6 +13,20 @@
 import type { Action, GameEvent } from "./core/types";
 import type { PlayerView } from "./core/view";
 
+// Việc 4.1: đồng hồ đếm ngược lượt (chỉ chơi qua mạng — dùng DO Alarm ở
+// server, xem room.ts). CHỦ Ý không đặt field này trong GameState/PlayerView:
+// deadline phụ thuộc THỜI GIAN THỰC (Date.now()), mà quy tắc 2 CLAUDE.md cấm
+// core/ đụng tới Date.now() — nên nó sống ở "ngôn ngữ chung" protocol.ts, coi
+// như 1 phần state THÊM VÀO của server, không phải của core/.
+export interface DeadlineInfo {
+  playerId: string; // ai đang bị tính giờ
+  expiresAt: number; // mốc thời gian hết hạn, epoch mili-giây — client tự tính
+  // giây còn lại bằng (expiresAt - Date.now())/1000, tự đếm lùi bằng
+  // setInterval CỦA RIÊNG CLIENT (không phải server/DO — không vi phạm quy
+  // tắc 8, quy tắc đó chỉ cấm setInterval/setTimeout TRONG Durable Object).
+  kind: "play" | "reactive" | "discard"; // xem room.ts để biết ý nghĩa + thời lượng từng loại
+}
+
 // ----- Client → Server -----
 
 export type ClientMessage =
@@ -45,7 +59,9 @@ export type ServerMessage =
   | { type: "lobby"; players: { id: string; name: string }[]; ownerId: string | null }
   // State đã LỌC RIÊNG cho từng người nhận (viewFor(), việc 3.6) — KHÔNG BAO
   // GIỜ gửi state đầy đủ (quy tắc 6 CLAUDE.md).
-  | { type: "state"; view: PlayerView; events: GameEvent[] }
+  // `deadline`: đồng hồ đếm ngược hiện tại (việc 4.1), null nếu ván chưa bắt
+  // đầu/đã kết thúc — GIỐNG NHAU cho mọi người nhận (không phải riêng theo viewer).
+  | { type: "state"; view: PlayerView; events: GameEvent[]; deadline: DeadlineInfo | null }
   // Hành động bị từ chối (reduce()/setupGame() ném lỗi) — CHỈ gửi lại cho
   // đúng người vừa gửi hành động đó, không phát cho cả phòng.
   | { type: "action_error"; message: string }
