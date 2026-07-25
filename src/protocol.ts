@@ -2,10 +2,9 @@
 // gửi dạng chuỗi văn bản qua `JSON.stringify`/`JSON.parse`).
 //
 // File này CHỈ định nghĩa KIỂU DỮ LIỆU — "viết ra giấy trước" theo đúng tinh
-// thần LO-TRINH.md. Việc nối message "action" vào Room thật (đọc state, gọi
-// reduce(), gửi lại viewFor() riêng cho từng người) để dành việc 3.7 trở đi
-// (cần lưu state vào ctx.storage trước). Ngoại lệ: phần chat (bonus) không
-// phụ thuộc state ván đấu nên đã nối thật vào room.ts luôn, xem ghi chú ở đó.
+// thần LO-TRINH.md. Việc 3.7 đã nối message "start_game"/"action" vào Room
+// thật (đọc/ghi state qua ctx.storage, gọi reduce(), gửi lại viewFor() riêng
+// cho từng người) — xem room.ts.
 //
 // Đặt ở src/protocol.ts (không phải trong core/, server/, hay client/) vì đây
 // là "ngôn ngữ chung" cả 2 bên đều cần đọc — core/ vẫn không đụng tới file
@@ -20,9 +19,12 @@ export type ClientMessage =
   // Việc đầu tiên khi vừa kết nối: cho server biết mình là ai trong ván —
   // WebSocket không tự mang theo danh tính, phải tự giới thiệu.
   | { type: "join"; playerId: string }
-  // Một hành động luật chơi (rút bài, đánh bài, trả lời...) — sẽ forward
-  // nguyên si vào reduce(state, action) ở server (việc 3.7 trở đi, sau khi
-  // Room có chỗ lưu state ván đấu).
+  // Tạm thời (CHƯA có lobby thật — việc 3.9): người chơi tự gõ đúng danh sách
+  // playerId muốn chơi cùng + seed để bắt đầu ván mới trong phòng này. Nếu
+  // phòng đã có ván đang chơi, server bỏ qua (không ghi đè ván đang chơi dở).
+  | { type: "start_game"; playerIds: string[]; seed: number }
+  // Một hành động luật chơi (rút bài, đánh bài, trả lời...) — forward nguyên
+  // si vào reduce(state, action) ở server.
   | { type: "action"; action: Action }
   // Tin nhắn chat (bonus của việc 3.5). KHÔNG có `to` = gửi cho CẢ PHÒNG;
   // CÓ `to` = CHỈ gửi riêng cho đúng 1 người chơi đó. Dùng playerId (không

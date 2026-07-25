@@ -13,22 +13,33 @@
 // class sẽ mất vì code có thể chạy lại từ constructor mới sau khi thức dậy.
 //
 // Việc 3.5 (giao thức tin nhắn — xem src/protocol.ts): phần CHAT nối thật vào
-// đây luôn (không phụ thuộc state ván đấu nên không cần chờ view.ts). Mỗi
-// socket tự giới thiệu bằng ClientMessage "join", server nhớ playerId của
-// socket đó bằng serializeAttachment.
+// đây (không phụ thuộc state ván đấu). Mỗi socket tự giới thiệu bằng
+// ClientMessage "join", server nhớ playerId của socket đó bằng
+// serializeAttachment.
 //
-// Việc 3.6 (core/view.ts): viewFor() đã có, nhưng phần "action" (đánh bài
-// thật) CHƯA xử lý ở đây — Room còn chưa có chỗ LƯU state ván đấu (việc 3.7:
-// lưu vào ctx.storage), nên chưa có gì để gọi reduce()/viewFor() lên.
+// Việc 3.6 (core/view.ts): viewFor() lọc state riêng cho từng người xem.
 //
-// Dùng chung tên "Room" cho lớp Durable Object luật chơi thật sau này (từ
-// việc 3.4 đã có mã phòng riêng, 1 phòng = 1 instance).
+// Việc 3.7: GameState của ván đấu lưu trong `ctx.storage` (khoá "gameState")
+// — KHÔNG BAO GIỜ giữ trong field thường của class, giống lý do ở việc 3.3.
+// Mỗi lần xử lý "action" đều: đọc state từ storage -> reduce() -> ghi state
+// mới lại storage -> gửi viewFor() riêng cho từng socket đang mở. Nhờ vậy
+// Worker có bị khởi động lại/deploy lại giữa ván (Durable Object bị evict)
+// thì lần request kế tiếp storage vẫn còn nguyên, ván không mất.
+//
+// CHƯA có lobby thật (việc 3.9) nên "start_game" tạm nhận thẳng danh sách
+// playerId từ client thay vì tự quản lý danh sách người đã vào phòng.
 
+import { reduce } from "../core/reduce";
+import { setupGame } from "../core/setup";
+import type { Action, GameEvent, GameState } from "../core/types";
+import { viewFor } from "../core/view";
 import type { ClientMessage, ServerMessage } from "../protocol";
 
 interface SocketAttachment {
   playerId: string;
 }
+
+const GAME_STATE_KEY = "gameState";
 
 export class Room {
   private readonly ctx: DurableObjectState;
@@ -65,18 +76,96 @@ export class Room {
       return; // không phải JSON hợp lệ — bỏ qua, chưa cần báo lỗi ở việc này
     }
 
-    if (parsed.type === "join") {
-      const attachment: SocketAttachment = { playerId: parsed.playerId };
-      ws.serializeAttachment(attachment);
+    switch (parsed.type) {
+      case "join":
+        await this.handleJoin(ws, parsed.playerId);
+        return;
+      case "chat":
+        this.broadcastChat(ws, parsed.text, parsed.to);
+        return;
+      case "start_game":
+        await this.handleStartGame(ws, parsed.playerIds, parsed.seed);
+        return;
+      case "action":
+        await this.handleAction(ws, parsed.action);
+        return;
+      default: {
+        const neverMessage: never = parsed;
+        throw new Error(`Chưa hỗ trợ ClientMessage: ${JSON.stringify(neverMessage)}`);
+      }
+    }
+  }
+
+  private async handleJoin(ws: WebSocket, playerId: string): Promise<void> {
+    const attachment: SocketAttachment = { playerId };
+    ws.serializeAttachment(attachment);
+
+    // Vừa vào lại phòng (vd sau khi deploy lại/mất mạng) mà ván đã có sẵn ->
+    // gửi ngay state hiện tại, không cần chờ có action mới mới thấy.
+    const state = await this.ctx.storage.get<GameState>(GAME_STATE_KEY);
+    if (state) {
+      this.sendStateTo(ws, state, []);
+    }
+  }
+
+  private async handleStartGame(ws: WebSocket, playerIds: string[], seed: number): Promise<void> {
+    const existing = await this.ctx.storage.get<GameState>(GAME_STATE_KEY);
+    if (existing) {
+      this.sendError(ws, "Phòng này đã có ván đang chơi, không thể bắt đầu ván mới");
       return;
     }
 
-    if (parsed.type === "chat") {
-      this.broadcastChat(ws, parsed.text, parsed.to);
+    let state: GameState;
+    try {
+      state = setupGame(playerIds, seed);
+    } catch (e) {
+      this.sendError(ws, e instanceof Error ? e.message : "Không tạo được ván mới");
       return;
     }
 
-    // parsed.type === "action": để dành việc 3.7 trở đi (Room chưa có chỗ lưu state ván đấu).
+    await this.ctx.storage.put(GAME_STATE_KEY, state);
+    this.broadcastState(state, []);
+  }
+
+  private async handleAction(ws: WebSocket, action: Action): Promise<void> {
+    const state = await this.ctx.storage.get<GameState>(GAME_STATE_KEY);
+    if (!state) {
+      this.sendError(ws, "Ván chưa bắt đầu — gửi start_game trước");
+      return;
+    }
+
+    let result: { state: GameState; events: GameEvent[] };
+    try {
+      result = reduce(state, action);
+    } catch (e) {
+      this.sendError(ws, e instanceof Error ? e.message : "Hành động không hợp lệ");
+      return;
+    }
+
+    await this.ctx.storage.put(GAME_STATE_KEY, result.state);
+    this.broadcastState(result.state, result.events);
+  }
+
+  // Gửi viewFor() RIÊNG cho từng socket đang mở — không phải cùng 1 gói tin
+  // cho tất cả (quy tắc 6: không bao giờ gửi state đầy đủ, mỗi người chỉ
+  // thấy bài của chính mình).
+  private broadcastState(state: GameState, events: GameEvent[]): void {
+    for (const socket of this.ctx.getWebSockets()) {
+      this.sendStateTo(socket, state, events);
+    }
+  }
+
+  private sendStateTo(socket: WebSocket, state: GameState, events: GameEvent[]): void {
+    const attachment = socket.deserializeAttachment() as SocketAttachment | null;
+    if (!attachment?.playerId) return; // socket chưa "join", chưa biết gửi view của ai
+
+    const message: ServerMessage = { type: "state", view: viewFor(state, attachment.playerId), events };
+    socket.send(JSON.stringify(message));
+  }
+
+  private sendError(ws: WebSocket, message: string): void {
+    const outgoing: ServerMessage = { type: "action_error", message };
+    ws.send(JSON.stringify(outgoing));
   }
 
   // Không có `to` -> gửi cho CẢ PHÒNG. Có `to` -> CHỈ gửi cho đúng người gửi
