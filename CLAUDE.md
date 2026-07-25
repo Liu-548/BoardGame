@@ -130,17 +130,15 @@ Nguyên tắc chung:
 
 > Cập nhật dòng này mỗi khi xong một giai đoạn. Xem `LO-TRINH.md`.
 
-**Đang ở:** Giai đoạn 2 — giao diện tối giản (Giai đoạn 1 đã HOÀN THÀNH TOÀN BỘ ở việc 1.14). Đã xong việc 2.3 (bấm bài → gọi `reduce()`, chơi được ván hoàn chỉnh trên 1 máy):
+**Đang ở:** Giai đoạn 2 — giao diện tối giản (Giai đoạn 1 đã HOÀN THÀNH TOÀN BỘ ở việc 1.14). Đã xong việc 2.4 (hiện đầy đủ stack `pending`):
 
-- `ui.ts` đổi `renderGameState()` thành `renderApp(container, state, options, handlers)` — vẽ bài trên tay/trang bị thành từng nút bấm riêng (không phải 1 chuỗi chữ nữa). Chỉ người ĐANG cần hành động (người tới lượt lúc "đánh bài"/"bỏ bài thừa", hoặc người đứng đầu stack `pending` lúc cần trả lời) mới thấy bài của mình dạng nút bấm được — người khác vẫn thấy bài nhưng chỉ là chữ thường (không bấm được). Cách này tự nhiên tránh nhầm lẫn "bấm bài của ai" mà không cần thêm cờ kiểm tra riêng.
-- Trạng thái "đang chọn" (`Selection` — đã bấm 1 lá cần mục tiêu, đang chờ bấm chọn ai) là dữ liệu CHỈ RIÊNG client (không nằm trong `GameState`), `main.ts` giữ biến này. Panic!/Cat Balou cần thêm 1 bước phụ sau khi chọn mục tiêu (chọn lá trang bị cụ thể / chọn bỏ tay hay bỏ sân) — xử lý bằng cách thêm bước trong `Selection`, không đụng gì đến `core/`.
-- Lỗi từ `reduce()` (vd đánh Bang! ngoài tầm bắn) hiện thẳng ra màn hình bằng đúng câu tiếng Việt `reduce.ts` ném ra, không cần dịch lại.
-- UI cho stack `pending` ở đây CHỈ đủ dùng (hiện đỉnh stack + nút phản hồi tương ứng) — làm đẹp/đầy đủ hơn (hiện cả stack) để dành việc 2.4.
-- Đã tự kiểm bằng trình duyệt thật (claude-in-chrome), chơi thử nhiều bước liên tiếp: rút bài → đánh Bang! có mục tiêu (đúng tầm được, sai tầm báo lỗi đúng) → đối phương chịu mất máu → đánh Panic! cướp bài (tay mục tiêu còn bài, ăn ngẫu nhiên) → bỏ bài thừa cuối lượt → chuyển đúng người kế tiếp. Không lỗi console.
+- `ui.ts`: `renderPendingPanel()` giờ vẽ TOÀN BỘ `state.pending` (không chỉ đỉnh) trong 1 danh sách có số thứ tự, duyệt từ đỉnh (phần tử cuối mảng) xuống đáy — đúng thứ tự sẽ được xử lý. Mục đỉnh in đậm "Đang chờ: ..." kèm nút phản hồi thật; các mục còn lại in mờ "Sắp tới: ..." KHÔNG có nút (chưa tới lượt xử lý — mục 5 CLAUDE.md: luôn xử lý phần tử cuối cùng trước). `pendingDescription()` đổi từ "chỉ đọc top" sang nhận thẳng 1 `PendingAction` bất kỳ làm tham số.
+- Việc 2.3 (bấm bài → gọi `reduce()`, chơi được ván hoàn chỉnh trên 1 máy): `ui.ts` vẽ bài trên tay/trang bị thành từng nút bấm riêng; chỉ người ĐANG cần hành động mới thấy bài của mình bấm được, người khác thấy bài dạng chữ thường. Trạng thái "đang chọn" (`Selection`) là dữ liệu CHỈ RIÊNG client, `main.ts` giữ biến này. Lỗi từ `reduce()` hiện thẳng ra màn hình bằng đúng câu tiếng Việt có sẵn.
+- Đã tự kiểm bằng trình duyệt thật (claude-in-chrome): chơi thử nhiều bước (rút bài → đánh Bang! đúng/sai tầm → chịu mất máu → Panic! cướp bài → bỏ bài thừa → chuyển lượt), và dựng riêng 1 state giả có 2 tầng pending (Bang! vào người có Barrel) để kiểm tra đúng thứ tự hiển thị "Đang chờ"/"Sắp tới". Không lỗi console.
 
 153 test đều pass (không đổi gì ở `src/core/`).
 
-**Việc tiếp theo:** 2.4 — hiện đầy đủ + đẹp hơn cho stack `pending` (người chơi biết rõ "đang chờ B trả lời gì").
+**Việc tiếp theo:** 2.5 — chế độ hotseat (4 người ngồi chung 1 máy chơi hết ván). Đây là mốc cuối Giai đoạn 2, xong là chuyển sang Giai đoạn 3 (mạng).
 
 ## Chưa làm tới, đừng đụng vào
 

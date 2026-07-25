@@ -95,3 +95,23 @@ button {
   color: #c00;
   font-weight: bold;
 }
+
+.pending-heading {
+  font-weight: bold;
+  margin: 0 0 0.5rem;
+}
+
+.pending-list {
+  margin: 0 0 0.5rem;
+  padding-left: 1.25rem;
+}
+
+.pending-item {
+  color: #888;
+  margin: 0.15rem 0;
+}
+
+.pending-item--current {
+  color: #000;
+  font-weight: bold;
+}
