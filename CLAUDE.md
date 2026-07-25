@@ -40,9 +40,19 @@ src/
     ui.ts        ← vẽ DOM
     main.ts
 test/
-public/index.html
+index.html       ← trang gốc, Vite mặc định tìm ở đây (không phải public/,
+                   xem ghi chú việc 2.1 bên dưới)
+public/          ← tài sản tĩnh copy y nguyên (ảnh lá bài từ việc 4.6...),
+                   style.css tạm để đây
 wrangler.jsonc
 ```
+
+> **Lệch 1 chỗ so với bản gốc file này:** dự tính ban đầu là `public/index.html`,
+> nhưng Vite mặc định coi `index.html` ở gốc dự án là trang vào, còn `public/`
+> chỉ dùng để copy y nguyên tài sản tĩnh (ảnh, v.v.) — đặt `index.html` vào
+> `public/` khiến việc import file TypeScript từ `src/client/` bị lỗi đường dẫn
+> lúc `vite dev`. Đổi lại cho khớp quy ước của Vite (việc 2.1). Không cần file
+> `vite.config.ts`/`vitest.config.ts` nào — mặc định của Vite đã đủ cho cả 2.
 
 ## Quy tắc bất di bất dịch
 
@@ -120,9 +130,9 @@ Nguyên tắc chung:
 
 > Cập nhật dòng này mỗi khi xong một giai đoạn. Xem `LO-TRINH.md`.
 
-**Đang ở:** Giai đoạn 1 — engine luật chơi. **HOÀN THÀNH việc 1.14, tức là HOÀN THÀNH TOÀN BỘ Giai đoạn 1.** File test mới `test/bot-simulation.test.ts` (không đụng `src/core/`): bot sinh action ứng viên hợp lý cho mọi tình huống rồi để `reduce()` thật quyết định đúng/sai (thử-sai, xáo bằng RNG có seed từ `rng.ts` để tái hiện được nếu lỗi); chỉ nuốt lỗi từ chối luật (`new Error(...)` trơn), lỗi khác (bug thật) phải bung ra làm fail test. Đã chạy 1000 ván ngẫu nhiên 4 người + 300 ván mỗi cỡ bàn 5/6/7 người — **0 crash, 0 ván treo**. 153 test đều pass.
+**Đang ở:** Giai đoạn 2 — giao diện tối giản (Giai đoạn 1 đã HOÀN THÀNH TOÀN BỘ ở việc 1.14: bot ngẫu nhiên chạy 1000+900 ván, 0 crash, 0 treo). Đã xong việc 2.1 (HTML/CSS/DOM cơ bản): `index.html` ở gốc dự án + `public/style.css` + `src/client/main.ts` — 1 nút bấm, 1 đoạn chữ đổi nội dung khi bấm (đếm số lần bấm). Đã tự kiểm bằng trình duyệt thật (claude-in-chrome) chứ không chỉ compile sạch: nút bấm đổi đúng chữ, không lỗi console. Xem ghi chú lệch cấu trúc thư mục ở trên (mục "Cấu trúc thư mục"). `tsconfig.json` đã thêm `"DOM"`/`"DOM.Iterable"` vào `lib` để viết được code client — không xung đột với `@cloudflare/workers-types` nhờ `skipLibCheck: true` đã có sẵn. 153 test đều pass (không đổi gì ở `src/core/`).
 
-**Việc tiếp theo:** Giai đoạn 2 — giao diện tối giản (HTML/CSS/DOM thuần, chưa có mạng). Xem `LO-TRINH.md` việc 2.1 trở đi.
+**Việc tiếp theo:** 2.2 — vẽ state ra màn hình (nhìn màn hình biết ai còn mấy máu, có bài gì — hiển thị bằng chữ/tên, chưa cần ảnh).
 
 ## Chưa làm tới, đừng đụng vào
 
