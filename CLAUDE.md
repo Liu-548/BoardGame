@@ -120,9 +120,9 @@ Nguyên tắc chung:
 
 > Cập nhật dòng này mỗi khi xong một giai đoạn. Xem `LO-TRINH.md`.
 
-**Đang ở:** Giai đoạn 1 — engine luật chơi. Đã xong tới việc 1.9 (bài nâu tấn công: Bang!, Missed!, Beer, Saloon, Stagecoach, Wells Fargo, Indians!, Duel, Gatling, General Store, Panic!, Cat Balou). 76 test đều pass.
+**Đang ở:** Giai đoạn 1 — engine luật chơi. Đã xong tới việc 1.10 (cơ chế "draw!" dùng chung — pending `NEED_DRAW_CHECK`, lật đúng 1 lá, báo khớp/không khớp theo `matchSuits`/`matchRanks`, chưa gắn hậu quả cụ thể). 85 test đều pass.
 
-**Việc tiếp theo:** 1.10 cơ chế "draw!" (lật bài kiểm tra) — cần cho Jail, Dynamite, Barrel ở việc 1.11.
+**Việc tiếp theo:** 1.11 bài xanh/trang bị (Barrel, Scope, Mustang, Jail, Dynamite, các loại súng) — sẽ dùng lại `NEED_DRAW_CHECK` của việc 1.10 cho Barrel/Jail/Dynamite.
 
 ## Chưa làm tới, đừng đụng vào
 

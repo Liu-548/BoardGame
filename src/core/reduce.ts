@@ -2,7 +2,7 @@
 // THUẦN: không sửa state truyền vào, cùng đầu vào luôn cho cùng đầu ra.
 
 import type { CardName } from "./cards";
-import { cardNameFromId } from "./cards";
+import { cardNameFromId, cardSuitRankFromId } from "./cards";
 import { nextRandom, shuffle } from "./rng";
 import type { Action, GameEvent, GameState, PendingAction, PlayerState } from "./types";
 
@@ -470,6 +470,8 @@ function handleRespond(state: GameState, action: Action & { type: "RESPOND" }): 
       return respondToStorePick(state, action);
     case "NEED_DISCARD_FROM_ZONE":
       return respondToDiscardFromZone(state, action, top);
+    case "NEED_DRAW_CHECK":
+      return resolveDrawCheck(state, action, top);
     default: {
       const neverKind: never = top;
       throw new Error(`Chưa hỗ trợ phản hồi loại việc: ${JSON.stringify(neverKind)}`);
@@ -608,6 +610,37 @@ function respondToDiscardFromZone(
   return {
     state: next,
     events: [{ type: "CARD_FORCE_DISCARDED", playerId: player.id, byPlayerId: top.source.from, cardId: action.cardId }],
+  };
+}
+
+// draw! (lật bài kiểm tra) — cơ chế DÙNG CHUNG, việc 1.10. Không cần người chơi
+// chọn gì (không phải lựa chọn, chỉ là "châm ngòi" cho bước lật bài tự động),
+// nên KHÔNG nhận cardId. Chỉ báo `matched` — ý nghĩa của khớp/không khớp (nổ,
+// thoát tù, né đạn...) do lá bài cụ thể ở việc 1.11 quyết định, không phải ở đây.
+function resolveDrawCheck(
+  state: GameState,
+  action: Action & { type: "RESPOND" },
+  top: PendingAction & { kind: "NEED_DRAW_CHECK" }
+): Result {
+  if (action.cardId) {
+    throw new Error("draw! không cần chọn lá, không được gửi kèm cardId");
+  }
+
+  const next = cloneState(state);
+  next.pending.pop();
+
+  const cardId = drawTopCard(next);
+  if (!cardId) {
+    throw new Error("Không còn lá nào để draw! (cả bộ bài lẫn chồng bài đã bỏ đều hết)");
+  }
+  next.discardPile.push(cardId);
+
+  const { suit, rank } = cardSuitRankFromId(cardId);
+  const matched = top.matchSuits.includes(suit) && (!top.matchRanks || top.matchRanks.includes(rank));
+
+  return {
+    state: next,
+    events: [{ type: "DRAW_CHECK_RESOLVED", playerId: action.playerId, cardId, matched }],
   };
 }
 

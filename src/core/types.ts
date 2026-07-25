@@ -47,7 +47,22 @@ export type PendingAction =
   // Cat Balou: `player` (mục tiêu bị bắt bỏ bài) tự chọn đúng 1 lá trong `zone`
   // (tay hoặc sân) do người đánh Cat Balou chỉ định trước — không phải người
   // đánh chọn lá cụ thể, cũng không có lựa chọn "từ chối" (bị ép buộc).
-  | { kind: "NEED_DISCARD_FROM_ZONE"; player: string; zone: "hand" | "equipment"; source: { card: string; from: string } };
+  | { kind: "NEED_DISCARD_FROM_ZONE"; player: string; zone: "hand" | "equipment"; source: { card: string; from: string } }
+  // draw! (lật bài kiểm tra) — cơ chế DÙNG CHUNG cho Barrel/Jail/Dynamite (việc
+  // 1.11) và sau này là kỹ năng nhân vật (Giai đoạn 5). Chỉ lật ĐÚNG 1 lá, báo
+  // "khớp" hay không — không tự suy ra hậu quả (nổ/thoát tù/né đạn...), vì mỗi
+  // lá bài hiểu "khớp" theo nghĩa khác nhau. `matchSuits` là các chất tính là
+  // khớp; `matchRanks` không có nghĩa là mọi giá trị đều tính, chỉ cần đúng chất
+  // (vd Barrel/Jail: chỉ cần Cơ, mọi giá trị). Muốn lật thêm lần nữa (nhiều
+  // Barrel, kỹ năng nhân vật...) thì đẩy thêm 1 mục NEED_DRAW_CHECK mới sau khi
+  // mục này bị pop, không phải việc của kind này.
+  | {
+      kind: "NEED_DRAW_CHECK";
+      player: string;
+      source: { card: string };
+      matchSuits: Suit[];
+      matchRanks?: Rank[];
+    };
 
 // ----- Hành động -----
 // Các hành động cho vòng lượt (việc 1.5) và đánh bài (việc 1.7/1.8, hiện chỉ hỗ
@@ -87,7 +102,8 @@ export type GameEvent =
   | { type: "STORE_REVEALED"; cardIds: string[] } // General Store lật bài
   | { type: "STORE_CARD_TAKEN"; playerId: string; cardId: string }
   | { type: "CARD_STOLEN"; playerId: string; fromPlayerId: string; cardId: string } // Panic
-  | { type: "CARD_FORCE_DISCARDED"; playerId: string; byPlayerId: string; cardId: string }; // Cat Balou
+  | { type: "CARD_FORCE_DISCARDED"; playerId: string; byPlayerId: string; cardId: string } // Cat Balou
+  | { type: "DRAW_CHECK_RESOLVED"; playerId: string; cardId: string; matched: boolean }; // draw!
 
 // ----- State tổng -----
 
