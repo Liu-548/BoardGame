@@ -1,11 +1,10 @@
-// Việc 2.2 (vẽ state) + 2.3 (bấm bài → gọi reduce). Vẫn CHƯA có UI riêng đẹp
-// cho stack pending (việc 2.4) — chỉ hiện đủ thông tin để trả lời được, không
-// bỏ sót lượt nào. Nhãn tiếng Việt (tên bài, tên vai) chỉ để HIỂN THỊ nên đặt
-// ở đây, không đặt trong core/ — core/ không quan tâm chuyện trình bày.
+// Việc 2.2 (vẽ state) + 2.3 (bấm bài → gọi reduce) + 2.4 (hiện đầy đủ stack
+// pending, không chỉ đỉnh). Nhãn tiếng Việt (tên bài, tên vai) chỉ để HIỂN THỊ
+// nên đặt ở đây, không đặt trong core/ — core/ không quan tâm chuyện trình bày.
 
 import { cardNameFromId } from "../core/cards";
 import type { CardName } from "../core/cards";
-import type { GameState, PlayerState, Role } from "../core/types";
+import type { GameState, PendingAction, PlayerState, Role } from "../core/types";
 
 const CARD_LABELS: Record<CardName, string> = {
   bang: "Bang!",
@@ -266,45 +265,69 @@ function renderPlayer(
   return el;
 }
 
-// Mô tả ngắn gọn việc đang chờ (top của stack pending) — bản đầy đủ (hiện cả
-// stack, không chỉ đỉnh) để dành việc 2.4.
-function pendingDescription(state: GameState): string | null {
-  const top = state.pending[state.pending.length - 1];
-  if (!top) return null;
+// Mô tả ngắn gọn 1 mục pending BẤT KỲ trong stack (không chỉ đỉnh) — dùng để
+// vẽ cả stack ở renderPendingPanel(), không nhắc "đang chờ" (chữ đó tuỳ vị trí
+// trong stack: đỉnh thì đang chờ THẬT, phía dưới thì "sắp tới" — thêm ở nơi gọi).
+function pendingDescription(state: GameState, item: PendingAction): string {
+  const player = state.players.find((p) => p.id === item.player)!.name;
 
-  const player = state.players.find((p) => p.id === top.player)!.name;
-
-  switch (top.kind) {
+  switch (item.kind) {
     case "NEED_MISSED":
-      return `Đang chờ ${player} đỡ Bang! bằng Missed! (hoặc chịu mất máu)`;
+      return `${player} đỡ Bang! bằng Missed! (hoặc chịu mất máu)`;
     case "NEED_DISCARD_BANG":
-      return `Đang chờ ${player} bỏ 1 lá Bang! (hoặc chịu mất máu)`;
+      return `${player} bỏ 1 lá Bang! (hoặc chịu mất máu)`;
     case "NEED_DUEL_RESPONSE":
-      return `Đang chờ ${player} bỏ 1 lá Bang! trong Đấu tay đôi (hoặc chịu mất máu)`;
+      return `${player} bỏ 1 lá Bang! trong Đấu tay đôi (hoặc chịu mất máu)`;
     case "NEED_PICK_STORE_CARD":
-      return `Đang chờ ${player} chọn 1 lá từ Cửa hàng tổng hợp`;
+      return `${player} chọn 1 lá từ Cửa hàng tổng hợp`;
     case "NEED_DISCARD_FROM_ZONE":
-      return `Đang chờ ${player} chọn 1 lá để bỏ (${top.zone === "hand" ? "trên tay" : "trên sân"})`;
+      return `${player} chọn 1 lá để bỏ (${item.zone === "hand" ? "trên tay" : "trên sân"})`;
     case "NEED_DRAW_CHECK":
-      return `Đang chờ ${player} lật bài kiểm tra (draw!)`;
+      return `${player} lật bài kiểm tra (draw!)`;
     default: {
-      const neverKind: never = top;
+      const neverKind: never = item;
       throw new Error(`Chưa biết mô tả cho pending: ${JSON.stringify(neverKind)}`);
     }
   }
 }
 
+// Vẽ TOÀN BỘ stack pending (việc 2.4), không chỉ đỉnh — mục 5 file luật: "Việc
+// đang chờ là mảng dùng như stack, luôn xử lý phần tử CUỐI cùng". Đỉnh (phần
+// tử cuối mảng) là việc đang chờ THẬT SỰ, có nút bấm phản hồi; các mục còn lại
+// chỉ để NGƯỜI CHƠI BIẾT trước việc gì sẽ tới, không bấm được (bấm sai thứ tự
+// stack là sai luật — xem mục 5 CLAUDE.md).
 function renderPendingPanel(container: HTMLElement, state: GameState, handlers: UiHandlers): void {
-  const top = state.pending[state.pending.length - 1];
-  if (!top) return;
+  if (state.pending.length === 0) return;
 
   const panel = document.createElement("div");
   panel.className = "panel panel--pending";
 
-  const desc = document.createElement("p");
-  desc.textContent = pendingDescription(state);
-  panel.appendChild(desc);
+  const heading = document.createElement("p");
+  heading.className = "pending-heading";
+  heading.textContent =
+    state.pending.length > 1
+      ? `Đang có ${state.pending.length} việc chờ xử lý (việc mới phát sinh luôn xử lý trước):`
+      : "Đang chờ xử lý:";
+  panel.appendChild(heading);
 
+  const list = document.createElement("ol");
+  list.className = "pending-list";
+  // Duyệt từ ĐỈNH (phần tử cuối mảng) xuống ĐÁY — đúng thứ tự sẽ được xử lý.
+  for (let i = state.pending.length - 1; i >= 0; i--) {
+    const item = state.pending[i];
+    const isTop = i === state.pending.length - 1;
+    const li = document.createElement("li");
+    li.className = isTop ? "pending-item pending-item--current" : "pending-item";
+    li.textContent = isTop
+      ? `Đang chờ: ${pendingDescription(state, item)}`
+      : `Sắp tới: ${pendingDescription(state, item)}`;
+    list.appendChild(li);
+  }
+  panel.appendChild(list);
+
+  // Nút phản hồi CHỈ áp dụng cho đỉnh stack — các mục "sắp tới" không có nút,
+  // vì chưa tới lượt xử lý (phải giải quyết xong đỉnh trước).
+  const top = state.pending[state.pending.length - 1];
   if (top.kind === "NEED_PICK_STORE_CARD") {
     const wrapper = document.createElement("div");
     wrapper.className = "cards";
