@@ -1,0 +1,662 @@
+========================================================================
+ĐẶC TẢ LUẬT BANG! — BẢN CƠ BẢN
+========================================================================
+
+Mục đích: bản nháp để bạn ĐỌC LẠI và SỬA theo ý mình, đồng thời dùng làm
+cơ sở cho engine luật (thư mục core/).
+
+Ghi chú quan trọng:
+- File này viết theo cơ chế, bằng lời của tôi, KHÔNG chép từ sách luật gốc.
+- Chỗ nào tôi không chắc chắn 100% đều được đánh dấu [CẦN KIỂM CHỨNG].
+  Hãy tra trên BoardGameGeek (BGG) trước khi code những chỗ đó.
+- Chỗ nào là bổ sung mới (so với bản trước) tôi đánh dấu [BỔ SUNG].
+- Thuật ngữ khớp với CLAUDE.md: "pending" = ngăn xếp việc đang chờ,
+  "draw!" = lật bài kiểm tra, "view" = state đã lọc gửi cho 1 người.
+
+QUY ƯỚC TÊN VAI TRÒ (dùng thống nhất cả file):
+  Cảnh sát trưởng (Sheriff) · Phó cảnh (Deputy) · Tội phạm (Outlaw) ·
+  Kẻ phản bội (Renegade).
+
+
+========================================================================
+1. TỔNG QUAN
+========================================================================
+
+- Trò chơi vai trò ẩn, 4–7 người.
+- Mỗi người có 1 vai trò bí mật (trừ Cảnh sát trưởng lộ mặt).
+- Thắng/thua phụ thuộc vai trò, không phải "còn sống cuối cùng" (trừ Kẻ phản bội).
+- Bộ bài chung 80 lá. Hết bài thì trộn lại chồng bài đã bỏ để rút tiếp.
+
+LƯU Ý CHO BẢN v1 CỦA BẠN:
+Trong Bang! gốc, máu tối đa và kỹ năng đến từ lá NHÂN VẬT. Bạn đã quyết định
+BỎ nhân vật ở bản đầu. Vậy quy ước cho v1:
+  - Mọi người máu tối đa = 4.
+  - Cảnh sát trưởng máu tối đa = 5 (4 + 1).
+  - Không ai có kỹ năng riêng.
+Phần nhân vật để dành cho Giai đoạn 5.
+
+
+========================================================================
+2. VAI TRÒ & SỐ LƯỢNG THEO SỐ NGƯỜI
+========================================================================
+
+Bốn vai trò:
+
+  Cảnh sát trưởng (Sheriff)
+    - Chỉ có 1. LỘ MẶT ngay từ đầu (mọi người biết ai là Cảnh sát trưởng).
+    - Máu tối đa +1 so với bình thường.
+    - Đi lượt đầu tiên.
+
+  Phó cảnh (Deputy / Vice-Sheriff)
+    - Phe của Cảnh sát trưởng. Vai trò ẩn.
+    - Thắng cùng Cảnh sát trưởng.
+
+  Tội phạm (Outlaw)
+    - Vai trò ẩn.
+    - Mục tiêu: giết Cảnh sát trưởng.
+
+  Kẻ phản bội (Renegade)
+    - Chỉ có 1. Vai trò ẩn.
+    - Mục tiêu: là người SỐNG SÓT CUỐI CÙNG (xem mục 10).
+
+Số lượng theo số người chơi:
+
+  4 người: 1 Cảnh sát trưởng, 2 Tội phạm, 1 Kẻ phản bội                (không Phó cảnh)
+  5 người: 1 Cảnh sát trưởng, 2 Tội phạm, 1 Kẻ phản bội, 1 Phó cảnh
+  6 người: 1 Cảnh sát trưởng, 3 Tội phạm, 1 Kẻ phản bội, 1 Phó cảnh
+  7 người: 1 Cảnh sát trưởng, 3 Tội phạm, 1 Kẻ phản bội, 2 Phó cảnh
+
+(8 người chỉ có khi dùng expansion Dodge City — chưa cần lo.)
+
+
+========================================================================
+3. SETUP MỘT VÁN
+========================================================================
+
+1. Trộn chồng vai trò đúng theo số người, chia úp mỗi người 1 lá.
+   Cảnh sát trưởng lật ngửa vai trò mình ra ngay.
+2. (Bỏ qua ở v1) chia nhân vật.
+3. Đặt máu mỗi người = máu tối đa (v1: 4, Cảnh sát trưởng 5).
+4. Mỗi người rút số lá KHỞI ĐẦU = máu tối đa hiện tại của mình
+   (Cảnh sát trưởng rút 5, người thường rút 4).
+5. Cảnh sát trưởng chơi lượt đầu.
+
+Thứ tự chỗ ngồi (seat order) là VÒNG TRÒN, dùng để tính khoảng cách. Cố định
+suốt ván; khi ai đó chết thì bỏ khỏi vòng và khoảng cách co lại.
+
+
+========================================================================
+4. CẤU TRÚC MỘT LƯỢT
+========================================================================
+
+Thứ tự chơi theo chiều kim đồng hồ (trái sang, tuỳ bạn quy ước, miễn nhất quán).
+
+Một lượt gồm 3 pha, nhưng TRƯỚC pha 1 phải xử lý trang bị đầu lượt:
+
+  BƯỚC 0 — KIỂM TRA ĐẦU LƯỢT (theo đúng thứ tự này):
+
+    0a. Nếu người này có DYNAMITE trước mặt:
+        → draw! (lật bài).
+        → Nếu lá lật là 2♠ đến 9♠ (Bích, giá trị 2–9):
+             Dynamite NỔ: mất 3 máu, bỏ Dynamite.
+           Ngược lại:
+             chuyển Dynamite sang người kế tiếp (không nổ ở lượt này).
+        (Dynamite kiểm tra TRƯỚC vì nó có thể giết luôn, khỏi xét Jail.)
+
+    0b. Nếu người này (còn sống) có JAIL trước mặt:
+        → draw! (lật bài).
+        → Nếu lá lật là chất Cơ (Hearts):
+             thoát tù, bỏ Jail, chơi lượt bình thường.
+           Ngược lại:
+             bỏ Jail, BỎ QUA cả lượt này (không rút, không đánh).
+
+  PHA 1 — RÚT BÀI:
+    Rút 2 lá trên cùng của bộ bài.
+    (Một số nhân vật đổi luật này — v1 bỏ qua.)
+
+  PHA 2 — ĐÁNH BÀI:
+    Đánh bao nhiêu lá tuỳ ý, theo thứ tự tuỳ ý, với các giới hạn:
+      - Mỗi lượt chỉ được đánh 1 lá BANG! (trừ khi có súng Volcanic → không giới hạn).
+      - Không được có 2 lá xanh CÙNG TÊN trước mặt (vd không 2 Barrel).
+      - Chỉ được 1 khẩu súng; đánh súng mới thì bỏ súng cũ.
+      - Bia (Beer) không dùng được khi chỉ còn 2 người sống (xem mục 7).
+
+  PHA 3 — BỎ BÀI THỪA:
+    Cuối lượt, số lá TRÊN TAY phải <= máu HIỆN TẠI.
+    Thừa bao nhiêu bỏ bấy nhiêu (người chơi tự chọn lá bỏ).
+    (Giới hạn tay = máu hiện tại, KHÔNG phải máu tối đa.)
+
+
+========================================================================
+5. KHOẢNG CÁCH & TẦM BẮN
+========================================================================
+
+KHOẢNG CÁCH CƠ BẢN giữa hai người:
+  = số ghế ít hơn khi đi vòng, tính theo hướng gần nhất.
+  Ví dụ ngồi cạnh nhau = 1. Cách 1 người = 2. Luôn lấy hướng ngắn hơn.
+  Người ĐÃ CHẾT bị bỏ khỏi vòng → khoảng cách giữa những người còn lại co lại.
+
+BỔ SUNG KHOẢNG CÁCH:
+  - SCOPE (Mirino, lá xanh): khi TÔI nhìn người khác, khoảng cách -1.
+  - MUSTANG (lá xanh): người khác nhìn TÔI thì khoảng cách +1.
+  → Hai cái này chỉ ảnh hưởng tính khoảng cách, cộng dồn được.
+
+TẦM BẮN (tầm với của Bang!) do SÚNG quyết định:
+  - Không súng (mặc định):     tầm 1
+  - Volcanic:                  tầm 1, nhưng đánh Bang! KHÔNG giới hạn số lần/lượt
+  - Schofield:                 tầm 2
+  - Remington:                 tầm 3
+  - Rev. Carabine (Carbine):   tầm 4
+  - Winchester:                tầm 5
+
+  Đánh Bang! vào ai đó chỉ hợp lệ khi: khoảng cách (đã tính Scope/Mustang)
+  ≤ tầm súng.
+
+LƯU Ý: Khoảng cách chỉ giới hạn BANG! và một số lá cần "tầm với".
+  - Panic! chỉ với người ở khoảng cách 1.
+  - Cat Balou, Duel, Indians!, Gatling KHÔNG quan tâm khoảng cách.
+
+
+========================================================================
+6. CƠ CHẾ "DRAW!" (LẬT BÀI KIỂM TRA)
+========================================================================
+
+"draw!" = lật lá trên cùng của bộ bài, xem CHẤT và/hoặc GIÁ TRỊ của nó,
+áp dụng kết quả, rồi bỏ lá đó vào chồng bài đã bỏ.
+
+Dùng bởi: Barrel, Jail, Dynamite (và nhiều nhân vật ở giai đoạn sau).
+
+Chất bài (suit): Cơ ♥ (Hearts), Rô ♦ (Diamonds), Chuồn ♣ (Clubs), Bích ♠ (Spades).
+Giá trị (rank): A, 2–10, J, Q, K.
+
+Các mốc cần nhớ:
+  - Barrel:   lật ra ♥ (Cơ)            → tính như một Missed!
+  - Jail:     lật ra ♥ (Cơ)            → thoát tù
+  - Dynamite: lật ra 2♠–9♠ (Bích 2–9)  → nổ
+
+[QUAN TRỌNG KHI CODE] Vì draw! phụ thuộc chất & giá trị của từng lá cụ thể,
+mỗi lá trong 80 lá phải có thuộc tính suit + rank chính xác. Xem mục 12.
+
+[BỔ SUNG] HẾT BÀI GIỮA CHỪNG: nếu bộ bài cạn ngay lúc cần rút (rút đầu lượt,
+draw!, Stagecoach/Wells Fargo, General Store...), phải TRỘN chồng bài đã bỏ
+để tạo bộ bài mới rồi rút tiếp. Xử lý ngay tại chỗ, đừng để engine đứng vì
+"không còn lá". Việc trộn lại cũng phải đi qua RNG có seed (xem mục 12).
+
+
+========================================================================
+7. BÀI NÂU (BROWN) — DÙNG NGAY RỒI BỎ
+========================================================================
+
+Bài nâu: đánh ra, hiệu lực một lần, rồi bỏ vào chồng bài đã bỏ.
+
+--- TẤN CÔNG / SÁT THƯƠNG ---
+
+BANG!
+  - Chọn 1 mục tiêu trong tầm súng.
+  - Mục tiêu mất 1 máu, TRỪ KHI họ phản ứng bằng Missed! (hoặc Barrel ra Cơ).
+  - Mỗi lượt chỉ 1 Bang! (trừ Volcanic).
+  [pending] đẩy mục "CẦN_MISSED" cho mục tiêu.
+
+MISSED! (Mancato)
+  - KHÔNG tự đánh ra lúc tới lượt mình. Chỉ dùng để PHẢN ỨNG, huỷ 1 Bang!
+    (hoặc phản ứng trong Gatling, Indians thì KHÔNG dùng được — xem bên dưới).
+
+INDIANS!
+  - Mọi người khác (không phải người chơi) mỗi người mất 1 máu,
+    TRỪ KHI họ BỎ một lá Bang! từ tay.
+  - Chú ý: Missed! KHÔNG cứu được khỏi Indians!, phải là lá Bang!.
+  [pending] đẩy mục "CẦN_BỎ_BANG" cho từng người khác (theo thứ tự vòng).
+
+DUEL (Đấu tay đôi)
+  - Chọn 1 mục tiêu (mọi khoảng cách).
+  - Hai bên LẦN LƯỢT bỏ 1 lá Bang! từ tay, MỤC TIÊU bỏ trước.
+  - Ai đến lượt mà không bỏ được Bang! → mất 1 máu, kết thúc.
+  - Missed! KHÔNG dùng trong Duel, chỉ Bang!.
+  [pending] đẩy chuỗi luân phiên "CẦN_BỎ_BANG_DUEL".
+
+GATLING
+  - Như bắn 1 Bang! vào TẤT CẢ người khác cùng lúc.
+  - Mỗi người phải Missed! nếu không mất 1 máu.
+  - KHÔNG tính vào giới hạn 1 Bang!/lượt, và KHÔNG quan tâm khoảng cách.
+  [pending] đẩy mục "CẦN_MISSED" cho từng người khác.
+
+--- HỒI MÁU ---
+
+BEER (Bia)
+  - Hồi 1 máu (không vượt máu tối đa).
+  - [NGOẠI LỆ QUAN TRỌNG] Khi chỉ còn 2 người sống, Beer VÔ HIỆU.
+  - Có thể dùng như phản ứng khi máu sắp về 0 để cứu mạng (xem mục 9).
+
+SALOON
+  - MỌI người còn sống hồi 1 máu (không vượt tối đa).
+
+--- RÚT THÊM BÀI ---
+
+STAGECOACH (Xe ngựa)
+  - Rút 2 lá.
+
+WELLS FARGO
+  - Rút 3 lá.
+
+GENERAL STORE (Cửa hàng tổng hợp)
+  - Lật ngửa số lá = số người còn sống.
+  - Bắt đầu từ NGƯỜI CHƠI, theo vòng, mỗi người chọn lấy 1 lá.
+  - Người cuối lấy lá còn lại.
+  [pending] đẩy chuỗi "CHỌN_1_LÁ" theo thứ tự vòng.
+
+--- QUY TẮC CHUNG VỀ NGUỒN LẤY/BỎ BÀI (áp dụng cho Panic! và Cat Balou) ---
+
+Trước khi hỏi người đánh chọn "tay hay sân", kiểm tra người bị nhắm có gì:
+  - Có bài trên TAY và có bài xanh trên SÂN → có 2 nguồn, thực hiện bước chọn.
+  - Chỉ có 1 nguồn (chỉ tay, hoặc chỉ sân) → BỎ QUA bước chọn, tự dùng nguồn còn bài.
+  - Trống cả hai nơi → KHÔNG có mục tiêu hợp lệ.
+
+[QUY ƯỚC ĐÃ CHỐT] Khi mục tiêu trống bài (cả tay lẫn sân): CẤM ĐÁNH.
+  Engine không cho chọn mục tiêu đó ngay từ đầu. Suy ra: mỗi lá phải có hàm
+  "liệt kê mục tiêu hợp lệ", kiểm tra TRƯỚC khi cho người chơi bấm. Hàm này
+  về sau dùng lại cho mọi lá.
+
+[GHI CHÚ CHO TƯƠNG LAI] Nếu về sau có lá khác (bản mở rộng, hoặc house rule)
+  cũng lấy/bỏ bài của người khác: ĐỪNG tự động áp quy tắc chung này. Phải HỎI
+  RÕ lá đó có dùng chung "QUY TẮC CHUNG VỀ NGUỒN" ở trên không, vì có lá cố tình
+  làm khác (vd chỉ chạm tay, chỉ chạm sân, hoặc cho người đánh chọn cả lá cụ thể).
+
+PANIC! (Hoảng loạn)
+  - Lấy 1 lá từ người ở KHOẢNG CÁCH 1 (có cộng khoảng cách từ bài xanh: Scope -1, Mustang +1).
+  - Xác định nguồn theo QUY TẮC CHUNG. Panic! KHÔNG cho người đánh chọn NGUỒN:
+    ưu tiên cố định là TAY trước, hết tay mới đến SÂN.
+
+  - NẾU lấy từ TAY (người bị nhắm còn bài trên tay):
+      1. Hỏi NGƯỜI ĐÁNH: "Có cho phép người bị lấy tự chọn lá đưa không?"
+      2a. Nếu người đánh CHỌN CÓ:
+          → người bị lấy tự chọn 1 lá trên tay để đưa.
+          → nếu sau 10 GIÂY chưa chọn: tự động rút NGẪU NHIÊN 1 lá từ tay họ.
+      2b. Nếu người đánh CHỌN KHÔNG:
+          → rút NGẪU NHIÊN 1 lá từ tay người bị lấy.
+
+  - NẾU lấy từ SÂN (tay người bị nhắm đã trống, chỉ còn bài xanh):
+      → BỎ QUA bước hỏi. Người đánh trực tiếp chọn lá xanh muốn lấy (vì nó ngửa).
+
+  - Cả tay lẫn sân đều trống: không có mục tiêu hợp lệ → cấm đánh.
+  (Chi tiết kỹ thuật của bước hỏi + đồng hồ 10 giây: xem mục 12.)
+
+CAT BALOU
+  - Bắt 1 người BẤT KỲ (mọi khoảng cách) BỎ 1 lá.
+  - Xác định nguồn theo QUY TẮC CHUNG:
+    → Có bài ở CẢ tay lẫn sân: người đánh chọn nguồn (tay HAY sân).
+    → Chỉ 1 nguồn còn bài: bỏ qua bước chọn, dùng luôn nguồn đó.
+    → Cả hai trống: không có mục tiêu hợp lệ → cấm đánh.
+  - Sau khi xác định nguồn: người BỊ đánh tự chọn lá nào trong nguồn đó để bỏ.
+    (Người đánh chỉ chọn "tay hay sân", không chọn lá cụ thể.)
+  - Khác Panic! ở chỗ: Cat Balou làm họ BỎ bài (bạn không lấy), mọi khoảng cách,
+    và người đánh ĐƯỢC chọn nguồn khi có 2 nguồn (Panic! thì không).
+
+
+========================================================================
+8. BÀI XANH (BLUE) — BÀY TRƯỚC MẶT, HIỆU LỰC LÂU DÀI
+========================================================================
+
+Bài xanh: đặt trước mặt mình, ở lại đến khi bị gỡ/dùng. Không được 2 lá cùng tên.
+
+BARREL (Thùng gỗ)
+  - Khi bị nhắm bởi Bang! (hoặc Gatling): được draw!.
+  - Lật ra ♥ (Cơ) → tính như một Missed! (miễn phí, không tốn bài trên tay).
+  - Chỉ 1 lần draw! cho mỗi Bang! [CẦN KIỂM CHỨNG: bản cơ bản Barrel chỉ 1 lần;
+    một số nhân vật cho draw! 2 lần — v1 không cần lo].
+
+SCOPE (Mirino / Kính ngắm)
+  - Bạn nhìn MỌI người khác ở khoảng cách -1.
+
+MUSTANG
+  - MỌI người khác nhìn bạn ở khoảng cách +1.
+
+JAIL (Nhà tù)
+  - Đánh lên 1 người khác — KHÔNG được đánh lên Cảnh sát trưởng.
+  - Đầu lượt người bị giam: draw! (xem Bước 0b).
+    Cơ ♥ → thoát, chơi bình thường. Ngược lại → mất cả lượt.
+  - Jail chỉ chặn lượt, KHÔNG chặn việc họ phản ứng (vẫn Missed! được khi bị bắn).
+
+DYNAMITE  (luật chuẩn — mặc định của bản này, KHÔNG phải house rule)
+  - TỰ ĐỘNG XUỐNG SÂN, không cần người chơi đánh ra:
+    ngay khi lá Dynamite lọt vào tay một người (rút từ bộ bài, được phát lúc
+    setup, hoặc qua bất kỳ đường nào), nó lập tức tự đặt vào bộ trang bị của
+    người đó. Không nằm trên tay, không chờ pha đánh bài.
+    NGOẠI LỆ: nếu người đó ĐÃ có Dynamite trước mặt (mỗi người tối đa 1) →
+    lá mới không xuống sân của họ mà đi tìm chỗ theo LOGIC CHUYỂN bên dưới,
+    bắt đầu từ người kế tiếp.
+
+  - Đầu mỗi lượt của người đang giữ: draw! (xem Bước 0a).
+      2♠–9♠ → NỔ: mất 3 máu, bỏ Dynamite.
+      Ngược lại → CHUYỂN Dynamite đi (xem LOGIC CHUYỂN).
+
+  - LOGIC CHUYỂN DYNAMITE:
+    Đi theo chiều chơi, tìm người ĐẦU TIÊN chưa có Dynamite trước mặt, đặt cho họ.
+    → Người kế tiếp đã có sẵn Dynamite: bỏ qua, xét người sau nữa.
+    → Ván chỉ còn 2 người (A ↔ B): vẫn đi vòng A→B→A→B. Nếu người kia đã có
+      Dynamite thì "người tiếp theo" vòng lại chính là bản thân → Dynamite quay
+      về mình.
+    (Vì mỗi người tối đa 1 Dynamite và số Dynamite luôn ít hơn số người, luôn
+     có ít nhất 1 chỗ trống — logic này không bao giờ chạy vô hạn.)
+
+  - GIỚI HẠN: mỗi người tối đa 1 Dynamite (hệ quả của luật "không 2 lá cùng tên
+    trước mặt", áp cho cả Dynamite). Không cho người chơi tự ý thêm Dynamite
+    vượt số lá thật có trong bộ bài.
+    [Ghi chú v1] Bản cơ bản chỉ có 1 lá Dynamite → thực tế KHÔNG bao giờ có 2
+    Dynamite cùng lúc; toàn bộ nhánh "đụng độ Dynamite" ở trên chỉ kích hoạt khi
+    có >1 lá (expansion tối đa cũng chỉ thêm 1). Không cần bận tâm test nhánh này
+    ở v1, nhưng cứ viết logic tổng quát (tìm chỗ trống, đừng hardcode số 2).
+
+  - MIỄN NHIỄM (chỉ riêng Dynamite): không bị ảnh hưởng bởi các lá lấy/bỏ bài
+    (Panic!, Cat Balou, và mọi lá tương tự). Không ai lấy hay gỡ được. Một khi
+    đã xuất hiện, chỉ rời sân khi PHÁT NỔ.
+    → Lưu ý: MỌI lá xanh khác VẪN bị Panic!/Cat Balou như bình thường; Dynamite
+      là ngoại lệ DUY NHẤT.
+    → Khi kiểm tra luật "không 2 lá cùng tên trước mặt" để xem có được đánh lá
+      xanh mới không: TỰ ĐỘNG BỎ QUA Dynamite (nó không cản việc đánh lá khác).
+
+SÚNG (đều là lá xanh) — xem tầm bắn ở mục 5:
+  Volcanic (tầm 1, Bang! không giới hạn), Schofield (2),
+  Remington (3), Rev. Carabine (4), Winchester (5).
+  Mặc định không súng = tầm 1.
+
+
+========================================================================
+9. SÁT THƯƠNG, CHẾT, THƯỞNG / PHẠT
+========================================================================
+
+MẤT MÁU — SÀN LÀ 0:
+  - Mỗi nguồn (Bang!, Gatling, Indians!, Duel, Dynamite...) làm mất máu như mô tả.
+  - Máu KHÔNG BAO GIỜ xuống dưới 0. Mọi sát thương vượt quá đều bị cắt về đúng 0.
+    Ví dụ: đang 1 máu, dính Dynamite nổ (-3) → về 0 (không phải -2).
+  - Máu về 0 → đang HẤP HỐI (xét cứu bằng Beer ngay bên dưới).
+  → Không có khái niệm máu âm; "chết hay không" chỉ xét ở mốc = 0.
+
+CỨU MẠNG BẰNG BEER (tự động, không hỏi người chơi):
+  - Mỗi khi một người tụt về 0 máu VÀ số người còn sống > 2:
+      → tự động chạy hàm kiểm tra: trên tay người đó có lá Beer không?
+      → CÓ Beer: tự kích hoạt hồi sinh — bỏ 1 lá Beer, hồi 1 máu (về 1).
+        Người đó thoát chết, ván tiếp tục.
+      → KHÔNG có Beer: ghi nhận CHẾT, xử lý cái chết như bình thường (mục dưới).
+  - MỖI cú tụt-về-0 chỉ cần 1 Beer để cứu (vì máu đã bị cắt về 0, không âm).
+    Cứu xong về 1 máu; muốn hồi thêm phải chờ tới lượt mình (Beer chủ động lúc bình thường).
+  - [NGOẠI LỆ] Khi chỉ còn 2 người sống, Beer VÔ HIỆU (kể cả để cứu mạng) →
+    về 0 là chết luôn, không kiểm tra Beer.
+
+KHI CHẾT:
+  - Bỏ TẤT CẢ bài (trên tay + đang bày trước mặt) vào chồng bài đã bỏ.
+  - Người đó rời vòng chơi (khoảng cách co lại cho những người còn lại).
+
+THƯỞNG / PHẠT CHO NGƯỜI GÂY RA CÁI CHẾT:
+  - Nếu người CHẾT là Tội phạm:
+      → người gây ra cái chết RÚT 3 LÁ.
+  - Nếu Cảnh sát trưởng giết một Phó cảnh (quân mình):
+      → Cảnh sát trưởng phải BỎ HẾT bài (trên tay + trước mặt).
+  - Các trường hợp khác: không thưởng không phạt.
+
+  [CẦN KIỂM CHỨNG] "người gây ra cái chết" trong tình huống gián tiếp
+  (Dynamite nổ, Duel...) được tính cho ai — hãy tra BGG cho từng ca.
+
+
+========================================================================
+10. ĐIỀU KIỆN THẮNG
+========================================================================
+
+Kiểm tra sau MỖI cái chết:
+
+  Cảnh sát trưởng (+ Phó cảnh) THẮNG:
+    khi TẤT CẢ Tội phạm và Kẻ phản bội đều chết.
+
+  KHI CẢNH SÁT TRƯỞNG CHẾT — xét NGAY tại thời điểm đó, dựa trên ai CÒN SỐNG:
+    - Nếu người còn sống duy nhất là Kẻ phản bội (chỉ còn đúng hắn) →
+      KẺ PHẢN BỘI thắng.
+    - Mọi trường hợp còn lại (còn ≥1 Tội phạm sống, HOẶC còn Phó cảnh sống,
+      HOẶC còn nhiều người sống ngoài mỗi Kẻ phản bội) → TỘI PHẠM thắng.
+    Nói gọn: Kẻ phản bội chỉ thắng nếu hắn là người sống sót DUY NHẤT lúc Cảnh
+    sát trưởng ngã xuống; bằng không, phe Tội phạm thắng.
+
+  [CẦN KIỂM CHỨNG trên BGG — đây là chỗ hay gây tranh cãi, xác nhận lại cho chắc:]
+    - Ca "Kẻ phản bội tự tay giết Cảnh sát trưởng khi vẫn còn người khác sống"
+      → theo diễn đạt trên vẫn tính Tội phạm thắng. Kiểm tra xem luật nhà bạn
+        có muốn khác không.
+
+
+========================================================================
+11. CÁC CA LUẬT KHÓ / THỨ TỰ XỬ LÝ (đọc kỹ khi code)
+========================================================================
+
+- THỨ TỰ ĐẦU LƯỢT: Dynamite TRƯỚC, Jail SAU (mục 4, Bước 0). Vì Dynamite có thể
+  giết luôn, không cần xét Jail nữa.
+
+- BARREL + DYNAMITE: là hai cơ chế draw! độc lập, không liên quan nhau.
+
+- PHẢN ỨNG LỒNG NHAU (lý do phải dùng STACK, không phải biến đơn):
+    A đánh Gatling → cần Missed! từ B, C, D.
+    C có Barrel → draw! cho Barrel PHẢI xử lý xong trước khi qua D.
+    → mục "draw! của Barrel" đẩy lên ĐỈNH stack, giải quyết xong mới quay lại.
+  Nguyên tắc: cái phát sinh sau luôn giải quyết trước (vào sau, ra trước).
+
+- MISSED! vs INDIANS!/DUEL: Missed! KHÔNG cứu khỏi Indians! và Duel; hai lá này
+  đòi bỏ lá BANG!, không phải Missed!.
+
+- GATLING không tính vào giới hạn Bang!/lượt và bỏ qua khoảng cách.
+
+- BEER vô hiệu khi còn 2 người (màn "solo cuối cùng").
+
+- GIỚI HẠN TAY = máu HIỆN TẠI, không phải máu tối đa.
+
+- JAIL không đánh được lên Cảnh sát trưởng.
+
+- [BỔ SUNG] DYNAMITE là lá xanh ĐẶC BIỆT (xem mục 8, luật chuẩn): tự xuống sân
+  ngay khi vào tay ai đó, miễn nhiễm Panic!/Cat Balou, và bị bỏ qua khi xét luật
+  "không 2 lá cùng tên". Đây là ngoại lệ DUY NHẤT — mọi lá xanh khác hành xử
+  bình thường.
+
+- [BỔ SUNG][CHÍNH SÁCH TIMEOUT TOÀN CỤC] MỌI bước cần người chơi quyết định đều
+  có đồng hồ đếm ngược. Hết giờ → hệ thống tự chọn một mặc định an toàn (nêu rõ
+  cho từng bước bên dưới). Mục đích: không để ai bỏ đi làm treo ván.
+
+  Timeout theo từng giai đoạn của một lượt:
+
+    (1) Đầu lượt — check Dynamite / Jail: TỰ ĐỘNG, KHÔNG timeout.
+
+    (2) Rút bài:
+        - Rút thường 2 lá: TỰ ĐỘNG, không timeout.
+        - Rút theo chức năng đặc biệt (vd "bốc 3 chọn 2", "rút từ chồng bài bỏ",
+          "rút từ tay người khác"... — do nhân vật/expansion sau này thêm):
+          HỎI người chơi có muốn dùng chức năng đặc biệt không, có timeout.
+          Hết giờ mà chưa chọn → MẶC ĐỊNH rút thường 2 lá.
+          (Chi tiết xử lý từng chức năng để dành cho giai đoạn nhân vật/expansion.)
+
+    (3) Pha hành động (đánh bài): CẢ pha có MỘT đồng hồ tổng (mặc định ~1 phút).
+        Hết giờ → tự động sang giai đoạn tiếp theo (bỏ bài & kết thúc lượt).
+        Có nút "Kết thúc lượt sớm" để chủ động qua pha khi chưa hết giờ.
+        [TẠM DỪNG] Khi hành động của người này làm phát sinh bước chờ PHẢN ỨNG của
+        người khác (vd đánh Bang! → chờ đối thủ Missed!), ĐỒNG HỒ pha hành động của
+        người đang chơi TẠM DỪNG, để đồng hồ phản ứng của người kia chạy. Xử lý
+        xong phản ứng → chạy tiếp đồng hồ pha hành động từ chỗ đã dừng. (Tránh
+        chuyện người chơi bị "trôi hết giờ" trong lúc chờ người khác.)
+
+    (4) Bỏ bài & kết thúc lượt:
+        - Giới hạn tay chỉ tính LÁ TRÊN TAY; bài xanh bày trước mặt (sân) KHÔNG
+          bị đụng tới. Việc random khi hết giờ cũng chỉ bỏ từ TAY.
+        - Nếu số lá trên tay > máu hiện tại: cho ~15s để chọn lá bỏ.
+          Hết 15s mà chưa chọn (hoặc chưa bỏ đủ) → hệ thống RANDOM bỏ bớt (chỉ từ
+          tay) cho tới khi số lá ≤ máu, rồi kết thúc lượt.
+        - Nếu số lá đã ≤ máu: kết thúc lượt luôn, không cần bước này.
+
+  [PHẢN ỨNG NGOÀI LƯỢT] Các bước chờ phản ứng của người KHÁC (Missed! khi bị Bang!,
+  bỏ Bang! khi bị Indians!/Duel, chọn lá General Store, Panic! cho tự chọn lá...)
+  cũng đều có timeout. Hết giờ → mặc định ƯU TIÊN GIỮ MẠNG / TRÁNH THIỆT HẠI:
+
+    - Bị Bang!/Gatling, thứ tự xử lý:
+        B1. Nếu có BARREL → draw! LUÔN, TỰ ĐỘNG, KHÔNG timeout (Barrel là hiệu
+            ứng tự chạy, không phải lựa chọn của người chơi).
+            → Rút ra Cơ ♥: coi như đã né, KẾT THÚC — bỏ qua luôn, KHÔNG hỏi Missed!,
+              không đếm 15s.
+            → Không phải Cơ: mới sang bước B2.
+        B2. Bắt đầu đếm ~15s HỎI người chơi có dùng Missed! không.
+            → Người chơi bấm dùng: né.
+            → Hết 15s chưa chọn: nếu trên tay CÓ Missed! → tự thả 1 Missed! để né;
+              không có Missed! → nhận sát thương.
+        (Nhiều Barrel/nhiều nguồn né: cứ áp thứ tự trên cho tới khi né được hoặc hết cách.)
+
+    - Cần bỏ Bang! (Indians!/Duel): hết giờ → nếu trên tay CÓ Bang! → tự bỏ 1 Bang!
+      để tránh mất máu; không có Bang! → nhận hậu quả.
+    - General Store chọn lá: hết giờ → tự random 1 lá trong số còn lại.
+    - Panic! người bị lấy tự chọn: hết giờ → tự random 1 lá (như mục 7).
+
+    → Nguyên tắc chung khi hết giờ: chọn hành động tự vệ rẻ nhất có sẵn, không bao
+      giờ để người chơi "chết oan" khi họ đang cầm lá cứu được. (Chi tiết từng lá
+      có thể tinh chỉnh thêm khi code.)
+
+  [GIÁ TRỊ TIMEOUT] Con số cụ thể (1 phút cho pha hành động, 15s bỏ bài, v.v.) là
+  MẶC ĐỊNH, đặt trong quá trình làm. Cho phép CHỈNH trước mỗi ván (cấu hình phòng).
+  → Khi code: đừng hardcode. Gom mọi mốc thời gian vào MỘT bảng cấu hình
+    (vd timeouts = { action: 60_000, discard: 15_000, reaction: ..., ... }) truyền
+    vào lúc tạo ván, để đổi được mà không sửa logic.
+
+  [KỸ THUẬT] Mọi timeout đều dùng DO Alarm, KHÔNG dùng setTimeout/setInterval
+    (xem CLAUDE.md quy tắc 8 và ghi chú Panic! ở mục 12). "Hết giờ" luôn là một
+    ACTION bình thường đi vào reduce (vd { type: "TIMEOUT", giai_đoạn: ... }); core/
+    không tự biết thời gian, server/ (DO) bấm giờ và bắn action vào khi Alarm kêu.
+
+
+========================================================================
+12. GHI CHÚ CHO VIỆC CODE (core/ và cách ghép với server/)
+========================================================================
+
+- Mỗi lá bài là DỮ LIỆU: { id, ten, mau_bien(nau/xanh), suit, rank, loai_hieu_ung }.
+  Suit + rank BẮT BUỘC chính xác vì draw! phụ thuộc chúng.
+
+- Mọi thứ "chờ người chơi phản ứng" KHÔNG dùng await. Đẩy 1 mục vào
+  state.pending (mảng dùng như stack). Reduce đọc phần tử CUỐI, kiểm tra
+  action hợp lệ, pop, áp dụng, có thể push thêm.
+
+- [BỔ SUNG] MỖI LÁ CÓ HÀM "liệt kê mục tiêu hợp lệ" (vd legalTargets(state, card,
+  player)). Dùng cho 2 việc: (1) chặn nước đi sai ngay trong reduce; (2) để client
+  biết nút nào cho bấm. Vì đã chốt "cấm đánh khi không có mục tiêu", hàm này là
+  primitive dùng chung cho mọi lá — làm sớm từ những lá đầu tiên.
+
+- [BỔ SUNG] DYNAMITE tự-xuống-sân → gom vào MỘT hàm dùng chung "thêm bài vào tay"
+  (vd themBaiVaoTay(state, player, card)). Mọi đường khiến bài vào tay ai đó
+  (rút đầu lượt, chia setup, Stagecoach/Wells Fargo/General Store, chuyển bài...)
+  đều đi qua hàm này. Trong hàm: nếu card là Dynamite → không cho vào tay, tự đặt
+  xuống trang bị (hoặc chạy LOGIC CHUYỂN nếu người đó đã có Dynamite). Viết một
+  chỗ, tránh rải điều kiện "if Dynamite" khắp nơi. Luật "không 2 lá cùng tên
+  trước mặt" cũng phải loại trừ Dynamite khi kiểm tra lá xanh khác.
+
+- Các loại mục pending gợi ý (bạn tự đặt tên lại tuỳ ý):
+    CẦN_MISSED           (từ Bang!, Gatling)
+    CẦN_BỎ_BANG          (từ Indians!)
+    DUEL_LƯỢT            (luân phiên bỏ Bang!)
+    DRAW_CHECK           (Barrel / Jail / Dynamite)
+    CHỌN_1_LÁ            (General Store)
+  (Beer cứu mạng KHÔNG phải mục pending — nó tự động, không chờ người chơi. Xem mục 9.)
+  [BỔ SUNG] Riêng Panic! / Cat Balou tách nhỏ hơn vì có bước hỏi/chọn nguồn:
+    PANIC_HỎI_CHO_CHỌN   (hỏi người ĐÁNH: có cho người bị lấy tự chọn lá không)
+    PANIC_CHỜ_CHỌN_LÁ    (chờ người BỊ lấy chọn lá — CÓ đồng hồ 10 giây)
+    CATBALOU_CHỌN_NGUỒN  (người đánh chọn tay/sân, chỉ khi có 2 nguồn)
+    CATBALOU_CHỜ_BỎ_LÁ   (người bị đánh chọn lá để bỏ trong nguồn đã định)
+
+- [BỔ SUNG] ĐỒNG HỒ 10 GIÂY CỦA PANIC! — cách làm ĐÚNG trên Durable Object:
+    Trong DO CẤM setTimeout/setInterval (xem CLAUDE.md quy tắc 8). Thay vào đó:
+      1. Khi đẩy mục PANIC_CHỜ_CHỌN_LÁ, ghi vào state: han_chot = now + 10_000ms.
+      2. Đặt một DO Alarm tại thời điểm han_chot: ctx.storage.setAlarm(han_chot).
+      3. Nếu người bị lấy bấm chọn TRƯỚC hạn: xử lý bình thường, huỷ alarm
+         (ctx.storage.deleteAlarm()), pop mục pending.
+      4. Nếu Alarm kêu mà mục PANIC_CHỜ_CHỌN_LÁ VẪN còn trên đỉnh stack: coi như
+         hết giờ → tự rút NGẪU NHIÊN 1 lá từ tay (qua RNG có seed), pop mục.
+    Đây là ca ĐẦU TIÊN trong dự án cần đến Alarm — khi code tới Panic! nhớ nhắc
+    Claude Code đúng cách này, đừng để nó "chờ 10 giây" bằng cách nào khác.
+    Ranh giới core/ vs server/: bản thân "hết giờ" là một ACTION bình thường
+    (vd { type: "PANIC_TIMEOUT" }) đi vào reduce. core/ KHÔNG tự biết thời gian;
+    chính server/ (DO) là nơi bấm giờ và bắn action đó vào khi Alarm kêu. Nhờ vậy
+    core/ vẫn thuần và test được (test chỉ cần gửi thẳng action timeout).
+    → Panic! chỉ là MỘT ví dụ. Toàn dự án dùng timeout ở mọi bước chờ (xem
+      CHÍNH SÁCH TIMEOUT TOÀN CỤC ở mục 11). Cùng một khuôn: Alarm trong server/,
+      action TIMEOUT vào reduce, mặc định an toàn khi hết giờ. Nên gom việc đặt/huỷ
+      Alarm và bắn action TIMEOUT vào một lớp dùng chung, đừng viết lại cho từng lá.
+
+- viewFor(state, playerId): che vai trò người khác, che bài trên tay người khác,
+  che thứ tự bộ bài. CHỈ lộ: bài xanh bày trước mặt, máu, số lá trên tay của
+  người khác (số lượng, không nội dung), và vai trò Cảnh sát trưởng.
+
+- Dùng RNG có seed để xáo bài, cho mọi draw!, VÀ cho việc trộn lại chồng bài
+  đã bỏ khi hết bài (mục 6). Cùng seed + cùng action log → tái hiện y hệt ván
+  đấu (phục vụ test, replay, reconnect).
+
+
+========================================================================
+13. TRA CỨU & XÁC NHẬN TRƯỚC KHI CODE
+========================================================================
+
+Phần này đã điền sẵn những gì tôi trả lời được. CHỈ CÒN 1 việc thật sự bắt buộc
+phải tra nguồn — đánh dấu [BẮT BUỘC TRA]. Còn lại là đã chốt, bạn đọc để yên tâm
+hoặc chỉnh nếu muốn khác.
+
+--- A. SỐ LƯỢNG TỪNG LOẠI LÁ (bộ cơ bản, tổng 80) ---
+Đây là con số theo trí nhớ của tôi, tổng đúng bằng 80 (một phép kiểm chứng chéo).
+Vẫn nên đối chiếu nhanh với 1 bảng bài trên BGG trước khi gõ vào code:
+
+  Bài nâu:
+    Bang! ............ 25       Panic! ........... 4
+    Missed! .......... 12       Cat Balou ........ 4
+    Beer ............. 6        Duel ............. 3
+    Stagecoach ....... 2        Indians! ......... 2
+    General Store .... 2        Gatling .......... 1
+    Wells Fargo ...... 1        Saloon ........... 1
+  Bài xanh (trang bị & súng):
+    Jail ............. 3        Schofield ........ 3
+    Barrel ........... 2        Volcanic ......... 2
+    Mustang .......... 2        Remington ........ 1
+    Scope ............ 1        Rev. Carabine .... 1
+    Dynamite ......... 1        Winchester ....... 1
+  Cộng: 80 lá.  (Kiểm tra: 25+12+6+2+2+1 + 4+4+3+2+1+1 = 63 nâu;
+                 3+2+2+1+1 + 3+2+1+1+1 = 17 xanh; 63+17 = 80. ✓)
+
+--- B. [BẮT BUỘC TRA] SUIT + RANK IN TRÊN TỪNG LÁ ---
+  Đây là thứ DUY NHẤT tôi không thể cung cấp chính xác từ trí nhớ: mỗi lá trong
+  80 lá in một chất + giá trị cụ thể (vd một lá Bang! là "A♠", lá khác là "K♥"...),
+  và nó quyết định XÁC SUẤT của mọi draw! (Dynamite nổ, Barrel/Jail thoát).
+  → Tra 1 bảng liệt kê đầy đủ 80 lá trên BGG / wiki cộng đồng, chép vào cards.ts.
+  → Đây là việc NHẬP DỮ LIỆU, không phải viết logic — làm ở bước 1.2. Nếu gõ sai
+    suit/rank, luật vẫn chạy nhưng game mất cân bằng ngầm mà không báo lỗi, nên
+    làm cẩn thận và nếu được thì viết test đếm phân bố chất để soát.
+
+--- C. CÁC CÂU HỎI CŨ — ĐÃ CHỐT ---
+
+  ✔ Panic! có cộng khoảng cách Scope/Mustang không?
+    → CÓ. File đã áp: Scope -1, Mustang +1 khi tính "khoảng cách 1" của Panic!
+      (mục 5 và mục 7). Đây là cách hiểu phổ biến. Nếu nhóm bạn muốn Panic! luôn
+      cố định = kề sát bất kể trang bị, đổi ở mục 7 và ghi rõ.
+
+  ✔ "Người gây ra cái chết" cho Dynamite và Duel (để chia thưởng/phạt ở mục 9):
+    → DYNAMITE nổ: KHÔNG có "người giết". Người đó tự chết vì Dynamite của mình →
+      không ai được rút 3 lá dù nạn nhân là Tội phạm; Cảnh sát trưởng cũng không
+      bị phạt nếu nạn nhân là Phó cảnh. (Thưởng/phạt chỉ tính khi có người CHỦ ĐỘNG
+      gây ra cái chết.)
+    → DUEL: người GÂY chết là ĐỐI THỦ còn lại trong duel (người khiến nạn nhân hết
+      Bang! để đỡ). Thưởng/phạt tính cho người đó.
+    (Cả hai theo cách hiểu phổ biến; nếu muốn khác, chỉnh ở mục 9.)
+
+  ✔ Điều kiện thắng khi Cảnh sát trưởng chết → ĐÃ viết rõ ở mục 10 (Kẻ phản bội
+    thắng chỉ khi là người sống sót DUY NHẤT; còn lại Tội phạm thắng). Không còn mơ hồ.
+
+  ✔ Barrel bản cơ bản: chỉ 1 lần draw! mỗi Bang! → ĐÚNG, xác nhận. (Trường hợp
+    draw! 2 lần chỉ đến từ 1 nhân vật cụ thể — thuộc Giai đoạn 5, v1 không có.)
+
+  ✔ Dùng nhiều Beer cứu 1 cú chết → KHÔNG còn là vấn đề: bạn đã chốt máu có sàn 0
+    và mỗi cú tụt-về-0 chỉ cần đúng 1 Beer (mục 9). Bỏ khỏi danh sách phải tra.
+
+--- D. CÁC CON SỐ ĐÃ CHẮC (đối chiếu cho yên tâm) ---
+  - Máu: người thường 4, Cảnh sát trưởng 5 (v1 không nhân vật).
+  - Số lá khởi đầu = máu tối đa.
+  - Tầm súng: Volcanic 1 / Schofield 2 / Remington 3 / Carabine 4 / Winchester 5.
+  - Dynamite nổ ở 2♠–9♠; Barrel & Jail thoát ở chất Cơ ♥.
+
+
+========================================================================
+HẾT PHẦN CƠ BẢN.
+Khi bạn sửa xong file này theo ý mình, nó trở thành "nguồn sự thật" để đưa cho
+Claude Code khi cài đặt bộ bài (bước 1.2 và 1.8–1.13 trong LO-TRINH.md).
+========================================================================
