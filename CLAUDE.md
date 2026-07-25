@@ -135,17 +135,18 @@ Nguyên tắc chung:
 
 > Cập nhật dòng này mỗi khi xong một giai đoạn. Xem `LO-TRINH.md`.
 
-**Đang ở:** Giai đoạn 3 — mạng (Giai đoạn 1 + 2 đã HOÀN THÀNH TOÀN BỘ). **XONG việc 3.1 → 3.7** (+ bonus chat công khai/riêng tư):
+**Đang ở:** Giai đoạn 3 — mạng (Giai đoạn 1 + 2 đã HOÀN THÀNH TOÀN BỘ). **XONG việc 3.1 → 3.8** (+ bonus chat công khai/riêng tư):
 
 - 3.1-3.4 (gọn lại): `src/server/index.ts` (Worker entry) + `src/server/room.ts` (Durable Object `Room`) đã deploy thật — **https://bang-boardgame.nguyenngoctuan548.workers.dev**. WebSocket dùng Hibernation API đúng cách (`ctx.acceptWebSocket()`, KHÔNG `server.accept()` — quy tắc 7). Định tuyến theo `/room/<mã phòng>` (`env.ROOM.idFromName(roomCode)`).
-- 3.5 + bonus: `src/protocol.ts` (**mới, lệch cấu trúc gốc** — xem mục "Cấu trúc thư mục") định nghĩa `ClientMessage`/`ServerMessage`. Chat công khai/riêng tư hoạt động thật: không có `to` thì phát cả phòng, có `to` thì server CHỈ gửi cho đúng người gửi + người nhận (không ai khác trong phòng nhận được gói tin).
-- 3.6: `core/view.ts` — `viewFor(state, playerId): PlayerView`. Ẩn bài tay người khác (chỉ lộ `handCount`) và vai trò (trừ chính mình/Sheriff/người đã chết). Bộ bài rút chỉ lộ `deckCount`. 9 test riêng (`test/view.test.ts`).
-- **3.7 (mới)**: `room.ts` lưu `GameState` thật vào `ctx.storage` (khoá `"gameState"`) — KHÔNG giữ trong field thường của class (lý do giống việc 3.3: field thường mất khi hibernate/restart). Thêm `ClientMessage` mới `{type:"start_game", playerIds, seed}` (tạm thời, CHƯA có lobby thật — việc 3.9 — nên client tự gõ thẳng danh sách playerId): gọi `setupGame()`, lưu storage, gửi `viewFor()` riêng cho từng socket. `{type:"action"}` giờ ĐÃ xử lý thật: đọc state từ storage → `reduce()` → ghi lại storage → gửi `viewFor()` mới cho mọi socket đang mở; lỗi từ `reduce()` chỉ gửi `action_error` về đúng người gửi. `join` khi vào lại phòng đã có ván thì gửi ngay state hiện tại (tiện cho việc 3.8 reconnect sau này). `start_game` bị từ chối nếu phòng đã có ván (không ghi đè ván đang chơi dở).
-- Đã tự kiểm ĐÚNG tiêu chí "deploy lại giữa ván, ván vẫn còn": `wrangler dev`, bắt đầu ván 4 người, rút bài (hand 5→7, deck 63→61, turnPhase draw→play) — rồi **tắt hẳn tiến trình `wrangler dev`**, khởi động tiến trình mới hoàn toàn (cổng khác) — join lại đúng phòng, nhận ngay state cũ khớp 100% (đúng 7 lá, đúng cả 2 lá vừa rút, deck 61, turnPhase play). Không lỗi console/server.
+- 3.5 + bonus: `src/protocol.ts` (**mới, lệch cấu trúc gốc** — xem mục "Cấu trúc thư mục") định nghĩa `ClientMessage`/`ServerMessage`. Chat công khai/riêng tư hoạt động thật.
+- 3.6: `core/view.ts` — `viewFor(state, playerId): PlayerView`. Ẩn bài tay người khác (chỉ lộ `handCount`) và vai trò (trừ chính mình/Sheriff/người đã chết). Bộ bài rút chỉ lộ `deckCount`.
+- 3.7: `room.ts` lưu `GameState` thật vào `ctx.storage` (khoá `"gameState"`). `ClientMessage` mới `{type:"start_game", playerIds, seed}` (tạm thời, CHƯA có lobby thật — việc 3.9). `{type:"action"}` đã xử lý thật: đọc state từ storage → `reduce()` → ghi lại storage → gửi `viewFor()` riêng cho từng socket. Đã kiểm đúng "deploy lại giữa ván, ván vẫn còn": tắt hẳn `wrangler dev`, khởi động lại — join lại phòng nhận đúng state cũ 100%.
+- **3.8 (mới)**: `src/client/net.ts` — `RoomConnection` (kết nối WebSocket + tự động kết nối lại). Mất kết nối (sự kiện `close`, do rớt mạng/server tắt/deploy lại) → tự thử lại sau 1 giây CỐ ĐỊNH (đơn giản trước, chưa cần backoff tăng dần) → tự gửi lại `join` ngay khi nối lại được → nhờ state đã lưu ở việc 3.7, nhận lại đúng ván đang chơi dở, không cần người dùng làm gì.
+- Đã tự kiểm bằng trình duyệt thật + `net.ts` thật (không giả lập): kết nối, bắt đầu ván 4 người, rút bài (deck 63→61, turnPhase draw→play) — rồi **tắt hẳn tiến trình `wrangler dev`**, khởi động tiến trình MỚI HOÀN TOÀN (không phải cùng process) — `RoomConnection` tự phát hiện mất kết nối (`onDisconnected`), tự thử lại, tự nối lại thành công (`onConnected`) và tự nhận lại ĐÚNG state cũ (deck 61, turnPhase play, đúng số lá) mà không cần tạo lại kết nối bằng tay. Không lỗi console/server.
 
 162 test đều pass.
 
-**Việc tiếp theo:** 3.8 — reconnect (tắt wifi 30 giây rồi bật, vào lại đúng ván).
+**Việc tiếp theo:** 3.9 — lobby (tạo phòng / vào phòng, mã 6 ký tự) — sẽ thay thế cách gõ tay `start_game`/`playerIds` tạm thời hiện tại.
 
 ## Chưa làm tới, đừng đụng vào
 
