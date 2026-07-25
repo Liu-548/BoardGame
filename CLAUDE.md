@@ -130,17 +130,17 @@ Nguyên tắc chung:
 
 > Cập nhật dòng này mỗi khi xong một giai đoạn. Xem `LO-TRINH.md`.
 
-**Đang ở:** Giai đoạn 3 — mạng (Giai đoạn 1 + 2 đã HOÀN THÀNH TOÀN BỘ). Đang làm việc 3.1 (Worker "hello world" + `wrangler deploy`) — **MỚI XONG PHẦN CODE, CHƯA DEPLOY THẬT**:
+**Đang ở:** Giai đoạn 3 — mạng (Giai đoạn 1 + 2 đã HOÀN THÀNH TOÀN BỘ). **XONG việc 3.1** (Worker "hello world" + deploy thật):
 
 - `src/server/index.ts`: Worker tối giản, `fetch()` trả về chữ "Bang! server đang chạy." — chưa có Durable Object (việc 3.2), chưa WebSocket (3.3), chưa định tuyến mã phòng (3.4).
 - `wrangler.jsonc` (gốc dự án): `name: "bang-boardgame"`, `main: "src/server/index.ts"`, `compatibility_date: "2026-07-25"`.
-- Thêm script `npm run server:dev` (chạy `wrangler dev`, local, không cần đăng nhập) và `npm run deploy` (chạy `wrangler deploy`, cần đăng nhập Cloudflare thật).
-- Đã tự kiểm bằng `wrangler dev` + trình duyệt thật: mở `http://127.0.0.1:8788/` thấy đúng chữ.
-- **CHƯA chạy `wrangler deploy` thật** — máy chưa đăng nhập Cloudflare (`wrangler whoami` báo "not authenticated"). Việc `wrangler login` (đăng nhập OAuth) và bấm deploy thật (tạo endpoint công khai `.workers.dev`) cần chính chủ dự án tự làm/xác nhận — xem phần hội thoại gần nhất để biết bước tiếp theo cụ thể.
+- Thêm script `npm run server:dev` (chạy `wrangler dev`, local) và `npm run deploy` (chạy `wrangler deploy`).
+- **Đã deploy thật lên Cloudflare** (chủ dự án tự đăng nhập bằng `wrangler login`, tài khoản `nguyenngoctuan548@gmail.com`) — link công khai: **https://bang-boardgame.nguyenngoctuan548.workers.dev**. Đã kiểm bằng `curl` + trình duyệt thật, thấy đúng chữ.
+- Lưu ý: lần đầu deploy xong gọi thử ngay có thể gặp lỗi tạm thời do DNS/route mới chưa lan truyền hết (gặp `error code 1104`/HTTP 404 trong vài giây đầu) — thử lại sau ~5-10 giây là hết, không phải lỗi code.
 
 153 test đều pass (không đổi gì ở `src/core/`).
 
-**Việc tiếp theo:** hoàn tất việc 3.1 (đăng nhập + deploy thật để có link `.workers.dev`), rồi 3.2 — Durable Object đầu tiên.
+**Việc tiếp theo:** 3.2 — Durable Object đầu tiên (đếm số lần truy cập, số không mất khi reload).
 
 ## Chưa làm tới, đừng đụng vào
 
