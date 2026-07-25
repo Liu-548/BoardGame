@@ -1,7 +1,7 @@
-// Việc 2.2: chỉ VẼ state ra màn hình bằng chữ, chưa xử lý bấm bài (việc 2.3)
-// và chưa có UI riêng cho stack pending (việc 2.4). Nhãn tiếng Việt (tên bài,
-// tên vai) chỉ để HIỂN THỊ nên đặt ở đây, không đặt trong core/ — core/ không
-// quan tâm chuyện trình bày, chỉ giữ dữ liệu bằng tiếng Anh (CardName, Role).
+// Việc 2.2 (vẽ state) + 2.3 (bấm bài → gọi reduce). Vẫn CHƯA có UI riêng đẹp
+// cho stack pending (việc 2.4) — chỉ hiện đủ thông tin để trả lời được, không
+// bỏ sót lượt nào. Nhãn tiếng Việt (tên bài, tên vai) chỉ để HIỂN THỊ nên đặt
+// ở đây, không đặt trong core/ — core/ không quan tâm chuyện trình bày.
 
 import { cardNameFromId } from "../core/cards";
 import type { CardName } from "../core/cards";
@@ -47,15 +47,174 @@ const WINNER_LABELS: Record<NonNullable<GameState["winner"]>, string> = {
   renegade: "Kẻ phản bội",
 };
 
+const TURN_PHASE_LABELS: Record<GameState["turnPhase"], string> = {
+  draw: "rút bài",
+  play: "đánh bài",
+  discard: "bỏ bài thừa",
+};
+
 function cardLabel(cardId: string): string {
   return CARD_LABELS[cardNameFromId(cardId)];
 }
 
-function cardListText(cardIds: string[]): string {
-  return cardIds.length > 0 ? cardIds.map(cardLabel).join(", ") : "(không có)";
+// ----- Trạng thái "đang chọn" tạm thời, CHỈ tồn tại ở client (không phải
+// GameState) — vd đã bấm 1 lá Bang!, đang chờ bấm chọn mục tiêu. main.ts giữ
+// biến này, ui.ts chỉ đọc để biết vẽ gì.
+
+export type Selection =
+  | { step: "idle" }
+  | { step: "picking-target"; cardId: string; cardName: CardName }
+  | { step: "picking-panic-equipment"; cardId: string; targetId: string }
+  | { step: "picking-cat-balou-zone"; cardId: string; targetId: string };
+
+export interface UiHandlers {
+  onDrawCards(): void;
+  onEndTurn(): void;
+  onToggleDiscardCard(cardId: string): void;
+  onConfirmDiscard(): void;
+  onHandCardClick(cardId: string): void;
+  onEquipmentClick(ownerId: string, cardId: string): void;
+  onPlayerClick(targetId: string): void;
+  onStoreOptionClick(cardId: string): void;
+  onZoneClick(zone: "hand" | "equipment"): void;
+  onRespondTakeConsequence(): void;
+  onCancelSelection(): void;
 }
 
-function renderPlayer(state: GameState, player: PlayerState, index: number): HTMLElement {
+function button(label: string, onClick: () => void): HTMLButtonElement {
+  const el = document.createElement("button");
+  el.textContent = label;
+  el.addEventListener("click", onClick);
+  return el;
+}
+
+// Danh sách tên bài mà người ĐANG PHẢN HỒI (đứng đầu pending) có thể bấm để
+// đáp lại — mỗi kind chỉ chấp nhận đúng 1 loại bài (xem PendingAction ở
+// types.ts). Chỉ để quyết định bấm được lá nào, KHÔNG thay cho việc reduce()
+// tự kiểm tra lại — bấm sai/không hợp lệ vẫn báo lỗi bình thường.
+function respondableCardName(pendingKind: string): CardName | null {
+  switch (pendingKind) {
+    case "NEED_MISSED":
+      return "missed";
+    case "NEED_DISCARD_BANG":
+    case "NEED_DUEL_RESPONSE":
+      return "bang";
+    default:
+      return null;
+  }
+}
+
+function renderHandSection(
+  container: HTMLElement,
+  state: GameState,
+  player: PlayerState,
+  options: RenderOptions,
+  handlers: UiHandlers
+): void {
+  const { selection, discardSelection } = options;
+  const wrapper = document.createElement("div");
+  wrapper.className = "cards";
+
+  const top = state.pending[state.pending.length - 1];
+  const isCurrentTurnToPlay =
+    state.pending.length === 0 &&
+    state.turnPhase === "play" &&
+    state.players[state.currentPlayerIndex].id === player.id;
+  const isDiscarding =
+    state.pending.length === 0 &&
+    state.turnPhase === "discard" &&
+    state.players[state.currentPlayerIndex].id === player.id;
+  const isResponding = top !== undefined && top.player === player.id;
+  const respondableName = isResponding ? respondableCardName(top.kind) : null;
+  const isDiscardFromHand = isResponding && top.kind === "NEED_DISCARD_FROM_ZONE" && top.zone === "hand";
+
+  for (const cardId of player.hand) {
+    const name = cardNameFromId(cardId);
+    const label = cardLabel(cardId);
+
+    if (isDiscarding) {
+      const selected = discardSelection.includes(cardId);
+      const el = button(selected ? `✓ ${label}` : label, () => handlers.onToggleDiscardCard(cardId));
+      if (selected) el.classList.add("card--selected");
+      wrapper.appendChild(el);
+      continue;
+    }
+
+    if (isDiscardFromHand) {
+      wrapper.appendChild(button(label, () => handlers.onHandCardClick(cardId)));
+      continue;
+    }
+
+    if (respondableName !== null) {
+      if (name === respondableName) {
+        wrapper.appendChild(button(label, () => handlers.onHandCardClick(cardId)));
+      } else {
+        const span = document.createElement("span");
+        span.className = "card card--inert";
+        span.textContent = label;
+        wrapper.appendChild(span);
+      }
+      continue;
+    }
+
+    if (isCurrentTurnToPlay && name !== "missed") {
+      const armed = selection.step === "picking-target" && selection.cardId === cardId;
+      const el = button(label, () => handlers.onHandCardClick(cardId));
+      if (armed) el.classList.add("card--selected");
+      wrapper.appendChild(el);
+      continue;
+    }
+
+    const span = document.createElement("span");
+    span.className = "card card--inert";
+    span.textContent = label;
+    wrapper.appendChild(span);
+  }
+
+  container.appendChild(wrapper);
+}
+
+function renderEquipmentSection(
+  container: HTMLElement,
+  state: GameState,
+  player: PlayerState,
+  selection: Selection,
+  handlers: UiHandlers
+): void {
+  const wrapper = document.createElement("div");
+  wrapper.className = "cards";
+
+  const top = state.pending[state.pending.length - 1];
+  const isDiscardFromEquipment =
+    top !== undefined && top.player === player.id && top.kind === "NEED_DISCARD_FROM_ZONE" && top.zone === "equipment";
+  const isPickingPanicTarget = selection.step === "picking-panic-equipment" && selection.targetId === player.id;
+
+  for (const cardId of player.equipment) {
+    const label = cardLabel(cardId);
+    const isDynamite = cardNameFromId(cardId) === "dynamite";
+
+    if (!isDynamite && (isDiscardFromEquipment || isPickingPanicTarget)) {
+      wrapper.appendChild(button(label, () => handlers.onEquipmentClick(player.id, cardId)));
+      continue;
+    }
+
+    const span = document.createElement("span");
+    span.className = "card card--inert";
+    span.textContent = label;
+    wrapper.appendChild(span);
+  }
+
+  container.appendChild(wrapper);
+}
+
+function renderPlayer(
+  state: GameState,
+  player: PlayerState,
+  index: number,
+  options: RenderOptions,
+  handlers: UiHandlers
+): HTMLElement {
+  const { selection } = options;
   const el = document.createElement("article");
   el.className = "player";
   if (index === state.currentPlayerIndex) el.classList.add("player--current");
@@ -71,27 +230,147 @@ function renderPlayer(state: GameState, player: PlayerState, index: number): HTM
     `${roleText} · Máu: ${player.hp}/${player.maxHp} · ${player.alive ? "Còn sống" : "Đã chết"}`;
   el.appendChild(roleAndHp);
 
-  const hand = document.createElement("p");
-  hand.textContent = `Bài trên tay (${player.hand.length}): ${cardListText(player.hand)}`;
-  el.appendChild(hand);
+  const handLabel = document.createElement("p");
+  handLabel.textContent = `Bài trên tay (${player.hand.length}):`;
+  el.appendChild(handLabel);
+  renderHandSection(el, state, player, options, handlers);
 
-  const equipment = document.createElement("p");
-  equipment.textContent = `Trang bị: ${cardListText(player.equipment)}`;
-  el.appendChild(equipment);
+  const equipmentLabel = document.createElement("p");
+  equipmentLabel.textContent = "Trang bị:";
+  el.appendChild(equipmentLabel);
+  renderEquipmentSection(el, state, player, selection, handlers);
+
+  // Chọn mục tiêu: chỉ hiện nút này cho người KHÁC người đang cầm bài, và chỉ
+  // khi đang ở bước "picking-target".
+  if (selection.step === "picking-target" && player.alive) {
+    const acting = state.players[state.currentPlayerIndex];
+    if (player.id !== acting.id) {
+      el.appendChild(button("Chọn làm mục tiêu", () => handlers.onPlayerClick(player.id)));
+    }
+  }
+
+  // Cat Balou: sau khi chọn xong mục tiêu, hỏi bỏ tay hay bỏ sân — chỉ hỏi
+  // cho ĐÚNG người vừa được chọn, và chỉ hiện lựa chọn nào còn bài để bỏ.
+  if (selection.step === "picking-cat-balou-zone" && selection.targetId === player.id) {
+    const zoneWrapper = document.createElement("div");
+    zoneWrapper.className = "cards";
+    if (player.hand.length > 0) {
+      zoneWrapper.appendChild(button("Bắt bỏ bài trên tay", () => handlers.onZoneClick("hand")));
+    }
+    if (player.equipment.some((id) => cardNameFromId(id) !== "dynamite")) {
+      zoneWrapper.appendChild(button("Bắt bỏ bài trên sân", () => handlers.onZoneClick("equipment")));
+    }
+    el.appendChild(zoneWrapper);
+  }
 
   return el;
 }
 
-const TURN_PHASE_LABELS: Record<GameState["turnPhase"], string> = {
-  draw: "rút bài",
-  play: "đánh bài",
-  discard: "bỏ bài thừa",
-};
+// Mô tả ngắn gọn việc đang chờ (top của stack pending) — bản đầy đủ (hiện cả
+// stack, không chỉ đỉnh) để dành việc 2.4.
+function pendingDescription(state: GameState): string | null {
+  const top = state.pending[state.pending.length - 1];
+  if (!top) return null;
 
-// Vẽ toàn bộ state vào `container` — xoá sạch nội dung cũ rồi vẽ lại từ đầu
-// (đơn giản, đủ dùng khi chưa cần tối ưu re-render).
-export function renderGameState(container: HTMLElement, state: GameState): void {
+  const player = state.players.find((p) => p.id === top.player)!.name;
+
+  switch (top.kind) {
+    case "NEED_MISSED":
+      return `Đang chờ ${player} đỡ Bang! bằng Missed! (hoặc chịu mất máu)`;
+    case "NEED_DISCARD_BANG":
+      return `Đang chờ ${player} bỏ 1 lá Bang! (hoặc chịu mất máu)`;
+    case "NEED_DUEL_RESPONSE":
+      return `Đang chờ ${player} bỏ 1 lá Bang! trong Đấu tay đôi (hoặc chịu mất máu)`;
+    case "NEED_PICK_STORE_CARD":
+      return `Đang chờ ${player} chọn 1 lá từ Cửa hàng tổng hợp`;
+    case "NEED_DISCARD_FROM_ZONE":
+      return `Đang chờ ${player} chọn 1 lá để bỏ (${top.zone === "hand" ? "trên tay" : "trên sân"})`;
+    case "NEED_DRAW_CHECK":
+      return `Đang chờ ${player} lật bài kiểm tra (draw!)`;
+    default: {
+      const neverKind: never = top;
+      throw new Error(`Chưa biết mô tả cho pending: ${JSON.stringify(neverKind)}`);
+    }
+  }
+}
+
+function renderPendingPanel(container: HTMLElement, state: GameState, handlers: UiHandlers): void {
+  const top = state.pending[state.pending.length - 1];
+  if (!top) return;
+
+  const panel = document.createElement("div");
+  panel.className = "panel panel--pending";
+
+  const desc = document.createElement("p");
+  desc.textContent = pendingDescription(state);
+  panel.appendChild(desc);
+
+  if (top.kind === "NEED_PICK_STORE_CARD") {
+    const wrapper = document.createElement("div");
+    wrapper.className = "cards";
+    for (const cardId of top.options) {
+      wrapper.appendChild(button(cardLabel(cardId), () => handlers.onStoreOptionClick(cardId)));
+    }
+    panel.appendChild(wrapper);
+  } else if (top.kind === "NEED_DRAW_CHECK") {
+    panel.appendChild(button("Lật bài", () => handlers.onRespondTakeConsequence()));
+  } else if (top.kind === "NEED_MISSED" || top.kind === "NEED_DISCARD_BANG" || top.kind === "NEED_DUEL_RESPONSE") {
+    panel.appendChild(button("Chịu mất máu (không đỡ)", () => handlers.onRespondTakeConsequence()));
+  }
+
+  container.appendChild(panel);
+}
+
+function renderPhaseActions(
+  container: HTMLElement,
+  state: GameState,
+  options: RenderOptions,
+  handlers: UiHandlers
+): void {
+  if (state.pending.length > 0 || state.winner) return;
+
+  const panel = document.createElement("div");
+  panel.className = "panel";
+
+  if (state.turnPhase === "draw") {
+    panel.appendChild(button("Rút bài", () => handlers.onDrawCards()));
+  } else if (state.turnPhase === "discard") {
+    const player = state.players[state.currentPlayerIndex];
+    const excess = player.hand.length - player.hp;
+    const selectedCount = options.discardSelection.length;
+    const info = document.createElement("p");
+    info.textContent = `Cần bỏ ${excess} lá — đã chọn ${selectedCount}`;
+    panel.appendChild(info);
+    const confirmBtn = button("Xác nhận bỏ bài", () => handlers.onConfirmDiscard());
+    confirmBtn.disabled = selectedCount !== excess;
+    panel.appendChild(confirmBtn);
+  } else {
+    panel.appendChild(button("Kết thúc lượt", () => handlers.onEndTurn()));
+  }
+
+  container.appendChild(panel);
+}
+
+export interface RenderOptions {
+  selection: Selection;
+  error: string | null;
+  discardSelection: string[]; // các cardId đã chọn để bỏ, chỉ có ý nghĩa khi turnPhase === "discard"
+}
+
+export function renderApp(
+  container: HTMLElement,
+  state: GameState,
+  options: RenderOptions,
+  handlers: UiHandlers
+): void {
   container.replaceChildren();
+
+  if (options.error) {
+    const errorEl = document.createElement("p");
+    errorEl.className = "error";
+    errorEl.textContent = options.error;
+    container.appendChild(errorEl);
+  }
 
   const summary = document.createElement("p");
   summary.className = "summary";
@@ -101,10 +380,21 @@ export function renderGameState(container: HTMLElement, state: GameState): void 
     (state.winner ? ` · VÁN KẾT THÚC — phe thắng: ${WINNER_LABELS[state.winner]}` : "");
   container.appendChild(summary);
 
+  if (options.selection.step !== "idle") {
+    const hint = document.createElement("div");
+    hint.className = "panel panel--selection";
+    hint.appendChild(document.createTextNode("Đang chọn mục tiêu... "));
+    hint.appendChild(button("Huỷ", () => handlers.onCancelSelection()));
+    container.appendChild(hint);
+  }
+
+  renderPendingPanel(container, state, handlers);
+  renderPhaseActions(container, state, options, handlers);
+
   const playersEl = document.createElement("div");
   playersEl.className = "players";
   for (const [index, player] of state.players.entries()) {
-    playersEl.appendChild(renderPlayer(state, player, index));
+    playersEl.appendChild(renderPlayer(state, player, index, options, handlers));
   }
   container.appendChild(playersEl);
 }

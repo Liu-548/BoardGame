@@ -130,9 +130,17 @@ Nguyên tắc chung:
 
 > Cập nhật dòng này mỗi khi xong một giai đoạn. Xem `LO-TRINH.md`.
 
-**Đang ở:** Giai đoạn 2 — giao diện tối giản (Giai đoạn 1 đã HOÀN THÀNH TOÀN BỘ ở việc 1.14). Đã xong việc 2.2 (vẽ state ra màn hình): `src/client/ui.ts` có `renderGameState(container, state)` — vẽ từng người chơi (vai, máu/máu tối đa, còn sống/đã chết, bài trên tay, trang bị) bằng `document.createElement` thuần (không dùng `innerHTML`), kèm tóm tắt giai đoạn lượt + số lá còn lại + phe thắng nếu ván đã kết thúc. Nhãn tiếng Việt (tên bài, tên vai) cố tình đặt trong `ui.ts` (client), KHÔNG đặt trong `core/cards.ts` — core chỉ giữ dữ liệu tiếng Anh (`CardName`, `Role`), chuyện trình bày là việc của client. `main.ts` tạm dựng 1 ván demo bằng `setupGame()` (seed = `Date.now()`, chỉ dùng ở client — core/ vẫn cấm `Date.now()`) để có state mà vẽ thử; đè lên demo nút-bấm của việc 2.1 (không giữ cả hai). Đã tự kiểm bằng trình duyệt thật (claude-in-chrome): 4 người chơi hiện đúng, Sheriff đi trước và có 5/5 máu (đúng luật +1), không lỗi console. 153 test đều pass (không đổi gì ở `src/core/`).
+**Đang ở:** Giai đoạn 2 — giao diện tối giản (Giai đoạn 1 đã HOÀN THÀNH TOÀN BỘ ở việc 1.14). Đã xong việc 2.3 (bấm bài → gọi `reduce()`, chơi được ván hoàn chỉnh trên 1 máy):
 
-**Việc tiếp theo:** 2.3 — bấm lá bài → gọi `reduce()` (chơi được ván hoàn chỉnh trên 1 máy).
+- `ui.ts` đổi `renderGameState()` thành `renderApp(container, state, options, handlers)` — vẽ bài trên tay/trang bị thành từng nút bấm riêng (không phải 1 chuỗi chữ nữa). Chỉ người ĐANG cần hành động (người tới lượt lúc "đánh bài"/"bỏ bài thừa", hoặc người đứng đầu stack `pending` lúc cần trả lời) mới thấy bài của mình dạng nút bấm được — người khác vẫn thấy bài nhưng chỉ là chữ thường (không bấm được). Cách này tự nhiên tránh nhầm lẫn "bấm bài của ai" mà không cần thêm cờ kiểm tra riêng.
+- Trạng thái "đang chọn" (`Selection` — đã bấm 1 lá cần mục tiêu, đang chờ bấm chọn ai) là dữ liệu CHỈ RIÊNG client (không nằm trong `GameState`), `main.ts` giữ biến này. Panic!/Cat Balou cần thêm 1 bước phụ sau khi chọn mục tiêu (chọn lá trang bị cụ thể / chọn bỏ tay hay bỏ sân) — xử lý bằng cách thêm bước trong `Selection`, không đụng gì đến `core/`.
+- Lỗi từ `reduce()` (vd đánh Bang! ngoài tầm bắn) hiện thẳng ra màn hình bằng đúng câu tiếng Việt `reduce.ts` ném ra, không cần dịch lại.
+- UI cho stack `pending` ở đây CHỈ đủ dùng (hiện đỉnh stack + nút phản hồi tương ứng) — làm đẹp/đầy đủ hơn (hiện cả stack) để dành việc 2.4.
+- Đã tự kiểm bằng trình duyệt thật (claude-in-chrome), chơi thử nhiều bước liên tiếp: rút bài → đánh Bang! có mục tiêu (đúng tầm được, sai tầm báo lỗi đúng) → đối phương chịu mất máu → đánh Panic! cướp bài (tay mục tiêu còn bài, ăn ngẫu nhiên) → bỏ bài thừa cuối lượt → chuyển đúng người kế tiếp. Không lỗi console.
+
+153 test đều pass (không đổi gì ở `src/core/`).
+
+**Việc tiếp theo:** 2.4 — hiện đầy đủ + đẹp hơn cho stack `pending` (người chơi biết rõ "đang chờ B trả lời gì").
 
 ## Chưa làm tới, đừng đụng vào
 
