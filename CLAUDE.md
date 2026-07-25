@@ -130,17 +130,15 @@ Nguyên tắc chung:
 
 > Cập nhật dòng này mỗi khi xong một giai đoạn. Xem `LO-TRINH.md`.
 
-**Đang ở:** Giai đoạn 3 — mạng (Giai đoạn 1 + 2 đã HOÀN THÀNH TOÀN BỘ). **XONG việc 3.1** (Worker "hello world" + deploy thật):
+**Đang ở:** Giai đoạn 3 — mạng (Giai đoạn 1 + 2 đã HOÀN THÀNH TOÀN BỘ). **XONG việc 3.1 + 3.2**:
 
-- `src/server/index.ts`: Worker tối giản, `fetch()` trả về chữ "Bang! server đang chạy." — chưa có Durable Object (việc 3.2), chưa WebSocket (3.3), chưa định tuyến mã phòng (3.4).
-- `wrangler.jsonc` (gốc dự án): `name: "bang-boardgame"`, `main: "src/server/index.ts"`, `compatibility_date: "2026-07-25"`.
-- Thêm script `npm run server:dev` (chạy `wrangler dev`, local) và `npm run deploy` (chạy `wrangler deploy`).
-- **Đã deploy thật lên Cloudflare** (chủ dự án tự đăng nhập bằng `wrangler login`, tài khoản `nguyenngoctuan548@gmail.com`) — link công khai: **https://bang-boardgame.nguyenngoctuan548.workers.dev**. Đã kiểm bằng `curl` + trình duyệt thật, thấy đúng chữ.
-- Lưu ý: lần đầu deploy xong gọi thử ngay có thể gặp lỗi tạm thời do DNS/route mới chưa lan truyền hết (gặp `error code 1104`/HTTP 404 trong vài giây đầu) — thử lại sau ~5-10 giây là hết, không phải lỗi code.
+- Việc 3.1: `src/server/index.ts` là Worker entry. Đã deploy thật lên Cloudflare (chủ dự án tự `wrangler login`, tài khoản `nguyenngoctuan548@gmail.com`) — link công khai: **https://bang-boardgame.nguyenngoctuan548.workers.dev**. Lưu ý: ngay sau deploy gọi thử có thể gặp lỗi tạm thời (DNS/route chưa lan truyền hết, `error code 1104`/404) — thử lại sau ~5-10 giây là hết.
+- Việc 3.2: `src/server/room.ts` — Durable Object đầu tiên (`Room`), chỉ đếm số lần truy cập bằng `ctx.storage.get`/`put` (khoá `"visitCount"`). `index.ts` định tuyến MỌI request sang cùng 1 Room (`env.ROOM.idFromName("demo")`) — chưa có mã phòng riêng (việc 3.4), chưa WebSocket (3.3). `wrangler.jsonc` thêm `durable_objects.bindings` (`ROOM` → class `Room`) + `migrations` (`new_sqlite_classes: ["Room"]`, SQLite-backed — cách khuyến nghị hiện nay thay vì kiểu KV cũ).
+- Đã tự kiểm: chạy `wrangler dev`, gọi 3 lần thấy đếm 1→2→3; **tắt hẳn tiến trình `wrangler dev` rồi khởi động lại** (cổng khác, tiến trình hoàn toàn mới) — số tiếp tục từ 4, không về lại 1, xác nhận đúng "số không mất khi reload". Kiểm thêm bằng trình duyệt thật, không lỗi console.
 
 153 test đều pass (không đổi gì ở `src/core/`).
 
-**Việc tiếp theo:** 3.2 — Durable Object đầu tiên (đếm số lần truy cập, số không mất khi reload).
+**Việc tiếp theo:** 3.3 — WebSocket + Hibernation API (`ctx.acceptWebSocket()`, **không** `ws.accept()` — quy tắc 7 CLAUDE.md).
 
 ## Chưa làm tới, đừng đụng vào
 
