@@ -7,6 +7,7 @@ import { cardNameFromId, cardSuitRankFromId } from "../core/cards";
 import type { CardName } from "../core/cards";
 import type { GameState, PendingAction, PlayerState, Role, Suit } from "../core/types";
 import type { PlayerHandView, PlayerView } from "../core/view";
+import type { DeadlineInfo } from "../protocol";
 
 const CARD_LABELS: Record<CardName, string> = {
   bang: "Bang!",
@@ -43,7 +44,7 @@ const SUIT_LABELS: Record<Suit, string> = {
 const ROLE_LABELS: Record<Role, string> = {
   sheriff: "Cảnh sát trưởng",
   deputy: "Phó cảnh sát trưởng",
-  outlaw: "Ngoài vòng pháp luật",
+  outlaw: "Tội phạm",
   renegade: "Kẻ phản bội",
 };
 
@@ -51,7 +52,7 @@ const ROLE_LABELS: Record<Role, string> = {
 // khỏi ROLE_LABELS (theo từng người) ở trên.
 const WINNER_LABELS: Record<NonNullable<GameState["winner"]>, string> = {
   sheriff_deputy: "Cảnh sát trưởng + Phó cảnh sát trưởng",
-  outlaw: "Ngoài vòng pháp luật",
+  outlaw: "Tội phạm",
   renegade: "Kẻ phản bội",
 };
 
@@ -88,6 +89,31 @@ function renderDrawCheckNotice(container: HTMLElement, notice: DrawCheckNotice):
   el.textContent =
     `${notice.playerName} vừa lật bài kiểm tra: ${cardFaceLabel(notice.cardId)} — ` +
     (notice.matched ? "KHỚP" : "không khớp");
+  container.appendChild(el);
+}
+
+// Việc 4.1: đồng hồ đếm ngược lượt (chỉ chơi qua mạng — xem room.ts). Số giây
+// còn lại tính THẲNG từ `expiresAt` (mốc thời gian server gửi) trừ đi
+// `Date.now()` lúc VẼ — main.ts tự vẽ lại mỗi giây bằng setInterval của
+// chính client (không phải Durable Object) để số này tự chạy lùi.
+const DEADLINE_KIND_LABELS: Record<DeadlineInfo["kind"], string> = {
+  play: "đang đánh bài",
+  reactive: "cần phản hồi",
+  discard: "đang bỏ bài thừa",
+};
+
+function renderCountdown(
+  container: HTMLElement,
+  deadline: DeadlineInfo | null,
+  players: { id: string; name: string }[]
+): void {
+  if (!deadline) return;
+  const secondsLeft = Math.max(0, Math.ceil((deadline.expiresAt - Date.now()) / 1000));
+  const name = players.find((p) => p.id === deadline.playerId)?.name ?? "?";
+
+  const el = document.createElement("p");
+  el.className = "countdown" + (secondsLeft <= 10 ? " countdown--urgent" : "");
+  el.textContent = `⏱ Còn ${secondsLeft}s — ${name} ${DEADLINE_KIND_LABELS[deadline.kind]}`;
   container.appendChild(el);
 }
 
@@ -713,6 +739,7 @@ export interface NetworkGameOptions {
   error: string | null;
   discardSelection: string[];
   lastDrawCheck: DrawCheckNotice;
+  deadline: DeadlineInfo | null;
 }
 
 function networkRenderHandSection(
@@ -1017,6 +1044,7 @@ export function renderNetworkGame(
     (view.winner ? ` · VÁN KẾT THÚC — phe thắng: ${WINNER_LABELS[view.winner]}` : "");
   container.appendChild(summary);
 
+  renderCountdown(container, options.deadline, view.players);
   renderDrawCheckNotice(container, options.lastDrawCheck);
 
   if (options.selection.step !== "idle") {

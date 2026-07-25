@@ -28,7 +28,7 @@ import { setupGame } from "../core/setup";
 import type { Action, GameState } from "../core/types";
 import type { PlayerView } from "../core/view";
 import { RoomConnection } from "./net";
-import type { ServerMessage } from "../protocol";
+import type { DeadlineInfo, ServerMessage } from "../protocol";
 import {
   renderApp,
   renderHomeScreen,
@@ -74,6 +74,12 @@ let networkView: PlayerView | null = null;
 let networkSelection: Selection = { step: "idle" };
 let networkDiscardSelectionIds: string[] = [];
 let networkLastDrawCheck: DrawCheckNotice = null;
+// Việc 4.1: đồng hồ đếm ngược lượt (server tự tính, xem room.ts) — client chỉ
+// đọc `expiresAt` rồi TỰ đếm lùi mỗi giây bằng setInterval CỦA RIÊNG CLIENT
+// (không phải Durable Object — quy tắc 8 CLAUDE.md chỉ cấm setInterval TRONG
+// Durable Object, không cấm ở trình duyệt) để vẽ lại số giây còn lại.
+let networkDeadline: DeadlineInfo | null = null;
+let countdownTickId: ReturnType<typeof setInterval> | null = null;
 
 function render(): void {
   switch (screen) {
@@ -127,6 +133,7 @@ function render(): void {
             error: networkError,
             discardSelection: networkDiscardSelectionIds,
             lastDrawCheck: networkLastDrawCheck,
+            deadline: networkDeadline,
           },
           {
             onDrawCards: onNetworkDrawCards,
@@ -426,6 +433,18 @@ function onJoinRoom(): void {
   render();
 }
 
+// Bật/tắt vòng lặp đếm lùi mỗi giây theo đúng việc CÓ/KHÔNG còn đồng hồ đang
+// chạy — chỉ render() lại (KHÔNG hỏi lại server gì cả, `networkDeadline` đã
+// có sẵn `expiresAt`, chỉ cần vẽ lại số giây còn lại tính từ Date.now()).
+function syncCountdownTick(): void {
+  if (networkDeadline && !countdownTickId) {
+    countdownTickId = setInterval(render, 1000);
+  } else if (!networkDeadline && countdownTickId) {
+    clearInterval(countdownTickId);
+    countdownTickId = null;
+  }
+}
+
 function onNetworkMessage(message: ServerMessage): void {
   networkError = null;
 
@@ -445,6 +464,8 @@ function onNetworkMessage(message: ServerMessage): void {
             matched: checkEvent.matched,
           }
         : null;
+      networkDeadline = message.deadline;
+      syncCountdownTick();
       screen = "network-game";
       render();
       return;

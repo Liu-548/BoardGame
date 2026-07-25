@@ -105,6 +105,15 @@ button {
   font-weight: bold;
 }
 
+.countdown {
+  font-weight: bold;
+  margin: 0.25rem 0;
+}
+
+.countdown--urgent {
+  color: #c00;
+}
+
 .pending-heading {
   font-weight: bold;
   margin: 0 0 0.5rem;
