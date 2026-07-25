@@ -120,9 +120,9 @@ Nguyên tắc chung:
 
 > Cập nhật dòng này mỗi khi xong một giai đoạn. Xem `LO-TRINH.md`.
 
-**Đang ở:** Giai đoạn 1 — engine luật chơi. Đã xong việc 1.12 (khoảng cách & tầm bắn). File mới `src/core/distance.ts`: `computeDistance()` tính khoảng cách vòng tròn CHỈ đếm người còn sống (người chết thì ghế biến mất, vòng tròn co lại), rồi cộng hiệu ứng Scope (-1, người đánh) / Mustang (+1, mục tiêu), tối thiểu 1. `getWeaponRange()` tra tầm súng đang trang bị (bảng `WEAPON_RANGES` ở cards.ts), mặc định 1 nếu không có súng. Đã gắn kiểm tra vào `playBang()` (khoảng cách ≤ tầm súng) và `playPanic()` (khoảng cách phải đúng bằng 1); Duel/Indians/Gatling/Cat Balou/Jail không giới hạn khoảng cách (giữ nguyên). 138 test đều pass.
+**Đang ở:** Giai đoạn 1 — engine luật chơi. Đã xong việc 1.13 (chết, thưởng/phạt, điều kiện thắng). File mới `src/core/win.ts`: `checkWinCondition()` — Renegade chỉ thắng khi là người sống sót DUY NHẤT; hết sạch Outlaw+Renegade thì phe Sheriff+Deputy thắng; Cảnh sát trưởng chết (và chưa rơi vào ca Renegade sống một mình) thì Outlaw thắng mặc định, kể cả không còn Outlaw nào sống hay còn nhiều Renegade cùng sống (biến thể 8 người sau này). Trong `reduce.ts`: `applyDamage()`/`eliminatePlayer()` xử lý chết — bỏ hết bài tay+sân vào chồng bỏ, thưởng 3 lá cho người kết liễu Outlaw, phạt Sheriff giết nhầm Deputy (mất hết bài), rồi gọi `checkWinCondition()` và set `state.winner`. "Người kết liễu" chỉ tính đòn đánh trực tiếp (Bang!/Gatling/Indians!/Duel — qua `top.source.from` hoặc `top.opponent`); tự nổ Dynamite không có killer, không thưởng/phạt. Người chết đang là người tới lượt (thua Duel với chính mình, hoặc tự nổ Dynamite Bước 0) thì tự `advanceTurn()` luôn. `reduce()` chặn mọi action nếu `state.winner` đã có giá trị. 149 test đều pass.
 
-**Việc tiếp theo:** 1.13 — chết, thưởng/phạt, điều kiện thắng (bao gồm cơ chế ghi nhận ai kết liễu ai — vẫn cần bàn cách làm trước khi cài).
+**Việc tiếp theo:** 1.14 — 4 bot đánh ngẫu nhiên, chạy 1000 ván liên tiếp không crash/không treo (cột mốc thật sự trước khi sang Giai đoạn 2).
 
 ## Chưa làm tới, đừng đụng vào
 

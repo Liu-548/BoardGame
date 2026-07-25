@@ -112,7 +112,17 @@ export type GameEvent =
   | { type: "DYNAMITE_EXPLODED"; playerId: string; amount: number } // draw! khớp Bích 2-9 đầu lượt
   | { type: "DYNAMITE_PASSED"; playerId: string } // draw! không khớp, chuyển cho người kế tiếp
   | { type: "JAIL_ESCAPED"; playerId: string } // draw! khớp Cơ đầu lượt, thoát tù chơi bình thường
-  | { type: "JAIL_SKIPPED_TURN"; playerId: string }; // draw! không khớp, bỏ qua cả lượt
+  | { type: "JAIL_SKIPPED_TURN"; playerId: string } // draw! không khớp, bỏ qua cả lượt
+  // ----- Việc 1.13: chết, thưởng/phạt, điều kiện thắng -----
+  // killedBy = người trực tiếp gây đòn đánh khiến hp về 0 (Bang!/Gatling/
+  // Indians!/Duel). null nếu tự chết (Dynamite) — không có ai "giết" cả.
+  | { type: "PLAYER_ELIMINATED"; playerId: string; killedBy: string | null }
+  // playerId = người kết liễu (được thưởng), count = số lá rút được (có thể
+  // ít hơn 3 nếu deck+chồng bỏ cạn giữa chừng).
+  | { type: "OUTLAW_BOUNTY_DRAWN"; playerId: string; count: number }
+  // playerId = Cảnh sát trưởng bị phạt (chính là người kết liễu Phó cảnh sát trưởng).
+  | { type: "SHERIFF_KILLED_DEPUTY_PENALTY"; playerId: string }
+  | { type: "GAME_ENDED"; winner: "sheriff_deputy" | "outlaw" | "renegade" };
 
 // ----- State tổng -----
 
