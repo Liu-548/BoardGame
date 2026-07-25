@@ -137,7 +137,7 @@ Nguyên tắc chung:
 
 **Đang ở:** Giai đoạn 3 — mạng (Giai đoạn 1 + 2 đã HOÀN THÀNH TOÀN BỘ). **XONG việc 3.1 → 3.6** (+ bonus chat công khai/riêng tư):
 
-- 3.1: `src/server/index.ts` là Worker entry, đã deploy thật lên Cloudflare (tài khoản `nguyenngoctuan548@gmail.com`) — link: **https://bang-boardgame.nguyenngoctuan548.workers.dev** (⚠️ link này đang chạy CODE CŨ, chưa deploy lại từ sau việc 3.2 — 3.3/3.4/3.5/3.6 mới chỉ chạy `wrangler dev` local, cần deploy lại để lên bản mới nhất).
+- 3.1: `src/server/index.ts` là Worker entry, đã deploy thật lên Cloudflare (tài khoản `nguyenngoctuan548@gmail.com`) — link: **https://bang-boardgame.nguyenngoctuan548.workers.dev**. Đã deploy lại sau khi xong việc 3.6 nên link đang chạy ĐÚNG bản mới nhất (routing theo phòng + WebSocket + chat) — đã kiểm bằng `curl` và bằng `wss://` thật từ trình duyệt, không chỉ `wrangler dev` local.
 - 3.2: `src/server/room.ts` — Durable Object `Room`, đếm lượt truy cập bằng `ctx.storage`. `wrangler.jsonc` có `durable_objects.bindings` + `migrations` (`new_sqlite_classes`).
 - 3.3: WebSocket + Hibernation — bắt buộc `ctx.acceptWebSocket()`, không `server.accept()` (quy tắc 7). `webSocketClose()` bọc `try/catch` vì mã đóng "dự phòng" (1005/1006) từ trình duyệt có thể khiến `ws.close()` tự ném lỗi (phát hiện qua log lúc kiểm thử).
 - 3.4: `index.ts` định tuyến `/room/<mã phòng>` — `env.ROOM.idFromName(roomCode)` tự đảm bảo "cùng mã → cùng Room".
@@ -146,7 +146,7 @@ Nguyên tắc chung:
 
 162 test đều pass.
 
-**Việc tiếp theo:** deploy lại bản server mới nhất (3.3-3.6) lên Cloudflare, rồi 3.7 — lưu state vào DO storage.
+**Việc tiếp theo:** 3.7 — lưu state vào DO storage (deploy lại giữa ván, ván vẫn còn).
 
 ## Chưa làm tới, đừng đụng vào
 
