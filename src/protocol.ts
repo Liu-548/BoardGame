@@ -2,17 +2,17 @@
 // gửi dạng chuỗi văn bản qua `JSON.stringify`/`JSON.parse`).
 //
 // File này CHỈ định nghĩa KIỂU DỮ LIỆU — "viết ra giấy trước" theo đúng tinh
-// thần LO-TRINH.md. Việc nối các message này vào Room thật (đọc state, gọi
-// reduce(), lọc view riêng cho từng người) làm dần ở việc 3.6 trở đi, SAU KHI
-// có `viewFor()` (core/view.ts) để không bao giờ gửi state đầy đủ ra ngoài
-// (quy tắc 6 CLAUDE.md). Ngoại lệ: phần chat (bonus) không phụ thuộc state
-// ván đấu nên đã nối thật vào room.ts luôn, xem ghi chú ở đó.
+// thần LO-TRINH.md. Việc nối message "action" vào Room thật (đọc state, gọi
+// reduce(), gửi lại viewFor() riêng cho từng người) để dành việc 3.7 trở đi
+// (cần lưu state vào ctx.storage trước). Ngoại lệ: phần chat (bonus) không
+// phụ thuộc state ván đấu nên đã nối thật vào room.ts luôn, xem ghi chú ở đó.
 //
 // Đặt ở src/protocol.ts (không phải trong core/, server/, hay client/) vì đây
 // là "ngôn ngữ chung" cả 2 bên đều cần đọc — core/ vẫn không đụng tới file
 // này (không vi phạm quy tắc 1), chỉ server/ và client/ cùng import.
 
 import type { Action, GameEvent } from "./core/types";
+import type { PlayerView } from "./core/view";
 
 // ----- Client → Server -----
 
@@ -21,7 +21,8 @@ export type ClientMessage =
   // WebSocket không tự mang theo danh tính, phải tự giới thiệu.
   | { type: "join"; playerId: string }
   // Một hành động luật chơi (rút bài, đánh bài, trả lời...) — sẽ forward
-  // nguyên si vào reduce(state, action) ở server (việc 3.6 trở đi).
+  // nguyên si vào reduce(state, action) ở server (việc 3.7 trở đi, sau khi
+  // Room có chỗ lưu state ván đấu).
   | { type: "action"; action: Action }
   // Tin nhắn chat (bonus của việc 3.5). KHÔNG có `to` = gửi cho CẢ PHÒNG;
   // CÓ `to` = CHỈ gửi riêng cho đúng 1 người chơi đó. Dùng playerId (không
@@ -31,10 +32,9 @@ export type ClientMessage =
 // ----- Server → Client -----
 
 export type ServerMessage =
-  // State đã LỌC RIÊNG cho từng người nhận — KHÔNG BAO GIỜ gửi state đầy đủ
-  // (quy tắc 6 CLAUDE.md). Kiểu `view` cụ thể (PlayerView) thêm vào khi có
-  // core/view.ts ở việc 3.6 — để tạm `unknown` vì kiểu đó CHƯA TỒN TẠI.
-  | { type: "state"; view: unknown; events: GameEvent[] }
+  // State đã LỌC RIÊNG cho từng người nhận (viewFor(), việc 3.6) — KHÔNG BAO
+  // GIỜ gửi state đầy đủ (quy tắc 6 CLAUDE.md).
+  | { type: "state"; view: PlayerView; events: GameEvent[] }
   // Hành động bị từ chối (reduce() ném lỗi) — CHỈ gửi lại cho đúng người vừa
   // gửi hành động đó, không phát cho cả phòng.
   | { type: "action_error"; message: string }
