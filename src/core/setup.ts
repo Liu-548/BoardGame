@@ -3,6 +3,8 @@
 
 import type { CardName } from "./cards";
 import { buildDeck } from "./cards";
+import { giveCardToPlayer } from "./equipment";
+import { applyTurnStartChecks } from "./reduce";
 import { shuffle } from "./rng";
 import type { GameState, PlayerState, Role } from "./types";
 
@@ -40,35 +42,38 @@ export function setupGame(
   const deck = buildDeck(options.cardCounts);
   const { result: shuffledDeck, nextState: stateAfterDeck } = shuffle(deck, stateAfterRoles);
 
-  // Rút bài từ đỉnh bộ bài (phần tử cuối mảng), chia từng người một, mỗi người
-  // rút số lá = đúng số máu hiện có.
-  const remainingDeck = [...shuffledDeck];
-
+  // Dựng đủ danh sách người chơi TRƯỚC (tay rỗng), rồi mới chia bài — cần vậy vì
+  // Dynamite tự xuống sân ngay lúc chia (mục 8 file luật: "được phát lúc
+  // setup" cũng tính), mà logic chuyển Dynamite khi đụng lá thứ 2 cần thấy
+  // được cả bàn, không chỉ người đang được chia.
   const players: PlayerState[] = playerIds.map((id, i) => {
     const role = shuffledRoles[i];
     const hp = role === "sheriff" ? BASE_HP + SHERIFF_BONUS_HP : BASE_HP;
-
-    const hand: string[] = [];
-    for (let n = 0; n < hp; n++) {
-      const card = remainingDeck.pop();
-      if (card) hand.push(card.id);
-    }
-
     return {
       id,
       name: id, // tên hiển thị thật do server/client gán sau, ở đây tạm dùng id
       role,
       hp,
       maxHp: hp,
-      hand,
+      hand: [],
       equipment: [],
       alive: true,
     };
   });
 
+  // Rút bài từ đỉnh bộ bài (phần tử cuối mảng), chia từng người một, mỗi người
+  // rút số lá = đúng số máu hiện có.
+  const remainingDeck = [...shuffledDeck];
+  for (const player of players) {
+    for (let n = 0; n < player.hp; n++) {
+      const card = remainingDeck.pop();
+      if (card) giveCardToPlayer(players, player, card.id);
+    }
+  }
+
   const sheriffIndex = players.findIndex((player) => player.role === "sheriff");
 
-  return {
+  const state: GameState = {
     players,
     deck: remainingDeck.map((card) => card.id),
     discardPile: [],
@@ -78,4 +83,11 @@ export function setupGame(
     rngState: stateAfterDeck,
     winner: null,
   };
+
+  // Lượt đầu tiên cũng phải qua Bước 0 (mục 4): nếu Sheriff (hoặc ai đi lượt
+  // đầu ở chế độ sau này) chẳng may được CHIA Dynamite ở trên, phải kiểm tra
+  // ngay — không có lượt nào "miễn" Bước 0, kể cả lượt đầu ván.
+  applyTurnStartChecks(state);
+
+  return state;
 }

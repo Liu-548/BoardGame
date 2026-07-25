@@ -8,7 +8,10 @@ function ids(count: number): string[] {
 function countRoles(state: ReturnType<typeof setupGame>) {
   const counts: Record<string, number> = {};
   for (const player of state.players) {
-    counts[player.role] = (counts[player.role] ?? 0) + 1;
+    // role hiện luôn có giá trị thật ở setupGame (null để dành chế độ không
+    // chia vai trong tương lai) — "none" chỉ là khoá dự phòng cho TypeScript.
+    const key = player.role ?? "none";
+    counts[key] = (counts[key] ?? 0) + 1;
   }
   return counts;
 }
@@ -62,20 +65,22 @@ describe("setupGame", () => {
     const allHandCards = state.players.flatMap((p) => p.hand);
 
     for (const player of state.players) {
-      expect(player.hand.length).toBe(player.hp);
+      // Dynamite tự xuống sân ngay khi được chia lúc setup (mục 8 file luật) —
+      // cộng cả hand lẫn equipment mới đúng bằng số lá đã rút.
+      expect(player.hand.length + player.equipment.length).toBe(player.hp);
     }
     expect(new Set(allHandCards).size).toBe(allHandCards.length);
   });
 
-  it("tổng số lá bài (tay + chồng rút) vẫn đủ 80 với bộ mặc định", () => {
+  it("tổng số lá bài (tay + trang bị + chồng rút) vẫn đủ 80 với bộ mặc định", () => {
     const state = setupGame(ids(6), 9);
-    const handTotal = state.players.reduce((sum, p) => sum + p.hand.length, 0);
-    expect(handTotal + state.deck.length + state.discardPile.length).toBe(80);
+    const dealtTotal = state.players.reduce((sum, p) => sum + p.hand.length + p.equipment.length, 0);
+    expect(dealtTotal + state.deck.length + state.discardPile.length).toBe(80);
   });
 
   it("nhận cardCounts tuỳ chỉnh qua RuleOptions", () => {
     const state = setupGame(ids(4), 1, { cardCounts: { bang: 35 } });
-    const handTotal = state.players.reduce((sum, p) => sum + p.hand.length, 0);
-    expect(handTotal + state.deck.length).toBe(90); // 80 + 10 lá bang thêm
+    const dealtTotal = state.players.reduce((sum, p) => sum + p.hand.length + p.equipment.length, 0);
+    expect(dealtTotal + state.deck.length).toBe(90); // 80 + 10 lá bang thêm
   });
 });

@@ -33,6 +33,50 @@ export type BlueCardName =
 
 export type CardName = BrownCardName | BlueCardName;
 
+// Lá xanh TỰ trang bị cho chính người đánh (súng, Barrel, Scope, Mustang).
+// KHÔNG gồm Jail (đánh lên sân người KHÁC) hay Dynamite (không đánh chủ động,
+// tự xuống sân khi vào tay) — hai lá đó có cách gắn vào sân khác hẳn. Khai báo
+// riêng type này (thay vì dùng chung BlueCardName) để isSelfEquipBlueCardName()
+// thu hẹp kiểu CHÍNH XÁC — dùng BlueCardName ở đây sẽ khiến TypeScript tưởng
+// nhánh "jail"/"dynamite" cũng bị loại trừ theo, sai với thực tế runtime.
+export type SelfEquipBlueCardName =
+  | "volcanic" | "schofield" | "remington" | "rev_carabine" | "winchester"
+  | "barrel" | "scope" | "mustang";
+
+const SELF_EQUIP_BLUE_CARD_NAMES: readonly SelfEquipBlueCardName[] = [
+  "volcanic", "schofield", "remington", "rev_carabine", "winchester",
+  "barrel", "scope", "mustang",
+];
+
+export function isSelfEquipBlueCardName(name: CardName): name is SelfEquipBlueCardName {
+  return (SELF_EQUIP_BLUE_CARD_NAMES as readonly CardName[]).includes(name);
+}
+
+// Súng — loại trừ lẫn nhau theo NHÓM (chỉ được 1 khẩu, bất kể tên), khác luật
+// "không 2 lá cùng tên" áp dụng cho các lá xanh còn lại.
+export type WeaponCardName = "volcanic" | "schofield" | "remington" | "rev_carabine" | "winchester";
+
+const WEAPON_CARD_NAMES: readonly WeaponCardName[] = [
+  "volcanic", "schofield", "remington", "rev_carabine", "winchester",
+];
+
+export function isWeaponCardName(name: CardName): name is WeaponCardName {
+  return (WEAPON_CARD_NAMES as readonly CardName[]).includes(name);
+}
+
+// Tầm bắn của từng khẩu súng (việc 1.12) — Bang! chỉ đánh được mục tiêu ở
+// khoảng cách nhỏ hơn hoặc bằng tầm này. Không trang bị súng nào thì dùng
+// DEFAULT_WEAPON_RANGE (súng lục ngầm định, tầm 1).
+export const DEFAULT_WEAPON_RANGE = 1;
+
+export const WEAPON_RANGES: Record<WeaponCardName, number> = {
+  volcanic: 1,
+  schofield: 2,
+  remington: 3,
+  rev_carabine: 4,
+  winchester: 5,
+};
+
 // Số lượng mặc định từng loại trong bộ bài cơ bản — tổng 80 lá (63 nâu + 17 xanh).
 // Đây chỉ là MẶC ĐỊNH cho ván chơi thông thường. Sau này chủ phòng có thể chỉnh
 // số lượng từng loại cho ván riêng bằng cách truyền một phần vào buildDeck() —

@@ -80,15 +80,15 @@ describe("reduce — PLAY_CARD (Bang!)", () => {
     ).toThrow();
   });
 
-  it("báo lỗi nếu đánh lá chưa hỗ trợ", () => {
+  it("báo lỗi nếu đánh lá chưa hỗ trợ (Dynamite không bao giờ đánh chủ động được)", () => {
     const state = makeState({
       players: [
-        { id: "a", name: "a", role: "sheriff", hp: 4, maxHp: 4, hand: ["jail_1"], equipment: [], alive: true },
+        { id: "a", name: "a", role: "sheriff", hp: 4, maxHp: 4, hand: ["dynamite_1"], equipment: [], alive: true },
         ...makeState().players.slice(1),
       ],
     });
     expect(() =>
-      reduce(state, { type: "PLAY_CARD", playerId: "a", cardId: "jail_1", targetId: "b" })
+      reduce(state, { type: "PLAY_CARD", playerId: "a", cardId: "dynamite_1" })
     ).toThrow();
   });
 });

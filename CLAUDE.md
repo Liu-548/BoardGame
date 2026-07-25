@@ -120,9 +120,9 @@ Nguyên tắc chung:
 
 > Cập nhật dòng này mỗi khi xong một giai đoạn. Xem `LO-TRINH.md`.
 
-**Đang ở:** Giai đoạn 1 — engine luật chơi. Đã xong tới việc 1.10 (cơ chế "draw!" dùng chung — pending `NEED_DRAW_CHECK`, lật đúng 1 lá, báo khớp/không khớp theo `matchSuits`/`matchRanks`, chưa gắn hậu quả cụ thể). 85 test đều pass.
+**Đang ở:** Giai đoạn 1 — engine luật chơi. Đã xong việc 1.12 (khoảng cách & tầm bắn). File mới `src/core/distance.ts`: `computeDistance()` tính khoảng cách vòng tròn CHỈ đếm người còn sống (người chết thì ghế biến mất, vòng tròn co lại), rồi cộng hiệu ứng Scope (-1, người đánh) / Mustang (+1, mục tiêu), tối thiểu 1. `getWeaponRange()` tra tầm súng đang trang bị (bảng `WEAPON_RANGES` ở cards.ts), mặc định 1 nếu không có súng. Đã gắn kiểm tra vào `playBang()` (khoảng cách ≤ tầm súng) và `playPanic()` (khoảng cách phải đúng bằng 1); Duel/Indians/Gatling/Cat Balou/Jail không giới hạn khoảng cách (giữ nguyên). 138 test đều pass.
 
-**Việc tiếp theo:** 1.11 bài xanh/trang bị (Barrel, Scope, Mustang, Jail, Dynamite, các loại súng) — sẽ dùng lại `NEED_DRAW_CHECK` của việc 1.10 cho Barrel/Jail/Dynamite.
+**Việc tiếp theo:** 1.13 — chết, thưởng/phạt, điều kiện thắng (bao gồm cơ chế ghi nhận ai kết liễu ai — vẫn cần bàn cách làm trước khi cài).
 
 ## Chưa làm tới, đừng đụng vào
 

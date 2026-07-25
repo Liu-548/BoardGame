@@ -23,8 +23,12 @@ function makeState(overrides: Partial<GameState> = {}): GameState {
   };
 }
 
+// "example" (không phải "barrel"/"jail"/"dynamite" thật) — các test ở đây chỉ
+// kiểm tra cơ chế draw! TỔNG QUÁT (việc 1.10), không phải hậu quả riêng của
+// từng lá (Barrel/Jail/Dynamite — việc 1.11, xem test/equipment.test.ts,
+// test/jail.test.ts, test/dynamite.test.ts).
 function drawCheckPending(matchSuits: Suit[], matchRanks?: Rank[]): PendingAction {
-  return { kind: "NEED_DRAW_CHECK", player: "b", source: { card: "jail" }, matchSuits, matchRanks };
+  return { kind: "NEED_DRAW_CHECK", player: "b", source: { card: "example" }, matchSuits, matchRanks };
 }
 
 describe("reduce — RESPOND (NEED_DRAW_CHECK)", () => {

@@ -2,7 +2,9 @@
 // THUẦN: không sửa state truyền vào, cùng đầu vào luôn cho cùng đầu ra.
 
 import type { CardName } from "./cards";
-import { cardNameFromId, cardSuitRankFromId } from "./cards";
+import { cardNameFromId, cardSuitRankFromId, isSelfEquipBlueCardName, isWeaponCardName } from "./cards";
+import { computeDistance, getWeaponRange } from "./distance";
+import { giveCardToPlayer, transferDynamiteToNextPlayer } from "./equipment";
 import { nextRandom, shuffle } from "./rng";
 import type { Action, GameEvent, GameState, PendingAction, PlayerState } from "./types";
 
@@ -40,13 +42,16 @@ function handleDrawCards(
 ): Result {
   assertCurrentPlayer(state, action.playerId);
   assertPhase(state, "draw");
+  if (state.pending.length > 0) {
+    throw new Error("Còn việc đang chờ xử lý đầu lượt (Dynamite/Jail), chưa thể rút bài");
+  }
 
   const next = cloneState(state);
   const player = next.players[next.currentPlayerIndex];
 
   for (let i = 0; i < DRAW_COUNT; i++) {
     const card = drawTopCard(next);
-    if (card) player.hand.push(card);
+    if (card) giveCardToPlayer(next.players, player, card);
   }
 
   next.turnPhase = "play";
@@ -60,6 +65,9 @@ function handleDrawCards(
 function handleEndTurn(state: GameState, action: Action & { type: "END_TURN" }): Result {
   assertCurrentPlayer(state, action.playerId);
   assertPhase(state, "play");
+  if (state.pending.length > 0) {
+    throw new Error("Không thể kết thúc lượt khi còn việc đang chờ xử lý");
+  }
 
   const next = cloneState(state);
   const player = next.players[next.currentPlayerIndex];
@@ -79,6 +87,9 @@ function handleDiscardCards(
 ): Result {
   assertCurrentPlayer(state, action.playerId);
   assertPhase(state, "discard");
+  if (state.pending.length > 0) {
+    throw new Error("Không thể bỏ bài kết thúc lượt khi còn việc đang chờ xử lý");
+  }
 
   const next = cloneState(state);
   const player = next.players[next.currentPlayerIndex];
@@ -124,13 +135,30 @@ function handlePlayCard(state: GameState, action: Action & { type: "PLAY_CARD" }
 
   const cardName = cardNameFromId(action.cardId);
 
-  // Bỏ lá vào chồng bỏ trước, rồi mới rẽ theo tác dụng riêng của từng lá.
-  // Nếu rơi vào "chưa hỗ trợ" bên dưới thì throw luôn — next chỉ là bản sao
-  // cục bộ, bị huỷ theo, state gốc không hề bị đụng tới.
+  // Rời tay trước, rồi mới rẽ theo tác dụng riêng của từng lá. Nếu rơi vào
+  // "chưa hỗ trợ" bên dưới thì throw luôn — next chỉ là bản sao cục bộ, bị huỷ
+  // theo, state gốc không hề bị đụng tới.
   player.hand.splice(cardIndex, 1);
+
+  // Lá xanh tự trang bị (súng, Barrel, Scope, Mustang) ở lại trên sân của
+  // chính người đánh, KHÔNG vào chồng bỏ như lá nâu.
+  if (isSelfEquipBlueCardName(cardName)) {
+    return playEquipment(next, player, action.cardId, cardName);
+  }
+
+  // Jail gắn lên sân NGƯỜI KHÁC (không phải người đánh) — cũng không vào chồng bỏ.
+  if (cardName === "jail") {
+    return playJail(next, player, action);
+  }
+
   next.discardPile.push(action.cardId);
 
   switch (cardName) {
+    case "missed":
+      // Missed! không tự đánh ra lúc tới lượt mình (mục 7 file luật) — chỉ dùng
+      // để PHẢN ỨNG, đi qua action RESPOND (respondDiscardOrDamage), không phải
+      // PLAY_CARD.
+      throw new Error("Không thể chủ động đánh Missed! — chỉ dùng để phản ứng khi bị Bang!/Gatling");
     case "bang":
       return playBang(next, player, action);
     case "beer":
@@ -153,9 +181,20 @@ function handlePlayCard(state: GameState, action: Action & { type: "PLAY_CARD" }
       return playPanic(next, player, action);
     case "cat_balou":
       return playCatBalou(next, player, action);
-    default:
-      // Bài xanh/trang bị sẽ hỗ trợ ở việc 1.11.
-      throw new Error(`Chưa hỗ trợ đánh lá "${cardName}" (bài xanh/trang bị để dành việc 1.11)`);
+    case "dynamite":
+      // Dynamite không bao giờ nằm trên tay để đánh chủ động — tự động xuống
+      // sân ngay khi vào tay (xem giveCardToPlayer() trong equipment.ts). Nhánh
+      // này chỉ có thể chạy tới nếu có bug ở nơi khác làm lọt Dynamite vào tay.
+      throw new Error("Dynamite không được đánh chủ động — tự động xuống sân ngay khi vào tay");
+    default: {
+      // isSelfEquipBlueCardName() và nhánh "jail" ở trên đã xử lý hết lá xanh
+      // rồi return, switch cũng đã liệt kê đủ toàn bộ bài nâu (kể cả "missed" và
+      // "dynamite" — 2 case chỉ để throw lỗi rõ ràng, không đánh chủ động được)
+      // — dòng dưới chỉ để bắt lỗi biên dịch nếu sau này thêm loại bài mới mà
+      // quên xử lý ở đâu đó.
+      const neverCardName: never = cardName;
+      throw new Error(`Không rõ loại bài: ${JSON.stringify(neverCardName)}`);
+    }
   }
 }
 
@@ -175,16 +214,38 @@ function playBang(
     throw new Error("Mục tiêu không hợp lệ");
   }
 
-  next.pending.push({
-    kind: "NEED_MISSED",
-    player: target.id,
-    source: { card: "bang", from: player.id },
-  });
+  const range = getWeaponRange(player);
+  const distance = computeDistance(next.players, player.id, target.id);
+  if (distance > range) {
+    throw new Error(`Mục tiêu ngoài tầm bắn (khoảng cách ${distance}, tầm súng ${range})`);
+  }
+
+  pushMissedReaction(next, target, { card: "bang", from: player.id });
 
   return {
     state: next,
     events: [{ type: "CARD_PLAYED", playerId: player.id, cardId: action.cardId, targetId: target.id }],
   };
+}
+
+// Đẩy NEED_MISSED cho mục tiêu; nếu mục tiêu có Barrel trước mặt, đẩy thêm
+// NEED_DRAW_CHECK lên TRÊN nó — Barrel tự động draw! trước, không cần hỏi
+// Missed! ngay (mục 11/12 file luật). resolveDrawCheck() sẽ tự bỏ luôn
+// NEED_MISSED bên dưới nếu draw! khớp Cơ.
+function pushMissedReaction(
+  next: GameState,
+  target: PlayerState,
+  source: { card: string; from: string }
+): void {
+  next.pending.push({ kind: "NEED_MISSED", player: target.id, source });
+  if (target.equipment.some((id) => cardNameFromId(id) === "barrel")) {
+    next.pending.push({
+      kind: "NEED_DRAW_CHECK",
+      player: target.id,
+      source: { card: "barrel" },
+      matchSuits: ["hearts"],
+    });
+  }
 }
 
 // Gatling: giống Bang! nhưng nhắm vào TẤT CẢ người chơi còn sống khác — mỗi
@@ -198,11 +259,7 @@ function playGatling(
 ): Result {
   const targets = otherAlivePlayersInOrder(next, player.id);
   for (let i = targets.length - 1; i >= 0; i--) {
-    next.pending.push({
-      kind: "NEED_MISSED",
-      player: targets[i].id,
-      source: { card: "gatling", from: player.id },
-    });
+    pushMissedReaction(next, targets[i], { card: "gatling", from: player.id });
   }
   return { state: next, events: [{ type: "CARD_PLAYED", playerId: player.id, cardId: action.cardId }] };
 }
@@ -288,6 +345,11 @@ function playPanic(
 ): Result {
   const target = findLivingTarget(next, player, action.targetId, "Đánh Panic! cần chọn mục tiêu", "Không thể tự cướp bài của chính mình");
 
+  const distance = computeDistance(next.players, player.id, target.id);
+  if (distance !== 1) {
+    throw new Error(`Panic! chỉ dùng được ở khoảng cách 1 (khoảng cách hiện tại: ${distance})`);
+  }
+
   let stolenCardId: string;
 
   if (target.hand.length > 0) {
@@ -299,8 +361,17 @@ function playPanic(
     const index = Math.floor(value * target.hand.length);
     [stolenCardId] = target.hand.splice(index, 1);
   } else {
+    // Dynamite miễn nhiễm Panic! (mục 8 file luật) — loại khỏi cả phép đếm "có
+    // gì để cướp không" lẫn danh sách hợp lệ để chọn.
+    const stealableEquipment = target.equipment.filter((id) => cardNameFromId(id) !== "dynamite");
+    if (stealableEquipment.length === 0) {
+      throw new Error("Mục tiêu không còn bài nào để cướp (Dynamite trên sân, nếu có, miễn nhiễm Panic!)");
+    }
     if (!action.targetCardId) {
       throw new Error("Tay mục tiêu đã hết bài, phải chỉ định lá trang bị cụ thể muốn cướp trên sân");
+    }
+    if (cardNameFromId(action.targetCardId) === "dynamite") {
+      throw new Error("Dynamite miễn nhiễm với Panic!, không thể cướp");
     }
     const equipIndex = target.equipment.indexOf(action.targetCardId);
     if (equipIndex === -1) {
@@ -310,7 +381,9 @@ function playPanic(
     stolenCardId = action.targetCardId;
   }
 
-  player.hand.push(stolenCardId);
+  // Lá cướp được không bao giờ là Dynamite (miễn nhiễm, chặn ở trên) — nhưng vẫn
+  // đi qua giveCardToPlayer() cho nhất quán với mọi nơi khác đưa bài vào tay.
+  giveCardToPlayer(next.players, player, stolenCardId);
 
   return {
     state: next,
@@ -334,10 +407,17 @@ function playCatBalou(
     throw new Error("Đánh Cat Balou cần chọn bắt mục tiêu bỏ bài từ tay hay từ sân");
   }
 
-  const zoneArray = action.targetZone === "hand" ? target.hand : target.equipment;
-  if (zoneArray.length === 0) {
+  // Dynamite miễn nhiễm Cat Balou (mục 8 file luật) — không tính là "có bài trên
+  // sân để bỏ".
+  const discardableCount =
+    action.targetZone === "hand"
+      ? target.hand.length
+      : target.equipment.filter((id) => cardNameFromId(id) !== "dynamite").length;
+  if (discardableCount === 0) {
     throw new Error(
-      action.targetZone === "hand" ? "Tay mục tiêu không còn bài để bỏ" : "Mục tiêu không có trang bị nào trên sân để bỏ"
+      action.targetZone === "hand"
+        ? "Tay mục tiêu không còn bài để bỏ"
+        : "Mục tiêu không có trang bị nào trên sân để bỏ (Dynamite, nếu có, miễn nhiễm Cat Balou)"
     );
   }
 
@@ -347,6 +427,62 @@ function playCatBalou(
     zone: action.targetZone,
     source: { card: "cat_balou", from: player.id },
   });
+
+  return {
+    state: next,
+    events: [{ type: "CARD_PLAYED", playerId: player.id, cardId: action.cardId, targetId: target.id }],
+  };
+}
+
+// Đánh lá xanh: nằm lại trên sân (equipment) chứ không vào chồng bỏ.
+// - Súng: loại trừ theo NHÓM — chỉ được 1 khẩu, đánh khẩu mới thì gỡ khẩu cũ
+//   (bất kể tên khẩu cũ là gì) rồi mới gắn khẩu mới.
+// - Các lá xanh khác: áp luật chung "không 2 lá CÙNG TÊN trước mặt".
+// Không giới hạn tổng số lá xanh trên sân — miễn không trùng tên (và súng chỉ 1).
+function playEquipment(
+  next: GameState,
+  player: PlayerState,
+  cardId: string,
+  cardName: CardName
+): Result {
+  const events: GameEvent[] = [{ type: "CARD_PLAYED", playerId: player.id, cardId }];
+
+  if (isWeaponCardName(cardName)) {
+    const oldWeaponIndex = player.equipment.findIndex((id) => isWeaponCardName(cardNameFromId(id)));
+    if (oldWeaponIndex !== -1) {
+      const [oldWeaponId] = player.equipment.splice(oldWeaponIndex, 1);
+      next.discardPile.push(oldWeaponId);
+      events.push({ type: "WEAPON_REPLACED", playerId: player.id, oldCardId: oldWeaponId });
+    }
+  } else if (player.equipment.some((id) => cardNameFromId(id) === cardName)) {
+    throw new Error(`Đã có "${cardName}" trước mặt, không thể đánh thêm lá cùng tên`);
+  }
+
+  player.equipment.push(cardId);
+
+  return { state: next, events };
+}
+
+// Jail: gắn lên sân NGƯỜI KHÁC (không phải người đánh) — khác hẳn playEquipment
+// ở trên. KHÔNG BAO GIỜ được đánh lên Cảnh sát trưởng (mục 8 file luật) — đây
+// là chốt chặn DUY NHẤT nơi Jail có thể được gắn lên ai đó (Jail không có
+// đường nào khác lên sân, không tự động như Dynamite), nên chặn ở đây là chặn
+// triệt để.
+function playJail(
+  next: GameState,
+  player: PlayerState,
+  action: Action & { type: "PLAY_CARD" }
+): Result {
+  const target = findLivingTarget(next, player, action.targetId, "Đánh Jail cần chọn mục tiêu", "Không thể tự đánh Jail lên chính mình");
+
+  if (target.role === "sheriff") {
+    throw new Error("Không được đánh Jail lên Cảnh sát trưởng");
+  }
+  if (target.equipment.some((id) => cardNameFromId(id) === "jail")) {
+    throw new Error("Mục tiêu đã có Jail trước mặt, không thể đánh thêm");
+  }
+
+  target.equipment.push(action.cardId);
 
   return {
     state: next,
@@ -436,7 +572,7 @@ function drawCardsAsCardEffect(
   for (let i = 0; i < count; i++) {
     const card = drawTopCard(next);
     if (card) {
-      player.hand.push(card);
+      giveCardToPlayer(next.players, player, card);
       drawnCount++;
     }
   }
@@ -563,7 +699,7 @@ function respondToStorePick(state: GameState, action: Action & { type: "RESPOND"
 
   next.pending.pop();
   const player = next.players.find((p) => p.id === action.playerId)!;
-  player.hand.push(action.cardId);
+  giveCardToPlayer(next.players, player, action.cardId);
 
   const events: GameEvent[] = [{ type: "STORE_CARD_TAKEN", playerId: player.id, cardId: action.cardId }];
 
@@ -599,6 +735,10 @@ function respondToDiscardFromZone(
   next.pending.pop();
   const player = next.players.find((p) => p.id === action.playerId)!;
   const zoneArray = top.zone === "hand" ? player.hand : player.equipment;
+
+  if (top.zone === "equipment" && cardNameFromId(action.cardId) === "dynamite") {
+    throw new Error("Dynamite miễn nhiễm với Cat Balou, không thể chọn để bỏ");
+  }
 
   const cardIndex = zoneArray.indexOf(action.cardId);
   if (cardIndex === -1) {
@@ -638,10 +778,61 @@ function resolveDrawCheck(
   const { suit, rank } = cardSuitRankFromId(cardId);
   const matched = top.matchSuits.includes(suit) && (!top.matchRanks || top.matchRanks.includes(rank));
 
-  return {
-    state: next,
-    events: [{ type: "DRAW_CHECK_RESOLVED", playerId: action.playerId, cardId, matched }],
-  };
+  const events: GameEvent[] = [
+    { type: "DRAW_CHECK_RESOLVED", playerId: action.playerId, cardId, matched },
+  ];
+
+  // Barrel khớp Cơ: né miễn phí, tự bỏ luôn NEED_MISSED đang chờ ngay bên dưới
+  // (được pushMissedReaction() đẩy liền kề) — không tốn bài Missed! trên tay.
+  if (top.source.card === "barrel" && matched) {
+    const below = next.pending[next.pending.length - 1];
+    if (below && below.kind === "NEED_MISSED" && below.player === top.player) {
+      next.pending.pop();
+    }
+    events.push({ type: "BARREL_DODGED", playerId: top.player });
+  }
+
+  // Dynamite đầu lượt: khớp Bích 2-9 → nổ, mất 3 máu (sàn 0), bỏ Dynamite.
+  // Không khớp → chuyển cho người kế tiếp. Cả 2 ca đều xét tiếp Jail ngay sau
+  // (đúng thứ tự Bước 0: Dynamite trước, Jail sau — mục 4 file luật).
+  if (top.source.card === "dynamite") {
+    const holder = next.players.find((p) => p.id === top.player)!;
+    if (matched) {
+      const dynamiteIndex = holder.equipment.findIndex((id) => cardNameFromId(id) === "dynamite");
+      const [dynamiteId] = holder.equipment.splice(dynamiteIndex, 1);
+      next.discardPile.push(dynamiteId);
+      const amount = Math.min(3, holder.hp);
+      holder.hp -= amount;
+      events.push({ type: "DYNAMITE_EXPLODED", playerId: holder.id, amount });
+    } else {
+      transferDynamiteToNextPlayer(next.players, holder);
+      events.push({ type: "DYNAMITE_PASSED", playerId: holder.id });
+    }
+    // "(còn sống) có Jail" — alive chưa từng bị set false ở đâu (chết/loại để
+    // dành việc 1.13), nên điều kiện này hiện luôn đúng nếu holder có Jail;
+    // viết đủ điều kiện để tự đúng khi 1.13 cài xong, không cần sửa lại đây.
+    if (holder.alive) applyJailCheck(next, holder);
+    return { state: next, events };
+  }
+
+  // Jail đầu lượt: khớp Cơ → thoát, bỏ Jail, chơi lượt bình thường. Không khớp
+  // → bỏ Jail, bỏ qua CẢ lượt này (không rút, không đánh) — sang thẳng người kế.
+  if (top.source.card === "jail") {
+    const jailedPlayer = next.players.find((p) => p.id === top.player)!;
+    const jailIndex = jailedPlayer.equipment.findIndex((id) => cardNameFromId(id) === "jail");
+    const [jailId] = jailedPlayer.equipment.splice(jailIndex, 1);
+    next.discardPile.push(jailId);
+
+    if (matched) {
+      events.push({ type: "JAIL_ESCAPED", playerId: jailedPlayer.id });
+    } else {
+      events.push({ type: "JAIL_SKIPPED_TURN", playerId: jailedPlayer.id });
+      advanceTurn(next); // bỏ qua cả lượt — người kế tiếp lại được xét Bước 0 y hệt
+    }
+    return { state: next, events };
+  }
+
+  return { state: next, events };
 }
 
 // ----- Hàm phụ trợ -----
@@ -676,6 +867,40 @@ function drawTopCard(next: GameState): string | undefined {
 function advanceTurn(next: GameState): void {
   next.currentPlayerIndex = nextAlivePlayerIndex(next, next.currentPlayerIndex);
   next.turnPhase = "draw";
+  applyTurnStartChecks(next);
+}
+
+// Bước 0 đầu lượt (mục 4 file luật): Dynamite kiểm tra TRƯỚC (có thể giết luôn,
+// khỏi xét Jail), Jail SAU. Chỉ đẩy pending cho bước đang xét đầu tiên còn áp
+// dụng — bước tiếp theo (vd Jail sau khi Dynamite nổ/chuyển xong) được
+// resolveDrawCheck() đẩy tiếp sau khi xử lý xong hậu quả của bước trước, không
+// đẩy cả 2 cùng lúc ở đây. Export để setup.ts gọi cho LƯỢT ĐẦU TIÊN của ván
+// (setupGame không đi qua advanceTurn, nhưng lượt đầu vẫn phải qua Bước 0 nếu
+// ai đó chẳng may được chia Dynamite ngay lúc setup).
+export function applyTurnStartChecks(next: GameState): void {
+  const player = next.players[next.currentPlayerIndex];
+  if (player.equipment.some((id) => cardNameFromId(id) === "dynamite")) {
+    next.pending.push({
+      kind: "NEED_DRAW_CHECK",
+      player: player.id,
+      source: { card: "dynamite" },
+      matchSuits: ["spades"],
+      matchRanks: ["2", "3", "4", "5", "6", "7", "8", "9"],
+    });
+    return;
+  }
+  applyJailCheck(next, player);
+}
+
+function applyJailCheck(next: GameState, player: PlayerState): void {
+  if (player.equipment.some((id) => cardNameFromId(id) === "jail")) {
+    next.pending.push({
+      kind: "NEED_DRAW_CHECK",
+      player: player.id,
+      source: { card: "jail" },
+      matchSuits: ["hearts"],
+    });
+  }
 }
 
 function nextAlivePlayerIndex(state: GameState, fromIndex: number): number {
