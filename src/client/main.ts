@@ -1,12 +1,11 @@
-// Việc 2.1: bài tập DOM cơ bản — lấy 2 phần tử HTML ra bằng id, lắng nghe sự
-// kiện click trên nút, rồi đổi nội dung chữ (textContent) khi bấm.
+// Việc 2.2: dựng 1 ván demo bằng setupGame() (core/) rồi vẽ ra màn hình bằng
+// renderGameState() (ui.ts). Chưa bấm bài được — đó là việc 2.3.
 
-const thongBao = document.getElementById("thong-bao") as HTMLParagraphElement;
-const nutThu = document.getElementById("nut-thu") as HTMLButtonElement;
+import { setupGame } from "../core/setup";
+import { renderGameState } from "./ui";
 
-let soLanBam = 0;
+const root = document.getElementById("game-root") as HTMLDivElement;
 
-nutThu.addEventListener("click", () => {
-  soLanBam += 1;
-  thongBao.textContent = `Đã bấm ${soLanBam} lần.`;
-});
+const state = setupGame(["An", "Bình", "Chi", "Dũng"], Date.now());
+
+renderGameState(root, state);

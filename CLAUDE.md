@@ -130,9 +130,9 @@ Nguyên tắc chung:
 
 > Cập nhật dòng này mỗi khi xong một giai đoạn. Xem `LO-TRINH.md`.
 
-**Đang ở:** Giai đoạn 2 — giao diện tối giản (Giai đoạn 1 đã HOÀN THÀNH TOÀN BỘ ở việc 1.14: bot ngẫu nhiên chạy 1000+900 ván, 0 crash, 0 treo). Đã xong việc 2.1 (HTML/CSS/DOM cơ bản): `index.html` ở gốc dự án + `public/style.css` + `src/client/main.ts` — 1 nút bấm, 1 đoạn chữ đổi nội dung khi bấm (đếm số lần bấm). Đã tự kiểm bằng trình duyệt thật (claude-in-chrome) chứ không chỉ compile sạch: nút bấm đổi đúng chữ, không lỗi console. Xem ghi chú lệch cấu trúc thư mục ở trên (mục "Cấu trúc thư mục"). `tsconfig.json` đã thêm `"DOM"`/`"DOM.Iterable"` vào `lib` để viết được code client — không xung đột với `@cloudflare/workers-types` nhờ `skipLibCheck: true` đã có sẵn. 153 test đều pass (không đổi gì ở `src/core/`).
+**Đang ở:** Giai đoạn 2 — giao diện tối giản (Giai đoạn 1 đã HOÀN THÀNH TOÀN BỘ ở việc 1.14). Đã xong việc 2.2 (vẽ state ra màn hình): `src/client/ui.ts` có `renderGameState(container, state)` — vẽ từng người chơi (vai, máu/máu tối đa, còn sống/đã chết, bài trên tay, trang bị) bằng `document.createElement` thuần (không dùng `innerHTML`), kèm tóm tắt giai đoạn lượt + số lá còn lại + phe thắng nếu ván đã kết thúc. Nhãn tiếng Việt (tên bài, tên vai) cố tình đặt trong `ui.ts` (client), KHÔNG đặt trong `core/cards.ts` — core chỉ giữ dữ liệu tiếng Anh (`CardName`, `Role`), chuyện trình bày là việc của client. `main.ts` tạm dựng 1 ván demo bằng `setupGame()` (seed = `Date.now()`, chỉ dùng ở client — core/ vẫn cấm `Date.now()`) để có state mà vẽ thử; đè lên demo nút-bấm của việc 2.1 (không giữ cả hai). Đã tự kiểm bằng trình duyệt thật (claude-in-chrome): 4 người chơi hiện đúng, Sheriff đi trước và có 5/5 máu (đúng luật +1), không lỗi console. 153 test đều pass (không đổi gì ở `src/core/`).
 
-**Việc tiếp theo:** 2.2 — vẽ state ra màn hình (nhìn màn hình biết ai còn mấy máu, có bài gì — hiển thị bằng chữ/tên, chưa cần ảnh).
+**Việc tiếp theo:** 2.3 — bấm lá bài → gọi `reduce()` (chơi được ván hoàn chỉnh trên 1 máy).
 
 ## Chưa làm tới, đừng đụng vào
 
