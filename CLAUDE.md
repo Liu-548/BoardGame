@@ -135,7 +135,7 @@ Nguyên tắc chung:
 
 > Cập nhật dòng này mỗi khi xong một giai đoạn. Xem `LO-TRINH.md`.
 
-**Đang ở:** Giai đoạn 3 — mạng. **🎉 XONG HẲN việc 3.1 → 3.10** (+ bonus chat công khai/riêng tư) — chủ dự án đã tự chơi thật với bạn bè qua link deploy, kết nối thành công. Giai đoạn 3 coi như hoàn tất, việc tiếp theo chuyển sang Giai đoạn 4 (xem cuối mục này).
+**Đang ở:** Giai đoạn 4 — Hoàn thiện. Giai đoạn 3 (việc 3.1 → 3.10 + 2 việc bổ sung) đã xong hẳn — xem lịch sử bên dưới. **Vừa xong việc 4.1** (đồng hồ đếm ngược lượt).
 
 - 3.1-3.4 (gọn lại): `src/server/index.ts` + `src/server/room.ts` (Durable Object `Room`) — deploy thật ở **https://bang-boardgame.nguyenngoctuan548.workers.dev**. WebSocket dùng Hibernation API đúng cách (`ctx.acceptWebSocket()`, không `server.accept()` — quy tắc 7). Định tuyến `/room/<mã phòng>`.
 - **Quan trọng (phát hiện sau việc 3.10):** deploy trước đó CHỈ đưa lên phần server (Worker) — mở link công khai chỉ thấy dòng "Thiếu mã phòng...", KHÔNG thấy giao diện chơi, vì client (`index.html`/`main.ts`/`ui.ts`) chưa từng được build+phục vụ. Đã sửa: `wrangler.jsonc` thêm `assets: { directory: "./dist", run_worker_first: ["/room/*"] }` — phục vụ file client đã build (`npm run build`, ra `dist/`) CHUNG domain với Worker; `/room/*` vẫn luôn chạy Worker trước (API/WebSocket), còn lại phục vụ thẳng file tĩnh. `npm run deploy` giờ tự `vite build` trước khi `wrangler deploy` (script trong `package.json`), tránh quên build. Đã deploy lại + kiểm bằng trình duyệt thật trên chính link công khai: mở `/` thấy đúng giao diện, tạo phòng qua `wss://` thật hoạt động đúng.
@@ -155,7 +155,23 @@ Nguyên tắc chung:
 
 162 test đều pass (không đổi core/ ở 2 việc bổ sung trên nên không cần thêm test).
 
-**Việc tiếp theo:** chuyển sang Giai đoạn 4 — Hoàn thiện (xem `LO-TRINH.md`), bắt đầu từ việc 4.1 (đồng hồ đếm ngược lượt, dùng DO Alarm).
+**Giai đoạn 4 — việc 4.1 (đồng hồ đếm ngược lượt):**
+
+- **Chỉ áp dụng khi chơi qua mạng** — dùng `ctx.storage.setAlarm()` ở `room.ts` (KHÔNG `setInterval` trong Durable Object — quy tắc 8). Hotseat giữ nguyên không giới hạn giờ. Không đụng gì `core/` — hạn chót phụ thuộc `Date.now()` (thời gian thực), mà quy tắc 2 cấm điều đó trong `core/`, nên sống ở `protocol.ts` (`DeadlineInfo`, field mới trong `{type:"state"}`) + `room.ts`, không phải trong `GameState`.
+- Rút bài đầu lượt và "lật bài kiểm tra" (draw! — Barrel/Jail/Dynamite) giờ **hoàn toàn tự động**, server tự làm ngay, không cần bấm nút, không cần đồng hồ (không phải quyết định thật).
+- Lượt đánh bài: **60 giây**. Nếu đánh 1 lá khiến người khác phải phản hồi (đỡ Missed!/Đấu tay đôi/Người da đỏ), đồng hồ 60s này **tạm dừng** (giữ nguyên số giây còn lại, lưu ở khoá storage `"pausedPlay"`), chờ xong quay lại tiếp tục đếm — KHÔNG cấp lại nguyên 60s mới.
+- Người khác phải phản hồi (đỡ Missed!/Đấu tay đôi/Người da đỏ/Cat Balou bắt bỏ bài/chọn bài Cửa hàng tổng hợp...): **10 giây** mỗi lần.
+- Bỏ bài thừa cuối lượt (chỉ khi cần): **15 giây**.
+- Hết giờ tự làm thay: lượt đánh → tự kết thúc lượt (không tự đánh gì); bỏ bài thừa → tự bỏ ngẫu nhiên đủ số; phản hồi có lựa chọn "không làm gì" (Missed!/Đấu tay đôi/Người da đỏ) → tự chịu hậu quả; phản hồi bắt buộc chọn đúng 1 lá (Cat Balou/Cửa hàng tổng hợp) → tự chọn lá đầu tiên hợp lệ.
+- `room.ts` có 1 chỗ DUY NHẤT xử lý mọi thay đổi state (`afterStateChange()`) — action thật của người chơi, `start_game`, HAY hành động tự động lúc hết giờ ở `alarm()` đều đi qua đây, để không bao giờ quên lên lịch lại đồng hồ.
+- Client (`main.ts`) tự đếm lùi mỗi giây bằng `setInterval` CỦA RIÊNG TRÌNH DUYỆT (không phải Durable Object — không vi phạm quy tắc 8, quy tắc đó chỉ cấm trong Durable Object) để vẽ lại số giây còn lại, hiện dòng "⏱ Còn Xs — ai đang làm gì" (`ui.ts`).
+- Bonus nhỏ đi kèm: đổi nhãn vai "Ngoài vòng pháp luật" thành "Tội phạm" (`ROLE_LABELS`/`WINNER_LABELS` trong `ui.ts`) cho rõ nghĩa hơn.
+- Đã tự kiểm bằng `wrangler dev` cục bộ + 4 tab trình duyệt thật: rút bài/lật bài kiểm tra tự động ngay khi vào lượt, đồng hồ tạm dừng đúng lúc Bình cần đỡ Bang! rồi tiếp tục đúng số giây cho An sau khi Bình phản hồi, hết giờ tự động làm đúng ở cả 3 loại đồng hồ (kể cả qua NHIỀU vòng hết giờ thật liên tiếp — phản hồi hết giờ → lượt đánh cũng hết giờ luôn → bỏ bài thừa hết giờ → chuyển đúng người kế tiếp), không lỗi console/server trong suốt quá trình. Hotseat kiểm lại vẫn y nguyên, không tự động gì.
+- Đã deploy live: **https://bang-boardgame.nguyenngoctuan548.workers.dev**.
+
+162 test đều pass (không đổi `core/` ở việc 4.1 nên không cần thêm test).
+
+**Việc tiếp theo:** việc 4.2 — nhật ký ván đấu hiện trên màn hình (xem `LO-TRINH.md`).
 
 ## Chưa làm tới, đừng đụng vào
 
