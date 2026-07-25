@@ -130,15 +130,17 @@ Nguyên tắc chung:
 
 > Cập nhật dòng này mỗi khi xong một giai đoạn. Xem `LO-TRINH.md`.
 
-**Đang ở:** Giai đoạn 2 — giao diện tối giản. **HOÀN THÀNH TOÀN BỘ Giai đoạn 2** (việc 2.5 — chế độ hotseat — vừa xong). Sẵn sàng chuyển sang Giai đoạn 3 (mạng).
+**Đang ở:** Giai đoạn 3 — mạng (Giai đoạn 1 + 2 đã HOÀN THÀNH TOÀN BỘ). Đang làm việc 3.1 (Worker "hello world" + `wrangler deploy`) — **MỚI XONG PHẦN CODE, CHƯA DEPLOY THẬT**:
 
-- Việc 2.5: `main.ts` giờ có 2 "màn hình" (`screen: "setup" | "game"`, biến thường ở client, không phải state riêng framework nào). Mở trang hiện màn hình thiết lập TRƯỚC (`ui.ts` → `renderSetupScreen()`) — gõ tên 4-7 người chơi (nút +/- thêm/bớt, validate không được để trống), bấm "Bắt đầu ván" mới gọi `setupGame()` rồi gán tên thật vào `state.players[i].name` (setup.ts vốn đã để sẵn `name: id` chờ client gán, xem comment cũ trong `setup.ts`). Ván kết thúc (`state.winner` có giá trị) thì hiện nút "Chơi ván mới" quay lại màn hình thiết lập, GIỮ NGUYÊN tên đã gõ lần trước — không cần tải lại trang để chơi ván khác.
-- Lưu ý kỹ thuật: khi gõ tên, `onNameChange()` CHỈ cập nhật mảng `playerNames` ở `main.ts`, KHÔNG gọi `render()` — nếu render lại giữa lúc gõ, `container.replaceChildren()` sẽ xoá và tạo lại `<input>` mới, mất luôn con trỏ đang gõ. Chỉ các thao tác "cấu trúc" (thêm/bớt người chơi, bắt đầu ván) mới render lại.
-- Đã tự kiểm bằng trình duyệt thật (claude-in-chrome): gõ tên (xác nhận không mất con trỏ khi gõ), thêm người chơi thứ 5 (thành ván 5 người, đúng vai theo `ROLE_SETS[5]`), để trống 1 tên bấm "Bắt đầu ván" → báo lỗi đúng và giữ các tên khác, dựng riêng 1 state giả có `winner` để xác nhận nút "Chơi ván mới" hiện đúng và gọi đúng handler. Không lỗi console.
+- `src/server/index.ts`: Worker tối giản, `fetch()` trả về chữ "Bang! server đang chạy." — chưa có Durable Object (việc 3.2), chưa WebSocket (3.3), chưa định tuyến mã phòng (3.4).
+- `wrangler.jsonc` (gốc dự án): `name: "bang-boardgame"`, `main: "src/server/index.ts"`, `compatibility_date: "2026-07-25"`.
+- Thêm script `npm run server:dev` (chạy `wrangler dev`, local, không cần đăng nhập) và `npm run deploy` (chạy `wrangler deploy`, cần đăng nhập Cloudflare thật).
+- Đã tự kiểm bằng `wrangler dev` + trình duyệt thật: mở `http://127.0.0.1:8788/` thấy đúng chữ.
+- **CHƯA chạy `wrangler deploy` thật** — máy chưa đăng nhập Cloudflare (`wrangler whoami` báo "not authenticated"). Việc `wrangler login` (đăng nhập OAuth) và bấm deploy thật (tạo endpoint công khai `.workers.dev`) cần chính chủ dự án tự làm/xác nhận — xem phần hội thoại gần nhất để biết bước tiếp theo cụ thể.
 
 153 test đều pass (không đổi gì ở `src/core/`).
 
-**Việc tiếp theo:** Giai đoạn 3 — mạng (Durable Objects thuần). Xem `LO-TRINH.md` việc 3.1 trở đi (Worker "hello world" + `wrangler deploy`).
+**Việc tiếp theo:** hoàn tất việc 3.1 (đăng nhập + deploy thật để có link `.workers.dev`), rồi 3.2 — Durable Object đầu tiên.
 
 ## Chưa làm tới, đừng đụng vào
 
