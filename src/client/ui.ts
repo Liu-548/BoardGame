@@ -1,6 +1,7 @@
 // Việc 2.2 (vẽ state) + 2.3 (bấm bài → gọi reduce) + 2.4 (hiện đầy đủ stack
-// pending, không chỉ đỉnh). Nhãn tiếng Việt (tên bài, tên vai) chỉ để HIỂN THỊ
-// nên đặt ở đây, không đặt trong core/ — core/ không quan tâm chuyện trình bày.
+// pending, không chỉ đỉnh) + 2.5 (màn hình thiết lập + chơi lại, chế độ
+// hotseat). Nhãn tiếng Việt (tên bài, tên vai) chỉ để HIỂN THỊ nên đặt ở đây,
+// không đặt trong core/ — core/ không quan tâm chuyện trình bày.
 
 import { cardNameFromId } from "../core/cards";
 import type { CardName } from "../core/cards";
@@ -78,6 +79,7 @@ export interface UiHandlers {
   onZoneClick(zone: "hand" | "equipment"): void;
   onRespondTakeConsequence(): void;
   onCancelSelection(): void;
+  onPlayAgain(): void;
 }
 
 function button(label: string, onClick: () => void): HTMLButtonElement {
@@ -403,6 +405,13 @@ export function renderApp(
     (state.winner ? ` · VÁN KẾT THÚC — phe thắng: ${WINNER_LABELS[state.winner]}` : "");
   container.appendChild(summary);
 
+  if (state.winner) {
+    const panel = document.createElement("div");
+    panel.className = "panel panel--selection";
+    panel.appendChild(button("Chơi ván mới", () => handlers.onPlayAgain()));
+    container.appendChild(panel);
+  }
+
   if (options.selection.step !== "idle") {
     const hint = document.createElement("div");
     hint.className = "panel panel--selection";
@@ -420,4 +429,69 @@ export function renderApp(
     playersEl.appendChild(renderPlayer(state, player, index, options, handlers));
   }
   container.appendChild(playersEl);
+}
+
+// ----- Việc 2.5: màn hình thiết lập ván mới (chế độ hotseat — 4-7 người chia
+// nhau gõ tên rồi ngồi chung 1 máy chơi hết ván). Đây là màn hình HIỆN RA
+// TRƯỚC khi có GameState (chưa gọi setupGame()), nên không nhận GameState làm
+// tham số như renderApp() — chỉ nhận danh sách tên đang gõ dở.
+
+export interface SetupHandlers {
+  onNameChange(index: number, value: string): void;
+  onAddPlayer(): void;
+  onRemovePlayer(): void;
+  onStartGame(): void;
+}
+
+const MIN_PLAYERS = 4;
+const MAX_PLAYERS = 7;
+
+export function renderSetupScreen(
+  container: HTMLElement,
+  names: string[],
+  error: string | null,
+  handlers: SetupHandlers
+): void {
+  container.replaceChildren();
+
+  const heading = document.createElement("h2");
+  heading.textContent = "Thiết lập ván mới (chơi chung 1 máy)";
+  container.appendChild(heading);
+
+  const hint = document.createElement("p");
+  hint.textContent = `Cần 4-7 người chơi — đang có ${names.length}. Mỗi người tự gõ tên của mình.`;
+  container.appendChild(hint);
+
+  if (error) {
+    const errorEl = document.createElement("p");
+    errorEl.className = "error";
+    errorEl.textContent = error;
+    container.appendChild(errorEl);
+  }
+
+  const list = document.createElement("div");
+  list.className = "setup-list";
+  names.forEach((name, index) => {
+    const input = document.createElement("input");
+    input.type = "text";
+    input.value = name;
+    input.placeholder = `Người chơi ${index + 1}`;
+    // CHỈ cập nhật biến ở main.ts, KHÔNG render lại ở đây — render lại giữa
+    // lúc đang gõ sẽ xoá và tạo lại input mới, làm mất luôn con trỏ đang gõ.
+    input.addEventListener("input", () => handlers.onNameChange(index, input.value));
+    list.appendChild(input);
+  });
+  container.appendChild(list);
+
+  const controls = document.createElement("div");
+  controls.className = "panel";
+  const addBtn = button("+ Thêm người chơi", () => handlers.onAddPlayer());
+  addBtn.disabled = names.length >= MAX_PLAYERS;
+  controls.appendChild(addBtn);
+  const removeBtn = button("- Bớt người chơi", () => handlers.onRemovePlayer());
+  removeBtn.disabled = names.length <= MIN_PLAYERS;
+  controls.appendChild(removeBtn);
+  container.appendChild(controls);
+
+  container.appendChild(button("Bắt đầu ván", () => handlers.onStartGame()));
 }
