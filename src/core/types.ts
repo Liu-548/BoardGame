@@ -21,7 +21,10 @@ export type Role = "sheriff" | "deputy" | "outlaw" | "renegade"; // 4 phe ẩn d
 export interface PlayerState {
   id: string;
   name: string;
-  role: Role;
+  // null = chưa/không chia vai — để dành chế độ chơi tương lai không chia role
+  // (xem LO-TRINH.md, ý tưởng "2 người: không chia vai"). Bản v1 hiện tại luôn
+  // gán Role thật cho mọi người, setup.ts chưa dùng nhánh null.
+  role: Role | null;
   hp: number;
   maxHp: number;
   hand: string[]; // id các lá bài trên tay
@@ -103,7 +106,13 @@ export type GameEvent =
   | { type: "STORE_CARD_TAKEN"; playerId: string; cardId: string }
   | { type: "CARD_STOLEN"; playerId: string; fromPlayerId: string; cardId: string } // Panic
   | { type: "CARD_FORCE_DISCARDED"; playerId: string; byPlayerId: string; cardId: string } // Cat Balou
-  | { type: "DRAW_CHECK_RESOLVED"; playerId: string; cardId: string; matched: boolean }; // draw!
+  | { type: "DRAW_CHECK_RESOLVED"; playerId: string; cardId: string; matched: boolean } // draw!
+  | { type: "WEAPON_REPLACED"; playerId: string; oldCardId: string } // đánh súng mới, bỏ súng cũ
+  | { type: "BARREL_DODGED"; playerId: string } // Barrel draw! khớp Cơ, né miễn phí không tốn Missed!
+  | { type: "DYNAMITE_EXPLODED"; playerId: string; amount: number } // draw! khớp Bích 2-9 đầu lượt
+  | { type: "DYNAMITE_PASSED"; playerId: string } // draw! không khớp, chuyển cho người kế tiếp
+  | { type: "JAIL_ESCAPED"; playerId: string } // draw! khớp Cơ đầu lượt, thoát tù chơi bình thường
+  | { type: "JAIL_SKIPPED_TURN"; playerId: string }; // draw! không khớp, bỏ qua cả lượt
 
 // ----- State tổng -----
 
