@@ -39,6 +39,11 @@ src/
     net.ts       ← WebSocket, reconnect
     ui.ts        ← vẽ DOM
     main.ts
+  protocol.ts    ← MỚI (việc 3.5, không có trong bản gốc file này): kiểu dữ
+                   liệu message client↔server (ClientMessage/ServerMessage).
+                   Cả server/ và client/ đều cần đọc kiểu này nên không đặt
+                   trong core/ (core/ vẫn không import gì từ đây) hay riêng
+                   client/server — coi như "ngôn ngữ chung" 2 bên.
 test/
 index.html       ← trang gốc, Vite mặc định tìm ở đây (không phải public/,
                    xem ghi chú việc 2.1 bên dưới)
@@ -130,19 +135,18 @@ Nguyên tắc chung:
 
 > Cập nhật dòng này mỗi khi xong một giai đoạn. Xem `LO-TRINH.md`.
 
-**Đang ở:** Giai đoạn 3 — mạng (Giai đoạn 1 + 2 đã HOÀN THÀNH TOÀN BỘ). **XONG việc 3.1 + 3.2 + 3.3 + 3.4**:
+**Đang ở:** Giai đoạn 3 — mạng (Giai đoạn 1 + 2 đã HOÀN THÀNH TOÀN BỘ). **XONG việc 3.1 → 3.5** (+ bonus chat công khai/riêng tư):
 
-- Việc 3.4: `index.ts` định tuyến theo đường dẫn `/room/<mã phòng>` — `env.ROOM.idFromName(roomCode)` luôn trả về cùng 1 ID cho cùng 1 chuỗi mã, nên "cùng mã → cùng Room" tự động đúng, không cần tự lưu bảng ánh xạ. Đường dẫn không có `/room/...` trả về 404 kèm hướng dẫn. Chưa có màn hình lobby để tự sinh mã (việc 3.9) — ai gõ mã gì trên URL thì vào đúng phòng đó, kể cả mã tự bịa.
-- Đã tự kiểm bằng `curl`: `/room/ABC` đếm 1→2, `/room/XYZ` (mã khác) đếm riêng từ 1, quay lại `/room/ABC` tiếp tục từ 3 — xác nhận 2 phòng hoàn toàn độc lập. Kiểm thêm bằng 3 tab trình duyệt thật: 2 tab cùng `/room/ABC` chat được với nhau qua WebSocket, tab thứ 3 ở `/room/XYZ` KHÔNG nhận được tin nhắn của phòng ABC — đúng "1 phòng = 1 DO". Không lỗi console.
-
-- Việc 3.1: `src/server/index.ts` là Worker entry. Đã deploy thật lên Cloudflare (chủ dự án tự `wrangler login`, tài khoản `nguyenngoctuan548@gmail.com`) — link công khai: **https://bang-boardgame.nguyenngoctuan548.workers.dev**. Lưu ý: ngay sau deploy gọi thử có thể gặp lỗi tạm thời (DNS/route chưa lan truyền hết, `error code 1104`/404) — thử lại sau ~5-10 giây là hết.
-- Việc 3.2: `src/server/room.ts` — Durable Object đầu tiên (`Room`), đếm số lần truy cập bằng `ctx.storage.get`/`put` (khoá `"visitCount"`) cho request KHÔNG phải WebSocket. `wrangler.jsonc` có `durable_objects.bindings` (`ROOM` → class `Room`) + `migrations` (`new_sqlite_classes: ["Room"]`, SQLite-backed — cách khuyến nghị hiện nay thay vì kiểu KV cũ).
-- Việc 3.3: `Room.fetch()` nhận request có header `Upgrade: websocket` thì tạo `WebSocketPair`, gọi **`this.ctx.acceptWebSocket(server)`** (TUYỆT ĐỐI không `server.accept()` — quy tắc 7 CLAUDE.md, nếu dùng `accept()` Durable Object bị tính duration suốt lúc kết nối mở, dễ vượt hạn mức miễn phí). `webSocketMessage()` phát lại tin nhắn cho TẤT CẢ kết nối đang mở (`ctx.getWebSockets()`) — đủ để demo "chat" nhiều tab; giao thức tin nhắn thật cho ván bài để dành việc 3.5. `webSocketClose()` theo boilerplate của Cloudflare nhưng có bắt lỗi: mã đóng "dự phòng" (1005/1006...) từ trình duyệt đôi khi khiến `ws.close(code, reason)` tự ném lỗi — bọc `try/catch`, không ảnh hưởng gì (đã tự phát hiện lỗi này qua log `wrangler dev` lúc kiểm thử, không phải đoán trước).
-- Đã tự kiểm: `wrangler dev`, đếm 1→2→3 rồi TẮT HẲN tiến trình + khởi động lại (cổng khác) — số tiếp tục từ 4, không mất. Mở 2 tab, mỗi tab tự mở 1 WebSocket qua console — gửi từ tab 1 nhận đúng ở tab 2 và ngược lại; đóng kết nối tab 1 thì tab 2 vẫn gửi/nhận bình thường, log server không còn lỗi.
+- 3.1: `src/server/index.ts` là Worker entry, đã deploy thật lên Cloudflare (tài khoản `nguyenngoctuan548@gmail.com`) — link: **https://bang-boardgame.nguyenngoctuan548.workers.dev** (⚠️ link này đang chạy CODE CŨ, chưa deploy lại từ sau việc 3.2 — chỉ mới `wrangler dev` local cho 3.3/3.4/3.5, nói trước khi deploy lại nếu cần).
+- 3.2: `src/server/room.ts` — Durable Object `Room`, đếm lượt truy cập bằng `ctx.storage`. `wrangler.jsonc` có `durable_objects.bindings` + `migrations` (`new_sqlite_classes`).
+- 3.3: WebSocket + Hibernation — bắt buộc `ctx.acceptWebSocket()`, không `server.accept()` (quy tắc 7). `webSocketClose()` bọc `try/catch` vì mã đóng "dự phòng" (1005/1006) từ trình duyệt có thể khiến `ws.close()` tự ném lỗi (phát hiện qua log lúc kiểm thử).
+- 3.4: `index.ts` định tuyến `/room/<mã phòng>` — `env.ROOM.idFromName(roomCode)` tự đảm bảo "cùng mã → cùng Room".
+- 3.5 + bonus: `src/protocol.ts` (**mới, lệch cấu trúc gốc** — xem mục "Cấu trúc thư mục" ở trên) định nghĩa `ClientMessage`/`ServerMessage`. Đã NỐI THẬT phần chat vào `room.ts` (không chờ view.ts việc 3.6 vì chat không đụng state ván đấu): gửi `{type:"join", playerId}` để server nhớ danh tính socket (`ws.serializeAttachment()` — sống sót qua hibernate, khác biến JS thường); gửi `{type:"chat", text, to?}` — không có `to` thì phát cho CẢ PHÒNG, có `to` thì **server chỉ gửi cho đúng người gửi + người nhận đó, không ai khác trong phòng nhận được gói tin** (không phải kiểu ẩn ở giao diện). Phần `{type:"action"}` (đánh bài thật) CHƯA xử lý — để dành việc 3.6 trở đi khi có `viewFor()`.
+- Đã tự kiểm bằng 3 tab trình duyệt thật (An/Bình/Chi tự `join`): nhắn cả phòng cả 3 đều thấy; An nhắn riêng cho Bình và Bình trả lời riêng — cả 2 chiều đúng người nhận, Chi hoàn toàn không thấy nội dung tin riêng (kiểm tra mảng tin nhận được ở tab Chi, không chỉ nhìn giao diện). Không lỗi console, không lỗi log server.
 
 153 test đều pass (không đổi gì ở `src/core/`).
 
-**Việc tiếp theo:** 3.5 — giao thức tin nhắn (định nghĩa các loại message giữa client/server, viết ra trước khi cài).
+**Việc tiếp theo:** 3.6 — lọc view theo người chơi (`core/view.ts`, `viewFor()`) — cần xong trước khi nối phần `action`/state thật vào giao thức 3.5.
 
 ## Chưa làm tới, đừng đụng vào
 

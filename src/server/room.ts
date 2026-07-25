@@ -7,14 +7,25 @@
 // Durable Object "thức" suốt thời gian kết nối còn mở, bị tính duration liên
 // tục (1 phòng mở 24h ≈ 10.800 GB-s/ngày, vượt xa hạn mức miễn phí 13.000
 // GB-s/ngày). `ctx.acceptWebSocket(ws)` cho phép Durable Object "ngủ" (hibernate)
-// giữa các tin nhắn — chỉ tính duration lúc thực sự xử lý, không tính lúc rảnh
-// chờ tin nhắn. Đổi lại, không được giữ state ngoài `ctx.storage`/tham số của
-// các handler bên dưới — code có thể chạy lại từ đầu (constructor mới) sau khi
-// thức dậy, biến JS thường (kể cả field của class) sẽ mất.
+// giữa các tin nhắn. Đổi lại, không được giữ state ngoài `ctx.storage` HAY
+// `ws.serializeAttachment(...)` (đính kèm nhỏ vào chính socket, đọc lại bằng
+// `ws.deserializeAttachment()`, sống sót qua hibernate) — field thường của
+// class sẽ mất vì code có thể chạy lại từ constructor mới sau khi thức dậy.
+//
+// Việc 3.5 (giao thức tin nhắn — xem src/protocol.ts): phần CHAT nối thật vào
+// đây luôn (không phụ thuộc state ván đấu nên không cần chờ view.ts ở việc
+// 3.6). Mỗi socket tự giới thiệu bằng ClientMessage "join", server nhớ
+// playerId của socket đó bằng serializeAttachment. Phần "action" (đánh bài
+// thật) CHƯA xử lý ở đây — để dành việc 3.6 trở đi, sau khi có viewFor().
 //
 // Dùng chung tên "Room" cho lớp Durable Object luật chơi thật sau này (từ
-// việc 3.4 trở đi mới có mã phòng riêng, 1 phòng = 1 instance) — hiện tại
-// index.ts tạm cho MỌI request dùng chung đúng 1 instance để demo.
+// việc 3.4 đã có mã phòng riêng, 1 phòng = 1 instance).
+
+import type { ClientMessage, ServerMessage } from "../protocol";
+
+interface SocketAttachment {
+  playerId: string;
+}
 
 export class Room {
   private readonly ctx: DurableObjectState;
@@ -41,12 +52,59 @@ export class Room {
     return new Response(`Số lần truy cập: ${nextCount}`);
   }
 
-  // Việc 3.3 chỉ cần demo "chat" tối giản: tin nhắn ai gửi lên thì phát lại
-  // cho TẤT CẢ kết nối đang mở (kể cả người gửi) — đủ để 2 tab thấy nhau.
-  // Giao thức tin nhắn thật cho ván bài (JSON có type...) để dành việc 3.5.
-  async webSocketMessage(_ws: WebSocket, message: string | ArrayBuffer): Promise<void> {
+  async webSocketMessage(ws: WebSocket, message: string | ArrayBuffer): Promise<void> {
+    if (typeof message !== "string") return; // chỉ hỗ trợ JSON dạng chữ, bỏ qua nhị phân
+
+    let parsed: ClientMessage;
+    try {
+      parsed = JSON.parse(message);
+    } catch {
+      return; // không phải JSON hợp lệ — bỏ qua, chưa cần báo lỗi ở việc này
+    }
+
+    if (parsed.type === "join") {
+      const attachment: SocketAttachment = { playerId: parsed.playerId };
+      ws.serializeAttachment(attachment);
+      return;
+    }
+
+    if (parsed.type === "chat") {
+      this.broadcastChat(ws, parsed.text, parsed.to);
+      return;
+    }
+
+    // parsed.type === "action": để dành việc 3.6 trở đi (cần viewFor() trước).
+  }
+
+  // Không có `to` -> gửi cho CẢ PHÒNG. Có `to` -> CHỈ gửi cho đúng người gửi
+  // và đúng người nhận (playerId khớp) — người khác trong phòng không nhận
+  // được gói tin này, không phải kiểu "gửi hết rồi ẩn ở giao diện".
+  private broadcastChat(sender: WebSocket, text: string, to: string | undefined): void {
+    const attachment = sender.deserializeAttachment() as SocketAttachment | null;
+    const fromId = attachment?.playerId ?? "?";
+
+    const outgoing: ServerMessage = {
+      type: "chat",
+      from: fromId,
+      text,
+      scope: to ? "private" : "room",
+      to,
+    };
+    const payload = JSON.stringify(outgoing);
+
     for (const socket of this.ctx.getWebSockets()) {
-      socket.send(message);
+      if (!to) {
+        socket.send(payload);
+        continue;
+      }
+      if (socket === sender) {
+        socket.send(payload); // người gửi cũng thấy lại tin riêng của chính mình
+        continue;
+      }
+      const socketAttachment = socket.deserializeAttachment() as SocketAttachment | null;
+      if (socketAttachment?.playerId === to) {
+        socket.send(payload);
+      }
     }
   }
 
