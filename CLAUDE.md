@@ -137,7 +137,8 @@ Nguyên tắc chung:
 
 **Đang ở:** Giai đoạn 3 — mạng. **Kỹ thuật đã XONG việc 3.1 → 3.10** (+ bonus chat công khai/riêng tư) — chỉ còn thiếu đúng 1 việc CHỈ CHỦ DỰ ÁN LÀM ĐƯỢC (xem cảnh báo bên dưới):
 
-- 3.1-3.4 (gọn lại): `src/server/index.ts` + `src/server/room.ts` (Durable Object `Room`) — deploy thật ở **https://bang-boardgame.nguyenngoctuan548.workers.dev** (⚠️ chưa deploy lại kể từ việc 3.7 — link công khai đang chạy code CŨ HƠN nhiều so với local, mọi thứ từ 3.7 trở đi mới chỉ test bằng `wrangler dev`). WebSocket dùng Hibernation API đúng cách (`ctx.acceptWebSocket()`, không `server.accept()` — quy tắc 7). Định tuyến `/room/<mã phòng>`.
+- 3.1-3.4 (gọn lại): `src/server/index.ts` + `src/server/room.ts` (Durable Object `Room`) — deploy thật ở **https://bang-boardgame.nguyenngoctuan548.workers.dev**. WebSocket dùng Hibernation API đúng cách (`ctx.acceptWebSocket()`, không `server.accept()` — quy tắc 7). Định tuyến `/room/<mã phòng>`.
+- **Quan trọng (phát hiện sau việc 3.10):** deploy trước đó CHỈ đưa lên phần server (Worker) — mở link công khai chỉ thấy dòng "Thiếu mã phòng...", KHÔNG thấy giao diện chơi, vì client (`index.html`/`main.ts`/`ui.ts`) chưa từng được build+phục vụ. Đã sửa: `wrangler.jsonc` thêm `assets: { directory: "./dist", run_worker_first: ["/room/*"] }` — phục vụ file client đã build (`npm run build`, ra `dist/`) CHUNG domain với Worker; `/room/*` vẫn luôn chạy Worker trước (API/WebSocket), còn lại phục vụ thẳng file tĩnh. `npm run deploy` giờ tự `vite build` trước khi `wrangler deploy` (script trong `package.json`), tránh quên build. Đã deploy lại + kiểm bằng trình duyệt thật trên chính link công khai: mở `/` thấy đúng giao diện, tạo phòng qua `wss://` thật hoạt động đúng.
 - 3.5 + bonus: `src/protocol.ts` (**mới, lệch cấu trúc gốc**) định nghĩa `ClientMessage`/`ServerMessage`. Chat công khai/riêng tư hoạt động thật.
 - 3.6: `core/view.ts` — `viewFor()` ẩn bài tay + vai trò người khác (trừ chính mình/Sheriff/người đã chết).
 - 3.7: `room.ts` lưu `GameState` thật vào `ctx.storage`. `{type:"action"}` xử lý thật qua `reduce()`.
@@ -146,11 +147,11 @@ Nguyên tắc chung:
 - **3.10 (mới)**: bàn chơi qua mạng giờ TƯƠNG TÁC THẬT — `ui.ts` có `renderNetworkGame()` (thay hẳn `renderNetworkGameReadOnly()` tạm bợ của 3.9), gần như song song với `renderApp()` (hotseat) nhưng có 2 khác biệt cố ý: (1) đọc `PlayerView` (bài người khác `null`+`handCount`) thay vì `GameState` đầy đủ; (2) CHỈ chính người xem (`view.viewerId`) được bấm bài của mình, người khác luôn chỉ xem — khác hotseat (ai cũng bấm được vì tin tưởng cùng ngồi 1 máy). Panic!/Cat Balou dùng `handCount` (luôn đúng) thay vì `hand.length` (ẩn với người khác) để quyết định có cần hỏi thêm bước hay không. `main.ts` có `networkDispatch()` gửi action qua `net.ts` rồi CHỜ phản hồi bất đồng bộ (`state` hoặc `action_error`) thay vì biết kết quả ngay như hotseat.
 - Đã tự kiểm bằng 4 tab trình duyệt thật (An/Bình/Chi/Dũng, qua `net.ts` thật, không giả lập gì): tạo phòng bằng mã 6 ký tự, cả 4 vào cùng phòng, bắt đầu ván, rồi chơi thật several lượt — rút bài, đánh Bang! có chọn mục tiêu qua mạng (pending hiện đúng ở TẤT CẢ các tab), người bị nhắm chịu mất máu (hp giảm đúng), bỏ bài thừa cuối lượt, chuyển lượt đúng người kế tiếp, tự trang bị súng — tất cả qua các tab RIÊNG BIỆT, mỗi tab luôn chỉ thấy đúng bài/vai trò của chính mình. Không lỗi console/server.
 
-**⚠️ Phần "chơi thử thật với bạn bè, 4 nơi khác nhau" (mục "Xong khi nào" gốc của việc 3.10) CHƯA làm được và KHÔNG THỂ làm thay — cần chính chủ dự án tự deploy bản mới nhất rồi rủ bạn bè thật vào chơi từ máy/mạng khác nhau.** Phần mình vừa làm chỉ chứng minh cơ chế kỹ thuật đúng (4 tab trình duyệt trên cùng 1 máy), không thay thế được việc chơi thật.
+**⚠️ Phần "chơi thử thật với bạn bè, 4 nơi khác nhau" (mục "Xong khi nào" gốc của việc 3.10) CHƯA làm được và KHÔNG THỂ làm thay — cần chính chủ dự án tự rủ bạn bè thật vào chơi từ máy/mạng khác nhau.** Phần mình vừa làm chỉ chứng minh cơ chế kỹ thuật đúng (4 tab trình duyệt trên cùng 1 máy + xác nhận riêng trên link deploy thật), không thay thế được việc chơi thật. Link đã sẵn sàng để thử: **https://bang-boardgame.nguyenngoctuan548.workers.dev**.
 
 162 test đều pass.
 
-**Việc tiếp theo:** deploy bản mới nhất lên Cloudflare, rồi thử chơi thật với bạn bè để hoàn tất đúng nghĩa việc 3.10 (mốc 🎉 kết thúc Giai đoạn 3).
+**Việc tiếp theo:** chủ dự án tự thử chơi thật với bạn bè (link đã sẵn sàng) để hoàn tất đúng nghĩa việc 3.10 (mốc 🎉 kết thúc Giai đoạn 3). Nếu chơi thử phát hiện lỗi/thiếu gì, quay lại sửa tiếp trước khi coi Giai đoạn 3 là xong hẳn.
 
 ## Chưa làm tới, đừng đụng vào
 

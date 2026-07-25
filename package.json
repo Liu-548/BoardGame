@@ -10,7 +10,7 @@
     "dev": "vite",
     "build": "vite build",
     "server:dev": "wrangler dev",
-    "deploy": "wrangler deploy"
+    "deploy": "vite build && wrangler deploy"
   },
   "repository": {
     "type": "git",

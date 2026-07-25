@@ -9,5 +9,13 @@
   },
   "migrations": [
     { "tag": "v1", "new_sqlite_classes": ["Room"] }
-  ]
+  ],
+  // Phục vụ file client đã build (npm run build -> dist/) CHUNG domain với
+  // Worker. "run_worker_first": ["/room/*"] nghĩa là đường dẫn /room/... LUÔN
+  // chạy Worker trước (xử lý WebSocket/API phòng), còn lại (/, /assets/...)
+  // phục vụ thẳng file tĩnh trong dist/, không chạy Worker cho nhanh.
+  "assets": {
+    "directory": "./dist",
+    "run_worker_first": ["/room/*"]
+  }
 }
