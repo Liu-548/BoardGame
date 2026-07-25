@@ -3,9 +3,9 @@
 // hotseat). Nhãn tiếng Việt (tên bài, tên vai) chỉ để HIỂN THỊ nên đặt ở đây,
 // không đặt trong core/ — core/ không quan tâm chuyện trình bày.
 
-import { cardNameFromId } from "../core/cards";
+import { cardNameFromId, cardSuitRankFromId } from "../core/cards";
 import type { CardName } from "../core/cards";
-import type { GameState, PendingAction, PlayerState, Role } from "../core/types";
+import type { GameState, PendingAction, PlayerState, Role, Suit } from "../core/types";
 import type { PlayerHandView, PlayerView } from "../core/view";
 
 const CARD_LABELS: Record<CardName, string> = {
@@ -33,6 +33,13 @@ const CARD_LABELS: Record<CardName, string> = {
   dynamite: "Thuốc nổ",
 };
 
+const SUIT_LABELS: Record<Suit, string> = {
+  spades: "Bích",
+  hearts: "Cơ",
+  diamonds: "Rô",
+  clubs: "Chuồn",
+};
+
 const ROLE_LABELS: Record<Role, string> = {
   sheriff: "Cảnh sát trưởng",
   deputy: "Phó cảnh sát trưởng",
@@ -56,6 +63,32 @@ const TURN_PHASE_LABELS: Record<GameState["turnPhase"], string> = {
 
 function cardLabel(cardId: string): string {
   return CARD_LABELS[cardNameFromId(cardId)];
+}
+
+// Nhãn ĐẦY ĐỦ kèm chất/số (vd "Bang! (Cơ 5)") — dùng cho lá bài vừa lật khi
+// draw! (Barrel/Jail/Dynamite...), vì lúc đó chất/số mới là thứ quyết định
+// khớp hay không, không chỉ tên bài. Bài trên tay/sân dùng cardLabel() (chỉ
+// tên) là đủ, không cần chất/số ở đó.
+function cardFaceLabel(cardId: string): string {
+  const { suit, rank } = cardSuitRankFromId(cardId);
+  return `${cardLabel(cardId)} (${SUIT_LABELS[suit]} ${rank})`;
+}
+
+// Thông báo TẠM THỜI báo cho TẤT CẢ mọi người biết lá vừa lật khi draw!
+// (Barrel/Jail/Dynamite...) — yêu cầu thiết kế: check bài phải công khai, ai
+// cũng phải thấy đúng lá vừa lật, không chỉ suy ra được từ đỉnh chồng bỏ.
+// null = chưa có lần lật nào gần đây (hoặc hành động vừa rồi không phải lật
+// bài kiểm tra) — main.ts tính lại giá trị này sau MỖI lần dispatch.
+export type DrawCheckNotice = { playerName: string; cardId: string; matched: boolean } | null;
+
+function renderDrawCheckNotice(container: HTMLElement, notice: DrawCheckNotice): void {
+  if (!notice) return;
+  const el = document.createElement("p");
+  el.className = "draw-check-notice";
+  el.textContent =
+    `${notice.playerName} vừa lật bài kiểm tra: ${cardFaceLabel(notice.cardId)} — ` +
+    (notice.matched ? "KHỚP" : "không khớp");
+  container.appendChild(el);
 }
 
 // ----- Trạng thái "đang chọn" tạm thời, CHỈ tồn tại ở client (không phải
@@ -381,6 +414,7 @@ export interface RenderOptions {
   selection: Selection;
   error: string | null;
   discardSelection: string[]; // các cardId đã chọn để bỏ, chỉ có ý nghĩa khi turnPhase === "discard"
+  lastDrawCheck: DrawCheckNotice;
 }
 
 export function renderApp(
@@ -400,11 +434,15 @@ export function renderApp(
 
   const summary = document.createElement("p");
   summary.className = "summary";
+  const discardTop = state.discardPile[state.discardPile.length - 1];
   summary.textContent =
     `Giai đoạn lượt: ${TURN_PHASE_LABELS[state.turnPhase]} · ` +
     `Bộ bài còn ${state.deck.length} lá · Chồng bỏ ${state.discardPile.length} lá` +
+    (discardTop ? ` (mặt trên: ${cardFaceLabel(discardTop)})` : "") +
     (state.winner ? ` · VÁN KẾT THÚC — phe thắng: ${WINNER_LABELS[state.winner]}` : "");
   container.appendChild(summary);
+
+  renderDrawCheckNotice(container, options.lastDrawCheck);
 
   if (state.winner) {
     const panel = document.createElement("div");
@@ -589,6 +627,8 @@ export function renderNetworkLobby(
   container: HTMLElement,
   roomCode: string,
   players: LobbyPlayer[],
+  ownerId: string | null,
+  viewerId: string,
   error: string | null,
   handlers: NetworkLobbyHandlers
 ): void {
@@ -617,18 +657,28 @@ export function renderNetworkLobby(
   const list = document.createElement("ul");
   for (const player of players) {
     const li = document.createElement("li");
-    li.textContent = player.name;
+    li.textContent = player.name + (player.id === ownerId ? " (chủ phòng)" : "");
     list.appendChild(li);
   }
   container.appendChild(list);
 
-  const startBtn = button("Bắt đầu ván", () => handlers.onStartGame());
-  startBtn.disabled = players.length < MIN_NETWORK_PLAYERS;
-  container.appendChild(startBtn);
+  // Chỉ chủ phòng mới được bắt đầu ván (yêu cầu sau việc 3.10) — người khác
+  // chỉ thấy dòng chờ, không có nút. Server (room.ts) cũng tự kiểm tra lại,
+  // nút ẩn ở đây chỉ để đỡ bấm nhầm, không phải chốt chặn duy nhất.
+  if (viewerId === ownerId) {
+    const startBtn = button("Bắt đầu ván", () => handlers.onStartGame());
+    startBtn.disabled = players.length < MIN_NETWORK_PLAYERS;
+    container.appendChild(startBtn);
 
-  if (players.length < MIN_NETWORK_PLAYERS) {
+    if (players.length < MIN_NETWORK_PLAYERS) {
+      const hint = document.createElement("p");
+      hint.textContent = `Cần ít nhất ${MIN_NETWORK_PLAYERS} người mới bắt đầu được.`;
+      container.appendChild(hint);
+    }
+  } else {
+    const ownerName = players.find((p) => p.id === ownerId)?.name ?? "chủ phòng";
     const hint = document.createElement("p");
-    hint.textContent = `Cần ít nhất ${MIN_NETWORK_PLAYERS} người mới bắt đầu được.`;
+    hint.textContent = `Đang chờ ${ownerName} bắt đầu ván.`;
     container.appendChild(hint);
   }
 }
@@ -662,6 +712,7 @@ export interface NetworkGameOptions {
   selection: Selection;
   error: string | null;
   discardSelection: string[];
+  lastDrawCheck: DrawCheckNotice;
 }
 
 function networkRenderHandSection(
@@ -958,10 +1009,15 @@ export function renderNetworkGame(
 
   const summary = document.createElement("p");
   summary.className = "summary";
+  const discardTop = view.discardPile[view.discardPile.length - 1];
   summary.textContent =
-    `Giai đoạn lượt: ${TURN_PHASE_LABELS[view.turnPhase]} · Bộ bài còn ${view.deckCount} lá` +
+    `Giai đoạn lượt: ${TURN_PHASE_LABELS[view.turnPhase]} · Bộ bài còn ${view.deckCount} lá · ` +
+    `Chồng bỏ ${view.discardPile.length} lá` +
+    (discardTop ? ` (mặt trên: ${cardFaceLabel(discardTop)})` : "") +
     (view.winner ? ` · VÁN KẾT THÚC — phe thắng: ${WINNER_LABELS[view.winner]}` : "");
   container.appendChild(summary);
+
+  renderDrawCheckNotice(container, options.lastDrawCheck);
 
   if (options.selection.step !== "idle") {
     const hint = document.createElement("div");
