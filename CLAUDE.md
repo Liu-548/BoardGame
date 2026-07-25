@@ -130,15 +130,16 @@ Nguyên tắc chung:
 
 > Cập nhật dòng này mỗi khi xong một giai đoạn. Xem `LO-TRINH.md`.
 
-**Đang ở:** Giai đoạn 3 — mạng (Giai đoạn 1 + 2 đã HOÀN THÀNH TOÀN BỘ). **XONG việc 3.1 + 3.2**:
+**Đang ở:** Giai đoạn 3 — mạng (Giai đoạn 1 + 2 đã HOÀN THÀNH TOÀN BỘ). **XONG việc 3.1 + 3.2 + 3.3**:
 
 - Việc 3.1: `src/server/index.ts` là Worker entry. Đã deploy thật lên Cloudflare (chủ dự án tự `wrangler login`, tài khoản `nguyenngoctuan548@gmail.com`) — link công khai: **https://bang-boardgame.nguyenngoctuan548.workers.dev**. Lưu ý: ngay sau deploy gọi thử có thể gặp lỗi tạm thời (DNS/route chưa lan truyền hết, `error code 1104`/404) — thử lại sau ~5-10 giây là hết.
-- Việc 3.2: `src/server/room.ts` — Durable Object đầu tiên (`Room`), chỉ đếm số lần truy cập bằng `ctx.storage.get`/`put` (khoá `"visitCount"`). `index.ts` định tuyến MỌI request sang cùng 1 Room (`env.ROOM.idFromName("demo")`) — chưa có mã phòng riêng (việc 3.4), chưa WebSocket (3.3). `wrangler.jsonc` thêm `durable_objects.bindings` (`ROOM` → class `Room`) + `migrations` (`new_sqlite_classes: ["Room"]`, SQLite-backed — cách khuyến nghị hiện nay thay vì kiểu KV cũ).
-- Đã tự kiểm: chạy `wrangler dev`, gọi 3 lần thấy đếm 1→2→3; **tắt hẳn tiến trình `wrangler dev` rồi khởi động lại** (cổng khác, tiến trình hoàn toàn mới) — số tiếp tục từ 4, không về lại 1, xác nhận đúng "số không mất khi reload". Kiểm thêm bằng trình duyệt thật, không lỗi console.
+- Việc 3.2: `src/server/room.ts` — Durable Object đầu tiên (`Room`), đếm số lần truy cập bằng `ctx.storage.get`/`put` (khoá `"visitCount"`) cho request KHÔNG phải WebSocket. `wrangler.jsonc` có `durable_objects.bindings` (`ROOM` → class `Room`) + `migrations` (`new_sqlite_classes: ["Room"]`, SQLite-backed — cách khuyến nghị hiện nay thay vì kiểu KV cũ).
+- Việc 3.3: `Room.fetch()` nhận request có header `Upgrade: websocket` thì tạo `WebSocketPair`, gọi **`this.ctx.acceptWebSocket(server)`** (TUYỆT ĐỐI không `server.accept()` — quy tắc 7 CLAUDE.md, nếu dùng `accept()` Durable Object bị tính duration suốt lúc kết nối mở, dễ vượt hạn mức miễn phí). `webSocketMessage()` phát lại tin nhắn cho TẤT CẢ kết nối đang mở (`ctx.getWebSockets()`) — đủ để demo "chat" nhiều tab; giao thức tin nhắn thật cho ván bài để dành việc 3.5. `webSocketClose()` theo boilerplate của Cloudflare nhưng có bắt lỗi: mã đóng "dự phòng" (1005/1006...) từ trình duyệt đôi khi khiến `ws.close(code, reason)` tự ném lỗi — bọc `try/catch`, không ảnh hưởng gì (đã tự phát hiện lỗi này qua log `wrangler dev` lúc kiểm thử, không phải đoán trước).
+- Đã tự kiểm: `wrangler dev`, đếm 1→2→3 rồi TẮT HẲN tiến trình + khởi động lại (cổng khác) — số tiếp tục từ 4, không mất. Mở 2 tab, mỗi tab tự mở 1 WebSocket qua console — gửi từ tab 1 nhận đúng ở tab 2 và ngược lại; đóng kết nối tab 1 thì tab 2 vẫn gửi/nhận bình thường, log server không còn lỗi.
 
 153 test đều pass (không đổi gì ở `src/core/`).
 
-**Việc tiếp theo:** 3.3 — WebSocket + Hibernation API (`ctx.acceptWebSocket()`, **không** `ws.accept()` — quy tắc 7 CLAUDE.md).
+**Việc tiếp theo:** 3.4 — định tuyến theo mã phòng (cùng mã → cùng Durable Object instance; hiện tại mọi request đều dùng chung 1 Room tên `"demo"`).
 
 ## Chưa làm tới, đừng đụng vào
 
