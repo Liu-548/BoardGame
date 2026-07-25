@@ -130,15 +130,15 @@ Nguyên tắc chung:
 
 > Cập nhật dòng này mỗi khi xong một giai đoạn. Xem `LO-TRINH.md`.
 
-**Đang ở:** Giai đoạn 2 — giao diện tối giản (Giai đoạn 1 đã HOÀN THÀNH TOÀN BỘ ở việc 1.14). Đã xong việc 2.4 (hiện đầy đủ stack `pending`):
+**Đang ở:** Giai đoạn 2 — giao diện tối giản. **HOÀN THÀNH TOÀN BỘ Giai đoạn 2** (việc 2.5 — chế độ hotseat — vừa xong). Sẵn sàng chuyển sang Giai đoạn 3 (mạng).
 
-- `ui.ts`: `renderPendingPanel()` giờ vẽ TOÀN BỘ `state.pending` (không chỉ đỉnh) trong 1 danh sách có số thứ tự, duyệt từ đỉnh (phần tử cuối mảng) xuống đáy — đúng thứ tự sẽ được xử lý. Mục đỉnh in đậm "Đang chờ: ..." kèm nút phản hồi thật; các mục còn lại in mờ "Sắp tới: ..." KHÔNG có nút (chưa tới lượt xử lý — mục 5 CLAUDE.md: luôn xử lý phần tử cuối cùng trước). `pendingDescription()` đổi từ "chỉ đọc top" sang nhận thẳng 1 `PendingAction` bất kỳ làm tham số.
-- Việc 2.3 (bấm bài → gọi `reduce()`, chơi được ván hoàn chỉnh trên 1 máy): `ui.ts` vẽ bài trên tay/trang bị thành từng nút bấm riêng; chỉ người ĐANG cần hành động mới thấy bài của mình bấm được, người khác thấy bài dạng chữ thường. Trạng thái "đang chọn" (`Selection`) là dữ liệu CHỈ RIÊNG client, `main.ts` giữ biến này. Lỗi từ `reduce()` hiện thẳng ra màn hình bằng đúng câu tiếng Việt có sẵn.
-- Đã tự kiểm bằng trình duyệt thật (claude-in-chrome): chơi thử nhiều bước (rút bài → đánh Bang! đúng/sai tầm → chịu mất máu → Panic! cướp bài → bỏ bài thừa → chuyển lượt), và dựng riêng 1 state giả có 2 tầng pending (Bang! vào người có Barrel) để kiểm tra đúng thứ tự hiển thị "Đang chờ"/"Sắp tới". Không lỗi console.
+- Việc 2.5: `main.ts` giờ có 2 "màn hình" (`screen: "setup" | "game"`, biến thường ở client, không phải state riêng framework nào). Mở trang hiện màn hình thiết lập TRƯỚC (`ui.ts` → `renderSetupScreen()`) — gõ tên 4-7 người chơi (nút +/- thêm/bớt, validate không được để trống), bấm "Bắt đầu ván" mới gọi `setupGame()` rồi gán tên thật vào `state.players[i].name` (setup.ts vốn đã để sẵn `name: id` chờ client gán, xem comment cũ trong `setup.ts`). Ván kết thúc (`state.winner` có giá trị) thì hiện nút "Chơi ván mới" quay lại màn hình thiết lập, GIỮ NGUYÊN tên đã gõ lần trước — không cần tải lại trang để chơi ván khác.
+- Lưu ý kỹ thuật: khi gõ tên, `onNameChange()` CHỈ cập nhật mảng `playerNames` ở `main.ts`, KHÔNG gọi `render()` — nếu render lại giữa lúc gõ, `container.replaceChildren()` sẽ xoá và tạo lại `<input>` mới, mất luôn con trỏ đang gõ. Chỉ các thao tác "cấu trúc" (thêm/bớt người chơi, bắt đầu ván) mới render lại.
+- Đã tự kiểm bằng trình duyệt thật (claude-in-chrome): gõ tên (xác nhận không mất con trỏ khi gõ), thêm người chơi thứ 5 (thành ván 5 người, đúng vai theo `ROLE_SETS[5]`), để trống 1 tên bấm "Bắt đầu ván" → báo lỗi đúng và giữ các tên khác, dựng riêng 1 state giả có `winner` để xác nhận nút "Chơi ván mới" hiện đúng và gọi đúng handler. Không lỗi console.
 
 153 test đều pass (không đổi gì ở `src/core/`).
 
-**Việc tiếp theo:** 2.5 — chế độ hotseat (4 người ngồi chung 1 máy chơi hết ván). Đây là mốc cuối Giai đoạn 2, xong là chuyển sang Giai đoạn 3 (mạng).
+**Việc tiếp theo:** Giai đoạn 3 — mạng (Durable Objects thuần). Xem `LO-TRINH.md` việc 3.1 trở đi (Worker "hello world" + `wrangler deploy`).
 
 ## Chưa làm tới, đừng đụng vào
 

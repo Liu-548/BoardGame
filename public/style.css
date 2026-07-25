@@ -115,3 +115,16 @@ button {
   color: #000;
   font-weight: bold;
 }
+
+.setup-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-width: 20rem;
+  margin: 1rem 0;
+}
+
+.setup-list input {
+  font-size: 1rem;
+  padding: 0.4rem 0.6rem;
+}
