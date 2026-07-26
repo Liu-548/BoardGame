@@ -39,6 +39,104 @@ const CARD_LABELS: Record<CardName, string> = {
   dynamite: "Thuốc nổ",
 };
 
+// Việc 4.6: mô tả ngắn chức năng từng lá — soạn theo ĐÚNG luật đã cài trong
+// reduce.ts (bản tự chỉnh của dự án này, có vài chỗ lệch luật gốc BANG!, vd
+// Cat Balou không giới hạn khoảng cách, Beer hiện CHƯA có ngoại lệ "vô tác
+// dụng khi chỉ còn 2 người sống"), không phải chép lại luật gốc từ trí nhớ.
+// Hiện ở 2 chỗ: thuộc tính `title` (tooltip rê chuột/giữ lâu) trên lá bài lúc
+// đang chơi, VÀ đầy đủ ở màn hình "Chú giải lá bài" (renderCardReferenceScreen).
+const CARD_DESCRIPTIONS: Record<CardName, string> = {
+  bang: "Bắn 1 người trong tầm súng — họ phải đỡ bằng Missed! hoặc mất 1 máu.",
+  missed: "Không tự đánh được — chỉ dùng để đỡ khi bị Bang!/Gatling.",
+  beer: "Tự hồi 1 máu cho chính mình (không vượt quá máu tối đa).",
+  saloon: "Mọi người còn sống hồi 1 máu, kể cả người đánh.",
+  stagecoach: "Rút thêm 2 lá từ bộ bài.",
+  wells_fargo: "Rút thêm 3 lá từ bộ bài.",
+  panic:
+    "Cướp 1 lá của người ở khoảng cách 1 — ưu tiên bài úp trên tay (bốc ngẫu nhiên), tay hết bài mới được cướp trang bị trên sân.",
+  cat_balou:
+    "Bắt 1 người bất kỳ (không giới hạn khoảng cách) bỏ 1 lá — họ tự chọn lá nào trong tay hoặc trên sân, không được từ chối.",
+  general_store:
+    "Lật số lá bằng số người còn sống, rồi lần lượt từng người (bắt đầu từ người đánh) chọn 1 lá cho tới hết.",
+  indians: "Mọi người khác phải bỏ 1 lá Bang! hoặc mất 1 máu.",
+  duel: "Thách 1 người đấu tay đôi — lần lượt bỏ Bang!, ai hết bài Bang! trước sẽ mất 1 máu.",
+  gatling: "Bắn TẤT CẢ người khác cùng lúc, bất kể khoảng cách — mỗi người đỡ Missed! hoặc mất 1 máu.",
+  volcanic: "Trang bị súng, tầm bắn 1. Đánh súng mới sẽ gỡ súng cũ — chỉ giữ được 1 khẩu.",
+  schofield: "Trang bị súng, tầm bắn 2. Đánh súng mới sẽ gỡ súng cũ — chỉ giữ được 1 khẩu.",
+  remington: "Trang bị súng, tầm bắn 3. Đánh súng mới sẽ gỡ súng cũ — chỉ giữ được 1 khẩu.",
+  rev_carabine: "Trang bị súng, tầm bắn 4. Đánh súng mới sẽ gỡ súng cũ — chỉ giữ được 1 khẩu.",
+  winchester: "Trang bị súng, tầm bắn 5. Đánh súng mới sẽ gỡ súng cũ — chỉ giữ được 1 khẩu.",
+  barrel: "Khi bị Bang! bắn trúng, tự lật 1 lá — ra Cơ thì né hoàn toàn, không tốn Missed!.",
+  scope: "Nhìn người khác gần hơn 1 khi mình đánh Bang! — giúp bắn trúng xa hơn.",
+  mustang: "Người khác nhìn mình xa hơn 1 — khó bị Bang! của họ bắn trúng hơn.",
+  jail: "Gắn lên sân người khác (trừ Cảnh sát trưởng) — đầu lượt họ lật 1 lá: ra Cơ thì thoát, chơi bình thường; không thì mất luôn cả lượt.",
+  dynamite:
+    "Ai đang cầm, đầu lượt phải lật 1 lá: ra Bích 2-9 thì nổ mất 3 máu rồi bỏ đi; không thì tự chuyển sang người kế tiếp.",
+};
+
+// Nhóm lá nâu/xanh CHỈ để trình bày (màn hình Chú giải) — chép lại thủ công từ
+// BrownCardName/BlueCardName ở core/cards.ts (2 type đó chỉ tồn tại lúc biên
+// dịch, không có mảng thật lúc chạy) — sửa core/cards.ts thì nhớ sửa cả đây.
+const BROWN_CARD_NAMES: readonly CardName[] = [
+  "bang", "missed", "beer", "saloon", "stagecoach", "wells_fargo",
+  "panic", "cat_balou", "general_store", "indians", "duel", "gatling",
+];
+const BLUE_CARD_NAMES: readonly CardName[] = [
+  "volcanic", "schofield", "remington", "rev_carabine", "winchester",
+  "barrel", "scope", "mustang", "jail", "dynamite",
+];
+
+// Việc 4.6: chưa có ảnh thật nào — quy ước đường dẫn TRƯỚC, ảnh thêm dần vào
+// public/sprites/<tên lá>.png sau (đúng tinh thần LO-TRINH.md: "có ảnh tới đâu
+// gắn tới đó"). Ảnh thiếu thì <img> bắn sự kiện "error", appendCardVisual() ẩn
+// nó đi — quay về hiển thị CHỈ chữ như trước việc 4.6, không vỡ giao diện.
+function cardImageUrl(name: CardName): string {
+  return `/sprites/${name}.png`;
+}
+
+// Dựng phần "thân" dùng chung cho mọi ô lá bài (ảnh + tên đè lên ảnh) — dùng
+// được cho cả <button> (lá bấm được) lẫn <span> (lá chỉ để xem). `title` (tooltip
+// rê chuột/giữ lâu) gắn mô tả chức năng nếu có (bài chưa rõ tác dụng gì thì bỏ
+// qua, vd không có mục cho lá không tồn tại).
+function appendCardVisual(el: HTMLElement, name: CardName, label: string): void {
+  const img = document.createElement("img");
+  img.className = "card-box__image";
+  img.alt = "";
+  img.src = cardImageUrl(name);
+  img.addEventListener("error", () => {
+    img.style.display = "none"; // thiếu ảnh -> ẩn đi, chỉ còn tên chữ (xem CSS .card-box)
+  });
+  el.appendChild(img);
+
+  const nameEl = document.createElement("span");
+  nameEl.className = "card-box__name";
+  nameEl.textContent = label;
+  el.appendChild(nameEl);
+
+  const description = CARD_DESCRIPTIONS[name];
+  if (description) el.title = description;
+}
+
+// Lá BẤM ĐƯỢC (đánh ra, chọn để bỏ, chọn ở Cửa hàng tổng hợp...). `modifierClass`
+// tuỳ ngữ cảnh: "card-box--armed" (đang cầm lên chờ chọn mục tiêu) hoặc
+// "card-box--checked" (đã tick chọn để bỏ bài thừa cuối lượt).
+function cardButton(cardId: string, onClick: () => void, modifierClass?: string): HTMLButtonElement {
+  const el = document.createElement("button");
+  el.type = "button";
+  el.className = modifierClass ? `card-box ${modifierClass}` : "card-box";
+  appendCardVisual(el, cardNameFromId(cardId), cardLabel(cardId));
+  el.addEventListener("click", onClick);
+  return el;
+}
+
+// Lá CHỈ ĐỂ XEM (không bấm được — không tới lượt, không phải lá cần phản hồi...).
+function cardChip(cardId: string): HTMLSpanElement {
+  const el = document.createElement("span");
+  el.className = "card-box card-box--inert";
+  appendCardVisual(el, cardNameFromId(cardId), cardLabel(cardId));
+  return el;
+}
+
 const SUIT_LABELS: Record<Suit, string> = {
   spades: "Bích",
   hearts: "Cơ",
@@ -280,45 +378,36 @@ function renderHandSection(
 
   for (const cardId of player.hand) {
     const name = cardNameFromId(cardId);
-    const label = cardLabel(cardId);
 
     if (isDiscarding) {
       const selected = discardSelection.includes(cardId);
-      const el = button(selected ? `✓ ${label}` : label, () => handlers.onToggleDiscardCard(cardId));
-      if (selected) el.classList.add("card--selected");
-      wrapper.appendChild(el);
+      wrapper.appendChild(
+        cardButton(cardId, () => handlers.onToggleDiscardCard(cardId), selected ? "card-box--checked" : undefined)
+      );
       continue;
     }
 
     if (isDiscardFromHand) {
-      wrapper.appendChild(button(label, () => handlers.onHandCardClick(cardId)));
+      wrapper.appendChild(cardButton(cardId, () => handlers.onHandCardClick(cardId)));
       continue;
     }
 
     if (respondableName !== null) {
       if (name === respondableName) {
-        wrapper.appendChild(button(label, () => handlers.onHandCardClick(cardId)));
+        wrapper.appendChild(cardButton(cardId, () => handlers.onHandCardClick(cardId)));
       } else {
-        const span = document.createElement("span");
-        span.className = "card card--inert";
-        span.textContent = label;
-        wrapper.appendChild(span);
+        wrapper.appendChild(cardChip(cardId));
       }
       continue;
     }
 
     if (isCurrentTurnToPlay && name !== "missed") {
       const armed = selection.step === "picking-target" && selection.cardId === cardId;
-      const el = button(label, () => handlers.onHandCardClick(cardId));
-      if (armed) el.classList.add("card--selected");
-      wrapper.appendChild(el);
+      wrapper.appendChild(cardButton(cardId, () => handlers.onHandCardClick(cardId), armed ? "card-box--armed" : undefined));
       continue;
     }
 
-    const span = document.createElement("span");
-    span.className = "card card--inert";
-    span.textContent = label;
-    wrapper.appendChild(span);
+    wrapper.appendChild(cardChip(cardId));
   }
 
   container.appendChild(wrapper);
@@ -340,18 +429,14 @@ function renderEquipmentSection(
   const isPickingPanicTarget = selection.step === "picking-panic-equipment" && selection.targetId === player.id;
 
   for (const cardId of player.equipment) {
-    const label = cardLabel(cardId);
     const isDynamite = cardNameFromId(cardId) === "dynamite";
 
     if (!isDynamite && (isDiscardFromEquipment || isPickingPanicTarget)) {
-      wrapper.appendChild(button(label, () => handlers.onEquipmentClick(player.id, cardId)));
+      wrapper.appendChild(cardButton(cardId, () => handlers.onEquipmentClick(player.id, cardId)));
       continue;
     }
 
-    const span = document.createElement("span");
-    span.className = "card card--inert";
-    span.textContent = label;
-    wrapper.appendChild(span);
+    wrapper.appendChild(cardChip(cardId));
   }
 
   container.appendChild(wrapper);
@@ -483,7 +568,7 @@ function renderPendingPanel(container: HTMLElement, state: GameState, handlers: 
     const wrapper = document.createElement("div");
     wrapper.className = "cards";
     for (const cardId of top.options) {
-      wrapper.appendChild(button(cardLabel(cardId), () => handlers.onStoreOptionClick(cardId)));
+      wrapper.appendChild(cardButton(cardId, () => handlers.onStoreOptionClick(cardId)));
     }
     panel.appendChild(wrapper);
   } else if (top.kind === "NEED_DRAW_CHECK") {
@@ -660,6 +745,7 @@ export function renderSetupScreen(
 export interface HomeHandlers {
   onPlayLocal(): void;
   onPlayNetwork(): void;
+  onShowCardReference(): void;
 }
 
 export function renderHomeScreen(container: HTMLElement, handlers: HomeHandlers): void {
@@ -673,7 +759,58 @@ export function renderHomeScreen(container: HTMLElement, handlers: HomeHandlers)
   panel.className = "panel";
   panel.appendChild(button("Chơi chung 1 máy (hotseat)", () => handlers.onPlayLocal()));
   panel.appendChild(button("Chơi qua mạng", () => handlers.onPlayNetwork()));
+  panel.appendChild(button("Chú giải lá bài", () => handlers.onShowCardReference()));
   container.appendChild(panel);
+}
+
+// Việc 4.6: màn hình tra cứu — liệt kê đủ 22 lá (12 nâu + 10 xanh), mỗi lá 1
+// khung ảnh+tên (dùng chung appendCardVisual() với lá trong ván) kèm mô tả đầy
+// đủ bên dưới. Không cần cardId thật (không gắn với ván nào) — CardName suông
+// là đủ cho appendCardVisual()/CARD_DESCRIPTIONS, không phải suy ngược qua
+// cardNameFromId() như cardButton()/cardChip() (2 hàm đó phục vụ lá THẬT trong
+// ván, luôn có cardId).
+export interface CardReferenceHandlers {
+  onBack(): void;
+}
+
+function renderCardReferenceGroup(container: HTMLElement, heading: string, names: readonly CardName[]): void {
+  const headingEl = document.createElement("h3");
+  headingEl.className = "card-ref-group-heading";
+  headingEl.textContent = heading;
+  container.appendChild(headingEl);
+
+  const grid = document.createElement("div");
+  grid.className = "card-ref-grid";
+  for (const name of names) {
+    const item = document.createElement("div");
+    item.className = "card-ref-item";
+
+    const box = document.createElement("div");
+    box.className = "card-box";
+    appendCardVisual(box, name, CARD_LABELS[name]);
+    item.appendChild(box);
+
+    const desc = document.createElement("p");
+    desc.className = "card-ref-item__desc";
+    desc.textContent = CARD_DESCRIPTIONS[name];
+    item.appendChild(desc);
+
+    grid.appendChild(item);
+  }
+  container.appendChild(grid);
+}
+
+export function renderCardReferenceScreen(container: HTMLElement, handlers: CardReferenceHandlers): void {
+  container.replaceChildren();
+
+  const heading = document.createElement("h2");
+  heading.textContent = "Chú giải lá bài";
+  container.appendChild(heading);
+
+  container.appendChild(button("← Quay lại", () => handlers.onBack()));
+
+  renderCardReferenceGroup(container, "Bài nâu (đánh từ tay, chơi xong vào chồng bỏ)", BROWN_CARD_NAMES);
+  renderCardReferenceGroup(container, "Bài xanh (trang bị, để ngửa trước mặt tới khi mất)", BLUE_CARD_NAMES);
 }
 
 export interface NetworkLobbyFormHandlers {
@@ -883,45 +1020,36 @@ function networkRenderHandSection(
 
   for (const cardId of player.hand) {
     const name = cardNameFromId(cardId);
-    const label = cardLabel(cardId);
 
     if (isDiscarding) {
       const selected = discardSelection.includes(cardId);
-      const el = button(selected ? `✓ ${label}` : label, () => handlers.onToggleDiscardCard(cardId));
-      if (selected) el.classList.add("card--selected");
-      wrapper.appendChild(el);
+      wrapper.appendChild(
+        cardButton(cardId, () => handlers.onToggleDiscardCard(cardId), selected ? "card-box--checked" : undefined)
+      );
       continue;
     }
 
     if (isDiscardFromHand) {
-      wrapper.appendChild(button(label, () => handlers.onHandCardClick(cardId)));
+      wrapper.appendChild(cardButton(cardId, () => handlers.onHandCardClick(cardId)));
       continue;
     }
 
     if (respondableName !== null) {
       if (name === respondableName) {
-        wrapper.appendChild(button(label, () => handlers.onHandCardClick(cardId)));
+        wrapper.appendChild(cardButton(cardId, () => handlers.onHandCardClick(cardId)));
       } else {
-        const span = document.createElement("span");
-        span.className = "card card--inert";
-        span.textContent = label;
-        wrapper.appendChild(span);
+        wrapper.appendChild(cardChip(cardId));
       }
       continue;
     }
 
     if (isCurrentTurnToPlay && name !== "missed") {
       const armed = selection.step === "picking-target" && selection.cardId === cardId;
-      const el = button(label, () => handlers.onHandCardClick(cardId));
-      if (armed) el.classList.add("card--selected");
-      wrapper.appendChild(el);
+      wrapper.appendChild(cardButton(cardId, () => handlers.onHandCardClick(cardId), armed ? "card-box--armed" : undefined));
       continue;
     }
 
-    const span = document.createElement("span");
-    span.className = "card card--inert";
-    span.textContent = label;
-    wrapper.appendChild(span);
+    wrapper.appendChild(cardChip(cardId));
   }
 
   container.appendChild(wrapper);
@@ -943,18 +1071,14 @@ function networkRenderEquipmentSection(
   const isPickingPanicTarget = selection.step === "picking-panic-equipment" && selection.targetId === player.id;
 
   for (const cardId of player.equipment) {
-    const label = cardLabel(cardId);
     const isDynamite = cardNameFromId(cardId) === "dynamite";
 
     if (!isDynamite && (isDiscardFromEquipment || isPickingPanicTarget)) {
-      wrapper.appendChild(button(label, () => handlers.onEquipmentClick(player.id, cardId)));
+      wrapper.appendChild(cardButton(cardId, () => handlers.onEquipmentClick(player.id, cardId)));
       continue;
     }
 
-    const span = document.createElement("span");
-    span.className = "card card--inert";
-    span.textContent = label;
-    wrapper.appendChild(span);
+    wrapper.appendChild(cardChip(cardId));
   }
 
   container.appendChild(wrapper);
@@ -1080,7 +1204,7 @@ function networkRenderPendingPanel(container: HTMLElement, view: PlayerView, han
       const wrapper = document.createElement("div");
       wrapper.className = "cards";
       for (const cardId of top.options) {
-        wrapper.appendChild(button(cardLabel(cardId), () => handlers.onStoreOptionClick(cardId)));
+        wrapper.appendChild(cardButton(cardId, () => handlers.onStoreOptionClick(cardId)));
       }
       panel.appendChild(wrapper);
     } else if (top.kind === "NEED_DRAW_CHECK") {

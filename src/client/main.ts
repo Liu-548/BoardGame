@@ -32,6 +32,7 @@ import type { DeadlineInfo, ServerMessage } from "../protocol";
 import {
   describeEvent,
   renderApp,
+  renderCardReferenceScreen,
   renderHomeScreen,
   renderNetworkGame,
   renderNetworkLobby,
@@ -48,7 +49,14 @@ const NEEDS_TARGET = new Set<CardName>(["bang", "duel", "jail", "panic", "cat_ba
 
 const DEFAULT_PLAYER_NAMES = ["An", "Bình", "Chi", "Dũng"];
 
-type Screen = "home" | "local-setup" | "local-game" | "network-form" | "network-lobby" | "network-game";
+type Screen =
+  | "home"
+  | "local-setup"
+  | "local-game"
+  | "network-form"
+  | "network-lobby"
+  | "network-game"
+  | "card-reference"; // việc 4.6: màn hình tra cứu, xem được từ home, quay lại home
 
 let screen: Screen = "home";
 
@@ -97,7 +105,10 @@ let countdownTickId: ReturnType<typeof setInterval> | null = null;
 function render(): void {
   switch (screen) {
     case "home":
-      renderHomeScreen(root, { onPlayLocal, onPlayNetwork });
+      renderHomeScreen(root, { onPlayLocal, onPlayNetwork, onShowCardReference });
+      return;
+    case "card-reference":
+      renderCardReferenceScreen(root, { onBack: onBackToHome });
       return;
     case "local-setup":
       renderSetupScreen(root, playerNames, setupError, {
@@ -178,6 +189,18 @@ function onPlayLocal(): void {
 
 function onPlayNetwork(): void {
   screen = "network-form";
+  render();
+}
+
+// Việc 4.6: chỉ xem được TỪ home, quay lại LUÔN về home — không gắn với ván
+// đang chơi dở nào (không cần nhớ "quay lại đâu").
+function onShowCardReference(): void {
+  screen = "card-reference";
+  render();
+}
+
+function onBackToHome(): void {
+  screen = "home";
   render();
 }
 
