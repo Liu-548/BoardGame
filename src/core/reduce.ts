@@ -66,6 +66,14 @@ function handleDrawCards(
     return { state: next, events: [] };
   }
 
+  // Giai đoạn 5 (Jesse Jones, đợt 5) — HỎI trước khi rút gì cả: lá 1 lấy từ
+  // bộ bài hay từ tay 1 người khác? Đẩy pending rồi TRẢ VỀ NGAY, y hệt Pedro
+  // Ramirez — respondToPickDrawTarget() mới thực sự rút bài và chuyển "play".
+  if (getCharacterDefinition(player.characterId)?.canStealFirstDrawCard === true) {
+    next.pending.push({ kind: "NEED_PICK_DRAW_TARGET", player: player.id });
+    return { state: next, events: [] };
+  }
+
   // Giai đoạn 5 (Black Jack, xem core/characters.ts) — onDrawPhase THAY HẲN
   // pha rút 2 lá mặc định khi nhân vật có định nghĩa hook này.
   const onDrawPhase = getCharacterHooks(player.characterId).onDrawPhase;
@@ -114,6 +122,108 @@ function respondToPickDrawSource(
   next.turnPhase = "play";
   const drawnCount = (firstCard ? 1 : 0) + (secondCard ? 1 : 0);
   return { state: next, events: [{ type: "CARDS_DRAWN", playerId: player.id, count: drawnCount }] };
+}
+
+// Giai đoạn 5 (Jesse Jones, đợt 5) — trả lời NEED_PICK_DRAW_TARGET. Không kèm
+// targetId -> rút thẳng bộ bài như bình thường (mặc định/timeout). Kèm
+// targetId hợp lệ (còn sống, khác chính mình): tay người đó rỗng -> cũng coi
+// như rút bộ bài cho lá 1 (không có gì để lấy); còn bài -> đọc letTargetChoose
+// (house rule bàn với chủ dự án — CHÍNH JESSE được hỏi, không phải nạn nhân):
+// true -> đẩy NEED_GIVE_CARD_TO_PLAYER hỏi nạn nhân tự chọn lá; false/bỏ
+// trống -> cướp ngẫu nhiên NGAY (tái dùng đúng cách chọn ngẫu nhiên của
+// Panic!). Lá 2 LUÔN từ bộ bài.
+function respondToPickDrawTarget(
+  state: GameState,
+  action: Action & { type: "RESPOND" }
+): Result {
+  const next = cloneState(state);
+  next.pending.pop();
+  const player = next.players.find((p) => p.id === action.playerId)!;
+
+  let target: PlayerState | undefined;
+  if (action.targetId) {
+    if (action.targetId === player.id) {
+      throw new Error("Không thể tự lấy bài từ tay chính mình");
+    }
+    target = next.players.find((p) => p.id === action.targetId);
+    if (!target || !target.alive) {
+      throw new Error("Mục tiêu không hợp lệ");
+    }
+  }
+
+  const events: GameEvent[] = [];
+  let firstCard: string | undefined;
+
+  if (target && target.hand.length > 0) {
+    if (action.letTargetChoose) {
+      next.pending.push({ kind: "NEED_GIVE_CARD_TO_PLAYER", player: target.id, giveTo: player.id });
+      // Lá 1 CHƯA rút được — chờ nạn nhân chọn xong. respondToGiveCardToPlayer()
+      // sẽ tự rút nốt lá 2 rồi mới chuyển turnPhase sang "play".
+      return { state: next, events: [] };
+    }
+
+    const { value, nextState } = nextRandom(next.rngState);
+    next.rngState = nextState;
+    const index = Math.floor(value * target.hand.length);
+    [firstCard] = target.hand.splice(index, 1);
+    giveCardToPlayer(next.players, player, firstCard);
+    events.push({ type: "CARD_STOLEN", playerId: player.id, fromPlayerId: target.id, cardId: firstCard });
+    events.push(...triggerHandEmptyHook(next, target)); // Giai đoạn 5 (Suzy Lafayette)
+  } else {
+    firstCard = drawTopCard(next);
+    if (firstCard) giveCardToPlayer(next.players, player, firstCard);
+  }
+
+  const secondCard = drawTopCard(next);
+  if (secondCard) giveCardToPlayer(next.players, player, secondCard);
+
+  next.turnPhase = "play";
+  events.push({ type: "CARDS_DRAWN", playerId: player.id, count: (firstCard ? 1 : 0) + (secondCard ? 1 : 0) });
+  return { state: next, events };
+}
+
+// Giai đoạn 5 (Jesse Jones, đợt 5) — trả lời NEED_GIVE_CARD_TO_PLAYER: nạn
+// nhân (action.playerId === top.player) tự chọn 1 lá CỦA CHÍNH MÌNH để đưa
+// cho Jesse. Không chọn (hoặc hết giờ) -> rút ngẫu nhiên thay họ, y hệt
+// respondToPickDrawTarget() ở trên. Xong luôn rút nốt lá 2 (từ bộ bài) cho
+// Jesse và chuyển turnPhase sang "play" — bước này mới thật sự HOÀN TẤT lượt
+// rút của Jesse.
+function respondToGiveCardToPlayer(
+  state: GameState,
+  action: Action & { type: "RESPOND" },
+  top: PendingAction & { kind: "NEED_GIVE_CARD_TO_PLAYER" }
+): Result {
+  const next = cloneState(state);
+  next.pending.pop();
+  const victim = next.players.find((p) => p.id === action.playerId)!;
+  const jesse = next.players.find((p) => p.id === top.giveTo)!;
+
+  let givenCardId: string;
+  if (action.cardId) {
+    const cardIndex = victim.hand.indexOf(action.cardId);
+    if (cardIndex === -1) {
+      throw new Error(`Người chơi ${victim.id} không có lá bài ${action.cardId} trong tay`);
+    }
+    [givenCardId] = victim.hand.splice(cardIndex, 1);
+  } else {
+    const { value, nextState } = nextRandom(next.rngState);
+    next.rngState = nextState;
+    const index = Math.floor(value * victim.hand.length);
+    [givenCardId] = victim.hand.splice(index, 1);
+  }
+  giveCardToPlayer(next.players, jesse, givenCardId);
+
+  const events: GameEvent[] = [
+    { type: "CARD_STOLEN", playerId: jesse.id, fromPlayerId: victim.id, cardId: givenCardId },
+  ];
+  events.push(...triggerHandEmptyHook(next, victim)); // Giai đoạn 5 (Suzy Lafayette)
+
+  const secondCard = drawTopCard(next);
+  if (secondCard) giveCardToPlayer(next.players, jesse, secondCard);
+
+  next.turnPhase = "play";
+  events.push({ type: "CARDS_DRAWN", playerId: jesse.id, count: 1 + (secondCard ? 1 : 0) });
+  return { state: next, events };
 }
 
 function handleEndTurn(state: GameState, action: Action & { type: "END_TURN" }): Result {
@@ -708,6 +818,10 @@ function handleRespond(state: GameState, action: Action & { type: "RESPOND" }): 
       return resolveDrawCheck(state, action, top);
     case "NEED_PICK_DRAW_SOURCE":
       return respondToPickDrawSource(state, action);
+    case "NEED_PICK_DRAW_TARGET":
+      return respondToPickDrawTarget(state, action);
+    case "NEED_GIVE_CARD_TO_PLAYER":
+      return respondToGiveCardToPlayer(state, action, top);
     default: {
       const neverKind: never = top;
       throw new Error(`Chưa hỗ trợ phản hồi loại việc: ${JSON.stringify(neverKind)}`);

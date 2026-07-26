@@ -609,6 +609,10 @@ function pendingDescription(state: GameState, item: PendingAction): string {
       return `${player} lật bài kiểm tra (draw!)`;
     case "NEED_PICK_DRAW_SOURCE":
       return `${player} chọn lấy lá trên cùng chồng bỏ hay rút bộ bài`;
+    case "NEED_PICK_DRAW_TARGET":
+      return `${player} chọn rút bộ bài hay lấy 1 lá từ tay người khác`;
+    case "NEED_GIVE_CARD_TO_PLAYER":
+      return `${player} chọn 1 lá của mình để đưa`;
     default: {
       const neverKind: never = item;
       throw new Error(`Chưa biết mô tả cho pending: ${JSON.stringify(neverKind)}`);
@@ -1316,6 +1320,10 @@ function networkRenderPendingPanel(container: HTMLElement, view: PlayerView, han
         return `${name} lật bài kiểm tra (draw!)`;
       case "NEED_PICK_DRAW_SOURCE":
         return `${name} chọn lấy lá trên cùng chồng bỏ hay rút bộ bài`;
+      case "NEED_PICK_DRAW_TARGET":
+        return `${name} chọn rút bộ bài hay lấy 1 lá từ tay người khác`;
+      case "NEED_GIVE_CARD_TO_PLAYER":
+        return `${name} chọn 1 lá của mình để đưa`;
       default: {
         const neverKind: never = item;
         throw new Error(`Chưa biết mô tả cho pending: ${JSON.stringify(neverKind)}`);

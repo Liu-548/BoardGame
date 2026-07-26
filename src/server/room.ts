@@ -401,6 +401,17 @@ export class Room {
       // cardId).
       case "NEED_PICK_DRAW_SOURCE":
         return { type: "RESPOND", playerId: top.player };
+
+      // Giai đoạn 5 (Jesse Jones) — hết giờ ở bước Jesse tự quyết đầu lượt ->
+      // mặc định rút bộ bài như bình thường (không kèm targetId), đúng luật.
+      case "NEED_PICK_DRAW_TARGET":
+        return { type: "RESPOND", playerId: top.player };
+
+      // Giai đoạn 5 (Jesse Jones) — hết giờ ở bước NẠN NHÂN tự chọn lá đưa ->
+      // rút ngẫu nhiên thay họ (không kèm cardId), đúng "Timeout 10s → rút
+      // ngẫu nhiên" trong file luật.
+      case "NEED_GIVE_CARD_TO_PLAYER":
+        return { type: "RESPOND", playerId: top.player };
     }
   }
 
