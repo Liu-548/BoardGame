@@ -7,9 +7,9 @@ import type { GameState } from "../src/core/types";
 function makeState(overrides: Partial<GameState> = {}): GameState {
   return {
     players: [
-      { id: "a", name: "a", role: "sheriff", hp: 5, maxHp: 5, hand: [], equipment: [], alive: true },
-      { id: "b", name: "b", role: "outlaw", hp: 4, maxHp: 4, hand: [], equipment: [], alive: true },
-      { id: "c", name: "c", role: "renegade", hp: 4, maxHp: 4, hand: [], equipment: [], alive: true },
+      { id: "a", name: "a", role: "sheriff", hp: 5, maxHp: 5, hand: [], equipment: [], alive: true, characterId: null },
+      { id: "b", name: "b", role: "outlaw", hp: 4, maxHp: 4, hand: [], equipment: [], alive: true, characterId: null },
+      { id: "c", name: "c", role: "renegade", hp: 4, maxHp: 4, hand: [], equipment: [], alive: true, characterId: null },
     ],
     deck: [],
     discardPile: [],
@@ -18,6 +18,7 @@ function makeState(overrides: Partial<GameState> = {}): GameState {
     turnPhase: "play",
     rngState: 123,
     winner: null,
+    bangUsedThisTurn: false,
     ...overrides,
   };
 }
@@ -27,8 +28,8 @@ describe("reduce — PLAY_CARD (Jail)", () => {
     const state = makeState({
       currentPlayerIndex: 1,
       players: [
-        { id: "a", name: "a", role: "sheriff", hp: 5, maxHp: 5, hand: [], equipment: [], alive: true },
-        { id: "b", name: "b", role: "outlaw", hp: 4, maxHp: 4, hand: ["jail_1"], equipment: [], alive: true },
+        { id: "a", name: "a", role: "sheriff", hp: 5, maxHp: 5, hand: [], equipment: [], alive: true, characterId: null },
+        { id: "b", name: "b", role: "outlaw", hp: 4, maxHp: 4, hand: ["jail_1"], equipment: [], alive: true, characterId: null },
         ...makeState().players.slice(2),
       ],
     });
@@ -50,8 +51,8 @@ describe("reduce — PLAY_CARD (Jail)", () => {
     const state = makeState({
       currentPlayerIndex: 1,
       players: [
-        { id: "a", name: "a", role: "sheriff", hp: 5, maxHp: 5, hand: [], equipment: [], alive: true },
-        { id: "b", name: "b", role: "outlaw", hp: 4, maxHp: 4, hand: ["jail_1"], equipment: [], alive: true },
+        { id: "a", name: "a", role: "sheriff", hp: 5, maxHp: 5, hand: [], equipment: [], alive: true, characterId: null },
+        { id: "b", name: "b", role: "outlaw", hp: 4, maxHp: 4, hand: ["jail_1"], equipment: [], alive: true, characterId: null },
         ...makeState().players.slice(2),
       ],
     });
@@ -65,8 +66,8 @@ describe("reduce — PLAY_CARD (Jail)", () => {
     const state = makeState({
       currentPlayerIndex: 1,
       players: [
-        { id: "a", name: "a", role: "sheriff", hp: 5, maxHp: 5, hand: [], equipment: [], alive: true },
-        { id: "b", name: "b", role: "outlaw", hp: 4, maxHp: 4, hand: ["jail_1"], equipment: [], alive: true },
+        { id: "a", name: "a", role: "sheriff", hp: 5, maxHp: 5, hand: [], equipment: [], alive: true, characterId: null },
+        { id: "b", name: "b", role: "outlaw", hp: 4, maxHp: 4, hand: ["jail_1"], equipment: [], alive: true, characterId: null },
         ...makeState().players.slice(2),
       ],
     });
@@ -80,9 +81,9 @@ describe("reduce — PLAY_CARD (Jail)", () => {
     const state = makeState({
       currentPlayerIndex: 1,
       players: [
-        { id: "a", name: "a", role: "sheriff", hp: 5, maxHp: 5, hand: [], equipment: [], alive: true },
-        { id: "b", name: "b", role: "outlaw", hp: 4, maxHp: 4, hand: ["jail_2"], equipment: [], alive: true },
-        { id: "c", name: "c", role: "renegade", hp: 4, maxHp: 4, hand: [], equipment: ["jail_1"], alive: true },
+        { id: "a", name: "a", role: "sheriff", hp: 5, maxHp: 5, hand: [], equipment: [], alive: true, characterId: null },
+        { id: "b", name: "b", role: "outlaw", hp: 4, maxHp: 4, hand: ["jail_2"], equipment: [], alive: true, characterId: null },
+        { id: "c", name: "c", role: "renegade", hp: 4, maxHp: 4, hand: [], equipment: ["jail_1"], alive: true, characterId: null },
       ],
     });
 
@@ -96,8 +97,8 @@ describe("Bước 0 đầu lượt — Jail", () => {
   it("người kế tiếp có Jail: END_TURN đẩy NEED_DRAW_CHECK (matchSuits Cơ) cho họ", () => {
     const state = makeState({
       players: [
-        { id: "a", name: "a", role: "sheriff", hp: 5, maxHp: 5, hand: [], equipment: [], alive: true },
-        { id: "b", name: "b", role: "outlaw", hp: 4, maxHp: 4, hand: [], equipment: ["jail_1"], alive: true },
+        { id: "a", name: "a", role: "sheriff", hp: 5, maxHp: 5, hand: [], equipment: [], alive: true, characterId: null },
+        { id: "b", name: "b", role: "outlaw", hp: 4, maxHp: 4, hand: [], equipment: ["jail_1"], alive: true, characterId: null },
         ...makeState().players.slice(2),
       ],
     });
@@ -117,8 +118,8 @@ describe("Bước 0 đầu lượt — Jail", () => {
       deck: ["beer_1", "bang_1", "jail_1"],
       turnPhase: "draw",
       players: [
-        { id: "a", name: "a", role: "sheriff", hp: 5, maxHp: 5, hand: [], equipment: [], alive: true },
-        { id: "b", name: "b", role: "outlaw", hp: 4, maxHp: 4, hand: [], equipment: ["jail_2"], alive: true },
+        { id: "a", name: "a", role: "sheriff", hp: 5, maxHp: 5, hand: [], equipment: [], alive: true, characterId: null },
+        { id: "b", name: "b", role: "outlaw", hp: 4, maxHp: 4, hand: [], equipment: ["jail_2"], alive: true, characterId: null },
         ...makeState().players.slice(2),
       ],
       currentPlayerIndex: 1,
@@ -146,8 +147,8 @@ describe("Bước 0 đầu lượt — Jail", () => {
     const state = makeState({
       deck: ["missed_1"], // diamonds, 10 — không khớp Cơ
       players: [
-        { id: "a", name: "a", role: "sheriff", hp: 5, maxHp: 5, hand: [], equipment: [], alive: true },
-        { id: "b", name: "b", role: "outlaw", hp: 4, maxHp: 4, hand: [], equipment: ["jail_2"], alive: true },
+        { id: "a", name: "a", role: "sheriff", hp: 5, maxHp: 5, hand: [], equipment: [], alive: true, characterId: null },
+        { id: "b", name: "b", role: "outlaw", hp: 4, maxHp: 4, hand: [], equipment: ["jail_2"], alive: true, characterId: null },
         ...makeState().players.slice(2),
       ],
       currentPlayerIndex: 1,
@@ -170,8 +171,8 @@ describe("Bước 0 đầu lượt — Jail", () => {
   it("DRAW_CARDS bị chặn khi còn Jail-check đang chờ", () => {
     const state = makeState({
       players: [
-        { id: "a", name: "a", role: "sheriff", hp: 5, maxHp: 5, hand: [], equipment: [], alive: true },
-        { id: "b", name: "b", role: "outlaw", hp: 4, maxHp: 4, hand: [], equipment: ["jail_1"], alive: true },
+        { id: "a", name: "a", role: "sheriff", hp: 5, maxHp: 5, hand: [], equipment: [], alive: true, characterId: null },
+        { id: "b", name: "b", role: "outlaw", hp: 4, maxHp: 4, hand: [], equipment: ["jail_1"], alive: true, characterId: null },
         ...makeState().players.slice(2),
       ],
       currentPlayerIndex: 1,

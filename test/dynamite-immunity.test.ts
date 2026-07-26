@@ -7,8 +7,8 @@ import type { GameState } from "../src/core/types";
 function makeState(overrides: Partial<GameState> = {}): GameState {
   return {
     players: [
-      { id: "a", name: "a", role: "sheriff", hp: 4, maxHp: 4, hand: ["panic_1", "cat_balou_1"], equipment: [], alive: true },
-      { id: "b", name: "b", role: "outlaw", hp: 4, maxHp: 4, hand: [], equipment: [], alive: true },
+      { id: "a", name: "a", role: "sheriff", hp: 4, maxHp: 4, hand: ["panic_1", "cat_balou_1"], equipment: [], alive: true, characterId: null },
+      { id: "b", name: "b", role: "outlaw", hp: 4, maxHp: 4, hand: [], equipment: [], alive: true, characterId: null },
     ],
     deck: [],
     discardPile: [],
@@ -17,6 +17,7 @@ function makeState(overrides: Partial<GameState> = {}): GameState {
     turnPhase: "play",
     rngState: 123,
     winner: null,
+    bangUsedThisTurn: false,
     ...overrides,
   };
 }
@@ -25,8 +26,8 @@ describe("Panic! và Dynamite miễn nhiễm", () => {
   it("mục tiêu chỉ có Dynamite trên sân, tay trống: không có mục tiêu hợp lệ để cướp", () => {
     const state = makeState({
       players: [
-        { id: "a", name: "a", role: "sheriff", hp: 4, maxHp: 4, hand: ["panic_1"], equipment: [], alive: true },
-        { id: "b", name: "b", role: "outlaw", hp: 4, maxHp: 4, hand: [], equipment: ["dynamite_1"], alive: true },
+        { id: "a", name: "a", role: "sheriff", hp: 4, maxHp: 4, hand: ["panic_1"], equipment: [], alive: true, characterId: null },
+        { id: "b", name: "b", role: "outlaw", hp: 4, maxHp: 4, hand: [], equipment: ["dynamite_1"], alive: true, characterId: null },
       ],
     });
 
@@ -38,8 +39,8 @@ describe("Panic! và Dynamite miễn nhiễm", () => {
   it("chỉ định đúng Dynamite làm targetCardId: bị từ chối", () => {
     const state = makeState({
       players: [
-        { id: "a", name: "a", role: "sheriff", hp: 4, maxHp: 4, hand: ["panic_1"], equipment: [], alive: true },
-        { id: "b", name: "b", role: "outlaw", hp: 4, maxHp: 4, hand: [], equipment: ["dynamite_1", "scope_1"], alive: true },
+        { id: "a", name: "a", role: "sheriff", hp: 4, maxHp: 4, hand: ["panic_1"], equipment: [], alive: true, characterId: null },
+        { id: "b", name: "b", role: "outlaw", hp: 4, maxHp: 4, hand: [], equipment: ["dynamite_1", "scope_1"], alive: true, characterId: null },
       ],
     });
 
@@ -53,8 +54,8 @@ describe("Panic! và Dynamite miễn nhiễm", () => {
   it("mục tiêu có Dynamite + lá khác: vẫn cướp được lá KHÔNG PHẢI Dynamite bình thường", () => {
     const state = makeState({
       players: [
-        { id: "a", name: "a", role: "sheriff", hp: 4, maxHp: 4, hand: ["panic_1"], equipment: [], alive: true },
-        { id: "b", name: "b", role: "outlaw", hp: 4, maxHp: 4, hand: [], equipment: ["dynamite_1", "scope_1"], alive: true },
+        { id: "a", name: "a", role: "sheriff", hp: 4, maxHp: 4, hand: ["panic_1"], equipment: [], alive: true, characterId: null },
+        { id: "b", name: "b", role: "outlaw", hp: 4, maxHp: 4, hand: [], equipment: ["dynamite_1", "scope_1"], alive: true, characterId: null },
       ],
     });
 
@@ -71,8 +72,8 @@ describe("Cat Balou và Dynamite miễn nhiễm", () => {
   it("targetZone sân nhưng mục tiêu chỉ có Dynamite: coi như trống, cấm đánh", () => {
     const state = makeState({
       players: [
-        { id: "a", name: "a", role: "sheriff", hp: 4, maxHp: 4, hand: ["cat_balou_1"], equipment: [], alive: true },
-        { id: "b", name: "b", role: "outlaw", hp: 4, maxHp: 4, hand: [], equipment: ["dynamite_1"], alive: true },
+        { id: "a", name: "a", role: "sheriff", hp: 4, maxHp: 4, hand: ["cat_balou_1"], equipment: [], alive: true, characterId: null },
+        { id: "b", name: "b", role: "outlaw", hp: 4, maxHp: 4, hand: [], equipment: ["dynamite_1"], alive: true, characterId: null },
       ],
     });
 
@@ -86,8 +87,8 @@ describe("Cat Balou và Dynamite miễn nhiễm", () => {
   it("mục tiêu có Dynamite + Jail trên sân: chọn bỏ đúng Dynamite bị từ chối, chọn Jail thì được", () => {
     const state = makeState({
       players: [
-        { id: "a", name: "a", role: "sheriff", hp: 4, maxHp: 4, hand: ["cat_balou_1"], equipment: [], alive: true },
-        { id: "b", name: "b", role: "outlaw", hp: 4, maxHp: 4, hand: [], equipment: ["dynamite_1", "jail_1"], alive: true },
+        { id: "a", name: "a", role: "sheriff", hp: 4, maxHp: 4, hand: ["cat_balou_1"], equipment: [], alive: true, characterId: null },
+        { id: "b", name: "b", role: "outlaw", hp: 4, maxHp: 4, hand: [], equipment: ["dynamite_1", "jail_1"], alive: true, characterId: null },
       ],
     });
 

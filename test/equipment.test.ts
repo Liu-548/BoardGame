@@ -7,9 +7,9 @@ import type { GameState } from "../src/core/types";
 function makeState(overrides: Partial<GameState> = {}): GameState {
   return {
     players: [
-      { id: "a", name: "a", role: "sheriff", hp: 4, maxHp: 4, hand: [], equipment: [], alive: true },
-      { id: "b", name: "b", role: "outlaw", hp: 4, maxHp: 4, hand: [], equipment: [], alive: true },
-      { id: "c", name: "c", role: "outlaw", hp: 4, maxHp: 4, hand: [], equipment: [], alive: true },
+      { id: "a", name: "a", role: "sheriff", hp: 4, maxHp: 4, hand: [], equipment: [], alive: true, characterId: null },
+      { id: "b", name: "b", role: "outlaw", hp: 4, maxHp: 4, hand: [], equipment: [], alive: true, characterId: null },
+      { id: "c", name: "c", role: "outlaw", hp: 4, maxHp: 4, hand: [], equipment: [], alive: true, characterId: null },
     ],
     deck: [],
     discardPile: [],
@@ -18,6 +18,7 @@ function makeState(overrides: Partial<GameState> = {}): GameState {
     turnPhase: "play",
     rngState: 123,
     winner: null,
+    bangUsedThisTurn: false,
     ...overrides,
   };
 }
@@ -26,7 +27,7 @@ describe("reduce — PLAY_CARD (lá xanh tự trang bị)", () => {
   it("đánh súng: gắn vào equipment, KHÔNG vào chồng bỏ", () => {
     const state = makeState({
       players: [
-        { id: "a", name: "a", role: "sheriff", hp: 4, maxHp: 4, hand: ["schofield_1"], equipment: [], alive: true },
+        { id: "a", name: "a", role: "sheriff", hp: 4, maxHp: 4, hand: ["schofield_1"], equipment: [], alive: true, characterId: null },
         ...makeState().players.slice(1),
       ],
     });
@@ -44,7 +45,7 @@ describe("reduce — PLAY_CARD (lá xanh tự trang bị)", () => {
       players: [
         {
           id: "a", name: "a", role: "sheriff", hp: 4, maxHp: 4,
-          hand: ["volcanic_1"], equipment: ["schofield_1"], alive: true,
+          hand: ["volcanic_1"], equipment: ["schofield_1"], alive: true, characterId: null,
         },
         ...makeState().players.slice(1),
       ],
@@ -65,7 +66,7 @@ describe("reduce — PLAY_CARD (lá xanh tự trang bị)", () => {
       players: [
         {
           id: "a", name: "a", role: "sheriff", hp: 4, maxHp: 4,
-          hand: ["scope_1"], equipment: ["schofield_1", "barrel_1"], alive: true,
+          hand: ["scope_1"], equipment: ["schofield_1", "barrel_1"], alive: true, characterId: null,
         },
         ...makeState().players.slice(1),
       ],
@@ -82,7 +83,7 @@ describe("reduce — PLAY_CARD (lá xanh tự trang bị)", () => {
       players: [
         {
           id: "a", name: "a", role: "sheriff", hp: 4, maxHp: 4,
-          hand: ["barrel_2"], equipment: ["barrel_1"], alive: true,
+          hand: ["barrel_2"], equipment: ["barrel_1"], alive: true, characterId: null,
         },
         ...makeState().players.slice(1),
       ],
@@ -96,7 +97,7 @@ describe("reduce — PLAY_CARD (lá xanh tự trang bị)", () => {
   it("không sửa state gốc truyền vào", () => {
     const state = makeState({
       players: [
-        { id: "a", name: "a", role: "sheriff", hp: 4, maxHp: 4, hand: ["schofield_1"], equipment: [], alive: true },
+        { id: "a", name: "a", role: "sheriff", hp: 4, maxHp: 4, hand: ["schofield_1"], equipment: [], alive: true, characterId: null },
         ...makeState().players.slice(1),
       ],
     });
@@ -113,8 +114,8 @@ describe("reduce — Bang!/Gatling vào mục tiêu có Barrel", () => {
   it("đánh Bang! vào mục tiêu có Barrel: đẩy NEED_DRAW_CHECK lên TRÊN NEED_MISSED", () => {
     const state = makeState({
       players: [
-        { id: "a", name: "a", role: "sheriff", hp: 4, maxHp: 4, hand: ["bang_1"], equipment: [], alive: true },
-        { id: "b", name: "b", role: "outlaw", hp: 4, maxHp: 4, hand: [], equipment: ["barrel_1"], alive: true },
+        { id: "a", name: "a", role: "sheriff", hp: 4, maxHp: 4, hand: ["bang_1"], equipment: [], alive: true, characterId: null },
+        { id: "b", name: "b", role: "outlaw", hp: 4, maxHp: 4, hand: [], equipment: ["barrel_1"], alive: true, characterId: null },
         ...makeState().players.slice(2),
       ],
     });
@@ -133,8 +134,8 @@ describe("reduce — Bang!/Gatling vào mục tiêu có Barrel", () => {
     const state = makeState({
       deck: ["jail_1"], // hearts, 4 — khớp
       players: [
-        { id: "a", name: "a", role: "sheriff", hp: 4, maxHp: 4, hand: [], equipment: [], alive: true },
-        { id: "b", name: "b", role: "outlaw", hp: 4, maxHp: 4, hand: [], equipment: ["barrel_1"], alive: true },
+        { id: "a", name: "a", role: "sheriff", hp: 4, maxHp: 4, hand: [], equipment: [], alive: true, characterId: null },
+        { id: "b", name: "b", role: "outlaw", hp: 4, maxHp: 4, hand: [], equipment: ["barrel_1"], alive: true, characterId: null },
         ...makeState().players.slice(2),
       ],
       pending: [
@@ -157,8 +158,8 @@ describe("reduce — Bang!/Gatling vào mục tiêu có Barrel", () => {
     const state = makeState({
       deck: ["jail_2"], // spades, 10 — không khớp
       players: [
-        { id: "a", name: "a", role: "sheriff", hp: 4, maxHp: 4, hand: [], equipment: [], alive: true },
-        { id: "b", name: "b", role: "outlaw", hp: 4, maxHp: 4, hand: ["missed_1"], equipment: ["barrel_1"], alive: true },
+        { id: "a", name: "a", role: "sheriff", hp: 4, maxHp: 4, hand: [], equipment: [], alive: true, characterId: null },
+        { id: "b", name: "b", role: "outlaw", hp: 4, maxHp: 4, hand: ["missed_1"], equipment: ["barrel_1"], alive: true, characterId: null },
         ...makeState().players.slice(2),
       ],
       pending: [
@@ -185,9 +186,9 @@ describe("reduce — Bang!/Gatling vào mục tiêu có Barrel", () => {
   it("Gatling: chỉ mục tiêu có Barrel mới có thêm NEED_DRAW_CHECK, người khác thì không", () => {
     const state = makeState({
       players: [
-        { id: "a", name: "a", role: "sheriff", hp: 4, maxHp: 4, hand: ["gatling_1"], equipment: [], alive: true },
-        { id: "b", name: "b", role: "outlaw", hp: 4, maxHp: 4, hand: [], equipment: [], alive: true },
-        { id: "c", name: "c", role: "outlaw", hp: 4, maxHp: 4, hand: [], equipment: ["barrel_1"], alive: true },
+        { id: "a", name: "a", role: "sheriff", hp: 4, maxHp: 4, hand: ["gatling_1"], equipment: [], alive: true, characterId: null },
+        { id: "b", name: "b", role: "outlaw", hp: 4, maxHp: 4, hand: [], equipment: [], alive: true, characterId: null },
+        { id: "c", name: "c", role: "outlaw", hp: 4, maxHp: 4, hand: [], equipment: ["barrel_1"], alive: true, characterId: null },
       ],
     });
 

@@ -10,9 +10,9 @@ import type { GameState, PlayerState } from "../src/core/types";
 function makeState(overrides: Partial<GameState> = {}): GameState {
   return {
     players: [
-      { id: "a", name: "a", role: "sheriff", hp: 5, maxHp: 5, hand: [], equipment: [], alive: true },
-      { id: "b", name: "b", role: "outlaw", hp: 4, maxHp: 4, hand: [], equipment: [], alive: true },
-      { id: "c", name: "c", role: "renegade", hp: 4, maxHp: 4, hand: [], equipment: [], alive: true },
+      { id: "a", name: "a", role: "sheriff", hp: 5, maxHp: 5, hand: [], equipment: [], alive: true, characterId: null },
+      { id: "b", name: "b", role: "outlaw", hp: 4, maxHp: 4, hand: [], equipment: [], alive: true, characterId: null },
+      { id: "c", name: "c", role: "renegade", hp: 4, maxHp: 4, hand: [], equipment: [], alive: true, characterId: null },
     ],
     deck: [],
     discardPile: [],
@@ -21,6 +21,7 @@ function makeState(overrides: Partial<GameState> = {}): GameState {
     turnPhase: "play",
     rngState: 123,
     winner: null,
+    bangUsedThisTurn: false,
     ...overrides,
   };
 }
@@ -28,9 +29,9 @@ function makeState(overrides: Partial<GameState> = {}): GameState {
 describe("equipment.ts — giveCardToPlayer/transferDynamiteToNextPlayer", () => {
   function makePlayers(): PlayerState[] {
     return [
-      { id: "a", name: "a", role: "sheriff", hp: 5, maxHp: 5, hand: [], equipment: [], alive: true },
-      { id: "b", name: "b", role: "outlaw", hp: 4, maxHp: 4, hand: [], equipment: [], alive: true },
-      { id: "c", name: "c", role: "renegade", hp: 4, maxHp: 4, hand: [], equipment: [], alive: true },
+      { id: "a", name: "a", role: "sheriff", hp: 5, maxHp: 5, hand: [], equipment: [], alive: true, characterId: null },
+      { id: "b", name: "b", role: "outlaw", hp: 4, maxHp: 4, hand: [], equipment: [], alive: true, characterId: null },
+      { id: "c", name: "c", role: "renegade", hp: 4, maxHp: 4, hand: [], equipment: [], alive: true, characterId: null },
     ];
   }
 
@@ -82,8 +83,8 @@ describe("equipment.ts — giveCardToPlayer/transferDynamiteToNextPlayer", () =>
 
   it("2 người, cả hai đã có Dynamite riêng (bộ tuỳ chỉnh nhiều hơn 1 quả): quay vòng về chính mình", () => {
     const players: PlayerState[] = [
-      { id: "a", name: "a", role: "sheriff", hp: 5, maxHp: 5, hand: [], equipment: ["dynamite_2"], alive: true },
-      { id: "b", name: "b", role: "outlaw", hp: 4, maxHp: 4, hand: [], equipment: ["dynamite_1"], alive: true },
+      { id: "a", name: "a", role: "sheriff", hp: 5, maxHp: 5, hand: [], equipment: ["dynamite_2"], alive: true, characterId: null },
+      { id: "b", name: "b", role: "outlaw", hp: 4, maxHp: 4, hand: [], equipment: ["dynamite_1"], alive: true, characterId: null },
     ];
 
     transferDynamiteToNextPlayer(players, players[1]); // b chuyển dynamite_1 đi
@@ -113,8 +114,8 @@ describe("Bước 0 đầu lượt — Dynamite", () => {
   it("người kế tiếp có Dynamite: END_TURN đẩy NEED_DRAW_CHECK (Bích 2-9)", () => {
     const state = makeState({
       players: [
-        { id: "a", name: "a", role: "sheriff", hp: 5, maxHp: 5, hand: [], equipment: [], alive: true },
-        { id: "b", name: "b", role: "outlaw", hp: 4, maxHp: 4, hand: [], equipment: ["dynamite_1"], alive: true },
+        { id: "a", name: "a", role: "sheriff", hp: 5, maxHp: 5, hand: [], equipment: [], alive: true, characterId: null },
+        { id: "b", name: "b", role: "outlaw", hp: 4, maxHp: 4, hand: [], equipment: ["dynamite_1"], alive: true, characterId: null },
         ...makeState().players.slice(2),
       ],
     });
@@ -133,8 +134,8 @@ describe("Bước 0 đầu lượt — Dynamite", () => {
     const state = makeState({
       deck: ["missed_6"], // spades, 2 — khớp
       players: [
-        { id: "a", name: "a", role: "sheriff", hp: 5, maxHp: 5, hand: [], equipment: [], alive: true },
-        { id: "b", name: "b", role: "outlaw", hp: 2, maxHp: 4, hand: [], equipment: ["dynamite_1"], alive: true },
+        { id: "a", name: "a", role: "sheriff", hp: 5, maxHp: 5, hand: [], equipment: [], alive: true, characterId: null },
+        { id: "b", name: "b", role: "outlaw", hp: 2, maxHp: 4, hand: [], equipment: ["dynamite_1"], alive: true, characterId: null },
         ...makeState().players.slice(2),
       ],
       currentPlayerIndex: 1,
@@ -168,8 +169,8 @@ describe("Bước 0 đầu lượt — Dynamite", () => {
     const state = makeState({
       deck: ["jail_1"], // hearts, 4 — không khớp Bích
       players: [
-        { id: "a", name: "a", role: "sheriff", hp: 5, maxHp: 5, hand: [], equipment: [], alive: true },
-        { id: "b", name: "b", role: "outlaw", hp: 4, maxHp: 4, hand: [], equipment: ["dynamite_1"], alive: true },
+        { id: "a", name: "a", role: "sheriff", hp: 5, maxHp: 5, hand: [], equipment: [], alive: true, characterId: null },
+        { id: "b", name: "b", role: "outlaw", hp: 4, maxHp: 4, hand: [], equipment: ["dynamite_1"], alive: true, characterId: null },
         ...makeState().players.slice(2),
       ],
       currentPlayerIndex: 1,
@@ -197,8 +198,8 @@ describe("Bước 0 đầu lượt — Dynamite", () => {
     const state = makeState({
       deck: ["jail_1"], // hearts, 4 — không khớp Bích → Dynamite chuyển đi
       players: [
-        { id: "a", name: "a", role: "sheriff", hp: 5, maxHp: 5, hand: [], equipment: [], alive: true },
-        { id: "b", name: "b", role: "outlaw", hp: 4, maxHp: 4, hand: [], equipment: ["dynamite_1", "jail_2"], alive: true },
+        { id: "a", name: "a", role: "sheriff", hp: 5, maxHp: 5, hand: [], equipment: [], alive: true, characterId: null },
+        { id: "b", name: "b", role: "outlaw", hp: 4, maxHp: 4, hand: [], equipment: ["dynamite_1", "jail_2"], alive: true, characterId: null },
         ...makeState().players.slice(2),
       ],
       currentPlayerIndex: 1,
@@ -220,8 +221,8 @@ describe("Bước 0 đầu lượt — Dynamite", () => {
   it("DRAW_CARDS bị chặn khi còn Dynamite-check đang chờ", () => {
     const state = makeState({
       players: [
-        { id: "a", name: "a", role: "sheriff", hp: 5, maxHp: 5, hand: [], equipment: [], alive: true },
-        { id: "b", name: "b", role: "outlaw", hp: 4, maxHp: 4, hand: [], equipment: ["dynamite_1"], alive: true },
+        { id: "a", name: "a", role: "sheriff", hp: 5, maxHp: 5, hand: [], equipment: [], alive: true, characterId: null },
+        { id: "b", name: "b", role: "outlaw", hp: 4, maxHp: 4, hand: [], equipment: ["dynamite_1"], alive: true, characterId: null },
         ...makeState().players.slice(2),
       ],
       currentPlayerIndex: 1,

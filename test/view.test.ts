@@ -12,6 +12,7 @@ function makePlayer(id: string, overrides: Partial<PlayerState> = {}): PlayerSta
     hand: [],
     equipment: [],
     alive: true,
+    characterId: null,
     ...overrides,
   };
 }
@@ -26,6 +27,7 @@ function makeState(players: PlayerState[], overrides: Partial<GameState> = {}): 
     turnPhase: "play",
     rngState: 1,
     winner: null,
+    bangUsedThisTurn: false,
     ...overrides,
   };
 }
@@ -87,7 +89,7 @@ describe("viewFor — vai (role)", () => {
   it("vai của người ĐÃ CHẾT được lật công khai cho mọi người, kể cả không phải sheriff", () => {
     const state = makeState([
       makePlayer("a", { role: "outlaw" }),
-      makePlayer("b", { role: "renegade", alive: false }),
+      makePlayer("b", { role: "renegade", alive: false, characterId: null }),
     ]);
 
     expect(viewFor(state, "a").players[1].role).toBe("renegade");
@@ -108,8 +110,8 @@ describe("viewFor — thông tin luôn công khai", () => {
   it("máu, trang bị, còn sống/chết, chồng bỏ, pending, lượt, kết quả ván đều giữ nguyên", () => {
     const state = makeState(
       [
-        makePlayer("a", { hp: 3, maxHp: 4, equipment: ["barrel_1", "jail_1"], alive: true }),
-        makePlayer("b", { hp: 0, maxHp: 4, alive: false }),
+        makePlayer("a", { hp: 3, maxHp: 4, equipment: ["barrel_1", "jail_1"], alive: true, characterId: null }),
+        makePlayer("b", { hp: 0, maxHp: 4, alive: false, characterId: null }),
       ],
       {
         discardPile: ["bang_5", "missed_2"],

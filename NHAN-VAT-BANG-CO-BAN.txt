@@ -1,0 +1,232 @@
+========================================================================
+16 NHÂN VẬT — BANG! BẢN CƠ BẢN
+========================================================================
+
+Mục đích: chuẩn bị cho GIAI ĐOẠN 5 (bản v1 bỏ nhân vật, mọi người 4 máu).
+Viết theo cơ chế, bằng lời của tôi. Chỗ nào tôi không chắc 100% đánh dấu
+[CẦN KIỂM CHỨNG] — tra BGG trước khi code.
+
+CÁCH DÙNG:
+- Mỗi nhân vật = 1 DỮ LIỆU: { tên, máu (bullets), mô tả, danh sách hook }.
+- KHÔNG viết if/else riêng cho từng người. Cắm hiệu ứng qua HỆ THỐNG HOOK, ví dụ:
+    onLoseLife        (khi mất máu)
+    onDrawPhase       (thay luật rút bài đầu lượt)
+    onDrawCheck       (khi phải "draw!" — Barrel/Jail/Dynamite)
+    modifyDistance    (đổi khoảng cách tính tới/từ mình)
+    onOutgoingBang    (đổi Bang! mình bắn ra)
+    onHandEmpty       (khi tay trống)
+    onAnyDeath        (khi có người chết)
+    cardAlias         (coi lá này như lá khác)
+    activatedAbility  (kỹ năng bấm chủ động, không gắn với 1 thời điểm cố định)
+  → Thêm expansion sau chỉ là thêm dữ liệu + (đôi khi) 1 loại hook mới.
+
+MÁU (bullets): Cảnh sát trưởng luôn +1. Trong 16 người, chỉ El Gringo và
+Paul Regret có 3 máu; 14 người còn lại 4 máu. [CẦN KIỂM CHỨNG lại bảng bullets
+khi tra — dễ nhớ nhầm 1–2 người.]
+
+
+========================================================================
+NHÓM 1 — PHẢN ỨNG KHI MẤT MÁU / BỊ ĐÁNH
+========================================================================
+
+BART CASSIDY  (4 máu)
+  - Hiệu ứng: mỗi lần MẤT 1 máu, rút 1 lá từ bộ bài.
+  - Logic: mất bao nhiêu điểm máu thì rút bấy nhiêu lá (mất 2 → rút 2). Rút SAU
+    khi đã trừ máu. Kể cả mất máu do Dynamite, Duel, Indians!...
+  - Hook: onLoseLife(amount) → draw(amount).
+
+EL GRINGO  (3 máu)
+  - Hiệu ứng: mỗi lần mất máu DO LÁ BÀI của người khác, rút ngẫu nhiên 1 lá từ
+    TAY của người gây ra.
+  - Logic: chỉ kích hoạt khi nguồn sát thương là lá bài người khác đánh (vd họ
+    Bang! mình). Mất 2 máu từ 1 nguồn → rút 2 lá của người đó (theo TỪNG điểm máu
+    — đã xác nhận). Nếu tay người đó trống thì không rút được gì. KHÔNG kích hoạt
+    với Dynamite (không có "người gây").
+  - Hook: onLoseLifeFromCard(byPlayer, amount) → stealRandomFromHand(byPlayer).
+
+JOURDONNAIS  (4 máu)
+  - Hiệu ứng: luôn được coi như CÓ SẴN 1 Barrel (draw! khi bị Bang!, ra Cơ thì né).
+  - Logic: có "Barrel ảo" cố định. Nếu đánh THÊM 1 Barrel thật trước mặt → được
+    draw! 2 lần cho mỗi Bang! (Barrel ảo + Barrel thật), chỉ cần 1 lần ra Cơ là né.
+  - Hook: có built-in barrel; onDrawCheckForBarrel cộng thêm 1 lượt draw!.
+
+========================================================================
+NHÓM 2 — THAY ĐỔI PHA RÚT BÀI (onDrawPhase)
+========================================================================
+
+BLACK JACK  (4 máu)
+  - Hiệu ứng: rút 2 lá như thường, nhưng LẬT NGỬA lá thứ 2 cho mọi người xem;
+    nếu lá thứ 2 là Cơ ♥ hoặc Rô ♦ (đỏ) → rút thêm 1 lá thứ 3.
+  - Logic: chỉ lá thứ 2 quyết định; đỏ → tổng 3 lá, đen → tổng 2 lá.
+  - Hook: onDrawPhase.
+
+JESSE JONES  (4 máu)
+  - Hiệu ứng: lá thứ NHẤT có thể rút từ TAY một người chơi bất kỳ (ngẫu nhiên)
+    thay vì từ bộ bài; lá thứ hai luôn từ bộ bài.
+  - Logic: đầu lượt được CHỌN: lấy lá 1 từ bộ bài hay từ tay ai đó. Nếu chọn từ
+    tay mà người đó có bài → rút ngẫu nhiên 1 lá của họ. (Có timeout: hết giờ →
+    mặc định rút cả 2 từ bộ bài như thường — khớp CHÍNH SÁCH TIMEOUT ở luật.)
+  - Bonus: khi rút từ tay người khác, HỎI xem có cho người bị lấy tự chọn lá đưa
+    hay rút ngẫu nhiên. Timeout 10s → rút ngẫu nhiên. (Dùng lại đúng khuôn của
+    Panic! — xem luật mục 7 & 12.)
+  - Hook: onDrawPhase (có bước chờ chọn).
+
+KIT CARLSON  (4 máu)
+  - Hiệu ứng: nhìn 3 lá trên cùng bộ bài, GIỮ 2, đặt 1 lá còn lại vào CHỒNG BÀI BỎ.
+  - Logic: xem 3 → chọn 2 vào tay → lá thứ 3 bỏ vào chồng bài bỏ. Có timeout: hết
+    giờ → giữ 2 lá đầu, bỏ lá thứ 3.
+  - Hook: onDrawPhase (có bước chờ chọn).
+  - [Lưu ý] Đây là house rule của bạn: luật gốc Kit Carlson đặt lá thứ 3 TRỞ LẠI
+    lên đỉnh bộ bài (rút), còn bạn cho bỏ vào chồng bài bỏ. Ghi rõ để sau này
+    không bị "sửa lại cho đúng bản gốc".
+
+PEDRO RAMIREZ  (4 máu)
+  - Hiệu ứng: lá thứ NHẤT có thể lấy từ ĐỈNH CHỒNG BÀI ĐÃ BỎ thay vì bộ bài; lá
+    thứ hai luôn từ bộ bài.
+  - Logic: đầu lượt chọn: lá 1 từ chồng bỏ (thấy trước lá gì) hay từ bộ bài. Chồng
+    bỏ trống → chỉ còn cách rút bộ bài. Timeout → rút cả 2 từ bộ bài.
+  - Hook: onDrawPhase (có bước chờ chọn).
+
+========================================================================
+NHÓM 3 — THAY ĐỔI KHOẢNG CÁCH (modifyDistance) — luôn bật, thụ động
+========================================================================
+
+PAUL REGRET  (3 máu)
+  - Hiệu ứng: luôn coi như CÓ SẴN 1 Mustang → người khác nhìn mình ở khoảng cách +1.
+  - Logic: Mustang ảo cố định. Có thêm Mustang thật → +2 tổng cộng.
+  - Hook: modifyDistance (khoảng cách NGƯỜI KHÁC → mình, +1).
+
+ROSE DOOLAN  (4 máu)
+  - Hiệu ứng: luôn coi như CÓ SẴN 1 Scope → mình nhìn người khác ở khoảng cách -1.
+  - Logic: Scope ảo cố định. Có thêm Scope thật → -2 tổng cộng.
+  - Hook: modifyDistance (khoảng cách MÌNH → người khác, -1).
+
+========================================================================
+NHÓM 4 — SỬA CƠ CHẾ "DRAW!" hoặc BANG!
+========================================================================
+
+LUCKY DUKE  (4 máu)
+  - Hiệu ứng: mỗi lần phải "draw!", lật 2 lá, TỰ CHỌN 1 lá làm kết quả, bỏ cả hai.
+  - Logic: áp cho MỌI draw! (Barrel, Jail, Dynamite...). Tăng khả năng ra kết quả
+    có lợi. Cả 2 lá đều vào chồng bỏ sau đó.
+  - Hook: onDrawCheck → flip 2, pick preferred.
+  - [Lưu ý code] Nếu tự động (hết giờ) thì "chọn lá có lợi" định nghĩa theo ngữ
+    cảnh: Barrel ưu tiên Cơ; Dynamite ưu tiên KHÔNG phải 2♠–9♠; Jail ưu tiên Cơ.
+    → Đã chốt, không cần hỏi lại. Nhưng LƯU Ý: tương lai sẽ có lá/nhân vật khác
+      cũng cần draw! — khi thêm, phải bổ sung định nghĩa "có lợi" cho ngữ cảnh mới.
+
+SLAB THE KILLER  (4 máu)
+  - Hiệu ứng: người bị Bang! của Slab bắn cần 2 lá Missed! mới né được (thay vì 1).
+  - Logic: áp cho MỌI phát Bang! do Slab tạo ra, gồm cả Gatling (Gatling tính là
+    một phát Bang! bắn mọi người → mỗi người vẫn phải né 2 lần). Barrel ra Cơ tính
+    là 1 Missed! → vẫn cần thêm 1 Missed! nữa. Duel và Indians! KHÔNG liên quan (hai
+    lá đó đòi bỏ Bang!, không phải né Bang!, nên hiệu ứng của Slab không tác động).
+  - Hook: onOutgoingBang → requiredMisses = 2 (áp cả cho Gatling).
+
+WILLY THE KID  (4 máu)
+  - Hiệu ứng: đánh BAO NHIÊU lá Bang! mỗi lượt cũng được (bỏ giới hạn 1 Bang!/lượt).
+  - Logic: giống hiệu ứng súng Volcanic nhưng luôn bật, không phụ thuộc súng. Vẫn
+    bị giới hạn bởi TẦM súng đang cầm.
+  - Hook: bỏ kiểm tra "1 Bang!/lượt" cho người này.
+
+========================================================================
+NHÓM 5 — KHÁC
+========================================================================
+
+CALAMITY JANET  (4 máu)
+  - Hiệu ứng: dùng lá Bang! THAY cho Missed!, và lá Missed! THAY cho Bang!.
+  - Logic:
+    → Lá Bang! trên tay dùng để né như Missed! (khi bị bắn).
+    → Lá Missed! trên tay dùng để tấn công như Bang! — và VẪN tính là đã dùng
+      1 lá Bang! trong lượt (chịu giới hạn 1 Bang!/lượt như bình thường, trừ khi
+      có Volcanic / là Willy the Kid).
+    → Trong DUEL (đòi bỏ Bang!): Janet được bỏ lá Missed! thay cho Bang!. Chiều
+      ngược lại không áp dụng vì Duel không có bước "né".
+  - Hook: cardAlias (Bang! <-> Missed! khi thuộc về Janet).
+  - [LƯU Ý QUAN TRỌNG — tránh hiểu nhầm] Việc hoán đổi là TÙY CHỌN, KHÔNG bắt buộc.
+    Janet vẫn dùng lá Bang! như Bang! và lá Missed! như Missed! một cách bình thường.
+    Bà CHỈ đổi vai khi tự chọn (vd hết Missed! nên dùng Bang! để né). Engine phải
+    coi mỗi lá của Janet là "có thể đóng CẢ HAI vai", rồi để bà/logic tự-vệ chọn
+    vai phù hợp tình huống — đừng ép lá Bang! luôn thành Missed! hay ngược lại.
+  - [Lưu ý code] MỌI hàm kiểm tra "người này có lá Bang! / Missed! trên tay không"
+    (dùng cho: có được đánh Bang! không, có né được không, có phản đòn Duel được
+    không, mặc định khi hết giờ...) phải có nhánh riêng cho Janet: coi Bang! và
+    Missed! là HOÁN ĐỔI cho nhau. Cách sạch nhất: bọc phép kiểm tra qua một hàm
+    dùng chung (vd coiNhuBang(card, player) / coiNhuMissed(card, player)) rồi cho
+    Janet override hàm đó, thay vì rải if("Calamity Janet") khắp nơi.
+
+SID KETCHUM  (4 máu)
+  - Hiệu ứng: BẤT KỲ LÚC NÀO, bỏ 2 lá trên tay để hồi 1 máu. Lặp nhiều lần.
+  - Logic:
+    → Kỹ năng bấm chủ động, không gắn với 1 thời điểm cố định — dùng được cả trong
+      lượt mình lẫn ngoài lượt (kể cả đang bị đánh), miễn là ĐỒNG Ý bỏ đi 2 lá trên tay.
+    → ĐIỀU KIỆN: chỉ dùng được khi máu HIỆN TẠI > 0. Mỗi lần bỏ 2 lá → +1 máu, lặp
+      lại tới khi hết bài hoặc đủ máu. Không hồi vượt máu tối đa.
+    → KHI MÁU ĐÃ VỀ 0: kỹ năng này KHÔNG cứu được. Lúc máu chạm 0, chỉ có Beer
+      (tự động, xem luật mục 9) mới kéo lên. Nếu không có Beer hoặc Beer vô hiệu
+      (còn 2 người) → CHẾT, dù trên tay vẫn còn nhiều bài. Sid không thể "bỏ 2 lá
+      cứu mình" ở mốc 0.
+    → Hệ quả thực chiến: Sid phải chủ động hồi TRƯỚC khi bị đánh về 0, không để
+      nước tới chân mới nhảy.
+  - Hook: activatedAbility (discard 2 → +1 HP), chỉ hợp lệ khi HP > 0.
+
+SUZY LAFAYETTE  (4 máu)
+  - Hiệu ứng: ngay khi TAY TRỐNG (0 lá), rút 1 lá từ bộ bài.
+  - Logic: kích hoạt đúng thời điểm lá cuối rời tay — do đánh ra, bị lấy, bị bỏ...
+    đều tính. Chỉ rút đúng 1 lá; nếu lại về 0 (không thể, vì vừa rút 1) thì thôi.
+  - Hook: onHandEmpty → draw(1).
+  - [Lưu ý code] Dễ tạo lỗi "kích hoạt liên tục" nếu xử lý sai thứ tự — chỉ chạy
+    khi tay CHUYỂN từ >0 sang =0, không chạy lặp khi đã trống sẵn.
+
+VULTURE SAM  (4 máu)
+  - Hiệu ứng: mỗi khi MỘT người chơi bị loại, Sam lấy TẤT CẢ bài của người đó
+    (trên tay + đang bày trước mặt) vào tay mình, thay vì cho vào chồng bỏ.
+  - Logic: chỉ Sam nhận, không chia cho ai khác. Nhiều người chết cùng lúc thì Sam
+    gom hết.
+    → DYNAMITE: nếu người chết đang có lá Dynamite (chưa nổ), lá đó cũng CHUYỂN
+      SANG Sam. Vì Dynamite là lá tự-xuống-sân (xem luật, mục 8), ngay khi vào tay
+      Sam nó lập tức tự đặt vào trang bị của Sam — nghĩa là Sam thừa kế luôn quả
+      Dynamite đang đếm, đầu lượt sau sẽ tự draw! cho nó.
+  - Hook: onAnyDeath(deadPlayer) → moveAllCardsTo(Sam).
+
+========================================================================
+GHI CHÚ CHUNG KHI CODE (Giai đoạn 5)
+========================================================================
+
+- SETUP có nhân vật: máu tối đa = bullets của nhân vật (+1 nếu là Cảnh sát trưởng);
+  số lá khởi đầu = máu tối đa. Bỏ quy ước "mọi người 4 máu" của v1.
+
+- Các hook "onDrawPhase" (Black Jack, Jesse Jones, Kit Carlson, Pedro Ramirez)
+  THAY THẾ pha rút bài mặc định — chỉ 1 nhân vật nên chỉ 1 hook chạy, không chồng.
+
+- Các hook thụ động (Paul Regret, Rose Doolan, Jourdonnais) phải cộng vào ĐÚNG
+  công thức chung (khoảng cách / draw!), không xử lý tách rời, để còn cộng dồn
+  với Scope/Mustang/Barrel thật.
+
+- Nhân vật có bước chờ (Jesse Jones, Kit Carlson, Pedro Ramirez chọn nguồn rút)
+  đi qua cùng khuôn pending + timeout như các lá bài (xem luật, mục 11–12).
+
+- MỌI hiệu ứng vẫn phải tôn trọng các quy tắc lõi: máu sàn 0, không 2 lá cùng tên
+  trước mặt, Dynamite tự-xuống-sân & miễn nhiễm, v.v.
+
+- Cân bằng: một số nhân vật rất mạnh (Vulture Sam, Slab, Willy). Nếu chơi nhóm bạn
+  thấy lệch, có thể bật/tắt từng nhân vật qua cấu hình phòng — thiết kế danh sách
+  nhân vật dạng dữ liệu để dễ loại vài người ra khỏi pool.
+
+========================================================================
+CẦN TRA / XÁC NHẬN TRƯỚC KHI CODE
+========================================================================
+(Đã chốt hết — không còn mục nào phải tra.)
+
+Đã chốt (không cần tra nữa):
+  ✔ Bảng máu: El Gringo & Paul Regret = 3 máu; 14 người còn lại = 4 máu (đã xác nhận).
+  ✔ El Gringo rút theo từng điểm máu.
+  ✔ Slab the Killer: hiệu ứng "cần 2 Missed!" áp cả cho Gatling; Duel/Indians! không.
+  ✔ Lucky Duke: định nghĩa "lá có lợi" theo ngữ cảnh — đã chốt (lưu ý mở rộng sau).
+  ✔ Kit Carlson: lá thứ 3 bỏ vào chồng bài bỏ (house rule, khác bản gốc).
+  ✔ Calamity Janet: Missed!-làm-Bang! vẫn tính 1 Bang!/lượt; trong Duel bỏ Missed!
+    thay Bang! được; hoán đổi là tùy chọn; cần override hàm kiểm tra bài.
+  ✔ Sid Ketchum: hồi máu bất cứ lúc nào khi HP > 0; KHÔNG cứu được khi HP đã = 0
+    (chỉ Beer tự động mới cứu ở mốc 0).
+  ✔ Vulture Sam: nhận cả Dynamite chưa nổ của người chết → tự xuống trang bị Sam
+    và tiếp tục đếm.

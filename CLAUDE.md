@@ -135,7 +135,7 @@ Nguyên tắc chung:
 
 > Cập nhật dòng này mỗi khi xong một giai đoạn. Xem `LO-TRINH.md`.
 
-**Đang ở:** Giai đoạn 4 — Hoàn thiện. Giai đoạn 3 (việc 3.1 → 3.10 + 2 việc bổ sung) đã xong hẳn — xem lịch sử bên dưới. **Vừa xong 1 việc bổ sung sau 4.6** (viền màu theo loại lá, khung nhân vật xem trước, tên lá tách khỏi ảnh, nhấn giữ/hover xem mô tả) — 4.6 vẫn CHƯA có ảnh thật nào, chỉ có hạ tầng.
+**Đang ở:** Giai đoạn 4 xong (4.1-4.6 khung, còn thiếu ảnh thật). **Vừa xong việc 5.1** (hệ thống hook cho nhân vật) — xem `NHAN-VAT-BANG-CO-BAN.txt` (đặc tả đủ 16 nhân vật + 9 loại hook, chủ dự án viết) và lịch sử Giai đoạn 4 phía dưới.
 
 - 3.1-3.4 (gọn lại): `src/server/index.ts` + `src/server/room.ts` (Durable Object `Room`) — deploy thật ở **https://bang-boardgame.nguyenngoctuan548.workers.dev**. WebSocket dùng Hibernation API đúng cách (`ctx.acceptWebSocket()`, không `server.accept()` — quy tắc 7). Định tuyến `/room/<mã phòng>`.
 - **Quan trọng (phát hiện sau việc 3.10):** deploy trước đó CHỈ đưa lên phần server (Worker) — mở link công khai chỉ thấy dòng "Thiếu mã phòng...", KHÔNG thấy giao diện chơi, vì client (`index.html`/`main.ts`/`ui.ts`) chưa từng được build+phục vụ. Đã sửa: `wrangler.jsonc` thêm `assets: { directory: "./dist", run_worker_first: ["/room/*"] }` — phục vụ file client đã build (`npm run build`, ra `dist/`) CHUNG domain với Worker; `/room/*` vẫn luôn chạy Worker trước (API/WebSocket), còn lại phục vụ thẳng file tĩnh. `npm run deploy` giờ tự `vite build` trước khi `wrangler deploy` (script trong `package.json`), tránh quên build. Đã deploy lại + kiểm bằng trình duyệt thật trên chính link công khai: mở `/` thấy đúng giao diện, tạo phòng qua `wss://` thật hoạt động đúng.
@@ -242,10 +242,25 @@ Nguyên tắc chung:
 
 162 test đều pass (không đụng `core/` nên không cần thêm test).
 
-**Việc tiếp theo:** hoàn thành phần "ảnh thật" của việc 4.6 (chủ dự án tự vẽ/tìm ảnh dần bỏ vào `public/sprites/`, kể cả ảnh nhân vật khi tới Giai đoạn 5), rồi tới `LO-TRINH.md` — dự án đã hết Giai đoạn 4 về mặt CODE (4.1-4.6 khung đều xong), việc còn lại chủ yếu là bổ sung tài sản hình ảnh không vội.
+**Giai đoạn 5 — việc 5.1 (hệ thống hook cho nhân vật):**
+
+- Chủ dự án viết sẵn **`NHAN-VAT-BANG-CO-BAN.txt`** (đặc tả đủ 16 nhân vật + 9 loại hook: `onLoseLife`, `onLoseLifeFromCard`, `onDrawPhase`, `onDrawCheck`, `modifyDistance`, `onOutgoingBang`, `onHandEmpty`, `onAnyDeath`, `cardAlias`, `activatedAbility`) — đọc kỹ TRƯỚC khi code, bàn cách tiếp cận, chờ đồng ý (đúng quy tắc core/ trong file này).
+- **Phát hiện lúc đọc — lỗ hổng luật riêng, sửa TRƯỚC 5.1 (không phải hook):** luật gốc "chỉ 1 Bang!/lượt, trừ khi cầm Volcanic" mà file nhân vật coi là nền tảng (Willy the Kid/Calamity Janet dựa vào nó) **chưa từng được cài** từ Giai đoạn 1 — `playBang()` không đếm/giới hạn gì cả, kể cả bản đã deploy cho bạn bè chơi. Đã sửa: `GameState` thêm `bangUsedThisTurn: boolean`, `playBang()` chặn lá Bang! thứ 2 trong lượt nếu không cầm Volcanic, `advanceTurn()` reset lại mỗi lượt mới. 4 test mới (`test/pending.test.ts`).
+- **Vì sao nhân vật không nằm trong GameState:** quy tắc 3 — state phải là JSON thuần, không được chứa hàm. `PlayerState` chỉ thêm `characterId: string | null` (1 chuỗi, luôn `null` cho tới việc 5.2) — hàm hook thật nằm ở registry riêng, tra theo id.
+- File mới **`core/characters.ts`** — `CharacterHooks` interface (chỉ 4 hook có chữ ký thật) + registry `CHARACTERS` **RỖNG** (5.2 mới điền 16 nhân vật — đúng ranh giới "hệ thống" vs "nhân vật thật" trong `LO-TRINH.md`). Hook ở đây KHÔNG "thuần" theo nghĩa không side-effect — hầu hết nhận thẳng `next: GameState` (bản sao cục bộ reduce() đang giữ) và được phép mutate trực tiếp, giống mọi hàm nội bộ khác trong `reduce.ts`. Ngoại lệ: `modifyDistance` — hàm THUẦN thực sự, vì `distance.ts` gọi nó ở nhiều chỗ chỉ để ĐỌC.
+- **Chỉ nối dây 4/9 hook** — 4 hook này không cần thêm loại `PendingAction` mới hay đổi luồng action:
+  - `modifyDistance` → `distance.ts`'s `computeDistance()`, ngay sau Ống nhắm/Ngựa Mustang thật (Paul Regret/Rose Doolan).
+  - `onLoseLife` + `onLoseLifeFromCard` → hàm dùng chung mới `triggerLoseLifeHooks()` trong `reduce.ts`, gọi từ CẢ `applyDamage()` (Bang!/Gatling/Duel/Indians!) LẪN nhánh Thuốc nổ tự trừ máu trong `resolveDrawCheck()` — Thuốc nổ chỉ chạy `onLoseLife` (Bart Cassidy), KHÔNG chạy `onLoseLifeFromCard` (El Gringo, cần "người gây" mà Thuốc nổ không có), đúng như file nhân vật ghi rõ.
+  - `onAnyDeath` → `eliminatePlayer()`, hỏi TRƯỚC khi bỏ bài người chết vào chồng bỏ, cho MỌI người còn sống có hook (không chỉ killer) — hook muốn "nhận" bài (Vulture Sam) phải tự dọn `hand`/`equipment` của người chết, dòng bỏ-vào-chồng-bỏ mặc định chỉ đẩy phần CÒN LẠI nên không mất/nhân đôi.
+  - **5 hook còn lại** (`onDrawPhase`, `onDrawCheck`, `onOutgoingBang`, `cardAlias`, `activatedAbility`) CHỈ ghi tên + mô tả 1 dòng trong comment — CỐ TÌNH không đoán chữ ký hàm, để dành xây cùng lúc với đúng nhân vật cần nó ở việc 5.2 (đoán sai bây giờ tốn công sửa lại hơn chờ ví dụ thật). Riêng **Sid Ketchum** (`activatedAbility`, dùng được bất cứ lúc nào kể cả ngoài lượt/đang bị tấn công) được ghi chú rõ: không khớp mô hình lượt/pending hiện có, cần thiết kế riêng hẳn 1 luồng action mới, không phải chỉ 1 hook.
+- Test mới **`test/characters.test.ts`** — cắm 1 "nhân vật giả" thẳng vào registry `CHARACTERS` thật (dọn lại ở `afterEach`) để kiểm tra đúng đường dây thật, không cần tham số/đường vòng riêng cho test: `modifyDistance` (cả vai attacker/target, cộng dồn được với Scope/Mustang thật), `onLoseLife`/`onLoseLifeFromCard` (đúng amount/byPlayerId, Thuốc nổ chỉ chạy 1 trong 2), `onAnyDeath` (hook nhận hết bài thì không bị trùng vào chồng bỏ; không có hook thì về chồng bỏ như cũ).
+- **Lỗi phát hiện lúc viết test (đã sửa — TEST, không phải core/):** state test dùng `deck: []` và để vai mặc định `"outlaw"` cho người sắp chết, vô tình kích hoạt luật có sẵn "hạ Outlaw thưởng rút 3 lá" — `drawTopCard()` thấy deck rỗng liền XÁO LẠI chính chồng bỏ đang muốn kiểm tra thành deck mới, làm chồng bỏ về `[]` bất ngờ. Không phải bug ở hook — đổi vai người chết trong test thành `"renegade"` là hết.
+- 175 test đều pass (162 cũ + 4 test giới hạn Bang!/lượt + 9 test hook).
+
+**Việc tiếp theo:** việc 5.2 — 16 nhân vật bản cơ bản (điền dữ liệu thật vào `CHARACTERS`, xem `NHAN-VAT-BANG-CO-BAN.txt` + `LO-TRINH.md`).
 
 ## Chưa làm tới, đừng đụng vào
 
-Nhân vật (16 skill), expansion, house rules, đồ hoạ đẹp, âm thanh, tài khoản/đăng nhập, bảng xếp hạng.
+16 nhân vật thật (việc 5.1 mới xong HỆ THỐNG hook rỗng — xem `core/characters.ts` — `CHARACTERS` chưa có nhân vật nào, mọi người vẫn 4 máu không skill y hệt trước giờ), expansion, house rules, đồ hoạ đẹp, âm thanh, tài khoản/đăng nhập, bảng xếp hạng.
 
-Bản đầu tiên **cố tình bỏ nhân vật** — mọi người 4 máu, không skill — để tránh 16 ngoại lệ luật khi engine chưa vững.
+Bản đầu tiên **cố tình bỏ nhân vật** cho tới việc 5.2 — để tránh 16 ngoại lệ luật khi engine chưa vững.

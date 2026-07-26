@@ -58,6 +58,7 @@ export function setupGame(
       hand: [],
       equipment: [],
       alive: true,
+      characterId: null, // Giai đoạn 5 mới gán nhân vật thật (xem core/characters.ts)
     };
   });
 
@@ -82,6 +83,7 @@ export function setupGame(
     turnPhase: "draw",
     rngState: stateAfterDeck,
     winner: null,
+    bangUsedThisTurn: false,
   };
 
   // Lượt đầu tiên cũng phải qua Bước 0 (mục 4): nếu Sheriff (hoặc ai đi lượt

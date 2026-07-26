@@ -13,6 +13,7 @@ function makePlayer(id: string, overrides: Partial<PlayerState> = {}): PlayerSta
     hand: [],
     equipment: [],
     alive: true,
+    characterId: null,
     ...overrides,
   };
 }
@@ -29,6 +30,7 @@ function makeState(players: PlayerState[], overrides: Partial<GameState> = {}): 
     turnPhase: "play",
     rngState: 1,
     winner: null,
+    bangUsedThisTurn: false,
     ...overrides,
   };
 }
@@ -55,7 +57,7 @@ describe("computeDistance — vòng tròn co lại khi có người chết", () 
   it("người chết ở giữa: 2 người sống 2 bên xích lại gần nhau", () => {
     const players = [
       makePlayer("a"),
-      makePlayer("b", { alive: false }), // b chết, ghế biến mất
+      makePlayer("b", { alive: false, characterId: null }), // b chết, ghế biến mất
       makePlayer("c"),
       makePlayer("d"),
       makePlayer("e"),
@@ -69,8 +71,8 @@ describe("computeDistance — vòng tròn co lại khi có người chết", () 
   it("chết nhiều người: vòng tròn co lại chỉ còn người sống", () => {
     const players = [
       makePlayer("a"),
-      makePlayer("b", { alive: false }),
-      makePlayer("c", { alive: false }),
+      makePlayer("b", { alive: false, characterId: null }),
+      makePlayer("c", { alive: false, characterId: null }),
       makePlayer("d"),
       makePlayer("e"),
     ];

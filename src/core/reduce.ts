@@ -3,6 +3,7 @@
 
 import type { CardName } from "./cards";
 import { cardNameFromId, cardSuitRankFromId, isSelfEquipBlueCardName, isWeaponCardName } from "./cards";
+import { getCharacterHooks } from "./characters";
 import { computeDistance, getWeaponRange } from "./distance";
 import { giveCardToPlayer, transferDynamiteToNextPlayer } from "./equipment";
 import { nextRandom, shuffle } from "./rng";
@@ -224,6 +225,15 @@ function playBang(
   if (distance > range) {
     throw new Error(`Mục tiêu ngoài tầm bắn (khoảng cách ${distance}, tầm súng ${range})`);
   }
+
+  // Luật gốc: chỉ 1 lá Bang!/lượt, trừ khi đang cầm súng Volcanic (không giới
+  // hạn). Chuẩn bị cho Willy the Kid (Giai đoạn 5, bỏ giới hạn này luôn dù
+  // không cầm Volcanic) — xem ghi chú ở GameState.bangUsedThisTurn.
+  const hasVolcanic = player.equipment.some((id) => cardNameFromId(id) === "volcanic");
+  if (next.bangUsedThisTurn && !hasVolcanic) {
+    throw new Error("Đã đánh Bang! trong lượt này — cần súng Volcanic mới được đánh thêm lần nữa");
+  }
+  next.bangUsedThisTurn = true;
 
   pushMissedReaction(next, target, { card: "bang", from: player.id });
 
@@ -807,6 +817,10 @@ function resolveDrawCheck(
       const amount = Math.min(3, holder.hp);
       holder.hp -= amount;
       events.push({ type: "DYNAMITE_EXPLODED", playerId: holder.id, amount });
+      // Giai đoạn 5 (Bart Cassidy) — byPlayerId null: Dynamite không có
+      // "người gây", nên chỉ onLoseLife chạy, KHÔNG chạy onLoseLifeFromCard
+      // (El Gringo không kích hoạt ở đây, đúng luật đã ghi ở core/characters.ts).
+      events.push(...triggerLoseLifeHooks(next, holder, amount, null));
       // Tự nổ, không ai "giết" cả -> killerId = null, không có thưởng/phạt.
       events.push(...eliminateIfDead(next, holder, null));
     } else {
@@ -854,8 +868,29 @@ function applyDamage(
   target.hp -= amount;
   return [
     { type: "DAMAGE_DEALT", playerId: target.id, amount },
+    ...triggerLoseLifeHooks(next, target, amount, killerId),
     ...eliminateIfDead(next, target, killerId),
   ];
+}
+
+// Giai đoạn 5 (Bart Cassidy/El Gringo, xem core/characters.ts) — gọi SAU khi
+// đã trừ máu, TRƯỚC khi xét chết. Dùng chung cho cả applyDamage() (Bang!/
+// Gatling/Duel/Indians!) LẪN nhánh Thuốc nổ tự trừ máu trong resolveDrawCheck()
+// (byPlayerId = null ở đó — Dynamite không có "người gây", nên chỉ onLoseLife
+// chạy, KHÔNG chạy onLoseLifeFromCard, đúng luật đã ghi trong file nhân vật).
+function triggerLoseLifeHooks(
+  next: GameState,
+  target: PlayerState,
+  amount: number,
+  byPlayerId: string | null
+): GameEvent[] {
+  const hooks = getCharacterHooks(target.characterId);
+  const events: GameEvent[] = [];
+  if (hooks.onLoseLife) events.push(...hooks.onLoseLife(next, target, amount));
+  if (byPlayerId && hooks.onLoseLifeFromCard) {
+    events.push(...hooks.onLoseLifeFromCard(next, target, amount, byPlayerId));
+  }
+  return events;
 }
 
 // Kiểm tra hp sau khi ĐÃ trừ máu (bởi applyDamage() hoặc trực tiếp như
@@ -870,12 +905,27 @@ function eliminatePlayer(next: GameState, target: PlayerState, killerId: string 
   target.alive = false;
   target.hp = 0;
 
+  // Giai đoạn 5 (Vulture Sam, xem core/characters.ts) — hỏi TRƯỚC khi bỏ bài
+  // người chết vào chồng bỏ, cho MỌI người còn sống có hook onAnyDeath (không
+  // chỉ chính killer). Hook nào muốn "nhận" bài phải tự dọn target.hand/
+  // target.equipment — dòng push() ngay sau chỉ đẩy phần CÒN LẠI (rỗng nếu
+  // hook đã lấy hết), không mất cũng không nhân đôi.
+  const deathHookEvents: GameEvent[] = [];
+  for (const player of next.players) {
+    if (!player.alive || player.id === target.id) continue;
+    const hooks = getCharacterHooks(player.characterId);
+    if (hooks.onAnyDeath) deathHookEvents.push(...hooks.onAnyDeath(next, target));
+  }
+
   // Bỏ hết bài trên tay + trang bị trên sân vào chồng bỏ — người chết không giữ gì cả.
   next.discardPile.push(...target.hand, ...target.equipment);
   target.hand = [];
   target.equipment = [];
 
-  const events: GameEvent[] = [{ type: "PLAYER_ELIMINATED", playerId: target.id, killedBy: killerId }];
+  const events: GameEvent[] = [
+    { type: "PLAYER_ELIMINATED", playerId: target.id, killedBy: killerId },
+    ...deathHookEvents,
+  ];
 
   const killer = killerId ? next.players.find((p) => p.id === killerId) : undefined;
   if (killer) {
@@ -949,6 +999,7 @@ function drawTopCard(next: GameState): string | undefined {
 function advanceTurn(next: GameState): void {
   next.currentPlayerIndex = nextAlivePlayerIndex(next, next.currentPlayerIndex);
   next.turnPhase = "draw";
+  next.bangUsedThisTurn = false;
   applyTurnStartChecks(next);
 }
 
