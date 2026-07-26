@@ -3,12 +3,17 @@
 // hotseat). Nhãn tiếng Việt (tên bài, tên vai) chỉ để HIỂN THỊ nên đặt ở đây,
 // không đặt trong core/ — core/ không quan tâm chuyện trình bày.
 
-import { cardNameFromId, cardSuitRankFromId } from "../core/cards";
+import { cardNameFromId, cardSuitRankFromId, WEAPON_RANGES } from "../core/cards";
 import type { CardName } from "../core/cards";
 import type { GameEvent, GameState, PendingAction, PlayerState, Role, Suit } from "../core/types";
 import type { PlayerHandView, PlayerView } from "../core/view";
 import type { DeadlineInfo } from "../protocol";
 
+// Tầm bắn súng lấy THẲNG từ WEAPON_RANGES (core/cards.ts, cũng là nguồn
+// core/distance.ts dùng để tính luật thật) — không tự chép số ra đây, tránh
+// lệch nếu core đổi tầm súng sau này. Số +1/-1 của Ống nhắm/Ngựa Mustang thì
+// HARDCODE vì bản thân core/distance.ts cũng viết cứng 2 số này (không có
+// hằng số export sẵn) — chỉ để HIỂN THỊ, không ảnh hưởng luật thật.
 const CARD_LABELS: Record<CardName, string> = {
   bang: "Bang!",
   missed: "Missed!",
@@ -22,14 +27,14 @@ const CARD_LABELS: Record<CardName, string> = {
   indians: "Người da đỏ!",
   duel: "Đấu tay đôi",
   gatling: "Súng máy Gatling",
-  volcanic: "Súng Volcanic",
-  schofield: "Súng Schofield",
-  remington: "Súng Remington",
-  rev_carabine: "Súng Rev. Carabine",
-  winchester: "Súng Winchester",
+  volcanic: `Súng Volcanic (${WEAPON_RANGES.volcanic})`,
+  schofield: `Súng Schofield (${WEAPON_RANGES.schofield})`,
+  remington: `Súng Remington (${WEAPON_RANGES.remington})`,
+  rev_carabine: `Súng Rev. Carabine (${WEAPON_RANGES.rev_carabine})`,
+  winchester: `Súng Winchester (${WEAPON_RANGES.winchester})`,
   barrel: "Thùng rượu",
-  scope: "Ống nhắm",
-  mustang: "Ngựa Mustang",
+  scope: "Ống nhắm (-1)",
+  mustang: "Ngựa Mustang (+1)",
   jail: "Nhà tù",
   dynamite: "Thuốc nổ",
 };
@@ -743,6 +748,9 @@ export function renderNetworkLobby(
   ownerId: string | null,
   viewerId: string,
   error: string | null,
+  // Việc 4.3: ván trước bị server tự huỷ vì còn quá ít người kết nối — null
+  // nếu không có gì để báo.
+  abandonedNotice: string | null,
   handlers: NetworkLobbyHandlers
 ): void {
   container.replaceChildren();
@@ -755,6 +763,13 @@ export function renderNetworkLobby(
   codeEl.className = "summary";
   codeEl.textContent = `Mã phòng: ${roomCode} — chia sẻ mã này cho bạn bè để họ vào cùng`;
   container.appendChild(codeEl);
+
+  if (abandonedNotice) {
+    const noticeEl = document.createElement("p");
+    noticeEl.className = "draw-check-notice";
+    noticeEl.textContent = abandonedNotice;
+    container.appendChild(noticeEl);
+  }
 
   if (error) {
     const errorEl = document.createElement("p");
@@ -828,6 +843,7 @@ export interface NetworkGameOptions {
   lastDrawCheck: DrawCheckNotice;
   deadline: DeadlineInfo | null;
   log: string[]; // việc 4.2: nhật ký ván đấu, mới nhất ở đầu mảng
+  connectedPlayerIds: string[]; // việc 4.3: ai đang có socket mở thật sự
 }
 
 function networkRenderHandSection(
@@ -961,7 +977,10 @@ function networkRenderPlayer(
   heading.textContent =
     player.name +
     (index === view.currentPlayerIndex ? " ← đang tới lượt" : "") +
-    (player.id === view.viewerId ? " (bạn)" : "");
+    (player.id === view.viewerId ? " (bạn)" : "") +
+    // Việc 4.3: không tính chính mình — chính socket đang vẽ màn hình này thì
+    // chắc chắn đang kết nối, không cần báo lại chuyện hiển nhiên đó.
+    (player.id !== view.viewerId && !options.connectedPlayerIds.includes(player.id) ? " ⚠ đã mất kết nối" : "");
   el.appendChild(heading);
 
   const roleText = player.role ? ROLE_LABELS[player.role] : "(ẩn)";

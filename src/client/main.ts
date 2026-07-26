@@ -80,6 +80,13 @@ let networkSelection: Selection = { step: "idle" };
 let networkDiscardSelectionIds: string[] = [];
 let networkLastDrawCheck: DrawCheckNotice = null;
 let networkGameLog: string[] = []; // việc 4.2, xem ghi chú ở gameLog phía trên
+// Việc 4.3: trong số `networkView.players`, ai ĐANG có socket mở thật sự
+// (server tự tính, xem room.ts) — hiện chú thích "đã mất kết nối" cho người
+// không nằm trong mảng này.
+let networkConnectedIds: string[] = [];
+// Ván trước bị server tự HUỶ vì còn quá ít người kết nối (việc 4.3) — hiện ở
+// màn hình lobby, tự dọn khi bắt đầu ván mới.
+let networkAbandonedNotice: string | null = null;
 // Việc 4.1: đồng hồ đếm ngược lượt (server tự tính, xem room.ts) — client chỉ
 // đọc `expiresAt` rồi TỰ đếm lùi mỗi giây bằng setInterval CỦA RIÊNG CLIENT
 // (không phải Durable Object — quy tắc 8 CLAUDE.md chỉ cấm setInterval TRONG
@@ -125,7 +132,7 @@ function render(): void {
       });
       return;
     case "network-lobby":
-      renderNetworkLobby(root, networkCode, lobbyPlayers, lobbyOwnerId, myPlayerId, networkError, {
+      renderNetworkLobby(root, networkCode, lobbyPlayers, lobbyOwnerId, myPlayerId, networkError, networkAbandonedNotice, {
         onStartGame: onNetworkStartGame,
       });
       return;
@@ -141,6 +148,7 @@ function render(): void {
             lastDrawCheck: networkLastDrawCheck,
             deadline: networkDeadline,
             log: networkGameLog,
+            connectedPlayerIds: networkConnectedIds,
           },
           {
             onDrawCards: onNetworkDrawCards,
@@ -469,6 +477,8 @@ function onNetworkMessage(message: ServerMessage): void {
       return;
     case "state": {
       networkView = message.view;
+      networkConnectedIds = message.connectedPlayerIds;
+      networkAbandonedNotice = null; // ván mới đang chạy thật -> thông báo ván cũ bị huỷ hết ý nghĩa
       const checkEvent = message.events.find((e) => e.type === "DRAW_CHECK_RESOLVED");
       networkLastDrawCheck = checkEvent
         ? {
@@ -494,6 +504,19 @@ function onNetworkMessage(message: ServerMessage): void {
     case "chat":
       // Chưa có UI chat qua mạng trong ván — bonus việc 3.5 mới kiểm ở mức
       // giao thức/console, chưa gắn vào giao diện chơi bài.
+      return;
+    case "game_abandoned":
+      // Việc 4.3: server đã tự xoá ván (còn quá ít người kết nối) — quay lại
+      // lobby, dọn hết trạng thái ván cũ. `lobby` gửi kèm ngay sau đó (xem
+      // room.ts) sẽ tự cập nhật đúng danh sách người + chủ phòng hiện tại.
+      networkView = null;
+      networkGameLog = [];
+      networkDeadline = null;
+      networkConnectedIds = [];
+      syncCountdownTick();
+      networkAbandonedNotice = "Ván vừa bị huỷ vì không đủ người chơi còn kết nối. Chờ đủ người rồi bắt đầu ván mới.";
+      screen = "network-lobby";
+      render();
       return;
   }
 }
