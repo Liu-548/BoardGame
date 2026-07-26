@@ -83,7 +83,7 @@
 | 4.3 | Xử lý người bỏ ván giữa chừng | Ván không bị treo |
 | 4.4 | Giao diện dễ nhìn hơn, responsive | Chơi được trên điện thoại |
 | 4.5 | Kiểm tra hạn mức Cloudflare | Xem dashboard, duration/ngày gần 0 |
-| 4.6 | Hình ảnh lá bài | Ảnh để trong `public/sprites/`, bổ sung dần và gắn vào từng lá tương ứng trong game — **không vội**, có ảnh tới đâu gắn tới đó, thiếu ảnh vẫn hiển thị bằng chữ như cũ |
+| 4.6 | Hình ảnh lá bài | Ảnh để trong `public/sprites/`, bổ sung dần và gắn vào từng lá tương ứng trong game — **không vội**, có ảnh tới đâu gắn tới đó, thiếu ảnh vẫn hiển thị bằng chữ như cũ — ✅ **phần khung đã xong** (component `.card-box`, mô tả lá bài, màn hình "Chú giải lá bài"), **còn thiếu ảnh thật** (chưa có file nào trong `public/sprites/`), xem chi tiết ở CLAUDE.md |
 
 ---
 
