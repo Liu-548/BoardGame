@@ -395,6 +395,12 @@ export class Room {
 
       case "NEED_DRAW_CHECK":
         return null; // không bao giờ tới đây — afterStateChange() luôn tự giải quyết trước
+
+      // Giai đoạn 5 (Pedro Ramirez) — hết giờ thì rút bộ bài như bình thường,
+      // đúng "Timeout → rút cả 2 từ bộ bài" trong file luật (RESPOND không kèm
+      // cardId).
+      case "NEED_PICK_DRAW_SOURCE":
+        return { type: "RESPOND", playerId: top.player };
     }
   }
 

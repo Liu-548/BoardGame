@@ -330,6 +330,8 @@ export function describeEvent(event: GameEvent, nameOf: (id: string) => string):
       return `${nameOf(event.playerId)} bị giam trong Nhà tù, mất lượt`;
     case "BLACK_JACK_REVEALED":
       return `${nameOf(event.playerId)} (Black Jack) lật ngửa lá thứ 2 lúc rút bài: ${cardFaceLabel(event.cardId)}`;
+    case "LUCKY_DUKE_EXTRA_DRAW":
+      return `${nameOf(event.playerId)} (Lucky Duke) lật thêm 1 lá khi draw!: ${cardFaceLabel(event.cardId)}`;
     case "PLAYER_ELIMINATED":
       return event.killedBy
         ? `${nameOf(event.playerId)} bị ${nameOf(event.killedBy)} hạ gục`
@@ -605,6 +607,8 @@ function pendingDescription(state: GameState, item: PendingAction): string {
       return `${player} chọn 1 lá để bỏ (${item.zone === "hand" ? "trên tay" : "trên sân"})`;
     case "NEED_DRAW_CHECK":
       return `${player} lật bài kiểm tra (draw!)`;
+    case "NEED_PICK_DRAW_SOURCE":
+      return `${player} chọn lấy lá trên cùng chồng bỏ hay rút bộ bài`;
     default: {
       const neverKind: never = item;
       throw new Error(`Chưa biết mô tả cho pending: ${JSON.stringify(neverKind)}`);
@@ -1310,6 +1314,8 @@ function networkRenderPendingPanel(container: HTMLElement, view: PlayerView, han
         return `${name} chọn 1 lá để bỏ (${item.zone === "hand" ? "trên tay" : "trên sân"})`;
       case "NEED_DRAW_CHECK":
         return `${name} lật bài kiểm tra (draw!)`;
+      case "NEED_PICK_DRAW_SOURCE":
+        return `${name} chọn lấy lá trên cùng chồng bỏ hay rút bộ bài`;
       default: {
         const neverKind: never = item;
         throw new Error(`Chưa biết mô tả cho pending: ${JSON.stringify(neverKind)}`);

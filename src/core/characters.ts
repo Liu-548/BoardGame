@@ -113,6 +113,21 @@ export interface CharacterDefinition {
   // reduce.ts — đẩy 1 NEED_DRAW_CHECK cho mỗi nguồn Barrel, ảo lẫn thật). Cũng
   // là DỮ LIỆU tĩnh, không phải hook — không có gì để tính, chỉ là "có/không".
   virtualBarrel?: boolean;
+  // Pedro Ramirez (đợt 4) — được HỎI đầu lượt (xem NEED_PICK_DRAW_SOURCE ở
+  // types.ts + handleDrawCards()/respondToPickDrawSource() trong reduce.ts):
+  // lấy lá 1 từ đỉnh chồng bỏ, hay rút thẳng bộ bài như bình thường? Chỉ hỏi
+  // khi chồng bỏ còn ít nhất 1 lá — rỗng thì rút thẳng bộ bài, khỏi hỏi. Cũng
+  // là DỮ LIỆU tĩnh — bản thân việc HỎI/xử lý câu trả lời là luồng action dùng
+  // chung, không có gì riêng để tính trong 1 hàm hook.
+  canDrawFromDiscardPile?: boolean;
+  // Lucky Duke (đợt 4) — MỌI lần draw! (Barrel/Jail/Dynamite...) đều lật thêm
+  // 1 lá thứ 2, dùng lá có lợi hơn làm kết quả, cả 2 lá đều vào chồng bỏ (xem
+  // resolveDrawCheck() trong reduce.ts). KHÔNG đặt trong CharacterHooks dù file
+  // đặc tả gọi đây là 1 "hook" (onDrawCheck) — "có lợi" nghĩa là gì đã được
+  // CHỐT theo NGỮ CẢNH của từng loại draw! (Barrel/Jail: có lợi = khớp Cơ;
+  // Dynamite: có lợi = KHÔNG khớp, tức không nổ), logic đó DÙNG CHUNG cho bất
+  // kỳ ai có field này, không phải hàm riêng của Lucky Duke.
+  hasLuckyDraw?: boolean;
   hooks: CharacterHooks;
 }
 
@@ -290,20 +305,41 @@ export const CHARACTERS: Record<string, CharacterDefinition> = {
       },
     },
   },
+
+  pedro_ramirez: {
+    id: "pedro_ramirez",
+    name: "Pedro Ramirez",
+    bullets: 4,
+    canDrawFromDiscardPile: true,
+    hooks: {},
+  },
+
+  lucky_duke: {
+    id: "lucky_duke",
+    name: "Lucky Duke",
+    bullets: 4,
+    hasLuckyDraw: true,
+    hooks: {},
+  },
 };
 
 // ----- Hook/nhân vật còn lại, ĐỂ DÀNH cho các đợt 5.2 sau -----
 //
 // onDrawPhase (đã nối dây ở việc 5.2 đợt 2, xem handleDrawCards() trong
 // reduce.ts) — Black Jack dùng được ngay vì KHÔNG có lựa chọn (tự động theo lá
-// lật ra). 3 người còn lại vẫn để dành vì CÓ lựa chọn, cần thêm PendingAction
-// mới (bước chờ chọn nguồn rút/lá giữ):
-//   Jesse Jones     chọn rút lá 1 từ bộ bài hay từ tay 1 người khác.
-//   Kit Carlson     xem 3 lá trên cùng, giữ 2, bỏ 1 vào chồng bỏ.
-//   Pedro Ramirez   chọn rút lá 1 từ bộ bài hay từ đỉnh chồng bỏ.
+// lật ra). 2 người còn lại (Jesse Jones/Kit Carlson) vẫn để dành vì CÓ lựa
+// chọn thật SAU KHI đã biết thông tin (tay người khác/3 lá vừa lật) — không
+// đủ để trả lời ngay trong 1 action như Pedro Ramirez, cần PendingAction mới
+// riêng cho từng người:
+//   Jesse Jones     chọn rút lá 1 từ bộ bài hay từ tay 1 người khác — CÒN có
+//                    bonus hỏi tiếp người bị lấy (tự chọn lá đưa hay ngẫu
+//                    nhiên), nên cần TỚI 2 bước chờ nối tiếp nhau.
+//   Kit Carlson     xem 3 lá trên cùng, giữ 2, bỏ 1 vào chồng bỏ — pending
+//                    phải lưu tạm 3 lá đó, và viewFor() (quy tắc 6) phải chỉ
+//                    lộ 3 lá này cho ĐÚNG Kit Carlson, không phải mọi người
+//                    (khác NEED_PICK_STORE_CARD — General Store vốn công khai
+//                    cho cả bàn) — đụng tới view.ts, không chỉ reduce.ts.
 //
-// onDrawCheck       Thay cách lật bài kiểm tra (Lucky Duke: lật 2 chọn 1, cần
-//                    PendingAction mới cho bước "tự chọn 1 trong 2 lá đã lật").
 // cardAlias         Coi lá bài này như lá khác (Calamity Janet: Bang! <->
 //                    Missed!) — đụng NHIỀU chỗ đang so khớp tên lá rải rác
 //                    trong reduce.ts, cần bọc qua 1 hàm dùng chung trước.
@@ -329,3 +365,16 @@ export const CHARACTERS: Record<string, CharacterDefinition> = {
 // — xem triggerHandEmptyHook() ở trên. KHÔNG gắn ở 2 chỗ hand bị xoá sạch vì
 // chết/bị phạt (eliminatePlayer()/hình phạt Cảnh sát trưởng trong reduce.ts) —
 // 2 ca đó không nằm trong các tình huống file đặc tả liệt kê.
+//
+// Pedro Ramirez (canDrawFromDiscardPile, đợt 4) đã xong — đầu lượt được HỎI
+// thật (NEED_PICK_DRAW_SOURCE, xem types.ts + handleDrawCards()/
+// respondToPickDrawSource() trong reduce.ts), KHÔNG nhét lựa chọn thẳng vào
+// action DRAW_CARDS (bàn lại với chủ dự án, đổi hướng so với đề xuất ban đầu).
+// Đỉnh chồng bỏ vốn công khai nên không cần view.ts đụng gì. Chồng bỏ rỗng thì
+// khỏi hỏi, rút thẳng bộ bài như bình thường.
+//
+// Lucky Duke (hasLuckyDraw, đợt 4) đã xong — hoá ra KHÔNG cần hook/pending gì,
+// chỉ 1 field tĩnh: resolveDrawCheck() tự lật thêm 1 lá thứ 2 và áp logic
+// "có lợi theo ngữ cảnh" (Barrel/Jail: khớp Cơ; Dynamite: KHÔNG khớp) đã CHỐT
+// sẵn trong file đặc tả — không phải quyết định của người chơi nên không cần
+// hỏi gì cả.

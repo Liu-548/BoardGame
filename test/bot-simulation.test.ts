@@ -156,6 +156,10 @@ function chooseRespondAction(state: GameState): Action {
     }
     case "NEED_DRAW_CHECK":
       return { type: "RESPOND", playerId: top.player };
+    case "NEED_PICK_DRAW_SOURCE":
+      // Giai đoạn 5 (Pedro Ramirez) — bot cứ rút bộ bài như bình thường, khỏi
+      // cần lấy chồng bỏ (an toàn, luôn hợp lệ).
+      return { type: "RESPOND", playerId: top.player };
     default: {
       const neverKind: never = top;
       throw new Error(`Bot chưa biết cách phản hồi: ${JSON.stringify(neverKind)}`);
