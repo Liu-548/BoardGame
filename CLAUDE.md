@@ -135,7 +135,7 @@ Nguyên tắc chung:
 
 > Cập nhật dòng này mỗi khi xong một giai đoạn. Xem `LO-TRINH.md`.
 
-**Đang ở:** Giai đoạn 4 — Hoàn thiện. Giai đoạn 3 (việc 3.1 → 3.10 + 2 việc bổ sung) đã xong hẳn — xem lịch sử bên dưới. **Vừa xong khung cơ bản của việc 4.6** (hình ảnh lá bài) — CHƯA có ảnh thật nào, chỉ mới dựng sẵn hạ tầng để cắm ảnh vào là chạy.
+**Đang ở:** Giai đoạn 4 — Hoàn thiện. Giai đoạn 3 (việc 3.1 → 3.10 + 2 việc bổ sung) đã xong hẳn — xem lịch sử bên dưới. **Vừa xong 1 việc bổ sung sau 4.6** (viền màu theo loại lá, khung nhân vật xem trước, tên lá tách khỏi ảnh, nhấn giữ/hover xem mô tả) — 4.6 vẫn CHƯA có ảnh thật nào, chỉ có hạ tầng.
 
 - 3.1-3.4 (gọn lại): `src/server/index.ts` + `src/server/room.ts` (Durable Object `Room`) — deploy thật ở **https://bang-boardgame.nguyenngoctuan548.workers.dev**. WebSocket dùng Hibernation API đúng cách (`ctx.acceptWebSocket()`, không `server.accept()` — quy tắc 7). Định tuyến `/room/<mã phòng>`.
 - **Quan trọng (phát hiện sau việc 3.10):** deploy trước đó CHỈ đưa lên phần server (Worker) — mở link công khai chỉ thấy dòng "Thiếu mã phòng...", KHÔNG thấy giao diện chơi, vì client (`index.html`/`main.ts`/`ui.ts`) chưa từng được build+phục vụ. Đã sửa: `wrangler.jsonc` thêm `assets: { directory: "./dist", run_worker_first: ["/room/*"] }` — phục vụ file client đã build (`npm run build`, ra `dist/`) CHUNG domain với Worker; `/room/*` vẫn luôn chạy Worker trước (API/WebSocket), còn lại phục vụ thẳng file tĩnh. `npm run deploy` giờ tự `vite build` trước khi `wrangler deploy` (script trong `package.json`), tránh quên build. Đã deploy lại + kiểm bằng trình duyệt thật trên chính link công khai: mở `/` thấy đúng giao diện, tạo phòng qua `wss://` thật hoạt động đúng.
@@ -218,7 +218,7 @@ Nguyên tắc chung:
 
 **Giai đoạn 4 — việc 4.6 (hình ảnh lá bài) — KHUNG CƠ BẢN, chưa có ảnh thật:**
 
-- Bàn với chủ dự án trước khi làm: cần vẽ RIÊNG minh hoạ từng TÊN lá (22 tên, không phải nguyên lá bài — không vẽ khung/chữ tên/số-chất, những thứ đó đã có sẵn bằng HTML/CSS), và tên lá ĐÈ LÊN ảnh (không nằm riêng bên dưới) — chốt hiện mô tả chức năng ở CẢ 2 chỗ: tooltip (rê chuột/giữ lâu) lúc đang chơi + màn hình "Chú giải lá bài" riêng xem được bất cứ lúc nào.
+- Bàn với chủ dự án trước khi làm: cần vẽ RIÊNG minh hoạ từng TÊN lá (22 tên, không phải nguyên lá bài — không vẽ khung/chữ tên/số-chất, những thứ đó đã có sẵn bằng HTML/CSS) — chốt hiện mô tả chức năng ở CẢ 2 chỗ: tooltip (rê chuột/giữ lâu) lúc đang chơi + màn hình "Chú giải lá bài" riêng xem được bất cứ lúc nào. (Quyết định ban đầu "tên lá ĐÈ LÊN ảnh" ở đây đã bị **đổi lại** ngay sau đó — xem việc bổ sung bên dưới, tên giờ nằm RIÊNG bên dưới ảnh.)
 - `public/sprites/<tên lá>.png` — quy ước đường dẫn (README.md ngay trong thư mục đó liệt kê đủ 22 tên file cần). `cardImageUrl()` (`ui.ts`) ghép sẵn, CHƯA có file ảnh nào — `<img>` bắn sự kiện `error` thì tự ẩn, quay về hiện đúng y hệt giao diện chữ suông như trước việc 4.6 (đúng yêu cầu gốc LO-TRINH.md: "thiếu ảnh vẫn hiển thị bằng chữ").
 - Component dùng chung `.card-box` (`appendCardVisual()`/`cardButton()`/`cardChip()` trong `ui.ts`) thay hẳn kiểu nút/span chữ suông cũ — dùng ở MỌI nơi hiện 1 lá cụ thể: bài trên tay, trang bị trên sân, tuỳ chọn Cửa hàng tổng hợp (cả hotseat lẫn qua mạng). Trạng thái "đang cầm lên chờ chọn mục tiêu" → viền xanh (`card-box--armed`); "đã tick chọn để bỏ bài thừa" → viền xanh + dấu ✓ góc (`card-box--checked`); "không bấm được" → mờ đi (`card-box--inert`).
 - `CARD_DESCRIPTIONS` (`ui.ts`) — mô tả ngắn cho đủ 22 lá, soạn theo ĐÚNG luật đã cài trong `reduce.ts` (đọc kỹ lại toàn bộ file trước khi viết, không chép luật gốc BANG! từ trí nhớ) — vài chỗ bản này CỐ Ý lệch luật gốc, mô tả phải khớp đúng cái đang chạy: Cat Balou không giới hạn khoảng cách (luật gốc có), Beer HIỆN CHƯA có ngoại lệ "vô tác dụng khi chỉ còn 2 người sống" (comment trong `reduce.ts` xác nhận đây là lỗ hổng CHƯA cài, không phải cố ý).
@@ -230,7 +230,19 @@ Nguyên tắc chung:
 
 162 test đều pass (không đổi `core/` ở việc 4.6 nên không cần thêm test).
 
-**Việc tiếp theo:** hoàn thành phần "ảnh thật" của việc 4.6 (chủ dự án tự vẽ/tìm ảnh dần), rồi tới `LO-TRINH.md` — dự án đã hết Giai đoạn 4 về mặt CODE (4.1-4.6 khung đều xong), việc còn lại chủ yếu là bổ sung tài sản hình ảnh không vội.
+**Việc bổ sung sau 4.6 (theo yêu cầu thêm của chủ dự án):**
+
+- **Viền màu theo loại lá**: nâu (`card-box--brown`) cho lá nâu, xanh dương (`card-box--blue`) cho lá trang bị, xanh lá (`card-box--character`) dành riêng cho khung nhân vật (xem mục dưới). Khai báo 3 class này TRƯỚC `--armed`/`--checked` trong CSS để trạng thái "đang chọn" (viền xanh lá cây accent `#2a7`, khác 3 màu loại lá) luôn thắng khi cả 2 cùng áp dụng.
+- **Tên lá tách khỏi ảnh**: đổi hẳn cấu trúc `.card-box` — ảnh nằm trong `.card-box__image-wrap` riêng, tên nằm ở `.card-box__name` NGAY BÊN DƯỚI (flow bình thường, không `position:absolute` đè lên ảnh nữa như quyết định ban đầu của việc 4.6).
+- **Khung nhân vật xem trước**: `renderCharacterPreviewSection()` trong `ui.ts` — thêm 1 mục ví dụ (viền xanh lá, ảnh trống + tên "Tên nhân vật (ví dụ)") ở cuối màn hình "Chú giải lá bài", để sau này Giai đoạn 5 (16 nhân vật, xem `LO-TRINH.md`) cắm dữ liệu thật vào là dùng được ngay khung này — **CHƯA có nhân vật thật nào** (đúng quy tắc "Chưa làm tới, đừng đụng vào: Nhân vật"), chỉ là 1 ô demo cho biết khung trông ra sao. Tên nhân vật (vd sau này "Willy the Kid") là khái niệm KHÁC với tên hiển thị người chơi tự gõ lúc vào phòng (An, Bình...).
+- **Nhấn giữ/hover xem mô tả chức năng**: máy tính dùng thẳng thuộc tính `title` có sẵn (trình duyệt tự hiện khi rê chuột, không cần code thêm); thiết bị cảm ứng không có "rê chuột" nên tự bắt sự kiện `touchstart`/`touchend`/`touchmove` (hàm `attachDescriptionReveal()` trong `ui.ts`) — giữ đủ 500ms hiện 1 popup nhỏ cạnh lá (`.card-description-popup`, CSS `position:fixed`), nhả tay hoặc trượt ngón tay thì tắt. `touchend` gọi `event.preventDefault()` để CHẶN sự kiện "click" giả lập trình duyệt tự sinh sau đó — không chặn thì nhả tay sau khi xem mô tả xong sẽ vô tình bấm luôn lá (đánh bài/tick chọn bỏ...).
+- Đã tự kiểm bằng `vite dev` + trình duyệt thật: viền nâu/xanh dương hiện đúng theo loại lá ở cả màn hình Chú giải lẫn trong ván; khung nhân vật xem trước hiện đúng viền xanh lá; tên lá giờ nằm tách hẳn dưới ảnh, không đè lên nữa; `title` gắn đúng mô tả (kiểm qua JS, không chỉ nhìn — tooltip gốc trình duyệt khó chụp màn hình); giả lập sự kiện `touchstart` xác nhận popup nhấn-giữ hiện đúng nội dung mô tả sau ~500ms, chụp màn hình thấy rõ popup. Không lỗi console.
+- Không đụng `core/` — mọi thứ ở `ui.ts`/CSS.
+- Đã deploy live: **https://bang-boardgame.nguyenngoctuan548.workers.dev**.
+
+162 test đều pass (không đụng `core/` nên không cần thêm test).
+
+**Việc tiếp theo:** hoàn thành phần "ảnh thật" của việc 4.6 (chủ dự án tự vẽ/tìm ảnh dần bỏ vào `public/sprites/`, kể cả ảnh nhân vật khi tới Giai đoạn 5), rồi tới `LO-TRINH.md` — dự án đã hết Giai đoạn 4 về mặt CODE (4.1-4.6 khung đều xong), việc còn lại chủ yếu là bổ sung tài sản hình ảnh không vội.
 
 ## Chưa làm tới, đừng đụng vào
 

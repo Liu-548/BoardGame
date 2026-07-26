@@ -84,25 +84,35 @@ input[type="text"] {
   background: #f2f2f2;
 }
 
-/* Việc 4.6: khung lá bài dùng chung cho MỌI nơi hiện 1 lá cụ thể (tay, sân,
-   Cửa hàng tổng hợp, màn hình Chú giải) — ảnh (nếu có) làm nền, tên đè lên
-   trên. Chưa có ảnh (đang ở việc 4.6, ảnh thêm dần sau) -> <img> tự ẩn khi lỗi
-   (xem appendCardVisual() ở ui.ts), chỉ còn nền xám + tên chữ, giống hệt giao
-   diện trước việc 4.6. */
+/* Việc 4.6 + bổ sung: khung lá bài dùng chung cho MỌI nơi hiện 1 lá/nhân vật
+   cụ thể (tay, sân, Cửa hàng tổng hợp, màn hình Chú giải) — ảnh ở trên, tên
+   chữ RIÊNG bên dưới (không đè lên ảnh, xem appendCardVisual() ở ui.ts). Chưa
+   có ảnh thật (đang bổ sung dần) -> <img> tự ẩn khi lỗi, chỉ còn nền xám +
+   tên chữ, không vỡ giao diện. Viền MẶC ĐỊNH xám — đổi màu theo loại lá bằng
+   .card-box--brown/--blue/--character (khai báo TRƯỚC --armed/--checked bên
+   dưới, để 2 class đó — trạng thái đang chọn — luôn thắng khi cùng áp dụng). */
 .card-box {
-  position: relative;
+  display: inline-flex;
+  flex-direction: column;
   width: 4.5rem;
-  height: 4.5rem;
   padding: 0;
-  border: 1px solid #ccc;
+  border: 2px solid #ccc;
   border-radius: 0.35rem;
   overflow: hidden;
-  background: #f2f2f2;
+  background: #fff;
   flex-shrink: 0;
 }
 
 button.card-box {
   cursor: pointer;
+  font: inherit;
+}
+
+.card-box__image-wrap {
+  position: relative;
+  width: 100%;
+  height: 3.6rem;
+  background: #f2f2f2;
 }
 
 .card-box__image {
@@ -114,16 +124,23 @@ button.card-box {
 }
 
 .card-box__name {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.65);
-  color: #fff;
   font-size: 0.62rem;
-  line-height: 1.15;
+  line-height: 1.2;
   padding: 0.15rem 0.2rem;
   text-align: center;
+  color: #222;
+}
+
+.card-box--brown {
+  border-color: #8b5a2b;
+}
+
+.card-box--blue {
+  border-color: #2f6fb3;
+}
+
+.card-box--character {
+  border-color: #3f9142;
 }
 
 .card-box--inert {
@@ -132,12 +149,11 @@ button.card-box {
 
 .card-box--armed {
   border-color: #2a7;
-  border-width: 2px;
 }
 
 .card-box--checked {
   border-color: #2a7;
-  border-width: 2px;
+  position: relative;
 }
 
 .card-box--checked::after {
@@ -156,8 +172,26 @@ button.card-box {
   z-index: 2;
 }
 
+/* Nhấn giữ (thiết bị cảm ứng) hiện mô tả chức năng — xem attachDescriptionReveal()
+   ở ui.ts. Máy tính dùng luôn tooltip `title` có sẵn của trình duyệt, không
+   cần popup này. */
+.card-description-popup {
+  position: fixed;
+  z-index: 50;
+  max-width: 14rem;
+  background: #222;
+  color: #fff;
+  font-size: 0.78rem;
+  line-height: 1.3;
+  padding: 0.4rem 0.6rem;
+  border-radius: 0.35rem;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+  pointer-events: none;
+}
+
 /* Màn hình "Chú giải lá bài" (việc 4.6) — khung to hơn kèm mô tả đầy đủ bên
-   dưới, khác khung nhỏ gọn lúc đang chơi (chỉ ảnh+tên, mô tả xem qua tooltip). */
+   dưới, khác khung nhỏ gọn lúc đang chơi (chỉ ảnh+tên, mô tả xem qua tooltip/
+   nhấn giữ). */
 .card-ref-group-heading {
   margin: 1.5rem 0 0.5rem;
 }
@@ -176,9 +210,12 @@ button.card-box {
 
 .card-ref-item .card-box {
   width: 100%;
-  height: 7rem;
-  border: none;
+  border-width: 0 0 3px;
   border-radius: 0;
+}
+
+.card-ref-item .card-box__image-wrap {
+  height: 7rem;
 }
 
 .card-ref-item .card-box__name {

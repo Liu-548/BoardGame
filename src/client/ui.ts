@@ -74,9 +74,10 @@ const CARD_DESCRIPTIONS: Record<CardName, string> = {
     "Ai đang cầm, đầu lượt phải lật 1 lá: ra Bích 2-9 thì nổ mất 3 máu rồi bỏ đi; không thì tự chuyển sang người kế tiếp.",
 };
 
-// Nhóm lá nâu/xanh CHỈ để trình bày (màn hình Chú giải) — chép lại thủ công từ
-// BrownCardName/BlueCardName ở core/cards.ts (2 type đó chỉ tồn tại lúc biên
-// dịch, không có mảng thật lúc chạy) — sửa core/cards.ts thì nhớ sửa cả đây.
+// Nhóm lá nâu/xanh CHỈ để trình bày (viền màu + màn hình Chú giải) — chép lại
+// thủ công từ BrownCardName/BlueCardName ở core/cards.ts (2 type đó chỉ tồn
+// tại lúc biên dịch, không có mảng thật lúc chạy) — sửa core/cards.ts thì nhớ
+// sửa cả đây.
 const BROWN_CARD_NAMES: readonly CardName[] = [
   "bang", "missed", "beer", "saloon", "stagecoach", "wells_fargo",
   "panic", "cat_balou", "general_store", "indians", "duel", "gatling",
@@ -86,6 +87,12 @@ const BLUE_CARD_NAMES: readonly CardName[] = [
   "barrel", "scope", "mustang", "jail", "dynamite",
 ];
 
+// Việc bổ sung sau 4.6: viền màu phân biệt loại lá — nâu (đánh từ tay), xanh
+// dương (trang bị), xanh lá (nhân vật — xem CHARACTER_PREVIEW bên dưới).
+function cardTypeModifierClass(name: CardName): string {
+  return BLUE_CARD_NAMES.includes(name) ? "card-box--blue" : "card-box--brown";
+}
+
 // Việc 4.6: chưa có ảnh thật nào — quy ước đường dẫn TRƯỚC, ảnh thêm dần vào
 // public/sprites/<tên lá>.png sau (đúng tinh thần LO-TRINH.md: "có ảnh tới đâu
 // gắn tới đó"). Ảnh thiếu thì <img> bắn sự kiện "error", appendCardVisual() ẩn
@@ -94,46 +101,122 @@ function cardImageUrl(name: CardName): string {
   return `/sprites/${name}.png`;
 }
 
-// Dựng phần "thân" dùng chung cho mọi ô lá bài (ảnh + tên đè lên ảnh) — dùng
-// được cho cả <button> (lá bấm được) lẫn <span> (lá chỉ để xem). `title` (tooltip
-// rê chuột/giữ lâu) gắn mô tả chức năng nếu có (bài chưa rõ tác dụng gì thì bỏ
-// qua, vd không có mục cho lá không tồn tại).
-function appendCardVisual(el: HTMLElement, name: CardName, label: string): void {
+// Việc bổ sung sau 4.6: nhấn giữ 1 lá bài để xem mô tả chức năng.
+// - Máy tính: gán `title` — trình duyệt tự hiện tooltip khi rê chuột qua,
+//   không cần code gì thêm.
+// - Thiết bị cảm ứng KHÔNG có "rê chuột", `title` gần như vô dụng ở đó — phải
+//   tự bắt "nhấn giữ" (long-press) bằng touch event: giữ đủ LONG_PRESS_MS hiện
+//   1 popup nhỏ cạnh lá, nhả tay hoặc trượt ngón tay thì tắt. `touchend` gọi
+//   preventDefault() để CHẶN LUÔN sự kiện "click" giả lập trình duyệt tự sinh
+//   ra sau đó — không chặn thì nhả tay sau khi xem xong sẽ vô tình bấm luôn lá
+//   (đánh bài/tick chọn bỏ...), không phải điều người dùng muốn.
+const LONG_PRESS_MS = 500;
+
+function attachDescriptionReveal(el: HTMLElement, description: string | undefined): void {
+  if (!description) return;
+  el.title = description;
+
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  let popup: HTMLElement | null = null;
+  let triggered = false;
+
+  const clearTimer = () => {
+    if (timer !== null) {
+      clearTimeout(timer);
+      timer = null;
+    }
+  };
+  const hidePopup = () => {
+    popup?.remove();
+    popup = null;
+  };
+  const showPopup = () => {
+    triggered = true;
+    popup = document.createElement("div");
+    popup.className = "card-description-popup";
+    popup.textContent = description;
+    document.body.appendChild(popup);
+    const rect = el.getBoundingClientRect();
+    popup.style.left = `${rect.left}px`;
+    popup.style.top = `${rect.bottom + 4}px`;
+  };
+
+  el.addEventListener(
+    "touchstart",
+    () => {
+      triggered = false;
+      clearTimer();
+      timer = setTimeout(showPopup, LONG_PRESS_MS);
+    },
+    { passive: true }
+  );
+  el.addEventListener("touchmove", () => {
+    clearTimer();
+    hidePopup();
+  });
+  el.addEventListener(
+    "touchend",
+    (event) => {
+      clearTimer();
+      if (triggered) {
+        event.preventDefault();
+        hidePopup();
+      }
+    },
+    { passive: false }
+  );
+  el.addEventListener("touchcancel", () => {
+    clearTimer();
+    hidePopup();
+  });
+}
+
+// Dựng phần "thân" dùng chung cho mọi ô lá bài/nhân vật: ảnh ở trên, tên chữ
+// RIÊNG bên dưới (không đè lên ảnh — dễ đọc trên mọi màu nền ảnh, và ảnh thiếu
+// thì tên vẫn luôn hiện đúng chỗ, không lệch). Dùng được cho cả <button> (bấm
+// được) lẫn <span>/<div> (chỉ để xem). `description` bỏ trống thì không gắn
+// tooltip/nhấn-giữ gì cả (dùng ở màn hình Chú giải, nơi mô tả đã hiện thành
+// chữ riêng ngay bên dưới, gắn thêm sẽ thừa).
+function appendCardVisual(el: HTMLElement, imageUrl: string, label: string, description?: string): void {
+  const imageWrap = document.createElement("span");
+  imageWrap.className = "card-box__image-wrap";
   const img = document.createElement("img");
   img.className = "card-box__image";
   img.alt = "";
-  img.src = cardImageUrl(name);
+  img.src = imageUrl;
   img.addEventListener("error", () => {
-    img.style.display = "none"; // thiếu ảnh -> ẩn đi, chỉ còn tên chữ (xem CSS .card-box)
+    img.style.display = "none"; // thiếu ảnh -> ẩn đi, chỉ còn nền xám + tên chữ
   });
-  el.appendChild(img);
+  imageWrap.appendChild(img);
+  el.appendChild(imageWrap);
 
   const nameEl = document.createElement("span");
   nameEl.className = "card-box__name";
   nameEl.textContent = label;
   el.appendChild(nameEl);
 
-  const description = CARD_DESCRIPTIONS[name];
-  if (description) el.title = description;
+  attachDescriptionReveal(el, description);
 }
 
 // Lá BẤM ĐƯỢC (đánh ra, chọn để bỏ, chọn ở Cửa hàng tổng hợp...). `modifierClass`
 // tuỳ ngữ cảnh: "card-box--armed" (đang cầm lên chờ chọn mục tiêu) hoặc
 // "card-box--checked" (đã tick chọn để bỏ bài thừa cuối lượt).
 function cardButton(cardId: string, onClick: () => void, modifierClass?: string): HTMLButtonElement {
+  const name = cardNameFromId(cardId);
   const el = document.createElement("button");
   el.type = "button";
-  el.className = modifierClass ? `card-box ${modifierClass}` : "card-box";
-  appendCardVisual(el, cardNameFromId(cardId), cardLabel(cardId));
+  el.className = ["card-box", cardTypeModifierClass(name), modifierClass].filter(Boolean).join(" ");
+  appendCardVisual(el, cardImageUrl(name), cardLabel(cardId), CARD_DESCRIPTIONS[name]);
   el.addEventListener("click", onClick);
   return el;
 }
 
 // Lá CHỈ ĐỂ XEM (không bấm được — không tới lượt, không phải lá cần phản hồi...).
 function cardChip(cardId: string): HTMLSpanElement {
+  const name = cardNameFromId(cardId);
   const el = document.createElement("span");
-  el.className = "card-box card-box--inert";
-  appendCardVisual(el, cardNameFromId(cardId), cardLabel(cardId));
+  el.className = `card-box card-box--inert ${cardTypeModifierClass(name)}`;
+  appendCardVisual(el, cardImageUrl(name), cardLabel(cardId), CARD_DESCRIPTIONS[name]);
   return el;
 }
 
@@ -786,8 +869,10 @@ function renderCardReferenceGroup(container: HTMLElement, heading: string, names
     item.className = "card-ref-item";
 
     const box = document.createElement("div");
-    box.className = "card-box";
-    appendCardVisual(box, name, CARD_LABELS[name]);
+    box.className = `card-box ${cardTypeModifierClass(name)}`;
+    // Không truyền description — mô tả đã hiện thành chữ riêng ngay bên dưới
+    // (xem appendCardVisual()), gắn thêm tooltip/nhấn-giữ ở đây là thừa.
+    appendCardVisual(box, cardImageUrl(name), CARD_LABELS[name]);
     item.appendChild(box);
 
     const desc = document.createElement("p");
@@ -797,6 +882,42 @@ function renderCardReferenceGroup(container: HTMLElement, heading: string, names
 
     grid.appendChild(item);
   }
+  container.appendChild(grid);
+}
+
+// Việc bổ sung sau 4.6: DỰNG SẴN khung nhân vật (viền xanh lá, ảnh + tên riêng
+// y hệt lá bài) để Giai đoạn 5 (16 nhân vật, xem LO-TRINH.md) chỉ cần cắm dữ
+// liệu thật vào — CHƯA có nhân vật nào thật sự tồn tại trong core/ (đúng quy
+// tắc "Chưa làm tới, đừng đụng vào: Nhân vật"), đây CHỈ là 1 ô xem trước cho
+// biết khung trông thế nào, không phải danh sách nhân vật thật. Tên nhân vật
+// (vd sau này "Willy the Kid") KHÁC với tên hiển thị người chơi tự gõ (An,
+// Bình...) — 2 khái niệm khác nhau, xem thêm ghi chú người dùng yêu cầu việc
+// này trong lịch sử trò chuyện/CLAUDE.md.
+function renderCharacterPreviewSection(container: HTMLElement): void {
+  const headingEl = document.createElement("h3");
+  headingEl.className = "card-ref-group-heading";
+  headingEl.textContent = "Nhân vật (chưa có trong bản này — xem trước khung)";
+  container.appendChild(headingEl);
+
+  const grid = document.createElement("div");
+  grid.className = "card-ref-grid";
+
+  const item = document.createElement("div");
+  item.className = "card-ref-item";
+
+  const box = document.createElement("div");
+  box.className = "card-box card-box--character";
+  appendCardVisual(box, "/sprites/characters/_preview.png", "Tên nhân vật (ví dụ)");
+  item.appendChild(box);
+
+  const desc = document.createElement("p");
+  desc.className = "card-ref-item__desc";
+  desc.textContent =
+    "Khung ví dụ — Giai đoạn 5 mới thật sự thêm 16 nhân vật (mỗi người 1 kỹ năng riêng). " +
+    "Tên nhân vật khác với tên hiển thị bạn tự gõ lúc vào phòng.";
+  item.appendChild(desc);
+
+  grid.appendChild(item);
   container.appendChild(grid);
 }
 
@@ -811,6 +932,7 @@ export function renderCardReferenceScreen(container: HTMLElement, handlers: Card
 
   renderCardReferenceGroup(container, "Bài nâu (đánh từ tay, chơi xong vào chồng bỏ)", BROWN_CARD_NAMES);
   renderCardReferenceGroup(container, "Bài xanh (trang bị, để ngửa trước mặt tới khi mất)", BLUE_CARD_NAMES);
+  renderCharacterPreviewSection(container);
 }
 
 export interface NetworkLobbyFormHandlers {
