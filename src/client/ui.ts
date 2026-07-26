@@ -328,6 +328,8 @@ export function describeEvent(event: GameEvent, nameOf: (id: string) => string):
       return `${nameOf(event.playerId)} thoát khỏi Nhà tù`;
     case "JAIL_SKIPPED_TURN":
       return `${nameOf(event.playerId)} bị giam trong Nhà tù, mất lượt`;
+    case "BLACK_JACK_REVEALED":
+      return `${nameOf(event.playerId)} (Black Jack) lật ngửa lá thứ 2 lúc rút bài: ${cardFaceLabel(event.cardId)}`;
     case "PLAYER_ELIMINATED":
       return event.killedBy
         ? `${nameOf(event.playerId)} bị ${nameOf(event.killedBy)} hạ gục`

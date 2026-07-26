@@ -117,6 +117,10 @@ export type GameEvent =
   | { type: "DYNAMITE_PASSED"; playerId: string } // draw! không khớp, chuyển cho người kế tiếp
   | { type: "JAIL_ESCAPED"; playerId: string } // draw! khớp Cơ đầu lượt, thoát tù chơi bình thường
   | { type: "JAIL_SKIPPED_TURN"; playerId: string } // draw! không khớp, bỏ qua cả lượt
+  // Giai đoạn 5 (Black Jack) — lá thứ 2 lúc rút bài đầu lượt lật NGỬA cho mọi
+  // người xem (dù vẫn nằm trong tay, bình thường bị ẩn — xem view.ts). Tiền lệ
+  // giống DRAW_CHECK_RESOLVED đã công khai 1 lá vốn bị ẩn.
+  | { type: "BLACK_JACK_REVEALED"; playerId: string; cardId: string }
   // ----- Việc 1.13: chết, thưởng/phạt, điều kiện thắng -----
   // killedBy = người trực tiếp gây đòn đánh khiến hp về 0 (Bang!/Gatling/
   // Indians!/Duel). null nếu tự chết (Dynamite) — không có ai "giết" cả.

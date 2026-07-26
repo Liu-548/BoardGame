@@ -1,7 +1,8 @@
-// Việc 5.2 (đợt 1) — kiểm tra DỮ LIỆU THẬT của 6 nhân vật dùng ngay được hook
-// đã nối dây ở 5.1: Bart Cassidy, El Gringo, Paul Regret, Rose Doolan,
-// Vulture Sam, Willy the Kid. Khác test/characters.test.ts (kiểm tra HỆ
-// THỐNG hook bằng nhân vật giả) — ở đây dùng THẲNG id thật trong CHARACTERS.
+// Việc 5.2 (đợt 1 + đợt 2) — kiểm tra DỮ LIỆU THẬT của các nhân vật dùng
+// ngay được, không cần PendingAction/luồng action mới: đợt 1 — Bart Cassidy,
+// El Gringo, Paul Regret, Rose Doolan, Vulture Sam, Willy the Kid; đợt 2 —
+// Jourdonnais, Black Jack. Khác test/characters.test.ts (kiểm tra HỆ THỐNG
+// hook bằng nhân vật giả) — ở đây dùng THẲNG id thật trong CHARACTERS.
 import { describe, expect, it } from "vitest";
 import { computeDistance } from "../src/core/distance";
 import { reduce } from "../src/core/reduce";
@@ -256,5 +257,117 @@ describe("Willy the Kid — bỏ giới hạn 1 Bang!/lượt dù không cầm V
     expect(() =>
       reduce(state, { type: "PLAY_CARD", playerId: "a", cardId: "bang_2", targetId: "b" })
     ).toThrow();
+  });
+});
+
+describe("Jourdonnais — luôn có sẵn 1 Barrel ảo, cộng dồn được với Barrel thật", () => {
+  it("không có Barrel thật: bị Bang! vẫn được draw! 1 lần, ra Cơ thì né miễn phí", () => {
+    const state = makeState({
+      players: [
+        makePlayer("a", { hand: ["bang_1"] }),
+        makePlayer("b", { characterId: "jourdonnais" }),
+        makePlayer("c"),
+      ],
+      deck: ["duel_1"], // hearts, Q — khớp
+    });
+
+    const played = reduce(state, { type: "PLAY_CARD", playerId: "a", cardId: "bang_1", targetId: "b" });
+    expect(played.state.pending).toEqual([
+      { kind: "NEED_MISSED", player: "b", source: { card: "bang", from: "a" } },
+      { kind: "NEED_DRAW_CHECK", player: "b", source: { card: "barrel" }, matchSuits: ["hearts"] },
+    ]);
+
+    const { state: next, events } = reduce(played.state, { type: "RESPOND", playerId: "b" });
+
+    expect(next.pending).toEqual([]); // né xong, không còn gì chờ
+    expect(next.players[1].hp).toBe(4); // không mất máu
+    expect(events).toContainEqual({ type: "BARREL_DODGED", playerId: "b" });
+  });
+
+  it("không ra Cơ thì vẫn phải đỡ Missed!/chịu mất máu như bình thường", () => {
+    const state = makeState({
+      players: [
+        makePlayer("a", { hand: ["bang_1"] }),
+        makePlayer("b", { characterId: "jourdonnais" }),
+        makePlayer("c"),
+      ],
+      deck: ["duel_2"], // spades, J — không khớp
+    });
+
+    const played = reduce(state, { type: "PLAY_CARD", playerId: "a", cardId: "bang_1", targetId: "b" });
+    const { state: next } = reduce(played.state, { type: "RESPOND", playerId: "b" });
+
+    // draw! không khớp -> bỏ luôn, còn lại đúng NEED_MISSED chờ Missed!/chịu máu.
+    expect(next.pending).toEqual([
+      { kind: "NEED_MISSED", player: "b", source: { card: "bang", from: "a" } },
+    ]);
+  });
+
+  it("có thêm Barrel thật: 2 nguồn cộng dồn (2 lượt draw! chờ sẵn), khớp Cơ ở BẤT KỲ lượt nào cũng né hết", () => {
+    const state = makeState({
+      players: [
+        makePlayer("a", { hand: ["bang_1"] }),
+        makePlayer("b", { characterId: "jourdonnais", equipment: ["barrel_1"] }),
+        makePlayer("c"),
+      ],
+      deck: ["duel_1"], // hearts, Q — khớp ngay ở lượt draw! ĐẦU TIÊN
+    });
+
+    const played = reduce(state, { type: "PLAY_CARD", playerId: "a", cardId: "bang_1", targetId: "b" });
+    expect(played.state.pending.length).toBe(3); // NEED_MISSED + 2 NEED_DRAW_CHECK
+
+    const { state: next, events } = reduce(played.state, { type: "RESPOND", playerId: "b" });
+
+    // Khớp ngay từ lượt đầu -> dọn sạch NEED_DRAW_CHECK còn lại LẪN NEED_MISSED,
+    // không cần draw! thêm lần 2 (chỉ tốn đúng 1 lá từ deck).
+    expect(next.pending).toEqual([]);
+    expect(next.deck).toEqual([]);
+    expect(events).toContainEqual({ type: "BARREL_DODGED", playerId: "b" });
+  });
+});
+
+describe("Black Jack — lật ngửa lá thứ 2 lúc rút bài, đỏ thì rút thêm lá thứ 3", () => {
+  it("lá thứ 2 ra ĐEN: chỉ rút đúng 2 lá như thường", () => {
+    const state = makeState({
+      players: [makePlayer("a", { characterId: "black_jack" }), makePlayer("b"), makePlayer("c")],
+      turnPhase: "draw",
+      deck: ["beer_2", "beer_1"], // rút thứ tự: beer_1 rồi beer_2 (clubs, đen)
+    });
+
+    const { state: next, events } = reduce(state, { type: "DRAW_CARDS", playerId: "a" });
+
+    expect(next.players[0].hand).toEqual(["beer_1", "beer_2"]);
+    expect(next.turnPhase).toBe("play");
+    expect(events).toContainEqual({ type: "BLACK_JACK_REVEALED", playerId: "a", cardId: "beer_2" });
+    expect(events).toContainEqual({ type: "CARDS_DRAWN", playerId: "a", count: 2 });
+  });
+
+  it("lá thứ 2 ra ĐỎ: rút thêm lá thứ 3", () => {
+    const state = makeState({
+      players: [makePlayer("a", { characterId: "black_jack" }), makePlayer("b"), makePlayer("c")],
+      turnPhase: "draw",
+      // rút thứ tự: beer_1 (thứ 1), duel_1 (thứ 2, hearts — đỏ), beer_3 (thứ 3)
+      deck: ["beer_3", "duel_1", "beer_1"],
+    });
+
+    const { state: next, events } = reduce(state, { type: "DRAW_CARDS", playerId: "a" });
+
+    expect(next.players[0].hand).toEqual(["beer_1", "duel_1", "beer_3"]);
+    expect(events).toContainEqual({ type: "BLACK_JACK_REVEALED", playerId: "a", cardId: "duel_1" });
+    expect(events).toContainEqual({ type: "CARDS_DRAWN", playerId: "a", count: 3 });
+  });
+
+  it("người KHÔNG phải Black Jack vẫn rút đúng 2 lá như cũ, không có sự kiện lật ngửa", () => {
+    const state = makeState({
+      players: [makePlayer("a"), makePlayer("b"), makePlayer("c")],
+      turnPhase: "draw",
+      deck: ["beer_2", "beer_1"],
+    });
+
+    const { state: next, events } = reduce(state, { type: "DRAW_CARDS", playerId: "a" });
+
+    expect(next.players[0].hand).toEqual(["beer_1", "beer_2"]);
+    expect(events).not.toContainEqual(expect.objectContaining({ type: "BLACK_JACK_REVEALED" }));
+    expect(events).toContainEqual({ type: "CARDS_DRAWN", playerId: "a", count: 2 });
   });
 });

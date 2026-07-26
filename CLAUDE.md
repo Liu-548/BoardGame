@@ -39,7 +39,7 @@ src/
     deck.ts        ← MỚI (việc 5.2): drawTopCard() — tách khỏi reduce.ts để
                       characters.ts dùng được mà không vòng lặp import
     characters.ts  ← MỚI (việc 5.1/5.2): hệ thống hook + registry nhân vật
-                      (CHARACTERS — mới có 6/16 nhân vật, xem trạng thái bên dưới)
+                      (CHARACTERS — mới có 8/16 nhân vật, xem trạng thái bên dưới)
   server/
     index.ts     ← Worker entry, định tuyến theo mã phòng
     room.ts      ← lớp Durable Object, 1 instance = 1 phòng
@@ -143,7 +143,7 @@ Nguyên tắc chung:
 
 > Cập nhật dòng này mỗi khi xong một giai đoạn. Xem `LO-TRINH.md`.
 
-**Đang ở:** Giai đoạn 4 xong (4.1-4.6 khung, còn thiếu ảnh thật). Giai đoạn 5 — việc 5.1 (hệ thống hook) xong. **Vừa xong việc 5.2 đợt 1**: 6/16 nhân vật (Bart Cassidy, El Gringo, Paul Regret, Rose Doolan, Vulture Sam, Willy the Kid) — 10 người còn lại (cần pending/luồng action mới) để dành đợt sau. Xem `NHAN-VAT-BANG-CO-BAN.txt` (đặc tả đủ 16 nhân vật + 9 loại hook, chủ dự án viết).
+**Đang ở:** Giai đoạn 4 xong (4.1-4.6 khung, còn thiếu ảnh thật). Giai đoạn 5 — việc 5.1 (hệ thống hook) xong. Việc 5.2 đợt 1 (6 nhân vật) xong. **Vừa xong việc 5.2 đợt 2**: thêm Jourdonnais + Black Jack (8/16 nhân vật) — 8 người còn lại (cần pending/luồng action mới, trừ Sid Ketchum cần cả luồng action riêng) để dành đợt sau. Xem `NHAN-VAT-BANG-CO-BAN.txt` (đặc tả đủ 16 nhân vật + 9 loại hook, chủ dự án viết).
 
 - 3.1-3.4 (gọn lại): `src/server/index.ts` + `src/server/room.ts` (Durable Object `Room`) — deploy thật ở **https://bang-boardgame.nguyenngoctuan548.workers.dev**. WebSocket dùng Hibernation API đúng cách (`ctx.acceptWebSocket()`, không `server.accept()` — quy tắc 7). Định tuyến `/room/<mã phòng>`.
 - **Quan trọng (phát hiện sau việc 3.10):** deploy trước đó CHỈ đưa lên phần server (Worker) — mở link công khai chỉ thấy dòng "Thiếu mã phòng...", KHÔNG thấy giao diện chơi, vì client (`index.html`/`main.ts`/`ui.ts`) chưa từng được build+phục vụ. Đã sửa: `wrangler.jsonc` thêm `assets: { directory: "./dist", run_worker_first: ["/room/*"] }` — phục vụ file client đã build (`npm run build`, ra `dist/`) CHUNG domain với Worker; `/room/*` vẫn luôn chạy Worker trước (API/WebSocket), còn lại phục vụ thẳng file tĩnh. `npm run deploy` giờ tự `vite build` trước khi `wrangler deploy` (script trong `package.json`), tránh quên build. Đã deploy lại + kiểm bằng trình duyệt thật trên chính link công khai: mở `/` thấy đúng giao diện, tạo phòng qua `wss://` thật hoạt động đúng.
@@ -287,10 +287,22 @@ Nguyên tắc chung:
 
 189 test đều pass.
 
-**Việc tiếp theo:** việc 5.2 đợt 2 — nhóm nhân vật kế tiếp (Jourdonnais/Black Jack trước, ít phức tạp hơn nhóm cần `PendingAction` mới), hoặc làm cơ chế "phát 2 lá nhân vật, chọn giữ 1" thật nếu chủ dự án muốn ưu tiên trước — xem `NHAN-VAT-BANG-CO-BAN.txt` + `LO-TRINH.md`.
+**Giai đoạn 5 — việc 5.2, đợt 2 (thêm Jourdonnais + Black Jack, 8/16 nhân vật):**
+
+- Cả 2 vẫn KHÔNG cần `PendingAction`/luồng action mới — đúng tiêu chí chọn nhóm "làm trước" đã bàn ở đợt 1.
+- **Jourdonnais** hoá ra KHÔNG cần hook riêng nào cả, chỉ cần 1 field tĩnh mới `virtualBarrel?: boolean` trên `CharacterDefinition` (cùng kiểu với `bypassBangLimit` của Willy the Kid). Sửa `pushMissedReaction()` (`reduce.ts`) để đếm SỐ NGUỒN Barrel (Barrel thật trên sân + `virtualBarrel`) rồi đẩy đúng từng ấy `NEED_DRAW_CHECK` lên trên `NEED_MISSED` — có cả 2 nguồn (Jourdonnais + Barrel thật) thì có 2 lượt draw! chờ sẵn, chỉ cần 1 lần ra Cơ ở BẤT KỲ lượt nào là né hết. Phải tổng quát hoá luôn đoạn "Barrel khớp Cơ thì tự bỏ `NEED_MISSED`" trong `resolveDrawCheck()` — cũ chỉ pop đúng 1 phần tử ngay dưới, giờ phải LẶP dọn hết các `NEED_DRAW_CHECK` nguồn Barrel còn lại (của cùng người) trước khi mới pop `NEED_MISSED`, vì giờ có thể có 2 phần tử đó chồng nhau thay vì 1.
+- **Black Jack** dùng hook `onDrawPhase?(next, player): GameEvent[]` — hook MỚI, thay HẲN pha rút 2 lá mặc định trong `handleDrawCards()` (`reduce.ts`) khi nhân vật có định nghĩa nó. Rút lá 1 (úp), lá 2 công khai (event mới `BLACK_JACK_REVEALED` trong `types.ts` — tiền lệ giống `DRAW_CHECK_RESOLVED` đã công khai 1 lá vốn bị ẩn), đỏ (Cơ/Rô) thì rút thêm lá 3. Black Jack dùng được `onDrawPhase` ngay vì KHÔNG có lựa chọn nào (hoàn toàn tự động theo lá lật ra) — 3 người còn lại cần hook này (Jesse Jones/Kit Carlson/Pedro Ramirez) đều CÓ lựa chọn nên vẫn phải để dành đợt sau (cần `PendingAction` mới).
+- `src/client/ui.ts`'s `describeEvent()` (dịch `GameEvent` ra tiếng Việt cho nhật ký ván đấu, việc 4.2) là hàm switch xét đủ mọi nhánh `GameEvent` — TypeScript tự báo lỗi biên dịch thiếu nhánh khi thêm `BLACK_JACK_REVEALED` vào `types.ts`, nên phải thêm đúng 1 dòng dịch ở đó (việc UI thuần, không phải core, giống các case khác đã có sẵn) mới qua được `tsc --noEmit`.
+- Test mới trong **`test/characters-basic.test.ts`** (6 test): Jourdonnais — không có Barrel thật (1 lượt draw!, khớp Cơ thì né/không khớp thì vẫn phải đỡ Missed! bình thường), có thêm Barrel thật (2 lượt draw! cộng dồn, khớp ngay lượt đầu thì dọn sạch cả 2 lượt cộng `NEED_MISSED` trong 1 lần RESPOND); Black Jack — lá 2 đen (rút đúng 2), lá 2 đỏ (rút thêm lá 3), người không phải Black Jack vẫn rút 2 lá như cũ không có event lật ngửa.
+- Đã tự kiểm: `npx tsc --noEmit` sạch, 195 test đều pass (189 cũ + 6 test mới).
+- Không sửa gì khác ở `ui.ts`/`main.ts` ngoài dòng dịch event bắt buộc ở trên — Jourdonnais/Black Jack cũng CHƯA hiện được trên giao diện, giống 6 người đợt 1 (chưa có màn hình chọn nhân vật).
+
+195 test đều pass.
+
+**Việc tiếp theo:** việc 5.2 đợt 3 — nhóm nhân vật kế tiếp (còn 8 người: Jesse Jones, Kit Carlson, Pedro Ramirez, Lucky Duke, Slab the Killer, Calamity Janet, Sid Ketchum, Suzy Lafayette — nhóm này đa số cần `PendingAction`/luồng action mới), hoặc làm cơ chế "phát 2 lá nhân vật, chọn giữ 1" thật nếu chủ dự án muốn ưu tiên trước — xem `NHAN-VAT-BANG-CO-BAN.txt` + `LO-TRINH.md`.
 
 ## Chưa làm tới, đừng đụng vào
 
-10/16 nhân vật còn lại (Jourdonnais, Black Jack, Jesse Jones, Kit Carlson, Pedro Ramirez, Lucky Duke, Slab the Killer, Calamity Janet, Sid Ketchum, Suzy Lafayette — xem `NHAN-VAT-BANG-CO-BAN.txt`), cơ chế "phát 2 lá nhân vật thật/chọn giữ 1" (hiện chỉ gán tạm qua `RuleOptions.characterAssignments`, KHÔNG có màn hình chọn nhân vật nào trên giao diện), expansion, house rules, đồ hoạ đẹp, âm thanh, tài khoản/đăng nhập, bảng xếp hạng.
+8/16 nhân vật còn lại (Jesse Jones, Kit Carlson, Pedro Ramirez, Lucky Duke, Slab the Killer, Calamity Janet, Sid Ketchum, Suzy Lafayette — xem `NHAN-VAT-BANG-CO-BAN.txt`), cơ chế "phát 2 lá nhân vật thật/chọn giữ 1" (hiện chỉ gán tạm qua `RuleOptions.characterAssignments`, KHÔNG có màn hình chọn nhân vật nào trên giao diện), expansion, house rules, đồ hoạ đẹp, âm thanh, tài khoản/đăng nhập, bảng xếp hạng.
 
-6 nhân vật đầu (Bart Cassidy, El Gringo, Paul Regret, Rose Doolan, Vulture Sam, Willy the Kid) đã có THẬT trong `core/characters.ts` (việc 5.2 đợt 1) nhưng CHỈ dùng được qua code/test — chưa ai chơi được qua giao diện thật vì chưa có cơ chế chọn nhân vật.
+8 nhân vật đầu (Bart Cassidy, El Gringo, Paul Regret, Rose Doolan, Vulture Sam, Willy the Kid, Jourdonnais, Black Jack) đã có THẬT trong `core/characters.ts` (việc 5.2 đợt 1+2) nhưng CHỈ dùng được qua code/test — chưa ai chơi được qua giao diện thật vì chưa có cơ chế chọn nhân vật.
