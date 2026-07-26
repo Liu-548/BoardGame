@@ -3,7 +3,7 @@
 
 import type { CardName } from "./cards";
 import { cardNameFromId, cardSuitRankFromId, isSelfEquipBlueCardName, isWeaponCardName } from "./cards";
-import { getCharacterDefinition, getCharacterHooks } from "./characters";
+import { getCharacterDefinition, getCharacterHooks, triggerHandEmptyHook } from "./characters";
 import { drawTopCard } from "./deck";
 import { computeDistance, getWeaponRange } from "./distance";
 import { giveCardToPlayer, transferDynamiteToNextPlayer } from "./equipment";
@@ -120,14 +120,12 @@ function handleDiscardCards(
     throw new Error("Phải bỏ đủ bài thừa xuống bằng đúng số máu hiện có");
   }
 
+  const events: GameEvent[] = [{ type: "CARDS_DISCARDED", playerId: player.id, cardIds: action.cardIds }];
+  events.push(...triggerHandEmptyHook(next, player)); // Giai đoạn 5 (Suzy Lafayette)
+
   advanceTurn(next);
-  return {
-    state: next,
-    events: [
-      { type: "CARDS_DISCARDED", playerId: player.id, cardIds: action.cardIds },
-      { type: "TURN_ENDED", playerId: player.id },
-    ],
-  };
+  events.push({ type: "TURN_ENDED", playerId: player.id });
+  return { state: next, events };
 }
 
 function handlePlayCard(state: GameState, action: Action & { type: "PLAY_CARD" }): Result {
@@ -152,63 +150,80 @@ function handlePlayCard(state: GameState, action: Action & { type: "PLAY_CARD" }
   // "chưa hỗ trợ" bên dưới thì throw luôn — next chỉ là bản sao cục bộ, bị huỷ
   // theo, state gốc không hề bị đụng tới.
   player.hand.splice(cardIndex, 1);
+  // Giai đoạn 5 (Suzy Lafayette, đợt 3) — kiểm tra NGAY lúc lá vừa rời tay, kể
+  // cả TRƯỚC KHI card này giải quyết xong hiệu ứng riêng (Stagecoach/Wells
+  // Fargo tự rút lại ngay sau đó) — đúng "kích hoạt đúng thời điểm lá cuối rời
+  // tay", không đợi tới cuối hàm mới kiểm tra (lúc đó có thể tay đã đầy lại).
+  const handEmptyEvents = triggerHandEmptyHook(next, player);
 
   // Lá xanh tự trang bị (súng, Barrel, Scope, Mustang) ở lại trên sân của
   // chính người đánh, KHÔNG vào chồng bỏ như lá nâu.
+  let result: Result;
   if (isSelfEquipBlueCardName(cardName)) {
-    return playEquipment(next, player, action.cardId, cardName);
-  }
+    result = playEquipment(next, player, action.cardId, cardName);
+  } else if (cardName === "jail") {
+    // Jail gắn lên sân NGƯỜI KHÁC (không phải người đánh) — cũng không vào chồng bỏ.
+    result = playJail(next, player, action);
+  } else {
+    next.discardPile.push(action.cardId);
 
-  // Jail gắn lên sân NGƯỜI KHÁC (không phải người đánh) — cũng không vào chồng bỏ.
-  if (cardName === "jail") {
-    return playJail(next, player, action);
-  }
-
-  next.discardPile.push(action.cardId);
-
-  switch (cardName) {
-    case "missed":
-      // Missed! không tự đánh ra lúc tới lượt mình (mục 7 file luật) — chỉ dùng
-      // để PHẢN ỨNG, đi qua action RESPOND (respondDiscardOrDamage), không phải
-      // PLAY_CARD.
-      throw new Error("Không thể chủ động đánh Missed! — chỉ dùng để phản ứng khi bị Bang!/Gatling");
-    case "bang":
-      return playBang(next, player, action);
-    case "beer":
-      return playBeer(next, player, action.cardId);
-    case "saloon":
-      return playSaloon(next, player, action.cardId);
-    case "stagecoach":
-      return playStagecoach(next, player, action.cardId);
-    case "wells_fargo":
-      return playWellsFargo(next, player, action.cardId);
-    case "gatling":
-      return playGatling(next, player, action);
-    case "indians":
-      return playIndians(next, player, action);
-    case "duel":
-      return playDuel(next, player, action);
-    case "general_store":
-      return playGeneralStore(next, player, action.cardId);
-    case "panic":
-      return playPanic(next, player, action);
-    case "cat_balou":
-      return playCatBalou(next, player, action);
-    case "dynamite":
-      // Dynamite không bao giờ nằm trên tay để đánh chủ động — tự động xuống
-      // sân ngay khi vào tay (xem giveCardToPlayer() trong equipment.ts). Nhánh
-      // này chỉ có thể chạy tới nếu có bug ở nơi khác làm lọt Dynamite vào tay.
-      throw new Error("Dynamite không được đánh chủ động — tự động xuống sân ngay khi vào tay");
-    default: {
-      // isSelfEquipBlueCardName() và nhánh "jail" ở trên đã xử lý hết lá xanh
-      // rồi return, switch cũng đã liệt kê đủ toàn bộ bài nâu (kể cả "missed" và
-      // "dynamite" — 2 case chỉ để throw lỗi rõ ràng, không đánh chủ động được)
-      // — dòng dưới chỉ để bắt lỗi biên dịch nếu sau này thêm loại bài mới mà
-      // quên xử lý ở đâu đó.
-      const neverCardName: never = cardName;
-      throw new Error(`Không rõ loại bài: ${JSON.stringify(neverCardName)}`);
+    switch (cardName) {
+      case "missed":
+        // Missed! không tự đánh ra lúc tới lượt mình (mục 7 file luật) — chỉ
+        // dùng để PHẢN ỨNG, đi qua action RESPOND (respondToMissed), không
+        // phải PLAY_CARD.
+        throw new Error("Không thể chủ động đánh Missed! — chỉ dùng để phản ứng khi bị Bang!/Gatling");
+      case "bang":
+        result = playBang(next, player, action);
+        break;
+      case "beer":
+        result = playBeer(next, player, action.cardId);
+        break;
+      case "saloon":
+        result = playSaloon(next, player, action.cardId);
+        break;
+      case "stagecoach":
+        result = playStagecoach(next, player, action.cardId);
+        break;
+      case "wells_fargo":
+        result = playWellsFargo(next, player, action.cardId);
+        break;
+      case "gatling":
+        result = playGatling(next, player, action);
+        break;
+      case "indians":
+        result = playIndians(next, player, action);
+        break;
+      case "duel":
+        result = playDuel(next, player, action);
+        break;
+      case "general_store":
+        result = playGeneralStore(next, player, action.cardId);
+        break;
+      case "panic":
+        result = playPanic(next, player, action);
+        break;
+      case "cat_balou":
+        result = playCatBalou(next, player, action);
+        break;
+      case "dynamite":
+        // Dynamite không bao giờ nằm trên tay để đánh chủ động — tự động xuống
+        // sân ngay khi vào tay (xem giveCardToPlayer() trong equipment.ts). Nhánh
+        // này chỉ có thể chạy tới nếu có bug ở nơi khác làm lọt Dynamite vào tay.
+        throw new Error("Dynamite không được đánh chủ động — tự động xuống sân ngay khi vào tay");
+      default: {
+        // isSelfEquipBlueCardName() và nhánh "jail" ở trên đã xử lý hết lá xanh
+        // rồi, switch cũng đã liệt kê đủ toàn bộ bài nâu (kể cả "missed" và
+        // "dynamite" — 2 case chỉ để throw lỗi rõ ràng, không đánh chủ động được)
+        // — dòng dưới chỉ để bắt lỗi biên dịch nếu sau này thêm loại bài mới mà
+        // quên xử lý ở đâu đó.
+        const neverCardName: never = cardName;
+        throw new Error(`Không rõ loại bài: ${JSON.stringify(neverCardName)}`);
+      }
     }
   }
+
+  return { state: result.state, events: [...result.events, ...handEmptyEvents] };
 }
 
 function playBang(
@@ -254,16 +269,24 @@ function playBang(
 // Đẩy NEED_MISSED cho mục tiêu; với MỖI nguồn Barrel mục tiêu có (Barrel thật
 // trên sân, VÀ/HOẶC Barrel ảo của Jourdonnais — Giai đoạn 5, xem
 // core/characters.ts), đẩy thêm 1 NEED_DRAW_CHECK lên TRÊN nó — Barrel tự
-// động draw! trước, không cần hỏi Missed! ngay (mục 11/12 file luật). Có cả 2
-// nguồn (Jourdonnais + Barrel thật) → 2 lượt draw!, chỉ cần 1 lần ra Cơ là né
-// (xem đoạn dọn dẹp trong resolveDrawCheck() bên dưới). resolveDrawCheck() sẽ
-// tự bỏ luôn NEED_MISSED bên dưới nếu bất kỳ lượt draw! nào khớp Cơ.
+// động draw! trước, không cần hỏi Missed! ngay (mục 11/12 file luật). Mỗi lượt
+// draw! khớp Cơ CHỈ tính là 1 Missed! (xem đoạn xử lý trong resolveDrawCheck()
+// bên dưới) — thường thì 1 là đủ né hết, trừ khi người đánh là Slab the Killer
+// (onOutgoingBang, đợt 3): missesNeeded > 1 thì phải đủ từng ấy lượt Missed!
+// (Barrel/Jourdonnais/Missed! thật, cộng dồn được) mới né trọn vẹn.
 function pushMissedReaction(
   next: GameState,
   target: PlayerState,
   source: { card: string; from: string }
 ): void {
-  next.pending.push({ kind: "NEED_MISSED", player: target.id, source });
+  const attacker = next.players.find((p) => p.id === source.from);
+  const missesNeeded = getCharacterHooks(attacker?.characterId ?? null).onOutgoingBang?.() ?? 1;
+
+  next.pending.push(
+    missesNeeded > 1
+      ? { kind: "NEED_MISSED", player: target.id, source, missesNeeded }
+      : { kind: "NEED_MISSED", player: target.id, source }
+  );
 
   const hasRealBarrel = target.equipment.some((id) => cardNameFromId(id) === "barrel");
   const hasVirtualBarrel = getCharacterDefinition(target.characterId)?.virtualBarrel === true;
@@ -382,6 +405,7 @@ function playPanic(
   }
 
   let stolenCardId: string;
+  let stolenFromHand = false;
 
   if (target.hand.length > 0) {
     if (action.targetCardId) {
@@ -391,6 +415,7 @@ function playPanic(
     next.rngState = nextState;
     const index = Math.floor(value * target.hand.length);
     [stolenCardId] = target.hand.splice(index, 1);
+    stolenFromHand = true;
   } else {
     // Dynamite miễn nhiễm Panic! (mục 8 file luật) — loại khỏi cả phép đếm "có
     // gì để cướp không" lẫn danh sách hợp lệ để chọn.
@@ -416,13 +441,14 @@ function playPanic(
   // đi qua giveCardToPlayer() cho nhất quán với mọi nơi khác đưa bài vào tay.
   giveCardToPlayer(next.players, player, stolenCardId);
 
-  return {
-    state: next,
-    events: [
-      { type: "CARD_PLAYED", playerId: player.id, cardId: action.cardId, targetId: target.id },
-      { type: "CARD_STOLEN", playerId: player.id, fromPlayerId: target.id, cardId: stolenCardId },
-    ],
-  };
+  const events: GameEvent[] = [
+    { type: "CARD_PLAYED", playerId: player.id, cardId: action.cardId, targetId: target.id },
+    { type: "CARD_STOLEN", playerId: player.id, fromPlayerId: target.id, cardId: stolenCardId },
+  ];
+  if (stolenFromHand) {
+    events.push(...triggerHandEmptyHook(next, target)); // Giai đoạn 5 (Suzy Lafayette)
+  }
+  return { state: next, events };
 }
 
 // Cat Balou: người đánh chỉ chọn VÙNG (tay hay sân) bắt mục tiêu bỏ bài, không
@@ -628,7 +654,7 @@ function handleRespond(state: GameState, action: Action & { type: "RESPOND" }): 
 
   switch (top.kind) {
     case "NEED_MISSED":
-      return respondDiscardOrDamage(state, action, "missed", "MISSED_PLAYED", top.source.from);
+      return respondToMissed(state, action, top);
     case "NEED_DISCARD_BANG":
       return respondDiscardOrDamage(state, action, "bang", "BANG_DISCARDED", top.source.from);
     case "NEED_DUEL_RESPONSE":
@@ -646,9 +672,11 @@ function handleRespond(state: GameState, action: Action & { type: "RESPOND" }): 
   }
 }
 
-// Dùng chung cho NEED_MISSED (đỡ Bang!) và NEED_DISCARD_BANG (đỡ Indians!):
-// gửi đúng lá yêu cầu thì bỏ pending, không mất máu; không gửi gì (dù có lá
-// trong tay) thì tự nguyện chịu 1 máu — người chơi luôn có quyền chọn.
+// Dùng cho NEED_DISCARD_BANG (đỡ Indians!): gửi đúng lá Bang! thì bỏ pending,
+// không mất máu; không gửi gì (dù có lá trong tay) thì tự nguyện chịu 1 máu —
+// người chơi luôn có quyền chọn. (NEED_MISSED có respondToMissed() riêng bên
+// dưới, kể từ Giai đoạn 5 đợt 3 — cần xử lý missesNeeded của Slab the Killer
+// mà Indians! không có.)
 function respondDiscardOrDamage(
   state: GameState,
   action: Action & { type: "RESPOND" },
@@ -672,10 +700,57 @@ function respondDiscardOrDamage(
 
     player.hand.splice(cardIndex, 1);
     next.discardPile.push(action.cardId);
-    return { state: next, events: [{ type: playedEventType, playerId: player.id }] };
+    const events: GameEvent[] = [{ type: playedEventType, playerId: player.id }];
+    events.push(...triggerHandEmptyHook(next, player)); // Giai đoạn 5 (Suzy Lafayette)
+    return { state: next, events };
   }
 
   return { state: next, events: applyDamage(next, player, 1, attackerId) };
+}
+
+// NEED_MISSED (đỡ Bang!/Gatling) — TÁCH RIÊNG khỏi respondDiscardOrDamage() ở
+// trên từ Giai đoạn 5 đợt 3: Slab the Killer có thể yêu cầu missesNeeded > 1,
+// bỏ đúng 1 Missed! chỉ trừ đi 1 trong số đó — chưa đủ thì đẩy lại NEED_MISSED
+// (cùng người/nguồn) với số còn thiếu, CHỜ TIẾP Missed! khác; đủ (hoặc mặc
+// định 1) thì mới thực sự né. Chọn chịu máu thì luôn kết thúc ngay, mất đúng 1
+// máu như bình thường, không liên quan missesNeeded.
+function respondToMissed(
+  state: GameState,
+  action: Action & { type: "RESPOND" },
+  top: PendingAction & { kind: "NEED_MISSED" }
+): Result {
+  const next = cloneState(state);
+  next.pending.pop();
+  const player = next.players.find((p) => p.id === action.playerId)!;
+
+  if (action.cardId) {
+    const cardIndex = player.hand.indexOf(action.cardId);
+    if (cardIndex === -1) {
+      throw new Error(`Người chơi ${player.id} không có lá bài ${action.cardId} trong tay`);
+    }
+    const cardName = cardNameFromId(action.cardId);
+    if (cardName !== "missed") {
+      throw new Error(`Lá "${cardName}" không hợp lệ cho việc đang chờ này`);
+    }
+
+    player.hand.splice(cardIndex, 1);
+    next.discardPile.push(action.cardId);
+
+    const missesRemaining = (top.missesNeeded ?? 1) - 1;
+    if (missesRemaining > 0) {
+      next.pending.push(
+        missesRemaining > 1
+          ? { kind: "NEED_MISSED", player: top.player, source: top.source, missesNeeded: missesRemaining }
+          : { kind: "NEED_MISSED", player: top.player, source: top.source }
+      );
+    }
+
+    const events: GameEvent[] = [{ type: "MISSED_PLAYED", playerId: player.id }];
+    events.push(...triggerHandEmptyHook(next, player)); // Giai đoạn 5 (Suzy Lafayette)
+    return { state: next, events };
+  }
+
+  return { state: next, events: applyDamage(next, player, 1, top.source.from) };
 }
 
 function respondToDuel(
@@ -708,7 +783,9 @@ function respondToDuel(
       source: top.source,
     });
 
-    return { state: next, events: [{ type: "BANG_DISCARDED", playerId: player.id }] };
+    const events: GameEvent[] = [{ type: "BANG_DISCARDED", playerId: player.id }];
+    events.push(...triggerHandEmptyHook(next, player)); // Giai đoạn 5 (Suzy Lafayette)
+    return { state: next, events };
   }
 
   return { state: next, events: applyDamage(next, player, 1, top.opponent) };
@@ -776,10 +853,13 @@ function respondToDiscardFromZone(
   zoneArray.splice(cardIndex, 1);
   next.discardPile.push(action.cardId);
 
-  return {
-    state: next,
-    events: [{ type: "CARD_FORCE_DISCARDED", playerId: player.id, byPlayerId: top.source.from, cardId: action.cardId }],
-  };
+  const events: GameEvent[] = [
+    { type: "CARD_FORCE_DISCARDED", playerId: player.id, byPlayerId: top.source.from, cardId: action.cardId },
+  ];
+  if (top.zone === "hand") {
+    events.push(...triggerHandEmptyHook(next, player)); // Giai đoạn 5 (Suzy Lafayette)
+  }
+  return { state: next, events };
 }
 
 // draw! (lật bài kiểm tra) — cơ chế DÙNG CHUNG, việc 1.10. Không cần người chơi
@@ -811,23 +891,36 @@ function resolveDrawCheck(
     { type: "DRAW_CHECK_RESOLVED", playerId: action.playerId, cardId, matched },
   ];
 
-  // Barrel khớp Cơ: né miễn phí, không tốn bài Missed! trên tay. Có thể còn
-  // NHIỀU NEED_DRAW_CHECK nguồn Barrel khác chồng bên dưới (Jourdonnais + Barrel
-  // thật cộng dồn, xem pushMissedReaction()) — đã né rồi thì KHÔNG cần lật thêm
-  // lần nữa, dọn hết chúng rồi mới bỏ luôn NEED_MISSED đang chờ ngay dưới cùng.
+  // Barrel khớp Cơ: tính như vừa bỏ 1 Missed! (miễn phí, không tốn bài trên
+  // tay) — KHÔNG tự né hết toàn bộ, vì Slab the Killer (Giai đoạn 5, đợt 3) có
+  // thể yêu cầu missesNeeded > 1. Tìm đúng NEED_MISSED tương ứng (không nhất
+  // thiết ngay dưới — có thể còn NEED_DRAW_CHECK Barrel khác của cùng người
+  // chưa xử lý ở giữa, xem pushMissedReaction()), giảm missesNeeded đi 1: về 0
+  // (hoặc đã ở mức mặc định 1) thì mới THẬT SỰ né trọn vẹn — dọn nốt các
+  // NEED_DRAW_CHECK Barrel còn lại (không cần lật thêm, đã đủ); còn thiếu thì
+  // giữ nguyên NEED_MISSED (số liệu mới) để chờ tiếp Barrel khác/Missed! thật.
   if (top.source.card === "barrel" && matched) {
     events.push({ type: "BARREL_DODGED", playerId: top.player });
-    while (next.pending.length > 0) {
-      const below = next.pending[next.pending.length - 1];
-      if (below.player !== top.player) break;
-      if (below.kind === "NEED_DRAW_CHECK" && below.source.card === "barrel") {
-        next.pending.pop();
-        continue;
+
+    const needMissedIndex = next.pending.findIndex(
+      (p) => p.kind === "NEED_MISSED" && p.player === top.player
+    );
+    const needMissed = next.pending[needMissedIndex] as PendingAction & { kind: "NEED_MISSED" };
+    const missesRemaining = (needMissed.missesNeeded ?? 1) - 1;
+
+    if (missesRemaining <= 0) {
+      next.pending.splice(needMissedIndex, 1);
+      for (let i = next.pending.length - 1; i >= 0; i--) {
+        const entry = next.pending[i];
+        if (entry.kind === "NEED_DRAW_CHECK" && entry.source.card === "barrel" && entry.player === top.player) {
+          next.pending.splice(i, 1);
+        }
       }
-      if (below.kind === "NEED_MISSED") {
-        next.pending.pop();
-      }
-      break;
+    } else {
+      next.pending[needMissedIndex] =
+        missesRemaining > 1
+          ? { kind: "NEED_MISSED", player: needMissed.player, source: needMissed.source, missesNeeded: missesRemaining }
+          : { kind: "NEED_MISSED", player: needMissed.player, source: needMissed.source };
     }
   }
 

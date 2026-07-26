@@ -371,3 +371,198 @@ describe("Black Jack — lật ngửa lá thứ 2 lúc rút bài, đỏ thì rú
     expect(events).toContainEqual({ type: "CARDS_DRAWN", playerId: "a", count: 2 });
   });
 });
+
+describe("Slab the Killer — Bang!/Gatling của mình cần 2 Missed! mới né được", () => {
+  it("không có Barrel: phải bỏ ĐỦ 2 Missed! mới né hết, chưa đủ thì vẫn đang chờ", () => {
+    const state = makeState({
+      players: [
+        makePlayer("a", { hand: ["bang_1"], characterId: "slab_the_killer" }),
+        makePlayer("b", { hand: ["missed_1", "missed_2"] }),
+        makePlayer("c"),
+      ],
+    });
+
+    const played = reduce(state, { type: "PLAY_CARD", playerId: "a", cardId: "bang_1", targetId: "b" });
+    expect(played.state.pending).toEqual([
+      { kind: "NEED_MISSED", player: "b", source: { card: "bang", from: "a" }, missesNeeded: 2 },
+    ]);
+
+    const step1 = reduce(played.state, { type: "RESPOND", playerId: "b", cardId: "missed_1" });
+    expect(step1.state.pending).toEqual([
+      { kind: "NEED_MISSED", player: "b", source: { card: "bang", from: "a" } },
+    ]);
+    expect(step1.state.players[1].hp).toBe(4); // chỉ mới bỏ 1/2, chưa mất máu
+
+    const step2 = reduce(step1.state, { type: "RESPOND", playerId: "b", cardId: "missed_2" });
+    expect(step2.state.pending).toEqual([]);
+    expect(step2.state.players[1].hp).toBe(4); // đủ 2 lá -> né trọn vẹn
+  });
+
+  it("chỉ có 1 Missed!: bỏ được 1 lá xong vẫn phải chịu mất đúng 1 máu như bình thường khi hết bài", () => {
+    const state = makeState({
+      players: [
+        makePlayer("a", { hand: ["bang_1"], characterId: "slab_the_killer" }),
+        makePlayer("b", { hand: ["missed_1"] }),
+        makePlayer("c"),
+      ],
+    });
+
+    const played = reduce(state, { type: "PLAY_CARD", playerId: "a", cardId: "bang_1", targetId: "b" });
+    const step1 = reduce(played.state, { type: "RESPOND", playerId: "b", cardId: "missed_1" });
+    expect(step1.state.pending).toEqual([
+      { kind: "NEED_MISSED", player: "b", source: { card: "bang", from: "a" } },
+    ]);
+
+    const step2 = reduce(step1.state, { type: "RESPOND", playerId: "b" }); // hết Missed!, chịu máu
+    expect(step2.state.pending).toEqual([]);
+    expect(step2.state.players[1].hp).toBe(3); // mất đúng 1 máu, không phạt thêm vì thiếu
+  });
+
+  it("Barrel/Jourdonnais khớp Cơ chỉ tính là 1 trong 2 Missed! cần, KHÔNG tự né hết", () => {
+    const state = makeState({
+      players: [
+        makePlayer("a", { hand: ["bang_1"], characterId: "slab_the_killer" }),
+        makePlayer("b", { equipment: ["barrel_1"], hand: ["missed_1"] }),
+        makePlayer("c"),
+      ],
+      deck: ["duel_1"], // hearts, Q — khớp
+    });
+
+    const played = reduce(state, { type: "PLAY_CARD", playerId: "a", cardId: "bang_1", targetId: "b" });
+    const drawResolved = reduce(played.state, { type: "RESPOND", playerId: "b" }); // draw! của Barrel
+
+    expect(drawResolved.events).toContainEqual({ type: "BARREL_DODGED", playerId: "b" });
+    expect(drawResolved.state.pending).toEqual([
+      { kind: "NEED_MISSED", player: "b", source: { card: "bang", from: "a" } },
+    ]);
+    expect(drawResolved.state.players[1].hp).toBe(4); // chưa mất máu, chỉ mới đủ 1/2
+
+    const final = reduce(drawResolved.state, { type: "RESPOND", playerId: "b", cardId: "missed_1" });
+    expect(final.state.pending).toEqual([]);
+    expect(final.state.players[1].hp).toBe(4); // đủ 2 (1 Barrel + 1 Missed!) -> né trọn vẹn
+  });
+
+  it("áp dụng cả cho Gatling: mỗi mục tiêu đều cần 2 Missed!", () => {
+    const state = makeState({
+      players: [
+        makePlayer("a", { hand: ["gatling_1"], characterId: "slab_the_killer" }),
+        makePlayer("b", { hand: ["missed_1"] }),
+        makePlayer("c", { hand: ["missed_2"] }),
+      ],
+    });
+
+    const played = reduce(state, { type: "PLAY_CARD", playerId: "a", cardId: "gatling_1" });
+    expect(played.state.pending.length).toBe(2);
+    for (const pending of played.state.pending) {
+      expect(pending).toMatchObject({ kind: "NEED_MISSED", missesNeeded: 2 });
+    }
+  });
+});
+
+describe("Suzy Lafayette — tay CHUYỂN từ còn bài sang hết bài (0 lá) thì rút bù ngay 1 lá", () => {
+  it("đánh hết lá cuối cùng trên tay: rút bù ngay sau khi đánh", () => {
+    const state = makeState({
+      players: [
+        makePlayer("a", { characterId: "suzy_lafayette", hand: ["beer_1"], hp: 3, maxHp: 4 }),
+        makePlayer("b"),
+        makePlayer("c"),
+      ],
+      deck: ["saloon_1"],
+    });
+
+    const { state: next, events } = reduce(state, { type: "PLAY_CARD", playerId: "a", cardId: "beer_1" });
+
+    expect(next.players[0].hand).toEqual(["saloon_1"]);
+    expect(events).toContainEqual({ type: "HP_RESTORED", playerId: "a", amount: 1 });
+    expect(events).toContainEqual({ type: "CARDS_DRAWN", playerId: "a", count: 1 });
+  });
+
+  it("bỏ bài thừa cuối lượt xuống hết tay (bỏ nhiều hơn bắt buộc): rút bù ngay 1 lá", () => {
+    const state = makeState({
+      players: [
+        makePlayer("a", { characterId: "suzy_lafayette", hand: ["beer_1", "beer_2"], hp: 2, maxHp: 4 }),
+        makePlayer("b"),
+        makePlayer("c"),
+      ],
+      turnPhase: "discard",
+      deck: ["saloon_1"],
+    });
+
+    const { state: next, events } = reduce(state, {
+      type: "DISCARD_CARDS",
+      playerId: "a",
+      cardIds: ["beer_1", "beer_2"],
+    });
+
+    expect(next.players[0].hand).toEqual(["saloon_1"]);
+    expect(events).toContainEqual({ type: "CARDS_DRAWN", playerId: "a", count: 1 });
+  });
+
+  it("bị Panic! cướp lá cuối cùng: rút bù ngay 1 lá", () => {
+    const state = makeState({
+      players: [
+        makePlayer("a", { hand: ["panic_1"] }),
+        makePlayer("b", { characterId: "suzy_lafayette", hand: ["beer_1"] }),
+        makePlayer("c"),
+      ],
+      deck: ["saloon_1"],
+    });
+
+    const { state: next, events } = reduce(state, {
+      type: "PLAY_CARD",
+      playerId: "a",
+      cardId: "panic_1",
+      targetId: "b",
+    });
+
+    expect(next.players[1].hand).toEqual(["saloon_1"]);
+    expect(events).toContainEqual({ type: "CARDS_DRAWN", playerId: "b", count: 1 });
+  });
+
+  it("bị Cat Balou bắt bỏ lá cuối cùng trên tay: rút bù ngay 1 lá", () => {
+    const state = makeState({
+      players: [
+        makePlayer("a", { hand: ["cat_balou_1"] }),
+        makePlayer("b", { characterId: "suzy_lafayette", hand: ["beer_1"] }),
+        makePlayer("c"),
+      ],
+      deck: ["saloon_1"],
+    });
+
+    const played = reduce(state, {
+      type: "PLAY_CARD",
+      playerId: "a",
+      cardId: "cat_balou_1",
+      targetId: "b",
+      targetZone: "hand",
+    });
+    const { state: next, events } = reduce(played.state, {
+      type: "RESPOND",
+      playerId: "b",
+      cardId: "beer_1",
+    });
+
+    expect(next.players[1].hand).toEqual(["saloon_1"]);
+    expect(events).toContainEqual({ type: "CARDS_DRAWN", playerId: "b", count: 1 });
+  });
+
+  it("El Gringo cướp đúng lá cuối cùng của Suzy: Suzy vẫn được rút bù (2 hook nối tiếp nhau)", () => {
+    const state = makeState({
+      players: [
+        makePlayer("a", { characterId: "el_gringo", hp: 3, maxHp: 3 }),
+        makePlayer("b", { characterId: "suzy_lafayette", hand: ["bang_1", "beer_1"] }),
+        makePlayer("c"),
+      ],
+      currentPlayerIndex: 1,
+      deck: ["saloon_1"],
+    });
+
+    const played = reduce(state, { type: "PLAY_CARD", playerId: "b", cardId: "bang_1", targetId: "a" });
+    const { state: next, events } = reduce(played.state, { type: "RESPOND", playerId: "a" }); // không đỡ -> mất máu
+
+    expect(next.players[1].hand).toEqual(["saloon_1"]); // Suzy (b) hết bài sau khi bị cướp -> rút bù
+    expect(next.players[0].hand).toEqual(["beer_1"]); // El Gringo cướp được
+    expect(events).toContainEqual({ type: "CARD_STOLEN", playerId: "a", fromPlayerId: "b", cardId: "beer_1" });
+    expect(events).toContainEqual({ type: "CARDS_DRAWN", playerId: "b", count: 1 });
+  });
+});
