@@ -160,6 +160,13 @@ function chooseRespondAction(state: GameState): Action {
       // Giai đoạn 5 (Pedro Ramirez) — bot cứ rút bộ bài như bình thường, khỏi
       // cần lấy chồng bỏ (an toàn, luôn hợp lệ).
       return { type: "RESPOND", playerId: top.player };
+    case "NEED_PICK_DRAW_TARGET":
+      // Giai đoạn 5 (Jesse Jones) — bot cứ rút bộ bài như bình thường, khỏi
+      // cần lấy tay ai (an toàn, luôn hợp lệ).
+      return { type: "RESPOND", playerId: top.player };
+    case "NEED_GIVE_CARD_TO_PLAYER":
+      // Giai đoạn 5 (Jesse Jones) — bot cứ để rút ngẫu nhiên, khỏi tự chọn lá.
+      return { type: "RESPOND", playerId: top.player };
     default: {
       const neverKind: never = top;
       throw new Error(`Bot chưa biết cách phản hồi: ${JSON.stringify(neverKind)}`);

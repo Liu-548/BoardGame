@@ -39,7 +39,7 @@ src/
     deck.ts        ← MỚI (việc 5.2): drawTopCard() — tách khỏi reduce.ts để
                       characters.ts dùng được mà không vòng lặp import
     characters.ts  ← MỚI (việc 5.1/5.2): hệ thống hook + registry nhân vật
-                      (CHARACTERS — mới có 12/16 nhân vật, xem trạng thái bên dưới)
+                      (CHARACTERS — mới có 13/16 nhân vật, xem trạng thái bên dưới)
   server/
     index.ts     ← Worker entry, định tuyến theo mã phòng
     room.ts      ← lớp Durable Object, 1 instance = 1 phòng
@@ -143,7 +143,7 @@ Nguyên tắc chung:
 
 > Cập nhật dòng này mỗi khi xong một giai đoạn. Xem `LO-TRINH.md`.
 
-**Đang ở:** Giai đoạn 4 xong (4.1-4.6 khung, còn thiếu ảnh thật). Giai đoạn 5 — việc 5.1 (hệ thống hook) xong. Việc 5.2 đợt 1 (6 nhân vật) + đợt 2 (Jourdonnais + Black Jack) + đợt 3 (Slab the Killer + Suzy Lafayette) xong. **Vừa xong việc 5.2 đợt 4**: thêm Pedro Ramirez + Lucky Duke (12/16 nhân vật) — 4 người còn lại (Jesse Jones, Kit Carlson, Calamity Janet, Sid Ketchum — nhóm khó nhất, xem "Việc tiếp theo" cuối file) để dành đợt sau. Xem `NHAN-VAT-BANG-CO-BAN.txt` (đặc tả đủ 16 nhân vật + 9 loại hook, chủ dự án viết).
+**Đang ở:** Giai đoạn 4 xong (4.1-4.6 khung, còn thiếu ảnh thật). Giai đoạn 5 — việc 5.1 (hệ thống hook) xong. Việc 5.2 đợt 1 (6 nhân vật) + đợt 2 (Jourdonnais + Black Jack) + đợt 3 (Slab the Killer + Suzy Lafayette) + đợt 4 (Pedro Ramirez + Lucky Duke) xong. **Vừa xong việc 5.2 đợt 5**: thêm Jesse Jones (13/16 nhân vật) — 3 người còn lại (Kit Carlson, Calamity Janet, Sid Ketchum — độ khó rất khác nhau, xem "Việc tiếp theo" cuối file) để dành đợt sau, chọn từng người một thay vì ghép cặp. Xem `NHAN-VAT-BANG-CO-BAN.txt` (đặc tả đủ 16 nhân vật + 9 loại hook, chủ dự án viết).
 
 - 3.1-3.4 (gọn lại): `src/server/index.ts` + `src/server/room.ts` (Durable Object `Room`) — deploy thật ở **https://bang-boardgame.nguyenngoctuan548.workers.dev**. WebSocket dùng Hibernation API đúng cách (`ctx.acceptWebSocket()`, không `server.accept()` — quy tắc 7). Định tuyến `/room/<mã phòng>`.
 - **Quan trọng (phát hiện sau việc 3.10):** deploy trước đó CHỈ đưa lên phần server (Worker) — mở link công khai chỉ thấy dòng "Thiếu mã phòng...", KHÔNG thấy giao diện chơi, vì client (`index.html`/`main.ts`/`ui.ts`) chưa từng được build+phục vụ. Đã sửa: `wrangler.jsonc` thêm `assets: { directory: "./dist", run_worker_first: ["/room/*"] }` — phục vụ file client đã build (`npm run build`, ra `dist/`) CHUNG domain với Worker; `/room/*` vẫn luôn chạy Worker trước (API/WebSocket), còn lại phục vụ thẳng file tĩnh. `npm run deploy` giờ tự `vite build` trước khi `wrangler deploy` (script trong `package.json`), tránh quên build. Đã deploy lại + kiểm bằng trình duyệt thật trên chính link công khai: mở `/` thấy đúng giao diện, tạo phòng qua `wss://` thật hoạt động đúng.
@@ -337,10 +337,26 @@ Nguyên tắc chung:
 
 210 test đều pass.
 
-**Việc tiếp theo:** việc 5.2 đợt 5 — nhóm nhân vật kế tiếp (còn 4 người: Jesse Jones, Kit Carlson, Calamity Janet, Sid Ketchum — nhóm khó nhất, Kit Carlson cần đụng `view.ts` để giấu 3 lá riêng cho đúng người, Jesse Jones cần 2 bước hỏi nối tiếp, Calamity Janet cần refactor nhiều chỗ so khớp tên bài, Sid Ketchum cần hẳn 1 luồng action mới), hoặc làm cơ chế "phát 2 lá nhân vật, chọn giữ 1" thật nếu chủ dự án muốn ưu tiên trước — xem `NHAN-VAT-BANG-CO-BAN.txt` + `LO-TRINH.md`.
+**Giai đoạn 5 — việc 5.2, đợt 5 (thêm Jesse Jones, 13/16 nhân vật):**
+
+- Còn 3 người (Kit Carlson, Calamity Janet, Sid Ketchum) — độ khó khác hẳn nhau, không ghép cặp được nữa, hỏi chủ dự án chọn 1 người làm trước mỗi lần từ đợt này trở đi thay vì tự ghép nhóm.
+- **Luật KHÔNG RÕ RÀNG, đã dừng lại hỏi trước khi code** (đúng quy tắc CLAUDE.md): phần "Bonus" của Jesse Jones trong `NHAN-VAT-BANG-CO-BAN.txt` ("HỎI xem có cho người bị lấy tự chọn lá đưa hay rút ngẫu nhiên") là house rule của chủ dự án, không có trong luật gốc BANG!, và không rõ AI là người được hỏi. Đã chốt: **chính Jesse** được hỏi (không phải nạn nhân) — nạn nhân CHỈ được hỏi tiếp (chọn đúng lá của mình) khi Jesse chọn "để tự chọn". Hết giờ ở bước nạn nhân chọn lá → rút ngẫu nhiên thay họ (chủ dự án nhấn mạnh lại điểm này).
+- **Jesse Jones** — đầu lượt được hỏi: lá 1 từ bộ bài hay từ tay 1 người khác?
+  - `Action`'s `RESPOND` thêm 2 field tuỳ chọn mới: `targetId?: string` (ai bị lấy) và `letTargetChoose?: boolean` (có để họ tự chọn lá đưa không) — dùng chung khuôn với `targetCardId`/`targetZone` đã có sẵn trên `PLAY_CARD`.
+  - `PendingAction` thêm 2 kind (`types.ts`): `NEED_PICK_DRAW_TARGET { player }` (Jesse tự quyết đầu lượt — không kèm `targetId` = rút bộ bài như thường/timeout; kèm `targetId` hợp lệ mà tay người đó có bài thì đọc tiếp `letTargetChoose`; tay rỗng thì coi như không có gì để lấy, rút bộ bài cho lá 1) và `NEED_GIVE_CARD_TO_PLAYER { player (nạn nhân), giveTo (Jesse) }` (CHỈ đẩy khi `letTargetChoose: true` — nạn nhân tự chọn `cardId` của chính mình để đưa, không chọn/hết giờ thì rút ngẫu nhiên thay họ).
+  - Field tĩnh mới `canStealFirstDrawCard` (`characters.ts`, kiểu như `canDrawFromDiscardPile` của Pedro Ramirez).
+  - 2 hàm mới trong `reduce.ts`: `respondToPickDrawTarget()` (xử lý cả 2 nhánh: cướp ngẫu nhiên ngay, HOẶC đẩy tiếp pending hỏi nạn nhân) và `respondToGiveCardToPlayer()` (nạn nhân trả lời xong mới thật sự HOÀN TẤT lượt rút — tự rút nốt lá 2 từ bộ bài cho Jesse). Có gọi `triggerHandEmptyHook()` cho nạn nhân ở CẢ 2 đường cướp bài (Suzy Lafayette).
+- **Bắt buộc sửa thêm 3 chỗ ngoài `core/`** (chỉ để qua exhaustive-check của TypeScript, không phải làm UI thật — giống tiền lệ đợt 4): `room.ts`'s `buildReactiveTimeoutAction()` thêm 2 nhánh timeout (`NEED_PICK_DRAW_TARGET` → rút bộ bài; `NEED_GIVE_CARD_TO_PLAYER` → rút ngẫu nhiên); `ui.ts` thêm 1 dòng mô tả mỗi kind mới ở CẢ 2 hàm mô tả pending; `test/bot-simulation.test.ts` thêm 2 nhánh an toàn cho bot.
+- Test mới trong **`test/characters-basic.test.ts`** (7 test): không chọn ai, cướp ngẫu nhiên ngay, cho nạn nhân tự chọn, nạn nhân không chọn (rút ngẫu nhiên thay), mục tiêu tay rỗng, báo lỗi tự chọn chính mình, và ca cướp đúng lá cuối của Suzy Lafayette (Suzy vẫn rút bù).
+- Đã tự kiểm: `npx tsc --noEmit` sạch, 217 test đều pass (210 cũ + 7 test mới).
+- Không sửa `main.ts` — Jesse Jones cũng CHƯA hiện được trên giao diện, giống 12 người trước.
+
+217 test đều pass.
+
+**Việc tiếp theo:** việc 5.2 đợt 6 — còn 3 người (Kit Carlson, Calamity Janet, Sid Ketchum, độ khó rất khác nhau — xem mô tả ở mục "Chưa làm tới" bên dưới), hỏi chủ dự án chọn 1 người làm trước; hoặc làm cơ chế "phát 2 lá nhân vật, chọn giữ 1" thật nếu chủ dự án muốn ưu tiên trước — xem `NHAN-VAT-BANG-CO-BAN.txt` + `LO-TRINH.md`.
 
 ## Chưa làm tới, đừng đụng vào
 
-4/16 nhân vật còn lại (Jesse Jones, Kit Carlson, Calamity Janet, Sid Ketchum — xem `NHAN-VAT-BANG-CO-BAN.txt`), cơ chế "phát 2 lá nhân vật thật/chọn giữ 1" (hiện chỉ gán tạm qua `RuleOptions.characterAssignments`, KHÔNG có màn hình chọn nhân vật nào trên giao diện), expansion, house rules, đồ hoạ đẹp, âm thanh, tài khoản/đăng nhập, bảng xếp hạng.
+3/16 nhân vật còn lại (xem `NHAN-VAT-BANG-CO-BAN.txt`): **Kit Carlson** (cần đụng `view.ts` để giấu 3 lá vừa lật riêng cho đúng người), **Calamity Janet** (cần refactor nhiều chỗ so khớp cứng tên lá "bang"/"missed" rải rác trong `reduce.ts`), **Sid Ketchum** (cần hẳn 1 loại action mới, bỏ qua luôn `assertCurrentPlayer` + ràng buộc "không làm gì được khi còn pending"). Cũng chưa làm: cơ chế "phát 2 lá nhân vật thật/chọn giữ 1" (hiện chỉ gán tạm qua `RuleOptions.characterAssignments`, KHÔNG có màn hình chọn nhân vật nào trên giao diện), expansion, house rules, đồ hoạ đẹp, âm thanh, tài khoản/đăng nhập, bảng xếp hạng.
 
-12 nhân vật đầu (Bart Cassidy, El Gringo, Paul Regret, Rose Doolan, Vulture Sam, Willy the Kid, Jourdonnais, Black Jack, Slab the Killer, Suzy Lafayette, Pedro Ramirez, Lucky Duke) đã có THẬT trong `core/characters.ts` (việc 5.2 đợt 1-4) nhưng CHỈ dùng được qua code/test — chưa ai chơi được qua giao diện thật vì chưa có cơ chế chọn nhân vật.
+13 nhân vật đầu (Bart Cassidy, El Gringo, Paul Regret, Rose Doolan, Vulture Sam, Willy the Kid, Jourdonnais, Black Jack, Slab the Killer, Suzy Lafayette, Pedro Ramirez, Lucky Duke, Jesse Jones) đã có THẬT trong `core/characters.ts` (việc 5.2 đợt 1-5) nhưng CHỈ dùng được qua code/test — chưa ai chơi được qua giao diện thật vì chưa có cơ chế chọn nhân vật.

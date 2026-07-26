@@ -687,3 +687,151 @@ describe("Lucky Duke — mọi lần draw! đều lật thêm 1 lá, chọn kế
     expect(next.players[1].equipment).not.toContain("dynamite_1");
   });
 });
+
+describe("Jesse Jones — đầu lượt được HỎI: lá 1 từ bộ bài hay từ tay 1 người khác", () => {
+  it("không chọn ai: rút bộ bài như bình thường", () => {
+    const state = makeState({
+      players: [
+        makePlayer("a", { characterId: "jesse_jones" }),
+        makePlayer("b", { hand: ["bang_1"] }),
+        makePlayer("c"),
+      ],
+      turnPhase: "draw",
+      deck: ["saloon_2", "saloon_1"],
+    });
+
+    const drawn = reduce(state, { type: "DRAW_CARDS", playerId: "a" });
+    expect(drawn.state.pending).toEqual([{ kind: "NEED_PICK_DRAW_TARGET", player: "a" }]);
+    expect(drawn.state.turnPhase).toBe("draw");
+
+    const { state: next, events } = reduce(drawn.state, { type: "RESPOND", playerId: "a" });
+
+    expect(next.players[0].hand).toEqual(["saloon_1", "saloon_2"]);
+    expect(next.players[1].hand).toEqual(["bang_1"]); // b không bị đụng
+    expect(next.turnPhase).toBe("play");
+    expect(events).toContainEqual({ type: "CARDS_DRAWN", playerId: "a", count: 2 });
+  });
+
+  it("chọn 1 người có bài, KHÔNG cho tự chọn: cướp ngẫu nhiên NGAY", () => {
+    const state = makeState({
+      players: [
+        makePlayer("a", { characterId: "jesse_jones" }),
+        makePlayer("b", { hand: ["bang_1"] }),
+        makePlayer("c"),
+      ],
+      turnPhase: "draw",
+      deck: ["saloon_1"],
+    });
+
+    const drawn = reduce(state, { type: "DRAW_CARDS", playerId: "a" });
+    const { state: next, events } = reduce(drawn.state, { type: "RESPOND", playerId: "a", targetId: "b" });
+
+    expect(next.players[0].hand).toEqual(["bang_1", "saloon_1"]);
+    expect(next.players[1].hand).toEqual([]);
+    expect(next.turnPhase).toBe("play");
+    expect(events).toContainEqual({ type: "CARD_STOLEN", playerId: "a", fromPlayerId: "b", cardId: "bang_1" });
+    expect(events).toContainEqual({ type: "CARDS_DRAWN", playerId: "a", count: 2 });
+  });
+
+  it("chọn 1 người, CHO tự chọn lá đưa: đẩy tiếp NEED_GIVE_CARD_TO_PLAYER cho nạn nhân", () => {
+    const state = makeState({
+      players: [
+        makePlayer("a", { characterId: "jesse_jones" }),
+        makePlayer("b", { hand: ["bang_1", "beer_1"] }),
+        makePlayer("c"),
+      ],
+      turnPhase: "draw",
+      deck: ["saloon_1"],
+    });
+
+    const drawn = reduce(state, { type: "DRAW_CARDS", playerId: "a" });
+    const asked = reduce(drawn.state, {
+      type: "RESPOND",
+      playerId: "a",
+      targetId: "b",
+      letTargetChoose: true,
+    });
+
+    expect(asked.state.pending).toEqual([{ kind: "NEED_GIVE_CARD_TO_PLAYER", player: "b", giveTo: "a" }]);
+    expect(asked.state.turnPhase).toBe("draw"); // vẫn chưa xong lượt rút
+
+    const { state: next, events } = reduce(asked.state, { type: "RESPOND", playerId: "b", cardId: "beer_1" });
+
+    expect(next.players[1].hand).toEqual(["bang_1"]); // b tự chọn đưa beer_1, giữ lại bang_1
+    expect(next.players[0].hand).toEqual(["beer_1", "saloon_1"]);
+    expect(next.turnPhase).toBe("play");
+    expect(events).toContainEqual({ type: "CARD_STOLEN", playerId: "a", fromPlayerId: "b", cardId: "beer_1" });
+  });
+
+  it("nạn nhân không chọn (hết giờ): rút ngẫu nhiên thay họ", () => {
+    const state = makeState({
+      players: [
+        makePlayer("a", { characterId: "jesse_jones" }),
+        makePlayer("b", { hand: ["bang_1"] }),
+        makePlayer("c"),
+      ],
+      turnPhase: "draw",
+      deck: ["saloon_1"],
+    });
+
+    const drawn = reduce(state, { type: "DRAW_CARDS", playerId: "a" });
+    const asked = reduce(drawn.state, {
+      type: "RESPOND",
+      playerId: "a",
+      targetId: "b",
+      letTargetChoose: true,
+    });
+    const { state: next, events } = reduce(asked.state, { type: "RESPOND", playerId: "b" }); // không chọn gì
+
+    expect(next.players[1].hand).toEqual([]);
+    expect(next.players[0].hand).toEqual(["bang_1", "saloon_1"]);
+    expect(events).toContainEqual({ type: "CARD_STOLEN", playerId: "a", fromPlayerId: "b", cardId: "bang_1" });
+  });
+
+  it("mục tiêu tay rỗng: coi như rút bộ bài cho lá 1, không cướp gì cả", () => {
+    const state = makeState({
+      players: [makePlayer("a", { characterId: "jesse_jones" }), makePlayer("b"), makePlayer("c")],
+      turnPhase: "draw",
+      deck: ["saloon_2", "saloon_1"],
+    });
+
+    const drawn = reduce(state, { type: "DRAW_CARDS", playerId: "a" });
+    const { state: next, events } = reduce(drawn.state, { type: "RESPOND", playerId: "a", targetId: "b" });
+
+    expect(next.players[0].hand).toEqual(["saloon_1", "saloon_2"]);
+    expect(events).not.toContainEqual(expect.objectContaining({ type: "CARD_STOLEN" }));
+  });
+
+  it("báo lỗi nếu tự chọn chính mình", () => {
+    const state = makeState({
+      players: [makePlayer("a", { characterId: "jesse_jones" }), makePlayer("b"), makePlayer("c")],
+      turnPhase: "draw",
+      deck: ["saloon_1"],
+    });
+
+    const drawn = reduce(state, { type: "DRAW_CARDS", playerId: "a" });
+    expect(() => reduce(drawn.state, { type: "RESPOND", playerId: "a", targetId: "a" })).toThrow();
+  });
+
+  it("cướp đúng lá cuối cùng của Suzy Lafayette: Suzy vẫn được rút bù ngay", () => {
+    const state = makeState({
+      players: [
+        makePlayer("a", { characterId: "jesse_jones" }),
+        makePlayer("b", { characterId: "suzy_lafayette", hand: ["bang_1"] }),
+        makePlayer("c"),
+      ],
+      turnPhase: "draw",
+      // rút thứ tự: saloon_1 (Suzy rút bù) rồi saloon_2 (lá 2 của Jesse)
+      deck: ["saloon_2", "saloon_1"],
+    });
+
+    const drawn = reduce(state, { type: "DRAW_CARDS", playerId: "a" });
+    const { state: next, events } = reduce(drawn.state, { type: "RESPOND", playerId: "a", targetId: "b" });
+
+    expect(next.players[1].hand).toEqual(["saloon_1"]); // Suzy hết bài -> rút bù
+    expect(next.players[0].hand).toEqual(["bang_1", "saloon_2"]);
+    expect(events).toContainEqual({ type: "CARD_STOLEN", playerId: "a", fromPlayerId: "b", cardId: "bang_1" });
+    expect(events).toContainEqual({ type: "CARDS_DRAWN", playerId: "b", count: 1 });
+    expect(events).toContainEqual({ type: "CARDS_DRAWN", playerId: "a", count: 2 });
+  });
+});

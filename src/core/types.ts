@@ -82,7 +82,22 @@ export type PendingAction =
   // công khai (state.discardPile), không lộ thông tin ẩn nào. RESPOND kèm
   // đúng cardId của lá trên cùng chồng bỏ = lấy lá đó; không kèm cardId = rút
   // bộ bài như thường (xem respondToPickDrawSource() trong reduce.ts).
-  | { kind: "NEED_PICK_DRAW_SOURCE"; player: string };
+  | { kind: "NEED_PICK_DRAW_SOURCE"; player: string }
+  // Giai đoạn 5 (Jesse Jones, đợt 5, xem core/characters.ts) — đẩy đầu lượt
+  // THAY VÌ rút bài ngay: `player` (Jesse) tự quyết lá 1 lấy từ bộ bài hay từ
+  // tay 1 người khác. RESPOND không kèm targetId = rút bộ bài như thường (mặc
+  // định/timeout). Kèm targetId hợp lệ (còn sống, khác chính mình) — nếu tay
+  // người đó có bài, đọc thêm letTargetChoose (xem RESPOND bên dưới): true =
+  // đẩy tiếp NEED_GIVE_CARD_TO_PLAYER hỏi CHÍNH người đó; false/bỏ trống = cướp
+  // ngẫu nhiên NGAY (tái dùng RNG y hệt Panic!). Tay rỗng thì coi như không có
+  // gì để lấy, rút bộ bài cho lá 1. Xem respondToPickDrawTarget() trong reduce.ts.
+  | { kind: "NEED_PICK_DRAW_TARGET"; player: string }
+  // Giai đoạn 5 (Jesse Jones, đợt 5) — CHỈ đẩy khi Jesse chọn letTargetChoose:
+  // true ở trên. `player` = người bị lấy (nạn nhân, tự chọn lá của CHÍNH mình
+  // để đưa — không lộ gì mới, họ vốn đã biết tay mình). `giveTo` = Jesse. Nạn
+  // nhân RESPOND kèm cardId (lá họ tự chọn) hoặc không kèm gì (hết giờ/không
+  // muốn chọn -> rút ngẫu nhiên thay họ, xem respondToGiveCardToPlayer()).
+  | { kind: "NEED_GIVE_CARD_TO_PLAYER"; player: string; giveTo: string };
 
 // ----- Hành động -----
 // Các hành động cho vòng lượt (việc 1.5) và đánh bài (việc 1.7/1.8, hiện chỉ hỗ
@@ -105,7 +120,17 @@ export type Action =
       // thể trong vùng đó do chính mục tiêu chọn, trả lời qua RESPOND.
       targetZone?: "hand" | "equipment";
     }
-  | { type: "RESPOND"; playerId: string; cardId?: string };
+  | {
+      type: "RESPOND";
+      playerId: string;
+      cardId?: string;
+      // Jesse Jones (đợt 5) — trả lời NEED_PICK_DRAW_TARGET: người muốn lấy bài
+      // (bỏ trống = rút bộ bài như thường).
+      targetId?: string;
+      // Jesse Jones (đợt 5) — đi kèm targetId ở trên: có để người đó tự chọn
+      // lá đưa hay không (bỏ trống/false = cướp ngẫu nhiên ngay).
+      letTargetChoose?: boolean;
+    };
 
 // ----- Sự kiện -----
 // Kết quả phụ của reduce(), để client hiển thị log — không ảnh hưởng đến state.

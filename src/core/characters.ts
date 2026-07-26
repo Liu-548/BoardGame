@@ -128,6 +128,12 @@ export interface CharacterDefinition {
   // Dynamite: có lợi = KHÔNG khớp, tức không nổ), logic đó DÙNG CHUNG cho bất
   // kỳ ai có field này, không phải hàm riêng của Lucky Duke.
   hasLuckyDraw?: boolean;
+  // Jesse Jones (đợt 5) — được HỎI đầu lượt (xem NEED_PICK_DRAW_TARGET ở
+  // types.ts + handleDrawCards()/respondToPickDrawTarget() trong reduce.ts):
+  // lá 1 lấy từ bộ bài hay từ tay 1 người khác (rồi tự quyết tiếp để người đó
+  // chọn lá đưa hay cướp ngẫu nhiên)? Cũng là DỮ LIỆU tĩnh — luồng HỎI/xử lý
+  // câu trả lời dùng chung, không có gì riêng để tính trong 1 hàm hook.
+  canStealFirstDrawCard?: boolean;
   hooks: CharacterHooks;
 }
 
@@ -321,24 +327,26 @@ export const CHARACTERS: Record<string, CharacterDefinition> = {
     hasLuckyDraw: true,
     hooks: {},
   },
+
+  jesse_jones: {
+    id: "jesse_jones",
+    name: "Jesse Jones",
+    bullets: 4,
+    canStealFirstDrawCard: true,
+    hooks: {},
+  },
 };
 
 // ----- Hook/nhân vật còn lại, ĐỂ DÀNH cho các đợt 5.2 sau -----
 //
 // onDrawPhase (đã nối dây ở việc 5.2 đợt 2, xem handleDrawCards() trong
 // reduce.ts) — Black Jack dùng được ngay vì KHÔNG có lựa chọn (tự động theo lá
-// lật ra). 2 người còn lại (Jesse Jones/Kit Carlson) vẫn để dành vì CÓ lựa
-// chọn thật SAU KHI đã biết thông tin (tay người khác/3 lá vừa lật) — không
-// đủ để trả lời ngay trong 1 action như Pedro Ramirez, cần PendingAction mới
-// riêng cho từng người:
-//   Jesse Jones     chọn rút lá 1 từ bộ bài hay từ tay 1 người khác — CÒN có
-//                    bonus hỏi tiếp người bị lấy (tự chọn lá đưa hay ngẫu
-//                    nhiên), nên cần TỚI 2 bước chờ nối tiếp nhau.
-//   Kit Carlson     xem 3 lá trên cùng, giữ 2, bỏ 1 vào chồng bỏ — pending
-//                    phải lưu tạm 3 lá đó, và viewFor() (quy tắc 6) phải chỉ
-//                    lộ 3 lá này cho ĐÚNG Kit Carlson, không phải mọi người
-//                    (khác NEED_PICK_STORE_CARD — General Store vốn công khai
-//                    cho cả bàn) — đụng tới view.ts, không chỉ reduce.ts.
+// lật ra). Jesse Jones (đợt 5) đã xong (xem bên dưới). Kit Carlson vẫn để
+// dành vì CÓ lựa chọn thật SAU KHI đã biết thông tin (3 lá vừa lật riêng cho
+// mình) — không đủ để trả lời ngay trong 1 action, VÀ pending phải lưu tạm 3
+// lá đó, viewFor() (quy tắc 6) phải chỉ lộ 3 lá này cho ĐÚNG Kit Carlson,
+// không phải mọi người (khác NEED_PICK_STORE_CARD — General Store vốn công
+// khai cho cả bàn) — đụng tới view.ts, không chỉ reduce.ts.
 //
 // cardAlias         Coi lá bài này như lá khác (Calamity Janet: Bang! <->
 //                    Missed!) — đụng NHIỀU chỗ đang so khớp tên lá rải rác
@@ -378,3 +386,12 @@ export const CHARACTERS: Record<string, CharacterDefinition> = {
 // "có lợi theo ngữ cảnh" (Barrel/Jail: khớp Cơ; Dynamite: KHÔNG khớp) đã CHỐT
 // sẵn trong file đặc tả — không phải quyết định của người chơi nên không cần
 // hỏi gì cả.
+//
+// Jesse Jones (canStealFirstDrawCard, đợt 5) đã xong — CẦN 2 PendingAction nối
+// tiếp (NEED_PICK_DRAW_TARGET rồi NEED_GIVE_CARD_TO_PLAYER, xem types.ts +
+// handleDrawCards()/respondToPickDrawTarget()/respondToGiveCardToPlayer()
+// trong reduce.ts). "Bonus hỏi ai" là house rule KHÔNG có trong luật gốc —
+// bàn lại với chủ dự án để chốt: CHÍNH JESSE được hỏi (không phải nạn nhân)
+// có muốn để nạn nhân tự chọn lá đưa hay cướp ngẫu nhiên; nạn nhân CHỈ được
+// hỏi tiếp (chọn lá cụ thể của CHÍNH mình, không lộ gì mới) khi Jesse chọn
+// "để tự chọn". Hết giờ ở bước nạn nhân chọn lá → rút ngẫu nhiên thay họ.
