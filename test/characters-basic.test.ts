@@ -835,3 +835,316 @@ describe("Jesse Jones — đầu lượt được HỎI: lá 1 từ bộ bài ha
     expect(events).toContainEqual({ type: "CARDS_DRAWN", playerId: "a", count: 2 });
   });
 });
+
+describe("Kit Carlson — xem riêng 3 lá trên cùng bộ bài, chọn giữ 2 bỏ 1", () => {
+  it("chọn 1 trong 3 lá để bỏ: 2 lá còn lại vào tay, đúng lá đã chọn vào chồng bỏ", () => {
+    const state = makeState({
+      players: [makePlayer("a", { characterId: "kit_carlson" }), makePlayer("b"), makePlayer("c")],
+      turnPhase: "draw",
+      // rút thứ tự: saloon_1, saloon_2, saloon_3
+      deck: ["saloon_3", "saloon_2", "saloon_1"],
+    });
+
+    const drawn = reduce(state, { type: "DRAW_CARDS", playerId: "a" });
+    expect(drawn.state.pending).toEqual([
+      { kind: "NEED_PICK_KEPT_CARDS", player: "a", cards: ["saloon_1", "saloon_2", "saloon_3"] },
+    ]);
+    expect(drawn.state.turnPhase).toBe("draw"); // chưa xong lượt rút
+    expect(drawn.state.players[0].hand).toEqual([]); // chưa vào tay ai cả
+
+    const { state: next, events } = reduce(drawn.state, { type: "RESPOND", playerId: "a", cardId: "saloon_2" });
+
+    expect(next.players[0].hand).toEqual(["saloon_1", "saloon_3"]);
+    expect(next.discardPile).toEqual(["saloon_2"]);
+    expect(next.turnPhase).toBe("play");
+    expect(events).toContainEqual({ type: "CARDS_DRAWN", playerId: "a", count: 2 });
+    expect(events).toContainEqual({ type: "KIT_CARLSON_DISCARDED", playerId: "a", cardId: "saloon_2" });
+  });
+
+  it("không chọn (mặc định/timeout): giữ 2 lá ĐẦU, bỏ lá thứ 3", () => {
+    const state = makeState({
+      players: [makePlayer("a", { characterId: "kit_carlson" }), makePlayer("b"), makePlayer("c")],
+      turnPhase: "draw",
+      deck: ["saloon_3", "saloon_2", "saloon_1"],
+    });
+
+    const drawn = reduce(state, { type: "DRAW_CARDS", playerId: "a" });
+    const { state: next, events } = reduce(drawn.state, { type: "RESPOND", playerId: "a" });
+
+    expect(next.players[0].hand).toEqual(["saloon_1", "saloon_2"]);
+    expect(next.discardPile).toEqual(["saloon_3"]);
+    expect(events).toContainEqual({ type: "KIT_CARLSON_DISCARDED", playerId: "a", cardId: "saloon_3" });
+  });
+
+  it("gửi lá không nằm trong 3 lá vừa xem thì báo lỗi", () => {
+    const state = makeState({
+      players: [makePlayer("a", { characterId: "kit_carlson" }), makePlayer("b"), makePlayer("c")],
+      turnPhase: "draw",
+      deck: ["saloon_3", "saloon_2", "saloon_1"],
+    });
+
+    const drawn = reduce(state, { type: "DRAW_CARDS", playerId: "a" });
+    expect(() =>
+      reduce(drawn.state, { type: "RESPOND", playerId: "a", cardId: "khong_ton_tai" })
+    ).toThrow(/không nằm trong 3 lá/);
+  });
+
+  it("bộ bài + chồng bỏ không đủ 3 lá: giữ hết những gì rút được, khỏi hỏi", () => {
+    const state = makeState({
+      players: [makePlayer("a", { characterId: "kit_carlson" }), makePlayer("b"), makePlayer("c")],
+      turnPhase: "draw",
+      deck: ["saloon_2", "saloon_1"], // chỉ có 2 lá, chồng bỏ cũng rỗng
+      discardPile: [],
+    });
+
+    const { state: next, events } = reduce(state, { type: "DRAW_CARDS", playerId: "a" });
+
+    expect(next.pending).toEqual([]);
+    expect(next.players[0].hand).toEqual(["saloon_1", "saloon_2"]);
+    expect(next.turnPhase).toBe("play");
+    expect(events).toContainEqual({ type: "CARDS_DRAWN", playerId: "a", count: 2 });
+  });
+
+  it("bộ bài cạn giữa chừng lúc xem: tự xào lại chồng bỏ để đủ 3 lá", () => {
+    const state = makeState({
+      players: [makePlayer("a", { characterId: "kit_carlson" }), makePlayer("b"), makePlayer("c")],
+      turnPhase: "draw",
+      deck: ["saloon_1"], // chỉ đủ 1 lá, phần còn lại phải xào từ chồng bỏ
+      discardPile: ["beer_2", "beer_1"],
+    });
+
+    const drawn = reduce(state, { type: "DRAW_CARDS", playerId: "a" });
+
+    expect(drawn.state.pending.length).toBe(1);
+    const pending = drawn.state.pending[0] as { kind: "NEED_PICK_KEPT_CARDS"; cards: string[] };
+    expect(pending.kind).toBe("NEED_PICK_KEPT_CARDS");
+    expect([...pending.cards].sort()).toEqual(["beer_1", "beer_2", "saloon_1"].sort());
+    // Dùng hết sạch bộ bài + chồng bỏ để có đủ 3 lá xem — chưa bỏ lá nào (chưa RESPOND).
+    expect(drawn.state.deck).toEqual([]);
+    expect(drawn.state.discardPile).toEqual([]);
+  });
+});
+
+describe("Calamity Janet — Bang! và Missed! hoán đổi cho nhau", () => {
+  it("đánh CHỦ ĐỘNG 1 lá tên 'missed' như Bang!", () => {
+    const state = makeState({
+      players: [
+        makePlayer("a", { hand: ["missed_1"], characterId: "calamity_janet" }),
+        makePlayer("b"),
+        makePlayer("c"),
+      ],
+    });
+
+    const { state: next, events } = reduce(state, {
+      type: "PLAY_CARD",
+      playerId: "a",
+      cardId: "missed_1",
+      targetId: "b",
+    });
+
+    expect(next.pending).toEqual([{ kind: "NEED_MISSED", player: "b", source: { card: "bang", from: "a" } }]);
+    expect(next.bangUsedThisTurn).toBe(true);
+    expect(events).toContainEqual({ type: "CARD_PLAYED", playerId: "a", cardId: "missed_1", targetId: "b" });
+  });
+
+  it("người KHÔNG phải Janet vẫn không được chủ động đánh Missed!", () => {
+    const state = makeState({
+      players: [makePlayer("a", { hand: ["missed_1"] }), makePlayer("b"), makePlayer("c")],
+    });
+
+    expect(() =>
+      reduce(state, { type: "PLAY_CARD", playerId: "a", cardId: "missed_1", targetId: "b" })
+    ).toThrow();
+  });
+
+  it("dùng Missed! làm Bang! vẫn tính là đã dùng 1 Bang!/lượt — đánh thêm lần 2 bị chặn", () => {
+    const state = makeState({
+      players: [
+        makePlayer("a", { hand: ["missed_1", "bang_2"], characterId: "calamity_janet" }),
+        makePlayer("b"),
+        makePlayer("c"),
+      ],
+    });
+
+    const played = reduce(state, { type: "PLAY_CARD", playerId: "a", cardId: "missed_1", targetId: "b" });
+    const responded = reduce(played.state, { type: "RESPOND", playerId: "b" }); // chịu mất máu, hết pending
+    expect(responded.state.pending).toEqual([]);
+
+    expect(() =>
+      reduce(responded.state, { type: "PLAY_CARD", playerId: "a", cardId: "bang_2", targetId: "b" })
+    ).toThrow();
+  });
+
+  it("dùng lá Bang! của mình để đỡ Bang!/Gatling (như Missed!)", () => {
+    const state = makeState({
+      players: [
+        makePlayer("a", { hand: ["bang_1"] }),
+        makePlayer("b", { hand: ["bang_2"], characterId: "calamity_janet" }),
+        makePlayer("c"),
+      ],
+    });
+
+    const played = reduce(state, { type: "PLAY_CARD", playerId: "a", cardId: "bang_1", targetId: "b" });
+    const { state: next, events } = reduce(played.state, { type: "RESPOND", playerId: "b", cardId: "bang_2" });
+
+    expect(next.players[1].hp).toBe(4); // né được, không mất máu
+    expect(next.players[1].hand).toEqual([]);
+    expect(events).toContainEqual({ type: "MISSED_PLAYED", playerId: "b" });
+  });
+
+  it("trong Duel: dùng lá Missed! của mình thay Bang! để đỡ", () => {
+    const state = makeState({
+      players: [
+        makePlayer("a", { hand: ["duel_1"] }),
+        makePlayer("b", { hand: ["missed_1"], characterId: "calamity_janet" }),
+        makePlayer("c"),
+      ],
+    });
+
+    const played = reduce(state, { type: "PLAY_CARD", playerId: "a", cardId: "duel_1", targetId: "b" });
+    const { state: next, events } = reduce(played.state, { type: "RESPOND", playerId: "b", cardId: "missed_1" });
+
+    expect(next.pending).toEqual([
+      { kind: "NEED_DUEL_RESPONSE", player: "a", opponent: "b", source: { card: "duel", from: "a" } },
+    ]);
+    expect(events).toContainEqual({ type: "BANG_DISCARDED", playerId: "b" });
+  });
+
+  it("Indians!: dùng lá Missed! của mình thay Bang! để bỏ", () => {
+    const state = makeState({
+      players: [
+        makePlayer("a", { hand: ["indians_1"] }),
+        makePlayer("b", { hand: ["missed_1"], characterId: "calamity_janet" }),
+        makePlayer("c", { hand: [] }),
+      ],
+    });
+
+    const played = reduce(state, { type: "PLAY_CARD", playerId: "a", cardId: "indians_1" });
+    const { state: next, events } = reduce(played.state, { type: "RESPOND", playerId: "b", cardId: "missed_1" });
+
+    expect(next.players[1].hand).toEqual([]);
+    expect(next.players[1].hp).toBe(4); // không mất máu
+    expect(events).toContainEqual({ type: "BANG_DISCARDED", playerId: "b" });
+  });
+
+  it("người KHÔNG phải Janet không được dùng Missed! đỡ Duel", () => {
+    const state = makeState({
+      players: [
+        makePlayer("a", { hand: ["duel_1"] }),
+        makePlayer("b", { hand: ["missed_1"] }),
+        makePlayer("c"),
+      ],
+    });
+
+    const played = reduce(state, { type: "PLAY_CARD", playerId: "a", cardId: "duel_1", targetId: "b" });
+    expect(() => reduce(played.state, { type: "RESPOND", playerId: "b", cardId: "missed_1" })).toThrow();
+  });
+});
+
+describe("Sid Ketchum — bỏ 2 lá tuỳ ý để hồi 1 máu, dùng được BẤT CỨ LÚC NÀO", () => {
+  it("dùng trong lượt của chính mình: bỏ đúng 2 lá, hồi 1 máu", () => {
+    const state = makeState({
+      players: [
+        makePlayer("a", { characterId: "sid_ketchum", hand: ["beer_1", "beer_2"], hp: 2, maxHp: 4 }),
+        makePlayer("b"),
+        makePlayer("c"),
+      ],
+    });
+
+    const { state: next, events } = reduce(state, {
+      type: "USE_ABILITY",
+      playerId: "a",
+      cardIds: ["beer_1", "beer_2"],
+    });
+
+    expect(next.players[0].hp).toBe(3);
+    expect(next.players[0].hand).toEqual([]);
+    expect(next.discardPile).toEqual(expect.arrayContaining(["beer_1", "beer_2"]));
+    expect(events).toContainEqual({
+      type: "SID_KETCHUM_HEALED",
+      playerId: "a",
+      cardIds: ["beer_1", "beer_2"],
+      amount: 1,
+    });
+  });
+
+  it("dùng được KHÔNG PHẢI lượt của mình, kể cả đang có pending của người khác — không đụng gì tới pending/lượt đó", () => {
+    const state = makeState({
+      players: [
+        makePlayer("a", { hand: ["bang_1"] }),
+        makePlayer("b"),
+        makePlayer("c", { characterId: "sid_ketchum", hand: ["beer_1", "beer_2"], hp: 2, maxHp: 4 }),
+      ],
+      currentPlayerIndex: 0,
+      pending: [{ kind: "NEED_MISSED", player: "b", source: { card: "bang", from: "a" } }],
+    });
+
+    const { state: next } = reduce(state, { type: "USE_ABILITY", playerId: "c", cardIds: ["beer_1", "beer_2"] });
+
+    expect(next.players[2].hp).toBe(3);
+    expect(next.pending).toEqual([{ kind: "NEED_MISSED", player: "b", source: { card: "bang", from: "a" } }]);
+    expect(next.currentPlayerIndex).toBe(0);
+  });
+
+  it("đã đầy máu vẫn dùng được, chỉ là không hồi thêm (amount = 0)", () => {
+    const state = makeState({
+      players: [
+        makePlayer("a", { characterId: "sid_ketchum", hand: ["beer_1", "beer_2"], hp: 4, maxHp: 4 }),
+        makePlayer("b"),
+        makePlayer("c"),
+      ],
+    });
+
+    const { state: next, events } = reduce(state, {
+      type: "USE_ABILITY",
+      playerId: "a",
+      cardIds: ["beer_1", "beer_2"],
+    });
+
+    expect(next.players[0].hp).toBe(4);
+    expect(events).toContainEqual({
+      type: "SID_KETCHUM_HEALED",
+      playerId: "a",
+      cardIds: ["beer_1", "beer_2"],
+      amount: 0,
+    });
+  });
+
+  it("báo lỗi nếu gửi 2 lá GIỐNG NHAU", () => {
+    const state = makeState({
+      players: [
+        makePlayer("a", { characterId: "sid_ketchum", hand: ["beer_1", "beer_2"] }),
+        makePlayer("b"),
+        makePlayer("c"),
+      ],
+    });
+
+    expect(() =>
+      reduce(state, { type: "USE_ABILITY", playerId: "a", cardIds: ["beer_1", "beer_1"] })
+    ).toThrow();
+  });
+
+  it("báo lỗi nếu 1 trong 2 lá không nằm trong tay", () => {
+    const state = makeState({
+      players: [
+        makePlayer("a", { characterId: "sid_ketchum", hand: ["beer_1"] }),
+        makePlayer("b"),
+        makePlayer("c"),
+      ],
+    });
+
+    expect(() =>
+      reduce(state, { type: "USE_ABILITY", playerId: "a", cardIds: ["beer_1", "khong_ton_tai"] })
+    ).toThrow();
+  });
+
+  it("người KHÔNG phải Sid Ketchum thì không dùng được kỹ năng này", () => {
+    const state = makeState({
+      players: [makePlayer("a", { hand: ["beer_1", "beer_2"] }), makePlayer("b"), makePlayer("c")],
+    });
+
+    expect(() =>
+      reduce(state, { type: "USE_ABILITY", playerId: "a", cardIds: ["beer_1", "beer_2"] })
+    ).toThrow();
+  });
+});

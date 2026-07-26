@@ -140,3 +140,25 @@ describe("viewFor — thông tin luôn công khai", () => {
     expect(viewFor(state, "b").viewerId).toBe("b");
   });
 });
+
+describe("viewFor — NEED_PICK_KEPT_CARDS (Kit Carlson, Giai đoạn 5 đợt 6) — pending DUY NHẤT chứa thông tin ẩn", () => {
+  it("chính chủ (Kit Carlson) thấy đúng 3 lá thật", () => {
+    const state = makeState([makePlayer("a"), makePlayer("b")], {
+      pending: [{ kind: "NEED_PICK_KEPT_CARDS", player: "a", cards: ["c1", "c2", "c3"] }],
+    });
+
+    const view = viewFor(state, "a");
+
+    expect(view.pending).toEqual([{ kind: "NEED_PICK_KEPT_CARDS", player: "a", cards: ["c1", "c2", "c3"] }]);
+  });
+
+  it("người khác KHÔNG thấy nội dung 3 lá — cards bị thay bằng null", () => {
+    const state = makeState([makePlayer("a"), makePlayer("b")], {
+      pending: [{ kind: "NEED_PICK_KEPT_CARDS", player: "a", cards: ["c1", "c2", "c3"] }],
+    });
+
+    const view = viewFor(state, "b");
+
+    expect(view.pending).toEqual([{ kind: "NEED_PICK_KEPT_CARDS", player: "a", cards: null }]);
+  });
+});
