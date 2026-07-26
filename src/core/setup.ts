@@ -1,8 +1,8 @@
-// Tạo state ban đầu cho 1 ván đấu 4-7 người, theo đúng luật gốc BANG!
-// (chưa có nhân vật/skill riêng — mọi người 4 máu, xem CLAUDE.md).
+// Tạo state ban đầu cho 1 ván đấu 4-7 người, theo đúng luật gốc BANG!.
 
 import type { CardName } from "./cards";
 import { buildDeck } from "./cards";
+import { getCharacterDefinition } from "./characters";
 import { giveCardToPlayer } from "./equipment";
 import { applyTurnStartChecks } from "./reduce";
 import { shuffle } from "./rng";
@@ -10,6 +10,12 @@ import type { GameState, PlayerState, Role } from "./types";
 
 export interface RuleOptions {
   cardCounts?: Partial<Record<CardName, number>>; // tuỳ chỉnh số lượng bài, để dành cho house rules sau này
+  // Giai đoạn 5, việc 5.2 (đợt 1) — TẠM THỜI, trước khi có cơ chế "phát 2 lá
+  // nhân vật úp, tự chọn giữ 1" thật (xem NHAN-VAT-BANG-CO-BAN.txt, việc đó
+  // để dành làm riêng sau): gán thẳng nhân vật cho từng người chơi theo
+  // playerId, chỉ để có nhân vật thật mà thử/test. playerId nào không có
+  // trong bản đồ này thì characterId vẫn null, hành vi y hệt trước giờ.
+  characterAssignments?: Record<string, string>;
 }
 
 const BASE_HP = 4; // ai cũng 4 máu (chưa có nhân vật)
@@ -48,7 +54,19 @@ export function setupGame(
   // được cả bàn, không chỉ người đang được chia.
   const players: PlayerState[] = playerIds.map((id, i) => {
     const role = shuffledRoles[i];
-    const hp = role === "sheriff" ? BASE_HP + SHERIFF_BONUS_HP : BASE_HP;
+
+    const characterId = options.characterAssignments?.[id] ?? null;
+    const character = getCharacterDefinition(characterId);
+    if (characterId && !character) {
+      throw new Error(`Không tìm thấy nhân vật "${characterId}" trong registry CHARACTERS`);
+    }
+    // Máu tối đa = bullets của nhân vật nếu có, không thì mặc định BASE_HP
+    // (đúng bản chưa-có-nhân-vật) — cộng thêm +1 nếu là Cảnh sát trưởng, ÁP
+    // DỤNG DÙ có nhân vật hay không (luật gốc: Sheriff luôn +1 bất kể nhân
+    // vật là ai).
+    const baseHp = character ? character.bullets : BASE_HP;
+    const hp = role === "sheriff" ? baseHp + SHERIFF_BONUS_HP : baseHp;
+
     return {
       id,
       name: id, // tên hiển thị thật do server/client gán sau, ở đây tạm dùng id
@@ -58,7 +76,7 @@ export function setupGame(
       hand: [],
       equipment: [],
       alive: true,
-      characterId: null, // Giai đoạn 5 mới gán nhân vật thật (xem core/characters.ts)
+      characterId,
     };
   });
 

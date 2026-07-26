@@ -3,10 +3,11 @@
 
 import type { CardName } from "./cards";
 import { cardNameFromId, cardSuitRankFromId, isSelfEquipBlueCardName, isWeaponCardName } from "./cards";
-import { getCharacterHooks } from "./characters";
+import { getCharacterDefinition, getCharacterHooks } from "./characters";
+import { drawTopCard } from "./deck";
 import { computeDistance, getWeaponRange } from "./distance";
 import { giveCardToPlayer, transferDynamiteToNextPlayer } from "./equipment";
-import { nextRandom, shuffle } from "./rng";
+import { nextRandom } from "./rng";
 import type { Action, GameEvent, GameState, PendingAction, PlayerState } from "./types";
 import { checkWinCondition } from "./win";
 
@@ -226,11 +227,12 @@ function playBang(
     throw new Error(`Mục tiêu ngoài tầm bắn (khoảng cách ${distance}, tầm súng ${range})`);
   }
 
-  // Luật gốc: chỉ 1 lá Bang!/lượt, trừ khi đang cầm súng Volcanic (không giới
-  // hạn). Chuẩn bị cho Willy the Kid (Giai đoạn 5, bỏ giới hạn này luôn dù
-  // không cầm Volcanic) — xem ghi chú ở GameState.bangUsedThisTurn.
+  // Luật gốc: chỉ 1 lá Bang!/lượt, trừ khi đang cầm súng Volcanic HOẶC là
+  // Willy the Kid (Giai đoạn 5, bỏ giới hạn này luôn dù không cầm Volcanic —
+  // xem CharacterDefinition.bypassBangLimit ở core/characters.ts).
   const hasVolcanic = player.equipment.some((id) => cardNameFromId(id) === "volcanic");
-  if (next.bangUsedThisTurn && !hasVolcanic) {
+  const hasUnlimitedBang = hasVolcanic || getCharacterDefinition(player.characterId)?.bypassBangLimit === true;
+  if (next.bangUsedThisTurn && !hasUnlimitedBang) {
     throw new Error("Đã đánh Bang! trong lượt này — cần súng Volcanic mới được đánh thêm lần nữa");
   }
   next.bangUsedThisTurn = true;
@@ -914,7 +916,7 @@ function eliminatePlayer(next: GameState, target: PlayerState, killerId: string 
   for (const player of next.players) {
     if (!player.alive || player.id === target.id) continue;
     const hooks = getCharacterHooks(player.characterId);
-    if (hooks.onAnyDeath) deathHookEvents.push(...hooks.onAnyDeath(next, target));
+    if (hooks.onAnyDeath) deathHookEvents.push(...hooks.onAnyDeath(next, player, target));
   }
 
   // Bỏ hết bài trên tay + trang bị trên sân vào chồng bỏ — người chết không giữ gì cả.
@@ -980,20 +982,6 @@ function assertPhase(state: GameState, phase: GameState["turnPhase"]): void {
   if (state.turnPhase !== phase) {
     throw new Error(`Hành động này chỉ hợp lệ ở giai đoạn "${phase}", đang ở "${state.turnPhase}"`);
   }
-}
-
-// Rút 1 lá từ đỉnh deck (phần tử cuối mảng). Hết deck thì xáo lại chồng bỏ làm
-// deck mới bằng RNG có seed trong state. Nếu cả deck lẫn chồng bỏ đều rỗng
-// (gần như không thể xảy ra ở ván bình thường) thì trả về undefined.
-function drawTopCard(next: GameState): string | undefined {
-  if (next.deck.length === 0) {
-    if (next.discardPile.length === 0) return undefined;
-    const { result, nextState } = shuffle(next.discardPile, next.rngState);
-    next.deck = result;
-    next.discardPile = [];
-    next.rngState = nextState;
-  }
-  return next.deck.pop();
 }
 
 function advanceTurn(next: GameState): void {

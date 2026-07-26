@@ -50,6 +50,7 @@ describe("modifyDistance", () => {
     CHARACTERS[TEST_ID] = {
       id: TEST_ID,
       name: "Nhân vật giả (target +1)",
+      bullets: 4,
       hooks: {
         modifyDistance: (distance, role) => (role === "target" ? distance + 1 : distance),
       },
@@ -64,6 +65,7 @@ describe("modifyDistance", () => {
     CHARACTERS[TEST_ID] = {
       id: TEST_ID,
       name: "Nhân vật giả (attacker -1)",
+      bullets: 4,
       hooks: {
         modifyDistance: (distance, role) => (role === "attacker" ? distance - 1 : distance),
       },
@@ -78,6 +80,7 @@ describe("modifyDistance", () => {
     CHARACTERS[TEST_ID] = {
       id: TEST_ID,
       name: "Nhân vật giả (attacker -1)",
+      bullets: 4,
       hooks: {
         modifyDistance: (distance, role) => (role === "attacker" ? distance - 1 : distance),
       },
@@ -101,6 +104,7 @@ describe("onLoseLife / onLoseLifeFromCard", () => {
     CHARACTERS[TEST_ID] = {
       id: TEST_ID,
       name: "Nhân vật giả (Bart + El Gringo)",
+      bullets: 4,
       hooks: {
         onLoseLife: (_next, target, amount): GameEvent[] => {
           calls.push(`onLoseLife:${target.id}:${amount}`);
@@ -131,6 +135,7 @@ describe("onLoseLife / onLoseLifeFromCard", () => {
     CHARACTERS[TEST_ID] = {
       id: TEST_ID,
       name: "Nhân vật giả (rút bài khi mất máu)",
+      bullets: 4,
       hooks: {
         onLoseLife: (_next, target, amount): GameEvent[] => [
           { type: "CARDS_DRAWN", playerId: target.id, count: amount },
@@ -157,6 +162,7 @@ describe("onLoseLife / onLoseLifeFromCard", () => {
     CHARACTERS[TEST_ID] = {
       id: TEST_ID,
       name: "Nhân vật giả (Bart + El Gringo)",
+      bullets: 4,
       hooks: {
         onLoseLife: (_next, target, amount): GameEvent[] => {
           calls.push(`onLoseLife:${target.id}:${amount}`);
@@ -210,14 +216,13 @@ describe("onAnyDeath", () => {
   }
 
   it("hook nhận hết bài người chết thì bài KHÔNG rơi vào chồng bỏ (không mất, không nhân đôi)", () => {
-    const samId = "a";
     CHARACTERS[TEST_ID] = {
       id: TEST_ID,
       name: "Nhân vật giả (Vulture Sam)",
+      bullets: 4,
       hooks: {
-        onAnyDeath: (next, deadPlayer): GameEvent[] => {
-          const sam = next.players.find((p) => p.id === samId)!;
-          sam.hand.push(...deadPlayer.hand, ...deadPlayer.equipment);
+        onAnyDeath: (_next, self, deadPlayer): GameEvent[] => {
+          self.hand.push(...deadPlayer.hand, ...deadPlayer.equipment);
           deadPlayer.hand = [];
           deadPlayer.equipment = [];
           return [];
