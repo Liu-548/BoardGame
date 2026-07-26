@@ -56,6 +56,16 @@ function handleDrawCards(
   const next = cloneState(state);
   const player = next.players[next.currentPlayerIndex];
 
+  // Giai đoạn 5 (Pedro Ramirez, đợt 4) — HỎI trước khi rút gì cả: lấy lá 1 từ
+  // đỉnh chồng bỏ, hay rút thẳng bộ bài như bình thường? Chỉ hỏi khi chồng bỏ
+  // còn bài (rỗng thì rút thẳng bộ bài, khỏi cần hỏi). Đẩy pending rồi TRẢ VỀ
+  // NGAY — turnPhase vẫn ở "draw", respondToPickDrawSource() mới thực sự rút
+  // bài và chuyển sang "play".
+  if (getCharacterDefinition(player.characterId)?.canDrawFromDiscardPile === true && next.discardPile.length > 0) {
+    next.pending.push({ kind: "NEED_PICK_DRAW_SOURCE", player: player.id });
+    return { state: next, events: [] };
+  }
+
   // Giai đoạn 5 (Black Jack, xem core/characters.ts) — onDrawPhase THAY HẲN
   // pha rút 2 lá mặc định khi nhân vật có định nghĩa hook này.
   const onDrawPhase = getCharacterHooks(player.characterId).onDrawPhase;
@@ -73,6 +83,37 @@ function handleDrawCards(
   next.turnPhase = "play";
 
   return { state: next, events };
+}
+
+// Giai đoạn 5 (Pedro Ramirez, đợt 4) — trả lời NEED_PICK_DRAW_SOURCE. Gửi kèm
+// cardId ĐÚNG BẰNG lá trên cùng chồng bỏ -> lấy lá đó làm lá 1; không kèm
+// cardId -> rút thẳng bộ bài như bình thường. Lá 2 LUÔN từ bộ bài (đúng luật).
+function respondToPickDrawSource(
+  state: GameState,
+  action: Action & { type: "RESPOND" }
+): Result {
+  const next = cloneState(state);
+  next.pending.pop();
+  const player = next.players.find((p) => p.id === action.playerId)!;
+
+  let firstCard: string | undefined;
+  if (action.cardId) {
+    const topOfDiscard = next.discardPile[next.discardPile.length - 1];
+    if (action.cardId !== topOfDiscard) {
+      throw new Error("Chỉ được lấy đúng lá trên cùng của chồng bài đã bỏ");
+    }
+    firstCard = next.discardPile.pop();
+  } else {
+    firstCard = drawTopCard(next);
+  }
+  if (firstCard) giveCardToPlayer(next.players, player, firstCard);
+
+  const secondCard = drawTopCard(next);
+  if (secondCard) giveCardToPlayer(next.players, player, secondCard);
+
+  next.turnPhase = "play";
+  const drawnCount = (firstCard ? 1 : 0) + (secondCard ? 1 : 0);
+  return { state: next, events: [{ type: "CARDS_DRAWN", playerId: player.id, count: drawnCount }] };
 }
 
 function handleEndTurn(state: GameState, action: Action & { type: "END_TURN" }): Result {
@@ -665,6 +706,8 @@ function handleRespond(state: GameState, action: Action & { type: "RESPOND" }): 
       return respondToDiscardFromZone(state, action, top);
     case "NEED_DRAW_CHECK":
       return resolveDrawCheck(state, action, top);
+    case "NEED_PICK_DRAW_SOURCE":
+      return respondToPickDrawSource(state, action);
     default: {
       const neverKind: never = top;
       throw new Error(`Chưa hỗ trợ phản hồi loại việc: ${JSON.stringify(neverKind)}`);
@@ -878,18 +921,51 @@ function resolveDrawCheck(
   const next = cloneState(state);
   next.pending.pop();
 
-  const cardId = drawTopCard(next);
-  if (!cardId) {
+  const primaryCardId = drawTopCard(next);
+  if (!primaryCardId) {
     throw new Error("Không còn lá nào để draw! (cả bộ bài lẫn chồng bài đã bỏ đều hết)");
   }
-  next.discardPile.push(cardId);
+  next.discardPile.push(primaryCardId);
 
-  const { suit, rank } = cardSuitRankFromId(cardId);
-  const matched = top.matchSuits.includes(suit) && (!top.matchRanks || top.matchRanks.includes(rank));
+  const matches = (id: string) => {
+    const { suit, rank } = cardSuitRankFromId(id);
+    return top.matchSuits.includes(suit) && (!top.matchRanks || top.matchRanks.includes(rank));
+  };
+  const primaryMatched = matches(primaryCardId);
 
-  const events: GameEvent[] = [
-    { type: "DRAW_CHECK_RESOLVED", playerId: action.playerId, cardId, matched },
-  ];
+  let cardId = primaryCardId;
+  let matched = primaryMatched;
+  const events: GameEvent[] = [];
+
+  // Giai đoạn 5 (Lucky Duke, đợt 4) — lật thêm 1 lá thứ 2, cả 2 đều vào chồng
+  // bỏ. "Có lợi" theo NGỮ CẢNH: Barrel/Jail có lợi = khớp (né/thoát); Dynamite
+  // có lợi = KHÔNG khớp (không nổ) — nên công thức kết hợp NGƯỢC NHAU: Barrel/
+  // Jail dùng "hoặc" (chỉ cần 1 lá khớp là đủ), Dynamite dùng "và" (cả 2 đều
+  // phải khớp mới thật sự nổ, còn không thì đã có ít nhất 1 lá không khớp).
+  const drawer = next.players.find((p) => p.id === top.player);
+  const hasLuckyDraw = getCharacterDefinition(drawer?.characterId ?? null)?.hasLuckyDraw === true;
+  if (hasLuckyDraw) {
+    const secondCardId = drawTopCard(next);
+    if (secondCardId) {
+      next.discardPile.push(secondCardId);
+      const secondMatched = matches(secondCardId);
+      const preferMatched = top.source.card !== "dynamite";
+      matched = preferMatched ? primaryMatched || secondMatched : primaryMatched && secondMatched;
+
+      const isFavorable = (m: boolean) => (preferMatched ? m : !m);
+      if (isFavorable(primaryMatched)) {
+        cardId = primaryCardId;
+        events.push({ type: "LUCKY_DUKE_EXTRA_DRAW", playerId: top.player, cardId: secondCardId });
+      } else {
+        cardId = secondCardId;
+        events.push({ type: "LUCKY_DUKE_EXTRA_DRAW", playerId: top.player, cardId: primaryCardId });
+      }
+    }
+    // Nếu deck+chồng bỏ cạn giữa chừng (secondCardId undefined) thì đành chỉ
+    // dùng đúng lá đã lật, y hệt không có Lucky Duke — hiếm khi xảy ra.
+  }
+
+  events.unshift({ type: "DRAW_CHECK_RESOLVED", playerId: action.playerId, cardId, matched });
 
   // Barrel khớp Cơ: tính như vừa bỏ 1 Missed! (miễn phí, không tốn bài trên
   // tay) — KHÔNG tự né hết toàn bộ, vì Slab the Killer (Giai đoạn 5, đợt 3) có

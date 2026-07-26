@@ -75,7 +75,14 @@ export type PendingAction =
       source: { card: string };
       matchSuits: Suit[];
       matchRanks?: Rank[];
-    };
+    }
+  // Giai đoạn 5 (Pedro Ramirez, đợt 4, xem core/characters.ts) — đẩy đầu lượt
+  // THAY VÌ rút bài ngay, hỏi: lấy lá 1 từ đỉnh chồng bỏ, hay rút thẳng từ bộ
+  // bài như bình thường? Không cần lưu thêm dữ liệu gì — đỉnh chồng bỏ vốn đã
+  // công khai (state.discardPile), không lộ thông tin ẩn nào. RESPOND kèm
+  // đúng cardId của lá trên cùng chồng bỏ = lấy lá đó; không kèm cardId = rút
+  // bộ bài như thường (xem respondToPickDrawSource() trong reduce.ts).
+  | { kind: "NEED_PICK_DRAW_SOURCE"; player: string };
 
 // ----- Hành động -----
 // Các hành động cho vòng lượt (việc 1.5) và đánh bài (việc 1.7/1.8, hiện chỉ hỗ
@@ -127,6 +134,12 @@ export type GameEvent =
   // người xem (dù vẫn nằm trong tay, bình thường bị ẩn — xem view.ts). Tiền lệ
   // giống DRAW_CHECK_RESOLVED đã công khai 1 lá vốn bị ẩn.
   | { type: "BLACK_JACK_REVEALED"; playerId: string; cardId: string }
+  // Giai đoạn 5 (Lucky Duke, đợt 4) — mọi lần draw! đều lật thêm 1 lá thứ 2,
+  // dùng để chọn kết quả có lợi hơn (xem resolveDrawCheck() trong reduce.ts).
+  // `cardId` ở đây là lá KHÔNG được chọn làm kết quả chính — lá chính vẫn báo
+  // qua DRAW_CHECK_RESOLVED như bình thường, sự kiện này chỉ bổ sung thông tin
+  // lá thứ 2 (để không mất thông tin so với thực tế đã lật 2 lá).
+  | { type: "LUCKY_DUKE_EXTRA_DRAW"; playerId: string; cardId: string }
   // ----- Việc 1.13: chết, thưởng/phạt, điều kiện thắng -----
   // killedBy = người trực tiếp gây đòn đánh khiến hp về 0 (Bang!/Gatling/
   // Indians!/Duel). null nếu tự chết (Dynamite) — không có ai "giết" cả.

@@ -566,3 +566,124 @@ describe("Suzy Lafayette — tay CHUYỂN từ còn bài sang hết bài (0 lá)
     expect(events).toContainEqual({ type: "CARDS_DRAWN", playerId: "b", count: 1 });
   });
 });
+
+describe("Pedro Ramirez — đầu lượt được HỎI thật: lấy lá trên cùng chồng bỏ hay rút bộ bài", () => {
+  it("chồng bỏ còn bài: đầu lượt bị hỏi, chọn lấy lá trên cùng chồng bỏ", () => {
+    const state = makeState({
+      players: [makePlayer("a", { characterId: "pedro_ramirez" }), makePlayer("b"), makePlayer("c")],
+      turnPhase: "draw",
+      discardPile: ["beer_5"],
+      deck: ["saloon_1"],
+    });
+
+    const drawn = reduce(state, { type: "DRAW_CARDS", playerId: "a" });
+    expect(drawn.state.pending).toEqual([{ kind: "NEED_PICK_DRAW_SOURCE", player: "a" }]);
+    expect(drawn.state.turnPhase).toBe("draw"); // chưa rút gì cả, còn đang chờ chọn
+
+    const { state: next, events } = reduce(drawn.state, { type: "RESPOND", playerId: "a", cardId: "beer_5" });
+
+    expect(next.players[0].hand).toEqual(["beer_5", "saloon_1"]);
+    expect(next.discardPile).toEqual([]);
+    expect(next.turnPhase).toBe("play");
+    expect(events).toContainEqual({ type: "CARDS_DRAWN", playerId: "a", count: 2 });
+  });
+
+  it("chọn rút bộ bài như bình thường (không kèm cardId): chồng bỏ không bị đụng tới", () => {
+    const state = makeState({
+      players: [makePlayer("a", { characterId: "pedro_ramirez" }), makePlayer("b"), makePlayer("c")],
+      turnPhase: "draw",
+      discardPile: ["beer_5"],
+      deck: ["saloon_2", "saloon_1"],
+    });
+
+    const drawn = reduce(state, { type: "DRAW_CARDS", playerId: "a" });
+    const { state: next } = reduce(drawn.state, { type: "RESPOND", playerId: "a" });
+
+    expect(next.players[0].hand).toEqual(["saloon_1", "saloon_2"]);
+    expect(next.discardPile).toEqual(["beer_5"]); // KHÔNG đụng chồng bỏ
+    expect(next.turnPhase).toBe("play");
+  });
+
+  it("chồng bỏ rỗng: khỏi hỏi, rút thẳng bộ bài như bình thường", () => {
+    const state = makeState({
+      players: [makePlayer("a", { characterId: "pedro_ramirez" }), makePlayer("b"), makePlayer("c")],
+      turnPhase: "draw",
+      discardPile: [],
+      deck: ["saloon_2", "saloon_1"],
+    });
+
+    const { state: next, events } = reduce(state, { type: "DRAW_CARDS", playerId: "a" });
+
+    expect(next.pending).toEqual([]);
+    expect(next.players[0].hand).toEqual(["saloon_1", "saloon_2"]);
+    expect(next.turnPhase).toBe("play");
+    expect(events).toContainEqual({ type: "CARDS_DRAWN", playerId: "a", count: 2 });
+  });
+
+  it("gửi sai lá (không phải lá trên cùng chồng bỏ) thì báo lỗi", () => {
+    const state = makeState({
+      players: [makePlayer("a", { characterId: "pedro_ramirez" }), makePlayer("b"), makePlayer("c")],
+      turnPhase: "draw",
+      discardPile: ["beer_5", "beer_6"], // trên cùng là beer_6
+      deck: ["saloon_1"],
+    });
+
+    const drawn = reduce(state, { type: "DRAW_CARDS", playerId: "a" });
+    expect(() => reduce(drawn.state, { type: "RESPOND", playerId: "a", cardId: "beer_5" })).toThrow(/lá trên cùng/);
+  });
+});
+
+describe("Lucky Duke — mọi lần draw! đều lật thêm 1 lá, chọn kết quả có lợi theo ngữ cảnh", () => {
+  it("Barrel: chỉ cần 1 trong 2 lá khớp Cơ là né (ưu tiên khớp)", () => {
+    const state = makeState({
+      players: [
+        makePlayer("a", { hand: ["bang_1"] }),
+        makePlayer("b", { characterId: "lucky_duke", equipment: ["barrel_1"] }),
+        makePlayer("c"),
+      ],
+      // rút thứ tự: duel_2 (spades,J — không khớp) rồi duel_1 (hearts,Q — khớp)
+      deck: ["duel_1", "duel_2"],
+    });
+
+    const played = reduce(state, { type: "PLAY_CARD", playerId: "a", cardId: "bang_1", targetId: "b" });
+    const { state: next, events } = reduce(played.state, { type: "RESPOND", playerId: "b" });
+
+    expect(next.pending).toEqual([]); // né hết, không mất máu
+    expect(next.players[1].hp).toBe(4);
+    expect(events).toContainEqual({ type: "DRAW_CHECK_RESOLVED", playerId: "b", cardId: "duel_1", matched: true });
+    expect(events).toContainEqual({ type: "LUCKY_DUKE_EXTRA_DRAW", playerId: "b", cardId: "duel_2" });
+    expect(events).toContainEqual({ type: "BARREL_DODGED", playerId: "b" });
+    expect(next.discardPile).toEqual(expect.arrayContaining(["duel_1", "duel_2"]));
+  });
+
+  it("Dynamite: ưu tiên KHÔNG khớp (không nổ) — chỉ cần 1 trong 2 lá an toàn", () => {
+    const state = makeState({
+      players: [
+        makePlayer("a"),
+        makePlayer("b", { characterId: "lucky_duke", equipment: ["dynamite_1"] }),
+        makePlayer("c"),
+      ],
+      currentPlayerIndex: 1,
+      // rút thứ tự: missed_6 (spades,2 — sẽ nổ nếu dùng riêng) rồi beer_1 (clubs,6 — an toàn)
+      deck: ["beer_1", "missed_6"],
+      pending: [
+        {
+          kind: "NEED_DRAW_CHECK",
+          player: "b",
+          source: { card: "dynamite" },
+          matchSuits: ["spades"],
+          matchRanks: ["2", "3", "4", "5", "6", "7", "8", "9"],
+        },
+      ],
+    });
+
+    const { state: next, events } = reduce(state, { type: "RESPOND", playerId: "b" });
+
+    expect(next.players[1].hp).toBe(4); // không nổ nhờ Lucky Duke có 1 lá an toàn
+    expect(events).toContainEqual({ type: "DRAW_CHECK_RESOLVED", playerId: "b", cardId: "beer_1", matched: false });
+    expect(events).toContainEqual({ type: "LUCKY_DUKE_EXTRA_DRAW", playerId: "b", cardId: "missed_6" });
+    expect(events).toContainEqual({ type: "DYNAMITE_PASSED", playerId: "b" });
+    expect(next.players[2].equipment).toContain("dynamite_1"); // chuyển sang người kế tiếp
+    expect(next.players[1].equipment).not.toContain("dynamite_1");
+  });
+});
