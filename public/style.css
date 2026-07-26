@@ -1,3 +1,12 @@
+/* Việc 4.4: box-sizing border-box cho MỌI phần tử — không có nó, input/button
+   có padding sẽ bị CỘNG THÊM vào width khai báo, dễ tràn ngang trên màn hình
+   hẹp (điện thoại) mà không thấy rõ nguyên nhân. */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
 body {
   font-family: sans-serif;
   max-width: 60rem;
@@ -9,6 +18,16 @@ button {
   font-size: 1rem;
   padding: 0.5rem 1rem;
   cursor: pointer;
+}
+
+/* Input trần (chưa gắn class riêng) — dùng chung cho ô nhập tên/mã phòng ở
+   màn hình chơi qua mạng. `.setup-list input` (hotseat) kế thừa từ đây, chỉ
+   cần thêm layout riêng (xem bên dưới). */
+input[type="text"] {
+  font-size: 1rem;
+  padding: 0.4rem 0.6rem;
+  width: 100%;
+  max-width: 20rem;
 }
 
 .summary {
@@ -142,11 +161,6 @@ button {
   margin: 1rem 0;
 }
 
-.setup-list input {
-  font-size: 1rem;
-  padding: 0.4rem 0.6rem;
-}
-
 .log {
   border-color: #999;
 }
@@ -161,4 +175,43 @@ button {
 
 .log-list li {
   margin: 0.15rem 0;
+}
+
+/* Việc 4.4: màn hình hẹp (điện thoại) — thu gọn khoảng trắng, tăng kích
+   thước vùng bấm cho ngón tay (khuyến nghị chung ~44px), và mỗi người chơi
+   chiếm trọn 1 hàng thay vì chen 2 cột chật (14rem × 2 đã vừa gần khít màn
+   hình 480px, dễ bị dính/lệch dòng nếu vẫn để flex-wrap tự do). */
+@media (max-width: 480px) {
+  body {
+    margin: 1rem auto;
+    padding: 0 0.75rem;
+  }
+
+  h1 {
+    font-size: 1.4rem;
+  }
+
+  h2 {
+    font-size: 1.15rem;
+  }
+
+  h3 {
+    font-size: 1.05rem;
+  }
+
+  button {
+    padding: 0.65rem 1rem;
+    min-height: 2.75rem;
+  }
+
+  .cards button {
+    padding: 0.5rem 0.75rem;
+    font-size: 0.9rem;
+    min-height: 2.5rem;
+  }
+
+  .player {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
 }
