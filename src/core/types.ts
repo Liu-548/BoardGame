@@ -41,7 +41,13 @@ export interface PlayerState {
 // thêm dần khi cài từng cơ chế mới, từ việc 1.10/1.11 trở đi.
 
 export type PendingAction =
-  | { kind: "NEED_MISSED"; player: string; source: { card: string; from: string } }
+  // Giai đoạn 5 (Slab the Killer, xem core/characters.ts) — `missesNeeded` chỉ
+  // xuất hiện khi CẦN NHIỀU HƠN 1 Missed! để né trọn vẹn (Slab luôn là 2). Bỏ
+  // qua (undefined) nghĩa là mặc định 1, y hệt trước khi có nhân vật. Mỗi lần
+  // bỏ đúng 1 Missed!/1 lượt draw! Barrel khớp Cơ chỉ tính là 1, chưa đủ thì
+  // pending này được đẩy lại với số còn thiếu giảm 1 (xem respondToMissed()/
+  // resolveDrawCheck() trong reduce.ts).
+  | { kind: "NEED_MISSED"; player: string; source: { card: string; from: string }; missesNeeded?: number }
   // Indians!: người chơi phải bỏ 1 lá Bang! hoặc mất 1 máu. Có thể chọn KHÔNG bỏ
   // dù có Bang! trong tay (RESPOND không kèm cardId) — chịu mất máu là lựa chọn hợp lệ.
   | { kind: "NEED_DISCARD_BANG"; player: string; source: { card: string; from: string } }

@@ -69,6 +69,33 @@ export interface CharacterHooks {
   // Vulture Sam: chuyển hết bài người chết (kể cả Dynamite chưa nổ) về tay
   // chính mình.
   onAnyDeath?(next: GameState, self: PlayerState, deadPlayer: PlayerState): GameEvent[];
+
+  // Giai đoạn 5 (đợt 3), Slab the Killer — trả về số lá Missed! CẦN để né TRỌN
+  // VẸN 1 phát Bang!/Gatling do CHÍNH người này đánh ra (không áp dụng Duel/
+  // Indians! — 2 lá đó không đi qua pushMissedReaction()). Không có hook này
+  // (undefined) nghĩa là mặc định 1, y hệt trước Giai đoạn 5. pushMissedReaction()
+  // trong reduce.ts tra hook này qua NHÂN VẬT CỦA NGƯỜI ĐÁNH (không phải người
+  // bị nhắm) rồi gắn vào NEED_MISSED.missesNeeded.
+  onOutgoingBang?(): number;
+
+  // Giai đoạn 5 (đợt 3), Suzy Lafayette — gọi ngay khi tay CHÍNH người này vừa
+  // CHUYỂN từ còn bài sang hết bài (0 lá), bất kể lý do (đánh ra, bị cướp, bị
+  // bắt bỏ...). reduce.ts/characters.ts gọi qua triggerHandEmptyHook() bên dưới
+  // — hàm đó tự đảm bảo chỉ gọi hook này đúng 1 lần ngay sau 1 lần rời tay làm
+  // tay về 0, không tự lặp lại nếu tay đã trống sẵn từ trước.
+  onHandEmpty?(next: GameState, player: PlayerState): GameEvent[];
+}
+
+// Giai đoạn 5 (đợt 3), Suzy Lafayette — gọi ở MỌI nơi trong reduce.ts (và ngay
+// trong file này, xem el_gringo bên dưới) có 1 lá THẬT SỰ vừa rời khỏi 1 bàn
+// tay đang có bài (splice thành công từ hand không rỗng) — an toàn gọi vô điều
+// kiện: nếu tay còn bài (>0) hoặc nhân vật không có onHandEmpty thì trả về
+// mảng rỗng, không có gì xảy ra.
+export function triggerHandEmptyHook(next: GameState, player: PlayerState): GameEvent[] {
+  if (player.hand.length !== 0) return [];
+  const hook = getCharacterHooks(player.characterId).onHandEmpty;
+  if (!hook) return [];
+  return hook(next, player);
 }
 
 export interface CharacterDefinition {
@@ -184,6 +211,9 @@ export const CHARACTERS: Record<string, CharacterDefinition> = {
           const [stolenCardId] = attacker.hand.splice(index, 1);
           giveCardToPlayer(next.players, target, stolenCardId);
           events.push({ type: "CARD_STOLEN", playerId: target.id, fromPlayerId: attacker.id, cardId: stolenCardId });
+          // Giai đoạn 5 (đợt 3) — nếu người bị El Gringo cướp (attacker) vừa hết
+          // bài, VÀ chính họ là Suzy Lafayette, họ vẫn phải được rút bù ngay.
+          events.push(...triggerHandEmptyHook(next, attacker));
         }
         return events;
       },
@@ -233,6 +263,33 @@ export const CHARACTERS: Record<string, CharacterDefinition> = {
     bypassBangLimit: true,
     hooks: {},
   },
+
+  slab_the_killer: {
+    id: "slab_the_killer",
+    name: "Slab the Killer",
+    bullets: 4,
+    hooks: {
+      onOutgoingBang: () => 2,
+    },
+  },
+
+  suzy_lafayette: {
+    id: "suzy_lafayette",
+    name: "Suzy Lafayette",
+    bullets: 4,
+    hooks: {
+      onHandEmpty: (next, player) => {
+        const cardId = drawTopCard(next);
+        if (!cardId) return [];
+        // Nếu lá rút được là Dynamite, giveCardToPlayer() tự xuống thẳng
+        // trang bị (không vào tay) — tay Suzy có thể VẪN còn 0 lá sau "rút 1
+        // lá" trong ca hiếm này. Chấp nhận như 1 hệ quả tự nhiên của luật
+        // Dynamite (không tự rút bù thêm lần nữa), không coi là bug.
+        giveCardToPlayer(next.players, player, cardId);
+        return [{ type: "CARDS_DRAWN", playerId: player.id, count: 1 }];
+      },
+    },
+  },
 };
 
 // ----- Hook/nhân vật còn lại, ĐỂ DÀNH cho các đợt 5.2 sau -----
@@ -245,9 +302,8 @@ export const CHARACTERS: Record<string, CharacterDefinition> = {
 //   Kit Carlson     xem 3 lá trên cùng, giữ 2, bỏ 1 vào chồng bỏ.
 //   Pedro Ramirez   chọn rút lá 1 từ bộ bài hay từ đỉnh chồng bỏ.
 //
-// onDrawCheck       Thay cách lật bài kiểm tra (Lucky Duke: lật 2 chọn 1).
-// onOutgoingBang    Đổi yêu cầu né Bang! mình bắn ra (Slab the Killer: cần 2
-//                    Missed! thay vì 1, áp cả cho Gatling).
+// onDrawCheck       Thay cách lật bài kiểm tra (Lucky Duke: lật 2 chọn 1, cần
+//                    PendingAction mới cho bước "tự chọn 1 trong 2 lá đã lật").
 // cardAlias         Coi lá bài này như lá khác (Calamity Janet: Bang! <->
 //                    Missed!) — đụng NHIỀU chỗ đang so khớp tên lá rải rác
 //                    trong reduce.ts, cần bọc qua 1 hàm dùng chung trước.
@@ -259,6 +315,17 @@ export const CHARACTERS: Record<string, CharacterDefinition> = {
 // Jourdonnais (Barrel ảo, xem virtualBarrel ở CharacterDefinition + đợt 2 ở
 // trên) đã xong — hoá ra KHÔNG cần hook riêng, chỉ cần 1 field tĩnh cộng vào
 // đúng công thức đếm Barrel có sẵn trong pushMissedReaction()/resolveDrawCheck()
-// (reduce.ts). onHandEmpty (Suzy Lafayette) vẫn để dành — cần gắn ở MỌI chỗ
-// tay có thể về 0: đánh bài, bị Panic!/Cat Balou cướp/bắt bỏ, bỏ bài thừa cuối
-// lượt...
+// (reduce.ts).
+//
+// Slab the Killer (onOutgoingBang, đợt 3) đã xong — pushMissedReaction() tra
+// hook này qua NGƯỜI ĐÁNH, gắn missesNeeded vào NEED_MISSED. Mỗi lượt Barrel/
+// Jourdonnais khớp Cơ CHỈ tính là 1 Missed! (giảm missesNeeded đi 1, không tự
+// né hết nếu vẫn còn thiếu) — xem đoạn xử lý trong resolveDrawCheck().
+//
+// Suzy Lafayette (onHandEmpty, đợt 3) đã xong — gắn ở MỌI nơi trong reduce.ts
+// (đánh bài, bỏ bài thừa cuối lượt, bị Panic!/Cat Balou cướp/bắt bỏ, tự bỏ
+// Missed!/Bang! khi đỡ Bang!/Indians!/Duel) VÀ ngay trong file này (El Gringo
+// cướp bài của người khác) có 1 lá THẬT SỰ vừa rời khỏi 1 bàn tay đang có bài
+// — xem triggerHandEmptyHook() ở trên. KHÔNG gắn ở 2 chỗ hand bị xoá sạch vì
+// chết/bị phạt (eliminatePlayer()/hình phạt Cảnh sát trưởng trong reduce.ts) —
+// 2 ca đó không nằm trong các tình huống file đặc tả liệt kê.
