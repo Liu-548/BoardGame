@@ -200,7 +200,11 @@ export class Room {
       return;
     }
 
-    await this.afterStateChange(result.state, result.events);
+    // Giai đoạn 5 (Sid Ketchum, đợt 7) — truyền kèm ai VỪA hành động, để
+    // scheduleDeadline() biết mà KHÔNG cấp lại đồng hồ mới cho người khác khi
+    // hành động này không phải của chính người đang được tính giờ (xem ghi
+    // chú ở scheduleDeadline()).
+    await this.afterStateChange(result.state, result.events, action.playerId);
   }
 
   // ----- Việc 4.1: đồng hồ đếm ngược lượt -----
@@ -214,7 +218,16 @@ export class Room {
   // draw! (NEED_DRAW_CHECK — Barrel/Jail/Dynamite, "lật bài kiểm tra" không
   // phải quyết định, chỉ là hình thức). Nhờ vậy các bước này không cần (và
   // không có) đồng hồ đếm giờ riêng.
-  private async afterStateChange(state: GameState, events: GameEvent[]): Promise<void> {
+  //
+  // `actingPlayerId` (Giai đoạn 5, Sid Ketchum đợt 7) — người vừa gửi action
+  // THẬT SỰ (không tính bởi bước "cuốn" tự động ở trên). undefined cho
+  // start_game (không có "người vừa hành động" nào liên quan tới việc giữ
+  // nguyên đồng hồ, xử lý như trước giờ). Xem scheduleDeadline().
+  private async afterStateChange(
+    state: GameState,
+    events: GameEvent[],
+    actingPlayerId?: string
+  ): Promise<void> {
     let finalState = state;
     let allEvents = events;
 
@@ -237,7 +250,7 @@ export class Room {
     }
 
     await this.ctx.storage.put(GAME_STATE_KEY, finalState);
-    const deadline = await this.scheduleDeadline(finalState);
+    const deadline = await this.scheduleDeadline(finalState, actingPlayerId);
     this.broadcastState(finalState, allEvents, deadline);
   }
 
@@ -264,7 +277,7 @@ export class Room {
   // ctx.storage.setAlarm() — quy tắc 8 CLAUDE.md cấm setInterval/setTimeout
   // trong Durable Object, Alarm là cách THAY THẾ được phép, sống sót qua
   // hibernate.
-  private async scheduleDeadline(state: GameState): Promise<DeadlineInfo | null> {
+  private async scheduleDeadline(state: GameState, actingPlayerId?: string): Promise<DeadlineInfo | null> {
     const decision = this.determineActiveDecision(state);
 
     if (!decision) {
@@ -276,6 +289,23 @@ export class Room {
 
     const previous = await this.ctx.storage.get<DeadlineInfo>(DEADLINE_KEY);
     const pausedPlay = await this.ctx.storage.get<PausedPlay>(PAUSED_PLAY_KEY);
+
+    // Giai đoạn 5 (Sid Ketchum, đợt 7) — kỹ năng chủ động dùng được BẤT CỨ LÚC
+    // NÀO, kể cả khi KHÔNG phải lượt/phản ứng của chính người dùng. Nếu "ai
+    // cần làm gì" không đổi (vẫn cùng kind/playerId) VÀ người vừa hành động
+    // KHÁC người đang được tính giờ -> GIỮ NGUYÊN đồng hồ đang chạy, không cấp
+    // lại thời gian mới — đúng yêu cầu "không can thiệp vào cơ chế tính giờ
+    // của bất kỳ ai". Người ĐANG được tính giờ tự hành động (vd chơi thêm 1 lá
+    // Bia trong lượt mình) vẫn được cấp lại đồng hồ mới như trước giờ.
+    if (
+      actingPlayerId !== undefined &&
+      actingPlayerId !== decision.playerId &&
+      previous &&
+      previous.kind === decision.kind &&
+      previous.playerId === decision.playerId
+    ) {
+      return previous;
+    }
 
     let expiresAt: number;
     if (decision.kind === "play" && pausedPlay && pausedPlay.playerId === decision.playerId) {
@@ -325,7 +355,7 @@ export class Room {
       // State đã đổi khác trước khi kịp hết giờ (hiếm — DO chạy đơn luồng
       // nên gần như không xảy ra) -> không có gì để tự làm, chỉ lên lịch lại
       // đúng theo state hiện tại.
-      await this.scheduleDeadline(state);
+      await this.scheduleDeadline(state, deadline.playerId);
       return;
     }
 
@@ -333,11 +363,15 @@ export class Room {
     try {
       result = reduce(state, action);
     } catch {
-      await this.scheduleDeadline(state);
+      await this.scheduleDeadline(state, deadline.playerId);
       return;
     }
 
-    await this.afterStateChange(result.state, result.events);
+    // "Người vừa hành động" ở đây chính là chủ nhân đồng hồ vừa hết giờ (hệ
+    // thống tự bấm nút mặc định thay họ) — không phải ca "bystander" của Sid
+    // Ketchum, nên vẫn cấp lại đồng hồ mới bình thường cho quyết định TIẾP
+    // THEO (thường đã đổi người/kind sau hành động mặc định này).
+    await this.afterStateChange(result.state, result.events, deadline.playerId);
   }
 
   // Hành động MẶC ĐỊNH khi hết giờ, theo đúng loại đồng hồ đang chạy — không
@@ -412,6 +446,13 @@ export class Room {
       // ngẫu nhiên" trong file luật.
       case "NEED_GIVE_CARD_TO_PLAYER":
         return { type: "RESPOND", playerId: top.player };
+
+      // Giai đoạn 5 (Kit Carlson) — hết giờ thì giữ 2 lá ĐẦU, bỏ lá thứ 3
+      // (top.cards[2]), đúng house rule đã chốt (khác bản gốc BANG!). `top` ở
+      // đây là PendingAction THẬT từ GameState (server-side), không phải bản
+      // đã ẩn qua viewFor(), nên vẫn đọc được top.cards bình thường.
+      case "NEED_PICK_KEPT_CARDS":
+        return { type: "RESPOND", playerId: top.player, cardId: top.cards[2] };
     }
   }
 

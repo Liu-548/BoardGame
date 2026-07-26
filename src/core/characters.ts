@@ -134,6 +134,22 @@ export interface CharacterDefinition {
   // chọn lá đưa hay cướp ngẫu nhiên)? Cũng là DỮ LIỆU tĩnh — luồng HỎI/xử lý
   // câu trả lời dùng chung, không có gì riêng để tính trong 1 hàm hook.
   canStealFirstDrawCard?: boolean;
+  // Kit Carlson (đợt 6) — được HỎI đầu lượt (xem NEED_PICK_KEPT_CARDS ở
+  // types.ts + handleDrawCards()/respondToPickKeptCards() trong reduce.ts):
+  // xem riêng 3 lá trên cùng bộ bài, chọn giữ 2 bỏ 1. Cũng là DỮ LIỆU tĩnh.
+  canPeekTopThree?: boolean;
+  // Calamity Janet (đợt 7) — lá Bang!/Missed! của người này HOÁN ĐỔI được cho
+  // nhau ở MỌI chỗ kiểm tra "có lá Bang!/Missed! không" (đánh Bang! chủ động
+  // bằng lá Missed!, đỡ Bang! bằng lá Bang!, đỡ Duel/Indians! bằng lá Missed!)
+  // — xem actsAsBang()/actsAsMissed() trong reduce.ts. KHÔNG đặt trong
+  // CharacterHooks dù file đặc tả gọi là "hook" (cardAlias) — không có gì
+  // riêng để TÍNH, chỉ là "có/không" áp dụng logic hoán đổi dùng chung.
+  hasBangMissedAlias?: boolean;
+  // Sid Ketchum (đợt 7) — có kỹ năng CHỦ ĐỘNG dùng bất cứ lúc nào (action mới
+  // USE_ABILITY, xem types.ts + handleUseAbility() trong reduce.ts): bỏ 2 lá
+  // trên tay để hồi 1 máu. Cũng là DỮ LIỆU tĩnh — bản thân luồng xử lý action
+  // này dùng chung, không có gì riêng để tính trong 1 hàm hook.
+  canSelfHeal?: boolean;
   hooks: CharacterHooks;
 }
 
@@ -335,26 +351,39 @@ export const CHARACTERS: Record<string, CharacterDefinition> = {
     canStealFirstDrawCard: true,
     hooks: {},
   },
+
+  kit_carlson: {
+    id: "kit_carlson",
+    name: "Kit Carlson",
+    bullets: 4,
+    canPeekTopThree: true,
+    hooks: {},
+  },
+
+  calamity_janet: {
+    id: "calamity_janet",
+    name: "Calamity Janet",
+    bullets: 4,
+    hasBangMissedAlias: true,
+    hooks: {},
+  },
+
+  sid_ketchum: {
+    id: "sid_ketchum",
+    name: "Sid Ketchum",
+    bullets: 4,
+    canSelfHeal: true,
+    hooks: {},
+  },
 };
 
 // ----- Hook/nhân vật còn lại, ĐỂ DÀNH cho các đợt 5.2 sau -----
 //
 // onDrawPhase (đã nối dây ở việc 5.2 đợt 2, xem handleDrawCards() trong
 // reduce.ts) — Black Jack dùng được ngay vì KHÔNG có lựa chọn (tự động theo lá
-// lật ra). Jesse Jones (đợt 5) đã xong (xem bên dưới). Kit Carlson vẫn để
-// dành vì CÓ lựa chọn thật SAU KHI đã biết thông tin (3 lá vừa lật riêng cho
-// mình) — không đủ để trả lời ngay trong 1 action, VÀ pending phải lưu tạm 3
-// lá đó, viewFor() (quy tắc 6) phải chỉ lộ 3 lá này cho ĐÚNG Kit Carlson,
-// không phải mọi người (khác NEED_PICK_STORE_CARD — General Store vốn công
-// khai cho cả bàn) — đụng tới view.ts, không chỉ reduce.ts.
+// lật ra). Jesse Jones (đợt 5) + Kit Carlson (đợt 6) đã xong (xem bên dưới).
 //
-// cardAlias         Coi lá bài này như lá khác (Calamity Janet: Bang! <->
-//                    Missed!) — đụng NHIỀU chỗ đang so khớp tên lá rải rác
-//                    trong reduce.ts, cần bọc qua 1 hàm dùng chung trước.
-// activatedAbility  Kỹ năng bấm CHỦ ĐỘNG, bất cứ lúc nào kể cả ngoài lượt
-//                    mình (Sid Ketchum) — KHÔNG khớp mô hình "lượt của ai/
-//                    đang chờ ai phản hồi" hiện có, cần thiết kế riêng hẳn 1
-//                    luồng action mới, không chỉ là 1 hook đơn giản.
+// Đủ 16/16 nhân vật kể từ đợt 7 (Calamity Janet + Sid Ketchum, xem bên dưới).
 //
 // Jourdonnais (Barrel ảo, xem virtualBarrel ở CharacterDefinition + đợt 2 ở
 // trên) đã xong — hoá ra KHÔNG cần hook riêng, chỉ cần 1 field tĩnh cộng vào
@@ -395,3 +424,29 @@ export const CHARACTERS: Record<string, CharacterDefinition> = {
 // có muốn để nạn nhân tự chọn lá đưa hay cướp ngẫu nhiên; nạn nhân CHỈ được
 // hỏi tiếp (chọn lá cụ thể của CHÍNH mình, không lộ gì mới) khi Jesse chọn
 // "để tự chọn". Hết giờ ở bước nạn nhân chọn lá → rút ngẫu nhiên thay họ.
+//
+// Kit Carlson (canPeekTopThree, đợt 6) đã xong — pending NEED_PICK_KEPT_CARDS
+// (xem types.ts) là PENDING DUY NHẤT chứa thông tin ẨN (3 lá vừa lật riêng),
+// nên đây là lần ĐẦU TIÊN đụng tới view.ts (quy tắc 6) kể từ khi hệ thống
+// pending ra đời — viewFor() phải thay `cards` bằng null với người xem không
+// phải Kit Carlson (xem PendingActionView trong view.ts). Timeout/mặc định:
+// giữ 2 lá ĐẦU, bỏ lá thứ 3 — ĐÂY LÀ HOUSE RULE, khác bản gốc BANG! (bản gốc
+// đặt lá thứ 3 TRỞ LẠI lên đỉnh bộ bài, bản này bỏ vào chồng bài bỏ luôn).
+//
+// Calamity Janet (hasBangMissedAlias, đợt 7) đã xong — actsAsBang()/
+// actsAsMissed() (reduce.ts) là 2 hàm dùng chung, sửa ĐÚNG 4 chỗ đang so
+// khớp cứng tên lá "bang"/"missed": dispatch trong handlePlayCard() (đánh chủ
+// động lá "missed" của Janet -> định tuyến vào playBang()), respondToMissed(),
+// respondToDuel(), respondDiscardOrDamage() (Indians!). File đặc tả không nêu
+// rõ Indians! nhưng "MỌI hàm kiểm tra người này có lá Bang!/Missed!" đủ bao
+// quát nên áp dụng luôn — không cần hỏi lại. Không đổi gì trong playBang() —
+// dispatch đã định tuyến đúng trước khi vào đó.
+//
+// Sid Ketchum (canSelfHeal, đợt 7) đã xong — action mới USE_ABILITY (xem
+// types.ts + handleUseAbility() trong reduce.ts), KHÔNG qua assertCurrentPlayer/
+// kiểm tra pending như mọi action khác, dùng được bất cứ lúc nào. Chủ dự án
+// xác nhận: dùng lúc KHÔNG PHẢI lượt/phản ứng của mình thì CHỈ đổi hand/
+// discardPile/hp của chính Sid, KHÔNG được can thiệp vào cơ chế tính giờ của
+// bất kỳ ai — sửa `room.ts`'s scheduleDeadline() nhận thêm "ai vừa hành động"
+// để giữ nguyên đồng hồ đang chạy nếu người đó khác người đang được tính giờ
+// (xem ghi chú trong room.ts).

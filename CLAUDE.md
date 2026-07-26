@@ -39,7 +39,7 @@ src/
     deck.ts        ← MỚI (việc 5.2): drawTopCard() — tách khỏi reduce.ts để
                       characters.ts dùng được mà không vòng lặp import
     characters.ts  ← MỚI (việc 5.1/5.2): hệ thống hook + registry nhân vật
-                      (CHARACTERS — mới có 13/16 nhân vật, xem trạng thái bên dưới)
+                      (CHARACTERS — ĐỦ 16/16 nhân vật, xem trạng thái bên dưới)
   server/
     index.ts     ← Worker entry, định tuyến theo mã phòng
     room.ts      ← lớp Durable Object, 1 instance = 1 phòng
@@ -143,7 +143,7 @@ Nguyên tắc chung:
 
 > Cập nhật dòng này mỗi khi xong một giai đoạn. Xem `LO-TRINH.md`.
 
-**Đang ở:** Giai đoạn 4 xong (4.1-4.6 khung, còn thiếu ảnh thật). Giai đoạn 5 — việc 5.1 (hệ thống hook) xong. Việc 5.2 đợt 1 (6 nhân vật) + đợt 2 (Jourdonnais + Black Jack) + đợt 3 (Slab the Killer + Suzy Lafayette) + đợt 4 (Pedro Ramirez + Lucky Duke) xong. **Vừa xong việc 5.2 đợt 5**: thêm Jesse Jones (13/16 nhân vật) — 3 người còn lại (Kit Carlson, Calamity Janet, Sid Ketchum — độ khó rất khác nhau, xem "Việc tiếp theo" cuối file) để dành đợt sau, chọn từng người một thay vì ghép cặp. Xem `NHAN-VAT-BANG-CO-BAN.txt` (đặc tả đủ 16 nhân vật + 9 loại hook, chủ dự án viết).
+**Đang ở:** Giai đoạn 4 xong (4.1-4.6 khung, còn thiếu ảnh thật). Giai đoạn 5 — việc 5.1 (hệ thống hook) xong. **Việc 5.2 XONG HẲN — đủ 16/16 nhân vật** (đợt 1: 6 người cơ bản; đợt 2: Jourdonnais + Black Jack; đợt 3: Slab the Killer + Suzy Lafayette; đợt 4: Pedro Ramirez + Lucky Duke; đợt 5: Jesse Jones; đợt 6: Kit Carlson; **đợt 7 (vừa xong): Calamity Janet + Sid Ketchum**). Tất cả 16 người CHỈ dùng được qua code/test — chưa ai chơi được qua giao diện thật vì chưa có cơ chế chọn nhân vật (xem "Việc tiếp theo" cuối file). Xem `NHAN-VAT-BANG-CO-BAN.txt` (đặc tả đủ 16 nhân vật + 9 loại hook, chủ dự án viết).
 
 - 3.1-3.4 (gọn lại): `src/server/index.ts` + `src/server/room.ts` (Durable Object `Room`) — deploy thật ở **https://bang-boardgame.nguyenngoctuan548.workers.dev**. WebSocket dùng Hibernation API đúng cách (`ctx.acceptWebSocket()`, không `server.accept()` — quy tắc 7). Định tuyến `/room/<mã phòng>`.
 - **Quan trọng (phát hiện sau việc 3.10):** deploy trước đó CHỈ đưa lên phần server (Worker) — mở link công khai chỉ thấy dòng "Thiếu mã phòng...", KHÔNG thấy giao diện chơi, vì client (`index.html`/`main.ts`/`ui.ts`) chưa từng được build+phục vụ. Đã sửa: `wrangler.jsonc` thêm `assets: { directory: "./dist", run_worker_first: ["/room/*"] }` — phục vụ file client đã build (`npm run build`, ra `dist/`) CHUNG domain với Worker; `/room/*` vẫn luôn chạy Worker trước (API/WebSocket), còn lại phục vụ thẳng file tĩnh. `npm run deploy` giờ tự `vite build` trước khi `wrangler deploy` (script trong `package.json`), tránh quên build. Đã deploy lại + kiểm bằng trình duyệt thật trên chính link công khai: mở `/` thấy đúng giao diện, tạo phòng qua `wss://` thật hoạt động đúng.
@@ -353,10 +353,42 @@ Nguyên tắc chung:
 
 217 test đều pass.
 
-**Việc tiếp theo:** việc 5.2 đợt 6 — còn 3 người (Kit Carlson, Calamity Janet, Sid Ketchum, độ khó rất khác nhau — xem mô tả ở mục "Chưa làm tới" bên dưới), hỏi chủ dự án chọn 1 người làm trước; hoặc làm cơ chế "phát 2 lá nhân vật, chọn giữ 1" thật nếu chủ dự án muốn ưu tiên trước — xem `NHAN-VAT-BANG-CO-BAN.txt` + `LO-TRINH.md`.
+**Giai đoạn 5 — việc 5.2, đợt 6 (thêm Kit Carlson, 14/16 nhân vật):**
+
+- **Bàn lại 2 điểm với chủ dự án trước khi code (đúng quy tắc CLAUDE.md):**
+  - "Nếu chồng bài không đủ thì xào lại bài bỏ để bốc tiếp bù vào" — hoá ra KHÔNG cần thêm gì: `drawTopCard()` (`core/deck.ts`) đã tự làm việc này từ việc 1.6, gọi 3 lần liên tiếp trong vòng lặp là tự động đủ, có test riêng xác nhận (`test/characters-basic.test.ts`).
+  - Chủ dự án hỏi có muốn làm luôn UI thật cho Kit Carlson (màn hình hiện 3 lá + nút chọn bỏ) không — **chốt KHÔNG**, vẫn giữ đúng nếp cũ: chỉ `core/` + test, giống 13 người trước.
+- **Kit Carlson** — xem riêng 3 lá trên cùng bộ bài, chọn giữ 2 bỏ 1:
+  - `PendingAction` mới `NEED_PICK_KEPT_CARDS { player, cards: [3 lá, ĐÚNG thứ tự đã rút] }` (`types.ts`). `handleDrawCards()` (`reduce.ts`): field tĩnh mới `canPeekTopThree` (`characters.ts`) → rút 3 lá (gọi `drawTopCard()` 3 lần, tự xào chồng bỏ nếu cần), đẩy pending này, `turnPhase` vẫn `"draw"`. Không đủ 3 lá (deck + chồng bỏ CÙNG cạn — cực hiếm) → giữ hết những gì rút được, khỏi hỏi.
+  - `respondToPickKeptCards()`: `RESPOND` kèm `cardId` = 1 trong 3 lá → lá đó bị bỏ, 2 lá còn lại vào tay; không kèm gì (mặc định/timeout) → bỏ đúng lá THỨ 3 (`cards[2]`), giữ 2 lá ĐẦU — **house rule, khác bản gốc BANG!** (bản gốc đặt lá thứ 3 TRỞ LẠI đỉnh bộ bài, bản này bỏ thẳng vào chồng bài bỏ, không quay lại bộ bài gốc — đúng yêu cầu của chủ dự án, đã ghi rõ trong comment để sau này không bị "sửa lại cho đúng bản gốc").
+  - Event mới `KIT_CARLSON_DISCARDED` (KHÔNG tái dùng `CARDS_DISCARDED` — event đó đã gắn nghĩa "bỏ bài thừa cuối lượt" trong nhật ký ván đấu).
+- **Lần ĐẦU TIÊN đụng tới `view.ts` (quy tắc 6) kể từ khi hệ thống pending ra đời** — `NEED_PICK_KEPT_CARDS` là pending DUY NHẤT chứa thông tin ẩn (3 lá vừa lật riêng, mọi kind khác trước giờ đều công khai). Thêm kiểu `PendingActionView` (giống hệt `PendingAction`, CHỈ khác đúng 1 chỗ: `cards` là `string[] | null` thay vì `string[]`, cùng quy ước với `PlayerHandView.hand`), `PlayerView.pending` đổi kiểu sang `PendingActionView[]`, `viewPendingItem()` trả `cards: null` cho bất kỳ ai KHÔNG PHẢI chính Kit Carlson. Đã rà kỹ tác động trước khi sửa: chỉ đúng 1 hàm trong `ui.ts` (mô tả pending phía MẠNG) cần đổi kiểu tham số theo, không có chỗ nào khác trong `ui.ts`/`main.ts` bị ảnh hưởng.
+- **Bắt buộc sửa thêm 3 chỗ ngoài `core/`** (chỉ để qua exhaustive-check của TypeScript, không phải làm UI thật — giống các đợt trước): `room.ts`'s `buildReactiveTimeoutAction()` thêm 1 nhánh timeout (giữ 2 lá đầu, bỏ `cards[2]` — hàm này nhận `PendingAction` THẬT từ `GameState`, không phải bản đã ẩn qua `viewFor()`, nên đọc `top.cards` bình thường); `ui.ts` thêm 1 dòng mô tả pending mới ở CẢ 2 hàm + 1 dòng dịch event mới; `test/bot-simulation.test.ts` thêm 1 nhánh an toàn cho bot.
+- Test mới: **`test/characters-basic.test.ts`** (5 test) — chọn 1 trong 3 để bỏ, mặc định/timeout giữ 2 lá đầu, báo lỗi khi gửi lá không thuộc 3 lá đã xem, không đủ 3 lá thì giữ hết, và xác nhận tự xào chồng bỏ khi bộ bài cạn giữa chừng. **`test/view.test.ts`** (2 test, phần quan trọng nhất đợt này) — chính Kit Carlson thấy đúng 3 lá thật; người khác thấy `cards: null`.
+- Đã tự kiểm: `npx tsc --noEmit` sạch, 224 test đều pass (217 cũ + 7 test mới).
+- Không sửa `main.ts` — Kit Carlson cũng CHƯA hiện được trên giao diện (đã hỏi và chốt không làm ở đợt này), giống 13 người trước.
+
+224 test đều pass.
+
+**Giai đoạn 5 — việc 5.2, đợt 7 (thêm Calamity Janet + Sid Ketchum, ĐỦ 16/16 nhân vật):**
+
+- **Calamity Janet** — Bang! và Missed! hoán đổi được cho nhau ở MỌI chỗ kiểm tra:
+  - 2 hàm dùng chung mới trong `reduce.ts`: `actsAsBang(cardId, player)` / `actsAsMissed(cardId, player)` — đúng tên lá thật, HOẶC (nếu là Janet) tên lá kia. Field tĩnh mới `hasBangMissedAlias` (`characters.ts`) — KHÔNG đặt trong `CharacterHooks` dù file đặc tả gọi là "hook" (cardAlias), vì không có gì riêng để tính.
+  - Sửa đúng 4 chỗ đang so khớp cứng tên lá: `handlePlayCard()` (Janet đánh chủ động lá "missed" → định tuyến vào `playBang()` thay vì báo lỗi), `respondToMissed()` (chấp nhận lá "bang" của Janet), `respondToDuel()` (chấp nhận lá "missed" của Janet), `respondDiscardOrDamage()` dùng cho Indians! (chấp nhận lá "missed" của Janet). File đặc tả không nêu rõ Indians! nhưng câu "MỌI hàm kiểm tra người này có lá Bang!/Missed! trên tay" đủ bao quát nên áp dụng luôn, không hỏi lại. Không đổi gì bên trong `playBang()` — dispatch đã định tuyến đúng trước khi vào đó, nên giới hạn 1 Bang!/lượt vẫn áp dụng đúng dù dùng Missed! làm Bang!.
+- **Sid Ketchum** — bỏ 2 lá trên tay để hồi 1 máu, dùng được BẤT CỨ LÚC NÀO:
+  - Action mới `USE_ABILITY { playerId, cardIds: [string, string] }` (`types.ts`) — hàm xử lý `handleUseAbility()` KHÔNG gọi `assertCurrentPlayer()`/kiểm tra `pending.length`, đúng yêu cầu dùng được cả ngoài lượt, kể cả đang bị tấn công. Field tĩnh mới `canSelfHeal` (`characters.ts`). Event mới `SID_KETCHUM_HEALED` (gộp 1 event thay vì tách `CARDS_DISCARDED`/`HP_RESTORED` — lý do giống `KIT_CARLSON_DISCARDED` ở đợt 6, tránh hiểu nhầm log).
+  - **Phát hiện + sửa 1 vấn đề kiến trúc khi rà `room.ts` trước khi code (chủ dự án xác nhận: dùng kỹ năng lúc KHÔNG PHẢI lượt/phản ứng của mình thì CHỈ đổi hand/discardPile/hp của chính Sid, KHÔNG được can thiệp vào cơ chế tính giờ của bất kỳ ai):** `scheduleDeadline()` trước đây cứ sau MỌI action là cấp lại nguyên thời gian mới cho "quyết định đang tính giờ" — đúng ý khi CHÍNH người đó hành động (được 60s/10s mới mỗi lần), nhưng nếu Sid dùng kỹ năng lúc đang là lượt/phản ứng của NGƯỜI KHÁC, hành động đó vẫn vô tình cấp lại đồng hồ mới cho họ (có thể bị lợi dụng "câu giờ" vô hạn). Sửa: `handleAction()`/`alarm()` giờ truyền kèm "ai vừa hành động" qua `afterStateChange()` xuống `scheduleDeadline()`; nếu "ai cần làm gì" không đổi VÀ người vừa hành động KHÁC người đang được tính giờ → giữ nguyên đồng hồ cũ, không cấp lại. Thay đổi này ở `room.ts` (server/), **chưa có test tự động** (đúng tiền lệ — `room.ts` từ trước giờ luôn kiểm bằng `wrangler dev` + nhiều tab trình duyệt thật, chưa từng có test Vitest riêng; nên làm vậy nếu muốn xác nhận chắc chắn trước khi deploy).
+- **Bắt buộc sửa thêm 1 chỗ ngoài `core/`**: `ui.ts`'s `describeEvent()` thêm 1 dòng dịch `SID_KETCHUM_HEALED` (chỉ để qua exhaustive-check, không phải làm UI thật). `USE_ABILITY` không phải `PendingAction` nên KHÔNG cần đụng `room.ts`'s `buildReactiveTimeoutAction()`/2 hàm mô tả pending trong `ui.ts` (nó không bao giờ là 1 pending đang chờ — dùng xong là xong ngay).
+- Test mới trong **`test/characters-basic.test.ts`** (13 test): Janet — đánh chủ động Missed! như Bang!, người khác không được, vẫn tính giới hạn 1 Bang!/lượt, đỡ Bang! bằng Bang!, đỡ Duel/Indians! bằng Missed!, người khác không dùng thế được; Sid Ketchum — dùng trong lượt mình, dùng ngoài lượt/khi có pending người khác (không đụng gì tới pending đó), đã đầy máu vẫn dùng được (amount=0), báo lỗi 2 lá giống nhau/lá không có trong tay/không phải Sid Ketchum.
+- Đã tự kiểm: `npx tsc --noEmit` sạch, 237 test đều pass (224 cũ + 13 test mới).
+- Không sửa `main.ts` — 2 người này cũng CHƯA hiện được trên giao diện, giống 14 người trước.
+
+237 test đều pass. **ĐỦ 16/16 nhân vật trong `core/characters.ts`** — việc 5.2 (Giai đoạn 5) coi như xong phần "nhân vật", CHỈ dùng được qua code/test.
+
+**Việc tiếp theo:** cơ chế "phát 2 lá nhân vật thật, tự xem rồi chọn giữ 1" (hiện chỉ gán tạm qua `RuleOptions.characterAssignments` — xem mục "Chưa làm tới" bên dưới) — đây là việc DUY NHẤT còn chặn đường để 16 nhân vật thật sự chơi được qua giao diện. Sau đó mới tới màn hình chọn nhân vật trên UI. Xem `LO-TRINH.md` để xác nhận thứ tự ưu tiên với chủ dự án trước khi bắt đầu (đúng quy tắc CLAUDE.md — đổi hướng/kiến trúc phải hỏi trước).
 
 ## Chưa làm tới, đừng đụng vào
 
-3/16 nhân vật còn lại (xem `NHAN-VAT-BANG-CO-BAN.txt`): **Kit Carlson** (cần đụng `view.ts` để giấu 3 lá vừa lật riêng cho đúng người), **Calamity Janet** (cần refactor nhiều chỗ so khớp cứng tên lá "bang"/"missed" rải rác trong `reduce.ts`), **Sid Ketchum** (cần hẳn 1 loại action mới, bỏ qua luôn `assertCurrentPlayer` + ràng buộc "không làm gì được khi còn pending"). Cũng chưa làm: cơ chế "phát 2 lá nhân vật thật/chọn giữ 1" (hiện chỉ gán tạm qua `RuleOptions.characterAssignments`, KHÔNG có màn hình chọn nhân vật nào trên giao diện), expansion, house rules, đồ hoạ đẹp, âm thanh, tài khoản/đăng nhập, bảng xếp hạng.
+Cơ chế "phát 2 lá nhân vật thật/chọn giữ 1" (hiện chỉ gán tạm qua `RuleOptions.characterAssignments`, KHÔNG có màn hình chọn nhân vật nào trên giao diện) — **việc tiếp theo cần làm**, xem trên. Ngoài ra: expansion, house rules, đồ hoạ đẹp, âm thanh, tài khoản/đăng nhập, bảng xếp hạng.
 
-13 nhân vật đầu (Bart Cassidy, El Gringo, Paul Regret, Rose Doolan, Vulture Sam, Willy the Kid, Jourdonnais, Black Jack, Slab the Killer, Suzy Lafayette, Pedro Ramirez, Lucky Duke, Jesse Jones) đã có THẬT trong `core/characters.ts` (việc 5.2 đợt 1-5) nhưng CHỈ dùng được qua code/test — chưa ai chơi được qua giao diện thật vì chưa có cơ chế chọn nhân vật.
+Cả 16 nhân vật đã có THẬT trong `core/characters.ts` (việc 5.2, đợt 1-7 — xem lịch sử ở trên) nhưng CHỈ dùng được qua code/test — chưa ai chơi được qua giao diện thật vì chưa có cơ chế chọn nhân vật.

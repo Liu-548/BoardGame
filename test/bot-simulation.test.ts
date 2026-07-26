@@ -167,6 +167,9 @@ function chooseRespondAction(state: GameState): Action {
     case "NEED_GIVE_CARD_TO_PLAYER":
       // Giai đoạn 5 (Jesse Jones) — bot cứ để rút ngẫu nhiên, khỏi tự chọn lá.
       return { type: "RESPOND", playerId: top.player };
+    case "NEED_PICK_KEPT_CARDS":
+      // Giai đoạn 5 (Kit Carlson) — bot cứ giữ 2 lá đầu, bỏ lá thứ 3 (mặc định).
+      return { type: "RESPOND", playerId: top.player };
     default: {
       const neverKind: never = top;
       throw new Error(`Bot chưa biết cách phản hồi: ${JSON.stringify(neverKind)}`);

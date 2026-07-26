@@ -14,11 +14,15 @@
 //
 // LUÔN công khai (không cần ẩn, đúng luật gốc): máu/máu tối đa, trang bị trên
 // sân (súng, Barrel, Scope, Mustang, Jail, Dynamite đều để ngửa), còn sống/đã
-// chết, chồng bỏ, stack pending (không chứa lá bài ẩn nào — chỉ có id/kind
-// việc đang chờ, xem PendingAction ở types.ts), ai đang tới lượt, turnPhase,
-// kết quả ván.
+// chết, chồng bỏ, ai đang tới lượt, turnPhase, kết quả ván.
+//
+// Stack pending: hầu hết các kind KHÔNG chứa lá bài ẩn nào (chỉ id/kind việc
+// đang chờ, xem PendingAction ở types.ts) nên giữ nguyên, công khai. NGOẠI LỆ
+// DUY NHẤT (Giai đoạn 5, Kit Carlson, đợt 6) — NEED_PICK_KEPT_CARDS.cards là 3
+// lá vừa xem RIÊNG, phải ẩn với mọi người TRỪ đúng chủ nhân (xem
+// PendingActionView/viewPendingItem() bên dưới).
 
-import type { GameState, PlayerState, Role } from "./types";
+import type { GameState, PendingAction, PlayerState, Role } from "./types";
 
 export interface PlayerHandView {
   id: string;
@@ -32,12 +36,21 @@ export interface PlayerHandView {
   alive: boolean;
 }
 
+// Giống hệt PendingAction ở mọi kind, TRỪ NEED_PICK_KEPT_CARDS: `cards` là
+// `string[] | null` thay vì `string[]` — null nghĩa là bị ẩn với người xem
+// này (không phải chủ nhân), cùng quy ước với PlayerHandView.hand ở trên.
+export type PendingActionView = Exclude<PendingAction, { kind: "NEED_PICK_KEPT_CARDS" }> | {
+  kind: "NEED_PICK_KEPT_CARDS";
+  player: string;
+  cards: string[] | null;
+};
+
 export interface PlayerView {
   viewerId: string;
   players: PlayerHandView[];
   deckCount: number;
   discardPile: string[];
-  pending: GameState["pending"];
+  pending: PendingActionView[];
   currentPlayerIndex: number;
   turnPhase: GameState["turnPhase"];
   winner: GameState["winner"];
@@ -48,6 +61,15 @@ function viewRole(player: PlayerState, viewerId: string): Role | null {
   if (player.role === "sheriff") return player.role;
   if (!player.alive) return player.role; // lật vai công khai khi bị loại
   return null;
+}
+
+// Giai đoạn 5 (Kit Carlson, đợt 6) — ẩn `cards` với bất kỳ ai KHÔNG PHẢI
+// chính người đang xem 3 lá đó. Mọi kind khác giữ nguyên, trả thẳng lại.
+function viewPendingItem(item: PendingAction, viewerId: string): PendingActionView {
+  if (item.kind === "NEED_PICK_KEPT_CARDS" && item.player !== viewerId) {
+    return { kind: item.kind, player: item.player, cards: null };
+  }
+  return item;
 }
 
 export function viewFor(state: GameState, viewerId: string): PlayerView {
@@ -68,7 +90,7 @@ export function viewFor(state: GameState, viewerId: string): PlayerView {
     players,
     deckCount: state.deck.length,
     discardPile: [...state.discardPile],
-    pending: state.pending,
+    pending: state.pending.map((item) => viewPendingItem(item, viewerId)),
     currentPlayerIndex: state.currentPlayerIndex,
     turnPhase: state.turnPhase,
     winner: state.winner,

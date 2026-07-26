@@ -97,7 +97,18 @@ export type PendingAction =
   // để đưa — không lộ gì mới, họ vốn đã biết tay mình). `giveTo` = Jesse. Nạn
   // nhân RESPOND kèm cardId (lá họ tự chọn) hoặc không kèm gì (hết giờ/không
   // muốn chọn -> rút ngẫu nhiên thay họ, xem respondToGiveCardToPlayer()).
-  | { kind: "NEED_GIVE_CARD_TO_PLAYER"; player: string; giveTo: string };
+  | { kind: "NEED_GIVE_CARD_TO_PLAYER"; player: string; giveTo: string }
+  // Giai đoạn 5 (Kit Carlson, đợt 6, xem core/characters.ts) — đẩy đầu lượt
+  // THAY VÌ rút bài ngay: `cards` là 3 lá vừa rút từ đỉnh bộ bài (ĐÚNG thứ tự
+  // đã rút — cards[2] là lá rút SAU CÙNG). ĐÂY LÀ PENDING DUY NHẤT CHỨA THÔNG
+  // TIN ẨN (khác mọi kind khác — xem ghi chú "LUÔN công khai" ở view.ts) —
+  // viewFor() (quy tắc 6) PHẢI thay `cards` bằng null với người xem KHÔNG PHẢI
+  // `player`. RESPOND kèm cardId = 1 trong 3 lá -> lá đó bị bỏ, 2 lá còn lại
+  // vào tay; không kèm cardId (mặc định/timeout) -> bỏ đúng cards[2] (giữ 2 lá
+  // ĐẦU) — ĐÂY LÀ HOUSE RULE, khác bản gốc BANG! (bản gốc đặt lá thứ 3 TRỞ LẠI
+  // lên đỉnh bộ bài, bản này bỏ vào chồng bài bỏ) — xem respondToPickKeptCards()
+  // trong reduce.ts.
+  | { kind: "NEED_PICK_KEPT_CARDS"; player: string; cards: string[] };
 
 // ----- Hành động -----
 // Các hành động cho vòng lượt (việc 1.5) và đánh bài (việc 1.7/1.8, hiện chỉ hỗ
@@ -130,7 +141,14 @@ export type Action =
       // Jesse Jones (đợt 5) — đi kèm targetId ở trên: có để người đó tự chọn
       // lá đưa hay không (bỏ trống/false = cướp ngẫu nhiên ngay).
       letTargetChoose?: boolean;
-    };
+    }
+  // Giai đoạn 5 (Sid Ketchum, đợt 7, xem core/characters.ts) — kỹ năng CHỦ
+  // ĐỘNG, dùng được BẤT CỨ LÚC NÀO: bỏ đúng 2 lá (KHÁC NHAU) trên tay CHÍNH
+  // MÌNH để hồi 1 máu. KHÔNG đi qua assertCurrentPlayer/kiểm tra pending như
+  // mọi action khác — cố tình để dùng được cả ngoài lượt mình, kể cả đang bị
+  // tấn công (xem handleUseAbility() trong reduce.ts). Không làm gì tới lượt/
+  // pending của bất kỳ ai — chỉ đổi hand/discardPile/hp của CHÍNH player này.
+  | { type: "USE_ABILITY"; playerId: string; cardIds: [string, string] };
 
 // ----- Sự kiện -----
 // Kết quả phụ của reduce(), để client hiển thị log — không ảnh hưởng đến state.
@@ -165,6 +183,17 @@ export type GameEvent =
   // qua DRAW_CHECK_RESOLVED như bình thường, sự kiện này chỉ bổ sung thông tin
   // lá thứ 2 (để không mất thông tin so với thực tế đã lật 2 lá).
   | { type: "LUCKY_DUKE_EXTRA_DRAW"; playerId: string; cardId: string }
+  // Giai đoạn 5 (Kit Carlson, đợt 6) — lá KHÔNG được giữ trong 3 lá vừa xem
+  // riêng, bỏ vào chồng bài bỏ. KHÔNG tái dùng CARDS_DISCARDED — event đó đã
+  // gắn nghĩa "bỏ bài thừa cuối lượt" trong nhật ký ván đấu (ui.ts), dùng lại
+  // ở đây sẽ gây hiểu nhầm.
+  | { type: "KIT_CARLSON_DISCARDED"; playerId: string; cardId: string }
+  // Giai đoạn 5 (Sid Ketchum, đợt 7) — dùng kỹ năng chủ động: bỏ đúng 2 lá
+  // (cardIds), hồi `amount` máu (có thể là 0 nếu đã đầy máu — vẫn cho dùng,
+  // không chặn). Gộp 1 event thay vì tách CARDS_DISCARDED + HP_RESTORED —
+  // CARDS_DISCARDED đã gắn nghĩa "bỏ bài thừa cuối lượt", tách riêng dễ hiểu
+  // nhầm giống lý do của KIT_CARLSON_DISCARDED ở trên.
+  | { type: "SID_KETCHUM_HEALED"; playerId: string; cardIds: [string, string]; amount: number }
   // ----- Việc 1.13: chết, thưởng/phạt, điều kiện thắng -----
   // killedBy = người trực tiếp gây đòn đánh khiến hp về 0 (Bang!/Gatling/
   // Indians!/Duel). null nếu tự chết (Dynamite) — không có ai "giết" cả.

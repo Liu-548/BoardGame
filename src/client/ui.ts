@@ -6,7 +6,7 @@
 import { cardNameFromId, cardSuitRankFromId, WEAPON_RANGES } from "../core/cards";
 import type { CardName } from "../core/cards";
 import type { GameEvent, GameState, PendingAction, PlayerState, Role, Suit } from "../core/types";
-import type { PlayerHandView, PlayerView } from "../core/view";
+import type { PendingActionView, PlayerHandView, PlayerView } from "../core/view";
 import type { DeadlineInfo } from "../protocol";
 
 // Tầm bắn súng lấy THẲNG từ WEAPON_RANGES (core/cards.ts, cũng là nguồn
@@ -332,6 +332,10 @@ export function describeEvent(event: GameEvent, nameOf: (id: string) => string):
       return `${nameOf(event.playerId)} (Black Jack) lật ngửa lá thứ 2 lúc rút bài: ${cardFaceLabel(event.cardId)}`;
     case "LUCKY_DUKE_EXTRA_DRAW":
       return `${nameOf(event.playerId)} (Lucky Duke) lật thêm 1 lá khi draw!: ${cardFaceLabel(event.cardId)}`;
+    case "KIT_CARLSON_DISCARDED":
+      return `${nameOf(event.playerId)} (Kit Carlson) bỏ ${cardFaceLabel(event.cardId)} trong 3 lá vừa xem`;
+    case "SID_KETCHUM_HEALED":
+      return `${nameOf(event.playerId)} (Sid Ketchum) bỏ 2 lá để hồi ${event.amount} máu`;
     case "PLAYER_ELIMINATED":
       return event.killedBy
         ? `${nameOf(event.playerId)} bị ${nameOf(event.killedBy)} hạ gục`
@@ -613,6 +617,8 @@ function pendingDescription(state: GameState, item: PendingAction): string {
       return `${player} chọn rút bộ bài hay lấy 1 lá từ tay người khác`;
     case "NEED_GIVE_CARD_TO_PLAYER":
       return `${player} chọn 1 lá của mình để đưa`;
+    case "NEED_PICK_KEPT_CARDS":
+      return `${player} xem 3 lá đầu bộ bài, chọn giữ 2 bỏ 1`;
     default: {
       const neverKind: never = item;
       throw new Error(`Chưa biết mô tả cho pending: ${JSON.stringify(neverKind)}`);
@@ -1303,7 +1309,7 @@ function networkRenderPendingPanel(container: HTMLElement, view: PlayerView, han
   panel.appendChild(heading);
 
   const findName = (id: string) => view.players.find((p) => p.id === id)?.name ?? id;
-  const describe = (item: PendingAction): string => {
+  const describe = (item: PendingActionView): string => {
     const name = findName(item.player);
     switch (item.kind) {
       case "NEED_MISSED":
@@ -1324,6 +1330,8 @@ function networkRenderPendingPanel(container: HTMLElement, view: PlayerView, han
         return `${name} chọn rút bộ bài hay lấy 1 lá từ tay người khác`;
       case "NEED_GIVE_CARD_TO_PLAYER":
         return `${name} chọn 1 lá của mình để đưa`;
+      case "NEED_PICK_KEPT_CARDS":
+        return `${name} xem 3 lá đầu bộ bài, chọn giữ 2 bỏ 1`;
       default: {
         const neverKind: never = item;
         throw new Error(`Chưa biết mô tả cho pending: ${JSON.stringify(neverKind)}`);

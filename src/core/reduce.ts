@@ -18,6 +18,23 @@ export interface Result {
 
 const DRAW_COUNT = 2;
 
+// Giai đoạn 5 (Calamity Janet, đợt 7) — coi lá `cardId` có ĐÓNG VAI Bang!
+// được không: đúng là Bang! thật, HOẶC là Missed! nhưng thuộc về Janet. Dùng
+// ở MỌI chỗ cần "1 lá Bang!" (đánh Bang! chủ động, đỡ Duel, đỡ Indians!).
+function actsAsBang(cardId: string, player: PlayerState): boolean {
+  const name = cardNameFromId(cardId);
+  if (name === "bang") return true;
+  return name === "missed" && getCharacterDefinition(player.characterId)?.hasBangMissedAlias === true;
+}
+
+// Ngược lại: coi lá `cardId` có ĐÓNG VAI Missed! được không — đúng là Missed!
+// thật, HOẶC là Bang! nhưng thuộc về Janet. Dùng để đỡ Bang!/Gatling.
+function actsAsMissed(cardId: string, player: PlayerState): boolean {
+  const name = cardNameFromId(cardId);
+  if (name === "missed") return true;
+  return name === "bang" && getCharacterDefinition(player.characterId)?.hasBangMissedAlias === true;
+}
+
 export function reduce(state: GameState, action: Action): Result {
   if (state.winner) {
     throw new Error("Ván đã kết thúc, không thể tiếp tục hành động");
@@ -34,6 +51,8 @@ export function reduce(state: GameState, action: Action): Result {
       return handlePlayCard(state, action);
     case "RESPOND":
       return handleRespond(state, action);
+    case "USE_ABILITY":
+      return handleUseAbility(state, action);
     default: {
       // Nếu sau này thêm loại action mới vào union mà quên xử lý ở đây,
       // dòng dưới sẽ báo lỗi biên dịch (exhaustiveness check).
@@ -71,6 +90,26 @@ function handleDrawCards(
   // Ramirez — respondToPickDrawTarget() mới thực sự rút bài và chuyển "play".
   if (getCharacterDefinition(player.characterId)?.canStealFirstDrawCard === true) {
     next.pending.push({ kind: "NEED_PICK_DRAW_TARGET", player: player.id });
+    return { state: next, events: [] };
+  }
+
+  // Giai đoạn 5 (Kit Carlson, đợt 6) — xem riêng 3 lá trên cùng bộ bài (mỗi
+  // lần gọi drawTopCard() tự xào lại chồng bỏ nếu bộ bài cạn, không cần tự
+  // viết thêm gì), rồi HỎI: giữ 2 bỏ 1. Không đủ 3 lá để rút (deck + chồng bỏ
+  // cùng cạn — cực hiếm) thì không có gì để CHỌN bỏ, cứ giữ hết những gì rút
+  // được, khỏi cần hỏi.
+  if (getCharacterDefinition(player.characterId)?.canPeekTopThree === true) {
+    const peeked: string[] = [];
+    for (let i = 0; i < 3; i++) {
+      const card = drawTopCard(next);
+      if (card) peeked.push(card);
+    }
+    if (peeked.length < 3) {
+      for (const cardId of peeked) giveCardToPlayer(next.players, player, cardId);
+      next.turnPhase = "play";
+      return { state: next, events: [{ type: "CARDS_DRAWN", playerId: player.id, count: peeked.length }] };
+    }
+    next.pending.push({ kind: "NEED_PICK_KEPT_CARDS", player: player.id, cards: peeked });
     return { state: next, events: [] };
   }
 
@@ -226,6 +265,45 @@ function respondToGiveCardToPlayer(
   return { state: next, events };
 }
 
+// Giai đoạn 5 (Kit Carlson, đợt 6) — trả lời NEED_PICK_KEPT_CARDS. Gửi kèm
+// cardId ĐÚNG BẰNG 1 trong 3 lá vừa xem -> lá đó bị bỏ, 2 lá còn lại vào tay
+// (giữ NGUYÊN THỨ TỰ trong `cards`, bỏ đúng phần tử trùng cardId). Không kèm
+// cardId (mặc định/timeout) -> bỏ đúng cards[2] (lá rút SAU CÙNG), giữ 2 lá
+// đầu — house rule, KHÁC bản gốc BANG! (xem ghi chú ở types.ts).
+function respondToPickKeptCards(
+  state: GameState,
+  action: Action & { type: "RESPOND" },
+  top: PendingAction & { kind: "NEED_PICK_KEPT_CARDS" }
+): Result {
+  const next = cloneState(state);
+  next.pending.pop();
+  const player = next.players.find((p) => p.id === action.playerId)!;
+
+  let discardedCardId: string;
+  if (action.cardId) {
+    if (!top.cards.includes(action.cardId)) {
+      throw new Error(`Lá "${action.cardId}" không nằm trong 3 lá vừa xem`);
+    }
+    discardedCardId = action.cardId;
+  } else {
+    discardedCardId = top.cards[2];
+  }
+
+  next.discardPile.push(discardedCardId);
+  for (const cardId of top.cards) {
+    if (cardId !== discardedCardId) giveCardToPlayer(next.players, player, cardId);
+  }
+
+  next.turnPhase = "play";
+  return {
+    state: next,
+    events: [
+      { type: "CARDS_DRAWN", playerId: player.id, count: 2 },
+      { type: "KIT_CARLSON_DISCARDED", playerId: player.id, cardId: discardedCardId },
+    ],
+  };
+}
+
 function handleEndTurn(state: GameState, action: Action & { type: "END_TURN" }): Result {
   assertCurrentPlayer(state, action.playerId);
   assertPhase(state, "play");
@@ -318,7 +396,14 @@ function handlePlayCard(state: GameState, action: Action & { type: "PLAY_CARD" }
   } else {
     next.discardPile.push(action.cardId);
 
-    switch (cardName) {
+    // Giai đoạn 5 (Calamity Janet, đợt 7) — Janet đánh CHỦ ĐỘNG 1 lá tên
+    // "missed" thì coi như đang đánh Bang! (định tuyến vào playBang() thay vì
+    // báo lỗi như người khác). KHÔNG đổi gì cho case "bang" — đánh Bang! thật
+    // luôn bình thường, không có gì mơ hồ ở chiều này.
+    const dispatchCardName =
+      cardName === "missed" && actsAsBang(action.cardId, player) ? "bang" : cardName;
+
+    switch (dispatchCardName) {
       case "missed":
         // Missed! không tự đánh ra lúc tới lượt mình (mục 7 file luật) — chỉ
         // dùng để PHẢN ỨNG, đi qua action RESPOND (respondToMissed), không
@@ -368,7 +453,7 @@ function handlePlayCard(state: GameState, action: Action & { type: "PLAY_CARD" }
         // "dynamite" — 2 case chỉ để throw lỗi rõ ràng, không đánh chủ động được)
         // — dòng dưới chỉ để bắt lỗi biên dịch nếu sau này thêm loại bài mới mà
         // quên xử lý ở đâu đó.
-        const neverCardName: never = cardName;
+        const neverCardName: never = dispatchCardName;
         throw new Error(`Không rõ loại bài: ${JSON.stringify(neverCardName)}`);
       }
     }
@@ -794,6 +879,54 @@ function drawCardsAsCardEffect(
   };
 }
 
+// Giai đoạn 5 (Sid Ketchum, đợt 7) — kỹ năng CHỦ ĐỘNG, dùng được BẤT CỨ LÚC
+// NÀO: KHÔNG gọi assertCurrentPlayer()/kiểm tra state.pending.length như mọi
+// action khác (cố tình — đây là điểm khác biệt duy nhất của action này so
+// với phần còn lại của reduce.ts). Chỉ đổi hand/discardPile/hp của CHÍNH
+// player này — không đụng gì tới lượt/pending/turnPhase của bất kỳ ai, kể cả
+// khi dùng lúc không phải lượt/phản ứng của mình.
+function handleUseAbility(state: GameState, action: Action & { type: "USE_ABILITY" }): Result {
+  const next = cloneState(state);
+  const player = next.players.find((p) => p.id === action.playerId);
+  // Bất biến: alive => hp > 0 (xem eliminatePlayer()) — không cần kiểm tra hp
+  // riêng, chỉ cần loại người chơi không tồn tại/đã chết.
+  if (!player || !player.alive) {
+    throw new Error("Người chơi không hợp lệ hoặc đã chết");
+  }
+  if (getCharacterDefinition(player.characterId)?.canSelfHeal !== true) {
+    throw new Error("Nhân vật này không có kỹ năng chủ động này");
+  }
+
+  const [cardId1, cardId2] = action.cardIds;
+  if (cardId1 === cardId2) {
+    throw new Error("Phải chọn 2 lá KHÁC NHAU để bỏ");
+  }
+  const index1 = player.hand.indexOf(cardId1);
+  const index2 = player.hand.indexOf(cardId2);
+  if (index1 === -1 || index2 === -1) {
+    throw new Error("Cả 2 lá phải nằm trong tay của chính bạn");
+  }
+
+  // Bỏ theo chỉ số GIẢM DẦN để splice() không làm lệch chỉ số của nhau.
+  for (const index of [index1, index2].sort((a, b) => b - a)) {
+    const [cardId] = player.hand.splice(index, 1);
+    next.discardPile.push(cardId);
+  }
+
+  const handEmptyEvents = triggerHandEmptyHook(next, player); // Giai đoạn 5 (Suzy Lafayette)
+
+  const restored = Math.min(1, player.maxHp - player.hp);
+  player.hp += restored;
+
+  return {
+    state: next,
+    events: [
+      { type: "SID_KETCHUM_HEALED", playerId: player.id, cardIds: [cardId1, cardId2], amount: restored },
+      ...handEmptyEvents,
+    ],
+  };
+}
+
 function handleRespond(state: GameState, action: Action & { type: "RESPOND" }): Result {
   const top = state.pending[state.pending.length - 1];
   if (!top) {
@@ -822,6 +955,8 @@ function handleRespond(state: GameState, action: Action & { type: "RESPOND" }): 
       return respondToPickDrawTarget(state, action);
     case "NEED_GIVE_CARD_TO_PLAYER":
       return respondToGiveCardToPlayer(state, action, top);
+    case "NEED_PICK_KEPT_CARDS":
+      return respondToPickKeptCards(state, action, top);
     default: {
       const neverKind: never = top;
       throw new Error(`Chưa hỗ trợ phản hồi loại việc: ${JSON.stringify(neverKind)}`);
@@ -851,7 +986,12 @@ function respondDiscardOrDamage(
       throw new Error(`Người chơi ${player.id} không có lá bài ${action.cardId} trong tay`);
     }
     const cardName = cardNameFromId(action.cardId);
-    if (cardName !== requiredCardName) {
+    // Giai đoạn 5 (Calamity Janet, đợt 7) — requiredCardName ở đây LUÔN là
+    // "bang" (chỉ NEED_DISCARD_BANG/Indians! còn dùng hàm này) nên chấp nhận
+    // luôn lá Missed! của Janet qua actsAsBang(); giữ nhánh so khớp thường cho
+    // an toàn nếu sau này có ai gọi hàm này với requiredCardName khác "bang".
+    const isValidCard = requiredCardName === "bang" ? actsAsBang(action.cardId, player) : cardName === requiredCardName;
+    if (!isValidCard) {
       throw new Error(`Lá "${cardName}" không hợp lệ cho việc đang chờ này`);
     }
 
@@ -886,7 +1026,8 @@ function respondToMissed(
       throw new Error(`Người chơi ${player.id} không có lá bài ${action.cardId} trong tay`);
     }
     const cardName = cardNameFromId(action.cardId);
-    if (cardName !== "missed") {
+    // Giai đoạn 5 (Calamity Janet, đợt 7) — chấp nhận cả lá Bang! của Janet để đỡ.
+    if (!actsAsMissed(action.cardId, player)) {
       throw new Error(`Lá "${cardName}" không hợp lệ cho việc đang chờ này`);
     }
 
@@ -925,7 +1066,8 @@ function respondToDuel(
       throw new Error(`Người chơi ${player.id} không có lá bài ${action.cardId} trong tay`);
     }
     const cardName = cardNameFromId(action.cardId);
-    if (cardName !== "bang") {
+    // Giai đoạn 5 (Calamity Janet, đợt 7) — chấp nhận cả lá Missed! của Janet để đỡ.
+    if (!actsAsBang(action.cardId, player)) {
       throw new Error(`Lá "${cardName}" không đỡ được Duel, cần Bang!`);
     }
 
