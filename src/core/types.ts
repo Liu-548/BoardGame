@@ -30,6 +30,10 @@ export interface PlayerState {
   hand: string[]; // id các lá bài trên tay
   equipment: string[]; // id các lá bài để ngửa trước mặt: súng, Barrel, Scope, Mustang, Jail, Dynamite...
   alive: boolean;
+  // Giai đoạn 5 (xem core/characters.ts) — null = chưa/không có nhân vật
+  // (đúng bản v1 hiện tại, mọi người 4 máu không skill). Chỉ là 1 CHUỖI tra
+  // vào registry CHARACTERS — hàm hook không nằm trong state (quy tắc 3).
+  characterId: string | null;
 }
 
 // ----- Việc đang chờ -----
@@ -135,4 +139,10 @@ export interface GameState {
   turnPhase: "draw" | "play" | "discard";
   rngState: number; // trạng thái bộ sinh số ngẫu nhiên — hình dạng chính xác chốt ở việc 1.3
   winner: "sheriff_deputy" | "outlaw" | "renegade" | null;
+  // Chuẩn bị cho Giai đoạn 5 (Willy the Kid/Calamity Janet, xem
+  // NHAN-VAT-BANG-CO-BAN.txt): luật gốc chỉ cho đánh 1 lá Bang!/lượt, trừ khi
+  // đang cầm súng Volcanic — luật này bị THIẾU từ Giai đoạn 1, bổ sung ở đây
+  // (không phải hook nhân vật, là luật nền ai cũng áp dụng). Reset về false
+  // mỗi khi sang lượt mới (advanceTurn() trong reduce.ts).
+  bangUsedThisTurn: boolean;
 }

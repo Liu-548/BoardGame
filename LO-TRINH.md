@@ -91,7 +91,7 @@
 
 | # | Việc | Ghi chú |
 |---|---|---|
-| 5.1 | Hệ thống hook cho nhân vật | `onBeforeDamage`, `onDraw`, `modifyDistance`… |
+| 5.1 | Hệ thống hook cho nhân vật | `onLoseLife`, `onLoseLifeFromCard`, `onDrawPhase`, `onDrawCheck`, `modifyDistance`, `onOutgoingBang`, `onHandEmpty`, `onAnyDeath`, `cardAlias`, `activatedAbility` (xem `NHAN-VAT-BANG-CO-BAN.txt`) — ✅ **xong khung**: 4/9 hook đã nối dây thật (`modifyDistance`/`onLoseLife`/`onLoseLifeFromCard`/`onAnyDeath`) + `core/characters.ts` (registry rỗng), 5 hook còn lại để dành cho 5.2. Xem chi tiết ở CLAUDE.md |
 | 5.2 | 16 nhân vật bản cơ bản | Mỗi nhân vật là dữ liệu + hook, **không** phải `if/else` |
 | 5.3 | Bật/tắt house rules | Cấu hình theo phòng |
 | 5.4 | Expansion | Chỉ là thêm file dữ liệu + hook nếu 5.1 làm đúng |

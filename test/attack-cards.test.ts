@@ -5,10 +5,10 @@ import type { GameState } from "../src/core/types";
 function makeState(overrides: Partial<GameState> = {}): GameState {
   return {
     players: [
-      { id: "a", name: "a", role: "sheriff", hp: 4, maxHp: 4, hand: [], equipment: [], alive: true },
-      { id: "b", name: "b", role: "outlaw", hp: 4, maxHp: 4, hand: [], equipment: [], alive: true },
-      { id: "c", name: "c", role: "outlaw", hp: 4, maxHp: 4, hand: [], equipment: [], alive: true },
-      { id: "d", name: "d", role: "renegade", hp: 4, maxHp: 4, hand: [], equipment: [], alive: true },
+      { id: "a", name: "a", role: "sheriff", hp: 4, maxHp: 4, hand: [], equipment: [], alive: true, characterId: null },
+      { id: "b", name: "b", role: "outlaw", hp: 4, maxHp: 4, hand: [], equipment: [], alive: true, characterId: null },
+      { id: "c", name: "c", role: "outlaw", hp: 4, maxHp: 4, hand: [], equipment: [], alive: true, characterId: null },
+      { id: "d", name: "d", role: "renegade", hp: 4, maxHp: 4, hand: [], equipment: [], alive: true, characterId: null },
     ],
     deck: [],
     discardPile: [],
@@ -17,6 +17,7 @@ function makeState(overrides: Partial<GameState> = {}): GameState {
     turnPhase: "play",
     rngState: 1,
     winner: null,
+    bangUsedThisTurn: false,
     ...overrides,
   };
 }
@@ -25,7 +26,7 @@ describe("reduce — PLAY_CARD (Gatling)", () => {
   it("đẩy NEED_MISSED cho mọi người khác, người kế tiếp (b) nằm trên đỉnh", () => {
     const state = makeState({
       players: [
-        { id: "a", name: "a", role: "sheriff", hp: 4, maxHp: 4, hand: ["gatling_1"], equipment: [], alive: true },
+        { id: "a", name: "a", role: "sheriff", hp: 4, maxHp: 4, hand: ["gatling_1"], equipment: [], alive: true, characterId: null },
         ...makeState().players.slice(1),
       ],
     });
@@ -43,10 +44,10 @@ describe("reduce — PLAY_CARD (Gatling)", () => {
   it("bỏ qua người đã chết", () => {
     const state = makeState({
       players: [
-        { id: "a", name: "a", role: "sheriff", hp: 4, maxHp: 4, hand: ["gatling_1"], equipment: [], alive: true },
-        { id: "b", name: "b", role: "outlaw", hp: 0, maxHp: 4, hand: [], equipment: [], alive: false },
-        { id: "c", name: "c", role: "outlaw", hp: 4, maxHp: 4, hand: [], equipment: [], alive: true },
-        { id: "d", name: "d", role: "renegade", hp: 4, maxHp: 4, hand: [], equipment: [], alive: true },
+        { id: "a", name: "a", role: "sheriff", hp: 4, maxHp: 4, hand: ["gatling_1"], equipment: [], alive: true, characterId: null },
+        { id: "b", name: "b", role: "outlaw", hp: 0, maxHp: 4, hand: [], equipment: [], alive: false, characterId: null },
+        { id: "c", name: "c", role: "outlaw", hp: 4, maxHp: 4, hand: [], equipment: [], alive: true, characterId: null },
+        { id: "d", name: "d", role: "renegade", hp: 4, maxHp: 4, hand: [], equipment: [], alive: true, characterId: null },
       ],
     });
 
@@ -60,7 +61,7 @@ describe("reduce — PLAY_CARD (Indians!)", () => {
   it("đẩy NEED_DISCARD_BANG cho mọi người khác, theo đúng thứ tự", () => {
     const state = makeState({
       players: [
-        { id: "a", name: "a", role: "sheriff", hp: 4, maxHp: 4, hand: ["indians_1"], equipment: [], alive: true },
+        { id: "a", name: "a", role: "sheriff", hp: 4, maxHp: 4, hand: ["indians_1"], equipment: [], alive: true, characterId: null },
         ...makeState().players.slice(1),
       ],
     });
@@ -79,8 +80,8 @@ describe("reduce — RESPOND (NEED_DISCARD_BANG)", () => {
   function stateWithIndiansPending(): GameState {
     return makeState({
       players: [
-        { id: "a", name: "a", role: "sheriff", hp: 4, maxHp: 4, hand: [], equipment: [], alive: true },
-        { id: "b", name: "b", role: "outlaw", hp: 4, maxHp: 4, hand: ["bang_1"], equipment: [], alive: true },
+        { id: "a", name: "a", role: "sheriff", hp: 4, maxHp: 4, hand: [], equipment: [], alive: true, characterId: null },
+        { id: "b", name: "b", role: "outlaw", hp: 4, maxHp: 4, hand: ["bang_1"], equipment: [], alive: true, characterId: null },
         ...makeState().players.slice(2),
       ],
       pending: [{ kind: "NEED_DISCARD_BANG", player: "b", source: { card: "indians", from: "a" } }],
@@ -124,7 +125,7 @@ describe("reduce — PLAY_CARD / RESPOND (Duel)", () => {
   it("đẩy NEED_DUEL_RESPONSE cho mục tiêu", () => {
     const state = makeState({
       players: [
-        { id: "a", name: "a", role: "sheriff", hp: 4, maxHp: 4, hand: ["duel_1"], equipment: [], alive: true },
+        { id: "a", name: "a", role: "sheriff", hp: 4, maxHp: 4, hand: ["duel_1"], equipment: [], alive: true, characterId: null },
         ...makeState().players.slice(1),
       ],
     });
@@ -144,8 +145,8 @@ describe("reduce — PLAY_CARD / RESPOND (Duel)", () => {
   it("cả hai đều bỏ được Bang! thì đổi vai qua lại, ai hết Bang! trước thì mất máu", () => {
     let state = makeState({
       players: [
-        { id: "a", name: "a", role: "sheriff", hp: 4, maxHp: 4, hand: [], equipment: [], alive: true },
-        { id: "b", name: "b", role: "outlaw", hp: 4, maxHp: 4, hand: ["bang_1"], equipment: [], alive: true },
+        { id: "a", name: "a", role: "sheriff", hp: 4, maxHp: 4, hand: [], equipment: [], alive: true, characterId: null },
+        { id: "b", name: "b", role: "outlaw", hp: 4, maxHp: 4, hand: ["bang_1"], equipment: [], alive: true, characterId: null },
         ...makeState().players.slice(2),
       ],
       pending: [{ kind: "NEED_DUEL_RESPONSE", player: "b", opponent: "a", source: { card: "duel", from: "a" } }],
@@ -168,7 +169,7 @@ describe("reduce — PLAY_CARD / RESPOND (General Store)", () => {
   it("lật đúng số lá bằng số người sống, người đánh bài chọn trước", () => {
     const state = makeState({
       players: [
-        { id: "a", name: "a", role: "sheriff", hp: 4, maxHp: 4, hand: ["general_store_1"], equipment: [], alive: true },
+        { id: "a", name: "a", role: "sheriff", hp: 4, maxHp: 4, hand: ["general_store_1"], equipment: [], alive: true, characterId: null },
         ...makeState().players.slice(1),
       ],
       deck: ["c1", "c2", "c3", "c4"], // đỉnh deck = phần tử cuối
@@ -220,8 +221,8 @@ describe("reduce — PLAY_CARD (Panic!)", () => {
   it("cướp 1 lá ngẫu nhiên từ tay mục tiêu về tay người đánh", () => {
     const state = makeState({
       players: [
-        { id: "a", name: "a", role: "sheriff", hp: 4, maxHp: 4, hand: ["panic_1"], equipment: [], alive: true },
-        { id: "b", name: "b", role: "outlaw", hp: 4, maxHp: 4, hand: ["bang_1"], equipment: [], alive: true },
+        { id: "a", name: "a", role: "sheriff", hp: 4, maxHp: 4, hand: ["panic_1"], equipment: [], alive: true, characterId: null },
+        { id: "b", name: "b", role: "outlaw", hp: 4, maxHp: 4, hand: ["bang_1"], equipment: [], alive: true, characterId: null },
         ...makeState().players.slice(2),
       ],
     });
@@ -244,8 +245,8 @@ describe("reduce — PLAY_CARD (Panic!)", () => {
   it("tay mục tiêu hết bài thì cướp đúng lá trang bị đã chỉ định trên sân", () => {
     const state = makeState({
       players: [
-        { id: "a", name: "a", role: "sheriff", hp: 4, maxHp: 4, hand: ["panic_1"], equipment: [], alive: true },
-        { id: "b", name: "b", role: "outlaw", hp: 4, maxHp: 4, hand: [], equipment: ["barrel_1", "scope_1"], alive: true },
+        { id: "a", name: "a", role: "sheriff", hp: 4, maxHp: 4, hand: ["panic_1"], equipment: [], alive: true, characterId: null },
+        { id: "b", name: "b", role: "outlaw", hp: 4, maxHp: 4, hand: [], equipment: ["barrel_1", "scope_1"], alive: true, characterId: null },
         ...makeState().players.slice(2),
       ],
     });
@@ -269,8 +270,8 @@ describe("reduce — PLAY_CARD (Panic!)", () => {
   it("tay mục tiêu hết bài mà không chỉ định lá trên sân thì báo lỗi", () => {
     const state = makeState({
       players: [
-        { id: "a", name: "a", role: "sheriff", hp: 4, maxHp: 4, hand: ["panic_1"], equipment: [], alive: true },
-        { id: "b", name: "b", role: "outlaw", hp: 4, maxHp: 4, hand: [], equipment: ["barrel_1"], alive: true },
+        { id: "a", name: "a", role: "sheriff", hp: 4, maxHp: 4, hand: ["panic_1"], equipment: [], alive: true, characterId: null },
+        { id: "b", name: "b", role: "outlaw", hp: 4, maxHp: 4, hand: [], equipment: ["barrel_1"], alive: true, characterId: null },
         ...makeState().players.slice(2),
       ],
     });
@@ -282,8 +283,8 @@ describe("reduce — PLAY_CARD (Panic!)", () => {
   it("tay mục tiêu còn bài mà vẫn chỉ định lá cụ thể thì báo lỗi (phải ngẫu nhiên)", () => {
     const state = makeState({
       players: [
-        { id: "a", name: "a", role: "sheriff", hp: 4, maxHp: 4, hand: ["panic_1"], equipment: [], alive: true },
-        { id: "b", name: "b", role: "outlaw", hp: 4, maxHp: 4, hand: ["bang_1"], equipment: ["barrel_1"], alive: true },
+        { id: "a", name: "a", role: "sheriff", hp: 4, maxHp: 4, hand: ["panic_1"], equipment: [], alive: true, characterId: null },
+        { id: "b", name: "b", role: "outlaw", hp: 4, maxHp: 4, hand: ["bang_1"], equipment: ["barrel_1"], alive: true, characterId: null },
         ...makeState().players.slice(2),
       ],
     });
@@ -295,7 +296,7 @@ describe("reduce — PLAY_CARD (Panic!)", () => {
   it("mục tiêu không còn gì để cướp (tay lẫn sân đều rỗng) thì báo lỗi", () => {
     const state = makeState({
       players: [
-        { id: "a", name: "a", role: "sheriff", hp: 4, maxHp: 4, hand: ["panic_1"], equipment: [], alive: true },
+        { id: "a", name: "a", role: "sheriff", hp: 4, maxHp: 4, hand: ["panic_1"], equipment: [], alive: true, characterId: null },
         ...makeState().players.slice(1),
       ],
     });
@@ -307,7 +308,7 @@ describe("reduce — PLAY_CARD (Panic!)", () => {
   it("báo lỗi nếu tự cướp chính mình", () => {
     const state = makeState({
       players: [
-        { id: "a", name: "a", role: "sheriff", hp: 4, maxHp: 4, hand: ["panic_1"], equipment: [], alive: true },
+        { id: "a", name: "a", role: "sheriff", hp: 4, maxHp: 4, hand: ["panic_1"], equipment: [], alive: true, characterId: null },
         ...makeState().players.slice(1),
       ],
     });
@@ -321,8 +322,8 @@ describe("reduce — PLAY_CARD / RESPOND (Cat Balou)", () => {
   it("chọn vùng 'tay' thì đẩy NEED_DISCARD_FROM_ZONE, mục tiêu tự chọn lá để bỏ", () => {
     const state = makeState({
       players: [
-        { id: "a", name: "a", role: "sheriff", hp: 4, maxHp: 4, hand: ["cat_balou_1"], equipment: [], alive: true },
-        { id: "b", name: "b", role: "outlaw", hp: 4, maxHp: 4, hand: ["bang_1", "missed_1"], equipment: [], alive: true },
+        { id: "a", name: "a", role: "sheriff", hp: 4, maxHp: 4, hand: ["cat_balou_1"], equipment: [], alive: true, characterId: null },
+        { id: "b", name: "b", role: "outlaw", hp: 4, maxHp: 4, hand: ["bang_1", "missed_1"], equipment: [], alive: true, characterId: null },
         ...makeState().players.slice(2),
       ],
     });
@@ -356,8 +357,8 @@ describe("reduce — PLAY_CARD / RESPOND (Cat Balou)", () => {
   it("chọn vùng 'sân' thì mục tiêu chỉ được chọn trong trang bị, không phải bài trên tay", () => {
     const state = makeState({
       players: [
-        { id: "a", name: "a", role: "sheriff", hp: 4, maxHp: 4, hand: ["cat_balou_1"], equipment: [], alive: true },
-        { id: "b", name: "b", role: "outlaw", hp: 4, maxHp: 4, hand: ["bang_1"], equipment: ["barrel_1"], alive: true },
+        { id: "a", name: "a", role: "sheriff", hp: 4, maxHp: 4, hand: ["cat_balou_1"], equipment: [], alive: true, characterId: null },
+        { id: "b", name: "b", role: "outlaw", hp: 4, maxHp: 4, hand: ["bang_1"], equipment: ["barrel_1"], alive: true, characterId: null },
         ...makeState().players.slice(2),
       ],
     });
@@ -383,8 +384,8 @@ describe("reduce — PLAY_CARD / RESPOND (Cat Balou)", () => {
   it("không chọn vùng nào thì báo lỗi ngay khi đánh bài", () => {
     const state = makeState({
       players: [
-        { id: "a", name: "a", role: "sheriff", hp: 4, maxHp: 4, hand: ["cat_balou_1"], equipment: [], alive: true },
-        { id: "b", name: "b", role: "outlaw", hp: 4, maxHp: 4, hand: ["bang_1"], equipment: [], alive: true },
+        { id: "a", name: "a", role: "sheriff", hp: 4, maxHp: 4, hand: ["cat_balou_1"], equipment: [], alive: true, characterId: null },
+        { id: "b", name: "b", role: "outlaw", hp: 4, maxHp: 4, hand: ["bang_1"], equipment: [], alive: true, characterId: null },
         ...makeState().players.slice(2),
       ],
     });
@@ -396,8 +397,8 @@ describe("reduce — PLAY_CARD / RESPOND (Cat Balou)", () => {
   it("chọn vùng rỗng thì báo lỗi ngay khi đánh bài, không tạo pending", () => {
     const state = makeState({
       players: [
-        { id: "a", name: "a", role: "sheriff", hp: 4, maxHp: 4, hand: ["cat_balou_1"], equipment: [], alive: true },
-        { id: "b", name: "b", role: "outlaw", hp: 4, maxHp: 4, hand: ["bang_1"], equipment: [], alive: true },
+        { id: "a", name: "a", role: "sheriff", hp: 4, maxHp: 4, hand: ["cat_balou_1"], equipment: [], alive: true, characterId: null },
+        { id: "b", name: "b", role: "outlaw", hp: 4, maxHp: 4, hand: ["bang_1"], equipment: [], alive: true, characterId: null },
         ...makeState().players.slice(2),
       ],
     });
@@ -421,8 +422,8 @@ describe("reduce — không sửa state gốc khi đánh các lá tấn công", 
     for (const { cardId, targetId, targetZone } of cases) {
       const state = makeState({
         players: [
-          { id: "a", name: "a", role: "sheriff", hp: 4, maxHp: 4, hand: [cardId], equipment: [], alive: true },
-          { id: "b", name: "b", role: "outlaw", hp: 4, maxHp: 4, hand: ["bang_1"], equipment: [], alive: true },
+          { id: "a", name: "a", role: "sheriff", hp: 4, maxHp: 4, hand: [cardId], equipment: [], alive: true, characterId: null },
+          { id: "b", name: "b", role: "outlaw", hp: 4, maxHp: 4, hand: ["bang_1"], equipment: [], alive: true, characterId: null },
           ...makeState().players.slice(2),
         ],
         deck: ["c1", "c2", "c3", "c4"],

@@ -11,6 +11,7 @@
 // khác gần hơn 1; Mustang khiến người khác nhìn mình xa hơn 1.
 
 import { cardNameFromId, DEFAULT_WEAPON_RANGE, isWeaponCardName, WEAPON_RANGES } from "./cards";
+import { getCharacterHooks } from "./characters";
 import type { PlayerState } from "./types";
 
 // Tầm bắn của súng người chơi đang trang bị. Không có súng nào thì trả về
@@ -57,6 +58,13 @@ export function computeDistance(players: PlayerState[], fromId: string, toId: st
   let distance = seatDistance(players, fromId, toId);
   if (hasEquipment(attacker, "scope")) distance -= 1;
   if (hasEquipment(target, "mustang")) distance += 1;
+
+  // Giai đoạn 5 (Paul Regret/Rose Doolan, xem core/characters.ts) — cộng dồn
+  // SAU Ống nhắm/Ngựa Mustang thật, đúng công thức chung, không tách riêng.
+  const attackerHooks = getCharacterHooks(attacker.characterId);
+  if (attackerHooks.modifyDistance) distance = attackerHooks.modifyDistance(distance, "attacker");
+  const targetHooks = getCharacterHooks(target.characterId);
+  if (targetHooks.modifyDistance) distance = targetHooks.modifyDistance(distance, "target");
 
   return Math.max(1, distance);
 }

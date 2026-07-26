@@ -5,10 +5,10 @@ import type { GameState } from "../src/core/types";
 function makeState(overrides: Partial<GameState> = {}): GameState {
   return {
     players: [
-      { id: "a", name: "a", role: "sheriff", hp: 4, maxHp: 4, hand: ["bang_1"], equipment: [], alive: true },
-      { id: "b", name: "b", role: "outlaw", hp: 4, maxHp: 4, hand: ["missed_1"], equipment: [], alive: true },
-      { id: "c", name: "c", role: "outlaw", hp: 4, maxHp: 4, hand: [], equipment: [], alive: true },
-      { id: "d", name: "d", role: "renegade", hp: 4, maxHp: 4, hand: [], equipment: [], alive: false },
+      { id: "a", name: "a", role: "sheriff", hp: 4, maxHp: 4, hand: ["bang_1"], equipment: [], alive: true, characterId: null },
+      { id: "b", name: "b", role: "outlaw", hp: 4, maxHp: 4, hand: ["missed_1"], equipment: [], alive: true, characterId: null },
+      { id: "c", name: "c", role: "outlaw", hp: 4, maxHp: 4, hand: [], equipment: [], alive: true, characterId: null },
+      { id: "d", name: "d", role: "renegade", hp: 4, maxHp: 4, hand: [], equipment: [], alive: false, characterId: null },
     ],
     deck: [],
     discardPile: [],
@@ -17,6 +17,7 @@ function makeState(overrides: Partial<GameState> = {}): GameState {
     turnPhase: "play",
     rngState: 1,
     winner: null,
+    bangUsedThisTurn: false,
     ...overrides,
   };
 }
@@ -80,10 +81,62 @@ describe("reduce — PLAY_CARD (Bang!)", () => {
     ).toThrow();
   });
 
+  it("đánh Bang! xong thì bangUsedThisTurn chuyển thành true", () => {
+    const state = makeState();
+    const { state: next } = reduce(state, {
+      type: "PLAY_CARD",
+      playerId: "a",
+      cardId: "bang_1",
+      targetId: "b",
+    });
+    expect(next.bangUsedThisTurn).toBe(true);
+  });
+
+  it("báo lỗi nếu đánh lá Bang! thứ 2 trong cùng lượt, không cầm Volcanic", () => {
+    const state = makeState({
+      players: [
+        { id: "a", name: "a", role: "sheriff", hp: 4, maxHp: 4, hand: ["bang_2"], equipment: [], alive: true, characterId: null },
+        ...makeState().players.slice(1),
+      ],
+      bangUsedThisTurn: true, // đã đánh 1 lá Bang! trước đó trong lượt này
+    });
+    expect(() =>
+      reduce(state, { type: "PLAY_CARD", playerId: "a", cardId: "bang_2", targetId: "b" })
+    ).toThrow();
+  });
+
+  it("cầm Volcanic thì đánh Bang! nhiều lần trong 1 lượt vẫn được", () => {
+    const state = makeState({
+      players: [
+        { id: "a", name: "a", role: "sheriff", hp: 4, maxHp: 4, hand: ["bang_2"], equipment: ["volcanic_1"], alive: true, characterId: null },
+        ...makeState().players.slice(1),
+      ],
+      bangUsedThisTurn: true,
+    });
+    const { state: next } = reduce(state, {
+      type: "PLAY_CARD",
+      playerId: "a",
+      cardId: "bang_2",
+      targetId: "b",
+    });
+    expect(next.pending).toEqual([
+      { kind: "NEED_MISSED", player: "b", source: { card: "bang", from: "a" } },
+    ]);
+  });
+
+  it("sang lượt mới thì bangUsedThisTurn reset về false", () => {
+    const state = makeState({
+      turnPhase: "play",
+      bangUsedThisTurn: true,
+    });
+    const { state: next } = reduce(state, { type: "END_TURN", playerId: "a" });
+    expect(next.bangUsedThisTurn).toBe(false);
+  });
+
   it("báo lỗi nếu đánh lá chưa hỗ trợ (Dynamite không bao giờ đánh chủ động được)", () => {
     const state = makeState({
       players: [
-        { id: "a", name: "a", role: "sheriff", hp: 4, maxHp: 4, hand: ["dynamite_1"], equipment: [], alive: true },
+        { id: "a", name: "a", role: "sheriff", hp: 4, maxHp: 4, hand: ["dynamite_1"], equipment: [], alive: true, characterId: null },
         ...makeState().players.slice(1),
       ],
     });

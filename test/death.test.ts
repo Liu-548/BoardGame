@@ -13,6 +13,7 @@ function makePlayer(id: string, overrides: Partial<PlayerState> = {}): PlayerSta
     hand: [],
     equipment: [],
     alive: true,
+    characterId: null,
     ...overrides,
   };
 }
@@ -27,6 +28,7 @@ function makeState(players: PlayerState[], overrides: Partial<GameState> = {}): 
     turnPhase: "play",
     rngState: 1,
     winner: null,
+    bangUsedThisTurn: false,
     ...overrides,
   };
 }
@@ -45,15 +47,15 @@ describe("checkWinCondition", () => {
     const players = [
       makePlayer("a", { role: "sheriff" }),
       makePlayer("b", { role: "deputy" }),
-      makePlayer("c", { role: "outlaw", alive: false }),
-      makePlayer("d", { role: "renegade", alive: false }),
+      makePlayer("c", { role: "outlaw", alive: false, characterId: null }),
+      makePlayer("d", { role: "renegade", alive: false, characterId: null }),
     ];
     expect(checkWinCondition(players)).toBe("sheriff_deputy");
   });
 
   it("Sheriff chết, còn Outlaw sống: Outlaw thắng", () => {
     const players = [
-      makePlayer("a", { role: "sheriff", alive: false }),
+      makePlayer("a", { role: "sheriff", alive: false, characterId: null }),
       makePlayer("b", { role: "deputy" }),
       makePlayer("c", { role: "outlaw" }),
       makePlayer("d", { role: "renegade" }),
@@ -63,9 +65,9 @@ describe("checkWinCondition", () => {
 
   it("Sheriff chết, KHÔNG còn Outlaw nào sống nhưng Deputy vẫn sống: vẫn tính Outlaw thắng (không phải Renegade)", () => {
     const players = [
-      makePlayer("a", { role: "sheriff", alive: false }),
+      makePlayer("a", { role: "sheriff", alive: false, characterId: null }),
       makePlayer("b", { role: "deputy" }),
-      makePlayer("c", { role: "outlaw", alive: false }),
+      makePlayer("c", { role: "outlaw", alive: false, characterId: null }),
       makePlayer("d", { role: "renegade" }),
     ];
     expect(checkWinCondition(players)).toBe("outlaw");
@@ -73,7 +75,7 @@ describe("checkWinCondition", () => {
 
   it("Sheriff chết, còn 2 Renegade sống (biến thể 8 người): vẫn tính Outlaw thắng vì Renegade không sống sót một mình", () => {
     const players = [
-      makePlayer("a", { role: "sheriff", alive: false }),
+      makePlayer("a", { role: "sheriff", alive: false, characterId: null }),
       makePlayer("b", { role: "renegade" }),
       makePlayer("c", { role: "renegade" }),
     ];
@@ -82,9 +84,9 @@ describe("checkWinCondition", () => {
 
   it("Renegade là người sống sót DUY NHẤT: Renegade thắng", () => {
     const players = [
-      makePlayer("a", { role: "sheriff", alive: false }),
-      makePlayer("b", { role: "deputy", alive: false }),
-      makePlayer("c", { role: "outlaw", alive: false }),
+      makePlayer("a", { role: "sheriff", alive: false, characterId: null }),
+      makePlayer("b", { role: "deputy", alive: false, characterId: null }),
+      makePlayer("c", { role: "outlaw", alive: false, characterId: null }),
       makePlayer("d", { role: "renegade" }),
     ];
     expect(checkWinCondition(players)).toBe("renegade");

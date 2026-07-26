@@ -5,10 +5,10 @@ import type { GameState } from "../src/core/types";
 function makeState(overrides: Partial<GameState> = {}): GameState {
   return {
     players: [
-      { id: "a", name: "a", role: "sheriff", hp: 3, maxHp: 5, hand: ["beer_1"], equipment: [], alive: true },
-      { id: "b", name: "b", role: "outlaw", hp: 2, maxHp: 4, hand: [], equipment: [], alive: true },
-      { id: "c", name: "c", role: "outlaw", hp: 4, maxHp: 4, hand: [], equipment: [], alive: true }, // đã đầy máu
-      { id: "d", name: "d", role: "renegade", hp: 0, maxHp: 4, hand: [], equipment: [], alive: false },
+      { id: "a", name: "a", role: "sheriff", hp: 3, maxHp: 5, hand: ["beer_1"], equipment: [], alive: true, characterId: null },
+      { id: "b", name: "b", role: "outlaw", hp: 2, maxHp: 4, hand: [], equipment: [], alive: true, characterId: null },
+      { id: "c", name: "c", role: "outlaw", hp: 4, maxHp: 4, hand: [], equipment: [], alive: true, characterId: null }, // đã đầy máu
+      { id: "d", name: "d", role: "renegade", hp: 0, maxHp: 4, hand: [], equipment: [], alive: false, characterId: null },
     ],
     deck: ["card_1", "card_2", "card_3", "card_4"],
     discardPile: [],
@@ -17,6 +17,7 @@ function makeState(overrides: Partial<GameState> = {}): GameState {
     turnPhase: "play",
     rngState: 1,
     winner: null,
+    bangUsedThisTurn: false,
     ...overrides,
   };
 }
@@ -40,7 +41,7 @@ describe("reduce — PLAY_CARD (Beer)", () => {
   it("đã đầy máu thì không hồi thêm, không bắn event HP_RESTORED", () => {
     const state = makeState({
       players: [
-        { id: "a", name: "a", role: "sheriff", hp: 5, maxHp: 5, hand: ["beer_1"], equipment: [], alive: true },
+        { id: "a", name: "a", role: "sheriff", hp: 5, maxHp: 5, hand: ["beer_1"], equipment: [], alive: true, characterId: null },
         ...makeState().players.slice(1),
       ],
     });
@@ -55,10 +56,10 @@ describe("reduce — PLAY_CARD (Saloon)", () => {
   it("hồi 1 máu cho mọi người còn sống, bỏ qua người đã chết và người đầy máu", () => {
     const state = makeState({
       players: [
-        { id: "a", name: "a", role: "sheriff", hp: 3, maxHp: 5, hand: ["saloon_1"], equipment: [], alive: true },
-        { id: "b", name: "b", role: "outlaw", hp: 2, maxHp: 4, hand: [], equipment: [], alive: true },
-        { id: "c", name: "c", role: "outlaw", hp: 4, maxHp: 4, hand: [], equipment: [], alive: true },
-        { id: "d", name: "d", role: "renegade", hp: 0, maxHp: 4, hand: [], equipment: [], alive: false },
+        { id: "a", name: "a", role: "sheriff", hp: 3, maxHp: 5, hand: ["saloon_1"], equipment: [], alive: true, characterId: null },
+        { id: "b", name: "b", role: "outlaw", hp: 2, maxHp: 4, hand: [], equipment: [], alive: true, characterId: null },
+        { id: "c", name: "c", role: "outlaw", hp: 4, maxHp: 4, hand: [], equipment: [], alive: true, characterId: null },
+        { id: "d", name: "d", role: "renegade", hp: 0, maxHp: 4, hand: [], equipment: [], alive: false, characterId: null },
       ],
     });
 
@@ -85,7 +86,7 @@ describe("reduce — PLAY_CARD (Stagecoach / Wells Fargo)", () => {
   it("Stagecoach rút đúng 2 lá từ đỉnh deck", () => {
     const state = makeState({
       players: [
-        { id: "a", name: "a", role: "sheriff", hp: 3, maxHp: 5, hand: ["stagecoach_1"], equipment: [], alive: true },
+        { id: "a", name: "a", role: "sheriff", hp: 3, maxHp: 5, hand: ["stagecoach_1"], equipment: [], alive: true, characterId: null },
         ...makeState().players.slice(1),
       ],
     });
@@ -107,7 +108,7 @@ describe("reduce — PLAY_CARD (Stagecoach / Wells Fargo)", () => {
   it("Wells Fargo rút đúng 3 lá từ đỉnh deck", () => {
     const state = makeState({
       players: [
-        { id: "a", name: "a", role: "sheriff", hp: 3, maxHp: 5, hand: ["wells_fargo_1"], equipment: [], alive: true },
+        { id: "a", name: "a", role: "sheriff", hp: 3, maxHp: 5, hand: ["wells_fargo_1"], equipment: [], alive: true, characterId: null },
         ...makeState().players.slice(1),
       ],
     });
@@ -138,7 +139,7 @@ describe("reduce — không sửa state gốc khi đánh các lá này", () => {
     for (const [cardId, playerId] of cases) {
       const state = makeState({
         players: [
-          { id: "a", name: "a", role: "sheriff", hp: 3, maxHp: 5, hand: [cardId], equipment: [], alive: true },
+          { id: "a", name: "a", role: "sheriff", hp: 3, maxHp: 5, hand: [cardId], equipment: [], alive: true, characterId: null },
           ...makeState().players.slice(1),
         ],
       });
