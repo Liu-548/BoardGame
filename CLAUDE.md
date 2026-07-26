@@ -135,7 +135,7 @@ Nguyên tắc chung:
 
 > Cập nhật dòng này mỗi khi xong một giai đoạn. Xem `LO-TRINH.md`.
 
-**Đang ở:** Giai đoạn 4 — Hoàn thiện. Giai đoạn 3 (việc 3.1 → 3.10 + 2 việc bổ sung) đã xong hẳn — xem lịch sử bên dưới. **Vừa xong việc 4.2** (nhật ký ván đấu hiện trên màn hình).
+**Đang ở:** Giai đoạn 4 — Hoàn thiện. Giai đoạn 3 (việc 3.1 → 3.10 + 2 việc bổ sung) đã xong hẳn — xem lịch sử bên dưới. **Vừa xong việc 4.3** (xử lý người bỏ ván giữa chừng), kèm 1 việc nhỏ bổ sung (thêm tầm bắn/hiệu ứng vào nhãn lá bài).
 
 - 3.1-3.4 (gọn lại): `src/server/index.ts` + `src/server/room.ts` (Durable Object `Room`) — deploy thật ở **https://bang-boardgame.nguyenngoctuan548.workers.dev**. WebSocket dùng Hibernation API đúng cách (`ctx.acceptWebSocket()`, không `server.accept()` — quy tắc 7). Định tuyến `/room/<mã phòng>`.
 - **Quan trọng (phát hiện sau việc 3.10):** deploy trước đó CHỈ đưa lên phần server (Worker) — mở link công khai chỉ thấy dòng "Thiếu mã phòng...", KHÔNG thấy giao diện chơi, vì client (`index.html`/`main.ts`/`ui.ts`) chưa từng được build+phục vụ. Đã sửa: `wrangler.jsonc` thêm `assets: { directory: "./dist", run_worker_first: ["/room/*"] }` — phục vụ file client đã build (`npm run build`, ra `dist/`) CHUNG domain với Worker; `/room/*` vẫn luôn chạy Worker trước (API/WebSocket), còn lại phục vụ thẳng file tĩnh. `npm run deploy` giờ tự `vite build` trước khi `wrangler deploy` (script trong `package.json`), tránh quên build. Đã deploy lại + kiểm bằng trình duyệt thật trên chính link công khai: mở `/` thấy đúng giao diện, tạo phòng qua `wss://` thật hoạt động đúng.
@@ -180,7 +180,20 @@ Nguyên tắc chung:
 
 162 test đều pass (không đổi `core/` ở việc 4.2 nên không cần thêm test).
 
-**Việc tiếp theo:** việc 4.3 — xử lý người bỏ ván giữa chừng (xem `LO-TRINH.md`).
+**Việc nhỏ bổ sung (trước 4.3): tầm bắn súng + hiệu ứng khoảng cách trong nhãn lá bài** — `ui.ts`'s `CARD_LABELS` giờ hiện kèm số ngay sau tên: `Súng Volcanic (1)`, `Súng Schofield (2)`... (lấy THẲNG từ `WEAPON_RANGES` export sẵn ở `core/cards.ts` — cùng nguồn `core/distance.ts` dùng để tính luật thật, không tự chép số ra tránh lệch), và `Ống nhắm (-1)`/`Ngựa Mustang (+1)` (2 lá xanh duy nhất đổi khoảng cách — số này HARDCODE vì bản thân `core/distance.ts` cũng viết cứng, không có hằng số export sẵn; chỉ ảnh hưởng hiển thị, không đụng luật thật).
+
+**Giai đoạn 4 — việc 4.3 (xử lý người bỏ ván giữa chừng):**
+
+- **Bối cảnh quan trọng phát hiện lúc làm:** cơ chế đồng hồ ở việc 4.1 (hết giờ tự kết thúc lượt/tự bỏ bài/tự chịu hậu quả) ĐÃ khiến ván không bao giờ treo về mặt kỹ thuật — hết giờ tự xử lý dù người đó có mất kết nối hay không. Bàn với chủ dự án, chốt phạm vi việc 4.3 còn lại là 2 việc: (1) hiện rõ ai đang mất kết nối, (2) tự huỷ ván nếu còn quá ít người kết nối — không cần thêm gì về mặt "chống treo" nữa, nó đã đúng từ 4.1.
+- **Hiện ai đang mất kết nối:** `protocol.ts`'s `{type:"state"}` thêm field `connectedPlayerIds: string[]` (giống `DeadlineInfo` — sống ở "ngôn ngữ chung" protocol.ts, KHÔNG phải `GameState`/`PlayerView`, vì đây là khái niệm mạng, `core/` không biết gì tới). `room.ts` tính bằng cách so `state.players` với `ctx.getWebSockets()` đang mở (`connectedPlayerIdsInGame()`). `ui.ts`'s `networkRenderPlayer()` hiện thêm "⚠ đã mất kết nối" cạnh tên nếu không nằm trong danh sách đó (bỏ qua chính mình — hiển nhiên luôn kết nối). Cập nhật ở CẢ 2 chỗ: mỗi lần state đổi (như mọi khi) VÀ **ngay lúc `webSocketClose()`** (thêm mới) — nếu không, người còn lại phải chờ tới hành động kế tiếp mới thấy ai vừa rời, sai với ý "hiện rõ NGAY".
+- **Tự huỷ ván khi còn ≤1 người kết nối:** `webSocketClose()` đếm số người CỦA VÁN ĐANG CHƠI còn kết nối (loại trừ đúng socket vừa đóng); nếu ≤1, gọi `abandonGame()` — xoá `GameState`/đồng hồ/alarm khỏi storage (KHÔNG đụng `winner` — đây là "huỷ", khác "kết thúc đúng luật" nên không thể đi qua `reduce()`), gửi `{type:"game_abandoned"}` (thêm mới trong `protocol.ts`) cho người còn lại. Phòng quay lại đúng trạng thái lobby, `handleStartGame()` lại nhận ván mới khi đủ người quay lại.
+- **Lỗi phát hiện lúc tự kiểm (đã sửa):** `abandonGame()` lúc đầu lặp `ctx.getWebSockets()` gọi `send()` mà QUÊN loại trừ socket VỪA đóng (dù đã `ws.close()`) — `send()` trên socket đã đóng ném lỗi `TypeError`, làm HỎNG NGANG vòng lặp, khiến người còn lại (đáng lẽ phải nhận `game_abandoned`) không nhận được gì, kẹt màn hình ván cũ (đồng hồ đứng ở 0s). Sửa bằng cách truyền tường minh socket cần loại trừ vào `abandonGame(excludeSocket)`, không dựa vào try/catch (dễ nuốt lỗi thật khác).
+- Đã tự kiểm bằng `wrangler dev` cục bộ + 4 tab trình duyệt thật: đóng lần lượt từng tab giữa ván — còn 2/4 người kết nối thì CHỈ hiện chú thích "đã mất kết nối" (không huỷ), còn 1/4 thì tự huỷ NGAY, người cuối cùng tự động thấy dòng thông báo và quay lại đúng màn hình lobby, không lỗi console. Cũng bắt được lỗi `send()` sau `close()` ở trên nhờ chính bước tự kiểm này (log server báo `Uncaught TypeError`) — sửa xong kiểm lại sạch lỗi.
+- Đã deploy live: **https://bang-boardgame.nguyenngoctuan548.workers.dev**.
+
+162 test đều pass (không đổi `core/` ở việc 4.3 nên không cần thêm test).
+
+**Việc tiếp theo:** việc 4.4 — giao diện dễ nhìn hơn, responsive (xem `LO-TRINH.md`).
 
 ## Chưa làm tới, đừng đụng vào
 

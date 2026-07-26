@@ -61,10 +61,22 @@ export type ServerMessage =
   // GIỜ gửi state đầy đủ (quy tắc 6 CLAUDE.md).
   // `deadline`: đồng hồ đếm ngược hiện tại (việc 4.1), null nếu ván chưa bắt
   // đầu/đã kết thúc — GIỐNG NHAU cho mọi người nhận (không phải riêng theo viewer).
-  | { type: "state"; view: PlayerView; events: GameEvent[]; deadline: DeadlineInfo | null }
+  // `connectedPlayerIds` (việc 4.3): trong số `view.players`, ai ĐANG có socket
+  // mở thật sự ngay lúc này — để client hiện chú thích "đã mất kết nối" cho
+  // người không nằm trong danh sách này. Không phải bí mật gì (ai cũng thấy ai
+  // còn/mất kết nối), nên gửi GIỐNG NHAU cho mọi người, không lọc riêng.
+  | { type: "state"; view: PlayerView; events: GameEvent[]; deadline: DeadlineInfo | null; connectedPlayerIds: string[] }
   // Hành động bị từ chối (reduce()/setupGame() ném lỗi) — CHỈ gửi lại cho
   // đúng người vừa gửi hành động đó, không phát cho cả phòng.
   | { type: "action_error"; message: string }
+  // Việc 4.3: ván đang chơi dở bị HUỶ vì chỉ còn 0-1 người chơi còn kết nối
+  // (những người còn lại đều đã rời/mất mạng) — tiếp tục để 1 người tự chơi 1
+  // mình bằng toàn hết-giờ-tự-động thì vô nghĩa. Server đã xoá GameState lưu
+  // trong storage (room.ts), phòng quay lại trạng thái lobby — chủ phòng hiện
+  // tại (ownerId gửi kèm ServerMessage "lobby" ngay sau đó) có thể bắt đầu ván
+  // mới khi đủ người quay lại. KHÔNG liên quan `winner` trong GameState —
+  // "huỷ" khác "kết thúc đúng luật", core/ không biết gì về khái niệm này.
+  | { type: "game_abandoned" }
   // Tin nhắn chat đã chuyển tiếp. `scope` cho client biết cách hiển thị
   // ("An nói với cả phòng" hay "An nhắn riêng cho bạn"). QUAN TRỌNG: với tin
   // nhắn riêng (`scope: "private"`), server CHỈ gửi ServerMessage này cho

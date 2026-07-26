@@ -143,7 +143,7 @@ export class Room {
     const state = await this.ctx.storage.get<GameState>(GAME_STATE_KEY);
     if (state) {
       const deadline = await this.ctx.storage.get<DeadlineInfo>(DEADLINE_KEY);
-      this.sendStateTo(ws, state, [], deadline ?? null);
+      this.sendStateTo(ws, state, [], deadline ?? null, this.connectedPlayerIdsInGame(state));
     }
   }
 
@@ -422,17 +422,39 @@ export class Room {
   // thấy bài của chính mình). `deadline` giống nhau cho mọi người (không cần
   // lọc riêng — không chứa thông tin bí mật gì).
   private broadcastState(state: GameState, events: GameEvent[], deadline: DeadlineInfo | null): void {
+    const connectedPlayerIds = this.connectedPlayerIdsInGame(state);
     for (const socket of this.ctx.getWebSockets()) {
-      this.sendStateTo(socket, state, events, deadline);
+      this.sendStateTo(socket, state, events, deadline, connectedPlayerIds);
     }
   }
 
-  private sendStateTo(socket: WebSocket, state: GameState, events: GameEvent[], deadline: DeadlineInfo | null): void {
+  private sendStateTo(
+    socket: WebSocket,
+    state: GameState,
+    events: GameEvent[],
+    deadline: DeadlineInfo | null,
+    connectedPlayerIds: string[]
+  ): void {
     const attachment = socket.deserializeAttachment() as SocketAttachment | null;
     if (!attachment?.playerId) return; // socket chưa "join", chưa biết gửi view của ai
 
-    const message: ServerMessage = { type: "state", view: viewFor(state, attachment.playerId), events, deadline };
+    const message: ServerMessage = {
+      type: "state",
+      view: viewFor(state, attachment.playerId),
+      events,
+      deadline,
+      connectedPlayerIds,
+    };
     socket.send(JSON.stringify(message));
+  }
+
+  // Việc 4.3: trong số NGƯỜI CHƠI CỦA VÁN ĐANG CHẠY (state.players), ai đang
+  // có socket mở thật sự ngay lúc gọi hàm này — dùng để (1) gửi kèm cho client
+  // hiện chú thích "đã mất kết nối", và (2) tự huỷ ván nếu còn quá ít người
+  // (xem maybeAbandonGame() ở webSocketClose).
+  private connectedPlayerIdsInGame(state: GameState): string[] {
+    const connected = new Set(this.joinedPlayers().map((p) => p.id));
+    return state.players.filter((p) => connected.has(p.id)).map((p) => p.id);
   }
 
   private sendError(ws: WebSocket, message: string): void {
@@ -506,10 +528,60 @@ export class Room {
       }
     }
 
+    // Việc 4.3: ván đang chơi dở mà giờ chỉ còn 0-1 người CỦA VÁN ĐÓ còn kết
+    // nối -> huỷ luôn, không để nó tự chạy 1 mình mãi bằng toàn hết-giờ-tự-
+    // động (xem abandonGame()). Dùng `remaining` đã tính sẵn ở trên (đã loại
+    // trừ đúng socket vừa đóng) thay vì gọi lại connectedPlayerIdsInGame() từ
+    // joinedPlayers() — lúc này getWebSockets() có thể vẫn còn liệt kê socket
+    // đang đóng, dễ đếm dư 1.
+    const state = await this.ctx.storage.get<GameState>(GAME_STATE_KEY);
+    if (state && !state.winner) {
+      const remainingIdsInGame = remaining.filter((p) => state.players.some((sp) => sp.id === p.id));
+      if (remainingIdsInGame.length <= 1) {
+        await this.abandonGame(ws);
+      } else {
+        // Báo NGAY cho người còn lại biết ai vừa mất kết nối — không đợi tới
+        // hành động kế tiếp mới cập nhật `connectedPlayerIds` (state không đổi
+        // gì, chỉ gửi lại để vẽ đúng chú thích "đã mất kết nối"). Dùng thẳng
+        // `remainingIdsInGame` (đã loại trừ đúng socket vừa đóng) thay vì gọi
+        // connectedPlayerIdsInGame() — hàm đó đọc lại joinedPlayers(), lúc này
+        // getWebSockets() có thể vẫn còn liệt kê socket đang đóng.
+        const deadline = await this.ctx.storage.get<DeadlineInfo>(DEADLINE_KEY);
+        const connectedPlayerIds = remainingIdsInGame.map((p) => p.id);
+        for (const socket of this.ctx.getWebSockets()) {
+          if (socket !== ws) this.sendStateTo(socket, state, [], deadline ?? null, connectedPlayerIds);
+        }
+      }
+    }
+
     const message: ServerMessage = { type: "lobby", players: remaining, ownerId: await this.getOwnerId() };
     const payload = JSON.stringify(message);
     for (const socket of this.ctx.getWebSockets()) {
       if (socket !== ws) socket.send(payload);
+    }
+  }
+
+  // Việc 4.3: xoá ván đang chơi dở (KHÔNG đụng gì "winner" — đây là "huỷ",
+  // khác "kết thúc đúng luật") + dọn đồng hồ/alarm liên quan, rồi báo cho
+  // những người còn lại (thường là 0-1 người) biết. Phòng quay lại được trạng
+  // thái lobby bình thường — GAME_STATE_KEY trống nên handleStartGame() lại
+  // cho bắt đầu ván mới khi đủ người quay lại.
+  //
+  // `excludeSocket`: khi gọi từ webSocketClose(), socket vừa đóng vẫn có thể
+  // còn nằm trong ctx.getWebSockets() (xem ghi chú ở webSocketClose) NHƯNG đã
+  // bị đóng thật rồi — gọi send() trên nó ném lỗi và làm HỎNG NGANG vòng lặp,
+  // khiến những socket đến sau trong danh sách không nhận được gì. Phải loại
+  // trừ nó tường minh, không dựa vào try/catch (dễ nuốt lỗi thật khác).
+  private async abandonGame(excludeSocket?: WebSocket): Promise<void> {
+    await this.ctx.storage.delete(GAME_STATE_KEY);
+    await this.ctx.storage.delete(DEADLINE_KEY);
+    await this.ctx.storage.delete(PAUSED_PLAY_KEY);
+    await this.ctx.storage.deleteAlarm();
+
+    const message: ServerMessage = { type: "game_abandoned" };
+    const payload = JSON.stringify(message);
+    for (const socket of this.ctx.getWebSockets()) {
+      if (socket !== excludeSocket) socket.send(payload);
     }
   }
 }
