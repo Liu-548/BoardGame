@@ -135,7 +135,7 @@ Nguyên tắc chung:
 
 > Cập nhật dòng này mỗi khi xong một giai đoạn. Xem `LO-TRINH.md`.
 
-**Đang ở:** Giai đoạn 4 — Hoàn thiện. Giai đoạn 3 (việc 3.1 → 3.10 + 2 việc bổ sung) đã xong hẳn — xem lịch sử bên dưới. **Vừa xong việc 4.3** (xử lý người bỏ ván giữa chừng), kèm 1 việc nhỏ bổ sung (thêm tầm bắn/hiệu ứng vào nhãn lá bài).
+**Đang ở:** Giai đoạn 4 — Hoàn thiện. Giai đoạn 3 (việc 3.1 → 3.10 + 2 việc bổ sung) đã xong hẳn — xem lịch sử bên dưới. **Vừa xong việc 4.4** (giao diện dễ nhìn hơn, responsive).
 
 - 3.1-3.4 (gọn lại): `src/server/index.ts` + `src/server/room.ts` (Durable Object `Room`) — deploy thật ở **https://bang-boardgame.nguyenngoctuan548.workers.dev**. WebSocket dùng Hibernation API đúng cách (`ctx.acceptWebSocket()`, không `server.accept()` — quy tắc 7). Định tuyến `/room/<mã phòng>`.
 - **Quan trọng (phát hiện sau việc 3.10):** deploy trước đó CHỈ đưa lên phần server (Worker) — mở link công khai chỉ thấy dòng "Thiếu mã phòng...", KHÔNG thấy giao diện chơi, vì client (`index.html`/`main.ts`/`ui.ts`) chưa từng được build+phục vụ. Đã sửa: `wrangler.jsonc` thêm `assets: { directory: "./dist", run_worker_first: ["/room/*"] }` — phục vụ file client đã build (`npm run build`, ra `dist/`) CHUNG domain với Worker; `/room/*` vẫn luôn chạy Worker trước (API/WebSocket), còn lại phục vụ thẳng file tĩnh. `npm run deploy` giờ tự `vite build` trước khi `wrangler deploy` (script trong `package.json`), tránh quên build. Đã deploy lại + kiểm bằng trình duyệt thật trên chính link công khai: mở `/` thấy đúng giao diện, tạo phòng qua `wss://` thật hoạt động đúng.
@@ -193,7 +193,18 @@ Nguyên tắc chung:
 
 162 test đều pass (không đổi `core/` ở việc 4.3 nên không cần thêm test).
 
-**Việc tiếp theo:** việc 4.4 — giao diện dễ nhìn hơn, responsive (xem `LO-TRINH.md`).
+**Giai đoạn 4 — việc 4.4 (giao diện dễ nhìn hơn, responsive):**
+
+- Việc thuần CSS/HTML (`public/style.css`) — không đụng `core/`, không đổi `ui.ts`/logic gì.
+- `*, *::before, *::after { box-sizing: border-box }` — reset chuẩn, để padding/border của input/button KHÔNG cộng dồn ra ngoài width khai báo (nguyên nhân phổ biến nhất gây tràn ngang trên điện thoại mà khó nhìn ra).
+- Thêm style chung cho `input[type="text"]` (trước đây CHỈ ô nhập tên hotseat có style qua `.setup-list input`, ô nhập tên/mã phòng ở màn hình chơi qua mạng hoàn toàn không có class, hiện thị mặc định của trình duyệt — giờ đồng bộ, full-width, có padding).
+- Thêm `@media (max-width: 480px)`: thu gọn margin/padding `body`, giảm cỡ chữ `h1/h2/h3` (đỡ chiếm chỗ trên màn hình nhỏ), tăng vùng bấm `button`/`.cards button` (~44px cao, khuyến nghị chung cho ngón tay), và mỗi `.player` chiếm trọn 1 hàng thay vì chen 2 cột chật (14rem × 2 gần khít 480px, dễ lệch dòng nếu vẫn để tự do).
+- **Giới hạn lúc tự kiểm:** cửa sổ Chrome trong môi trường này có bề rộng tối thiểu ~500px (do `resize_window` không hạ được xuống dưới, có vẻ là giới hạn của chính Chrome/hệ điều hành, không phải lỗi code) — không dựng được đúng khung hình điện thoại thật (~375px) để bấm thử. Đã kiểm 2 cách thay thế: (1) ở 502px (băng qua ngưỡng 480px) xác nhận layout gốc không tràn ngang (`scrollWidth === clientWidth`) trên cả 4 màn hình (chọn cách chơi, thiết lập hotseat, đang chơi, lobby mạng); (2) tạm chèn 1 `<style>` ép TOÀN BỘ giá trị trong khối `@media` có hiệu lực bất kể bề rộng thật, chụp lại — xác nhận `.player` xếp đúng 1 cột/hàng, nút to hơn rõ rệt, không vỡ layout — rồi gỡ `<style>` tạm đó đi. **Chưa bấm thử bằng điện thoại thật** — nên làm thêm khi có dịp, đặc biệt kiểm lại vùng bấm bài (`.cards button`) có đủ to để bấm chính xác không.
+- Đã deploy live: **https://bang-boardgame.nguyenngoctuan548.workers.dev**.
+
+162 test đều pass (không đổi `core/` ở việc 4.4 nên không cần thêm test).
+
+**Việc tiếp theo:** việc 4.5 — kiểm tra hạn mức Cloudflare (xem `LO-TRINH.md`).
 
 ## Chưa làm tới, đừng đụng vào
 
