@@ -135,7 +135,7 @@ Nguyên tắc chung:
 
 > Cập nhật dòng này mỗi khi xong một giai đoạn. Xem `LO-TRINH.md`.
 
-**Đang ở:** Giai đoạn 4 — Hoàn thiện. Giai đoạn 3 (việc 3.1 → 3.10 + 2 việc bổ sung) đã xong hẳn — xem lịch sử bên dưới. **Vừa xong việc 4.1** (đồng hồ đếm ngược lượt).
+**Đang ở:** Giai đoạn 4 — Hoàn thiện. Giai đoạn 3 (việc 3.1 → 3.10 + 2 việc bổ sung) đã xong hẳn — xem lịch sử bên dưới. **Vừa xong việc 4.2** (nhật ký ván đấu hiện trên màn hình).
 
 - 3.1-3.4 (gọn lại): `src/server/index.ts` + `src/server/room.ts` (Durable Object `Room`) — deploy thật ở **https://bang-boardgame.nguyenngoctuan548.workers.dev**. WebSocket dùng Hibernation API đúng cách (`ctx.acceptWebSocket()`, không `server.accept()` — quy tắc 7). Định tuyến `/room/<mã phòng>`.
 - **Quan trọng (phát hiện sau việc 3.10):** deploy trước đó CHỈ đưa lên phần server (Worker) — mở link công khai chỉ thấy dòng "Thiếu mã phòng...", KHÔNG thấy giao diện chơi, vì client (`index.html`/`main.ts`/`ui.ts`) chưa từng được build+phục vụ. Đã sửa: `wrangler.jsonc` thêm `assets: { directory: "./dist", run_worker_first: ["/room/*"] }` — phục vụ file client đã build (`npm run build`, ra `dist/`) CHUNG domain với Worker; `/room/*` vẫn luôn chạy Worker trước (API/WebSocket), còn lại phục vụ thẳng file tĩnh. `npm run deploy` giờ tự `vite build` trước khi `wrangler deploy` (script trong `package.json`), tránh quên build. Đã deploy lại + kiểm bằng trình duyệt thật trên chính link công khai: mở `/` thấy đúng giao diện, tạo phòng qua `wss://` thật hoạt động đúng.
@@ -171,7 +171,16 @@ Nguyên tắc chung:
 
 162 test đều pass (không đổi `core/` ở việc 4.1 nên không cần thêm test).
 
-**Việc tiếp theo:** việc 4.2 — nhật ký ván đấu hiện trên màn hình (xem `LO-TRINH.md`).
+**Giai đoạn 4 — việc 4.2 (nhật ký ván đấu hiện trên màn hình):**
+
+- Không đụng gì `core/` — `GameEvent` (kết quả phụ của `reduce()`, xem `types.ts`) đã sẵn có đủ thông tin cho mọi việc từng xảy ra trong ván, chỉ cần client dịch ra chữ và hiện lên.
+- `ui.ts` có `describeEvent(event, nameOf)` — dịch 1 `GameEvent` thành 1 dòng tiếng Việt (vd "Bình đánh Bang! nhắm vào An", "An mất 1 máu"), và `renderLog()` vẽ danh sách các dòng đó thành 1 khung cuộn riêng ở cuối màn hình chơi (cả hotseat `renderApp()` lẫn qua mạng `renderNetworkGame()`).
+- `main.ts` giữ 2 mảng tách riêng theo đúng kiểu tách hotseat/mạng đã có sẵn: `gameLog` (hotseat, đắp thêm dòng mới sau MỖI `dispatch()` thành công) và `networkGameLog` (mạng, đắp thêm dòng mới mỗi khi nhận `{type:"state"}` từ server, dùng đúng `message.events` server đã gửi kèm — không cần thêm gì ở `protocol.ts`/`room.ts`). Dòng mới nhất chèn vào ĐẦU mảng (mới nhất lên trên cùng), không cần tự cuộn xuống cuối. Reset về rỗng khi bắt đầu ván mới (`onStartGame` cho hotseat, `onJoinRoom` cho mạng).
+- Đã tự kiểm bằng `vite dev` + trình duyệt thật: rút bài, đánh Bang! có mục tiêu, chịu mất máu — cả 3 hành động đều hiện đúng dòng log tương ứng, đúng thứ tự mới nhất lên trên.
+
+162 test đều pass (không đổi `core/` ở việc 4.2 nên không cần thêm test).
+
+**Việc tiếp theo:** việc 4.3 — xử lý người bỏ ván giữa chừng (xem `LO-TRINH.md`).
 
 ## Chưa làm tới, đừng đụng vào
 
