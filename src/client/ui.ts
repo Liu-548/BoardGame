@@ -888,36 +888,46 @@ function renderCardReferenceGroup(container: HTMLElement, heading: string, names
 // Việc bổ sung sau 4.6: DỰNG SẴN khung nhân vật (viền xanh lá, ảnh + tên riêng
 // y hệt lá bài) để Giai đoạn 5 (16 nhân vật, xem LO-TRINH.md) chỉ cần cắm dữ
 // liệu thật vào — CHƯA có nhân vật nào thật sự tồn tại trong core/ (đúng quy
-// tắc "Chưa làm tới, đừng đụng vào: Nhân vật"), đây CHỈ là 1 ô xem trước cho
-// biết khung trông thế nào, không phải danh sách nhân vật thật. Tên nhân vật
-// (vd sau này "Willy the Kid") KHÁC với tên hiển thị người chơi tự gõ (An,
-// Bình...) — 2 khái niệm khác nhau, xem thêm ghi chú người dùng yêu cầu việc
-// này trong lịch sử trò chuyện/CLAUDE.md.
+// tắc "Chưa làm tới, đừng đụng vào: Nhân vật"), đây CHỈ là khung xem trước
+// cho biết khung trông thế nào, không phải danh sách nhân vật thật.
+//
+// Đúng luật gốc BANG! (chủ dự án đã chỉnh lại sau khi hiểu lầm ban đầu — bản
+// v1 chỉ làm 1 ô ví dụ, không đúng luật): mỗi người chơi được PHÁT 2 LÁ NHÂN
+// VẬT úp, tự xem rồi CHỌN GIỮ 1 lá làm nhân vật thật của mình trong ván, bỏ lá
+// còn lại — nên khung ví dụ ở đây vẽ 2 ô cạnh nhau (đại diện 2 lá được phát),
+// không phải 1. Tên nhân vật (vd sau này "Willy the Kid") KHÁC với tên hiển
+// thị người chơi tự gõ (An, Bình...) — 2 khái niệm khác nhau.
 function renderCharacterPreviewSection(container: HTMLElement): void {
   const headingEl = document.createElement("h3");
   headingEl.className = "card-ref-group-heading";
   headingEl.textContent = "Nhân vật (chưa có trong bản này — xem trước khung)";
   container.appendChild(headingEl);
 
+  const rule = document.createElement("p");
+  rule.textContent =
+    "Đúng luật gốc: mỗi người chơi được phát 2 lá nhân vật úp, tự xem rồi chọn giữ 1 lá làm " +
+    "nhân vật thật của mình, bỏ lá còn lại — 2 ô dưới đây là ví dụ cho 2 lá được phát đó.";
+  container.appendChild(rule);
+
   const grid = document.createElement("div");
   grid.className = "card-ref-grid";
 
-  const item = document.createElement("div");
-  item.className = "card-ref-item";
+  for (const label of ["Nhân vật A (ví dụ)", "Nhân vật B (ví dụ)"]) {
+    const item = document.createElement("div");
+    item.className = "card-ref-item";
 
-  const box = document.createElement("div");
-  box.className = "card-box card-box--character";
-  appendCardVisual(box, "/sprites/characters/_preview.png", "Tên nhân vật (ví dụ)");
-  item.appendChild(box);
+    const box = document.createElement("div");
+    box.className = "card-box card-box--character";
+    appendCardVisual(box, "/sprites/characters/_preview.png", label);
+    item.appendChild(box);
 
-  const desc = document.createElement("p");
-  desc.className = "card-ref-item__desc";
-  desc.textContent =
-    "Khung ví dụ — Giai đoạn 5 mới thật sự thêm 16 nhân vật (mỗi người 1 kỹ năng riêng). " +
-    "Tên nhân vật khác với tên hiển thị bạn tự gõ lúc vào phòng.";
-  item.appendChild(desc);
+    const desc = document.createElement("p");
+    desc.className = "card-ref-item__desc";
+    desc.textContent = "Khung ví dụ — Giai đoạn 5 mới thật sự thêm 16 nhân vật (mỗi người 1 kỹ năng riêng).";
+    item.appendChild(desc);
 
-  grid.appendChild(item);
+    grid.appendChild(item);
+  }
   container.appendChild(grid);
 }
 
