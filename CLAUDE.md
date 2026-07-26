@@ -25,13 +25,21 @@ Chủ dự án **mới học lập trình, kiến thức web ở mức dưới c
 ```
 src/
   core/          ← luật chơi. THUẦN. Không biết gì về mạng, DOM, Cloudflare.
-    types.ts     ← kiểu dữ liệu state, action, card
-    cards.ts     ← dữ liệu bộ bài (dữ liệu, không phải logic)
-    rng.ts       ← sinh số ngẫu nhiên có seed
-    setup.ts     ← tạo ván mới
-    reduce.ts    ← reduce(state, action) => state mới
-    pending.ts   ← quản lý stack việc đang chờ
-    view.ts      ← viewFor(state, playerId) => state đã lọc
+    types.ts       ← kiểu dữ liệu state, action, card
+    cards.ts       ← dữ liệu bộ bài (dữ liệu, không phải logic)
+    rng.ts         ← sinh số ngẫu nhiên có seed
+    setup.ts       ← tạo ván mới
+    reduce.ts      ← reduce(state, action) => state mới (KHÔNG có pending.ts
+                      riêng như dự tính ban đầu — stack pending quản lý ngay
+                      trong reduce.ts, không tách file)
+    view.ts        ← viewFor(state, playerId) => state đã lọc
+    distance.ts    ← MỚI (việc 1.12): khoảng cách & tầm bắn
+    equipment.ts   ← MỚI (việc 1.11): gắn/chuyển lá trang bị (Dynamite...)
+    win.ts         ← MỚI (việc 1.13): điều kiện thắng theo phe
+    deck.ts        ← MỚI (việc 5.2): drawTopCard() — tách khỏi reduce.ts để
+                      characters.ts dùng được mà không vòng lặp import
+    characters.ts  ← MỚI (việc 5.1/5.2): hệ thống hook + registry nhân vật
+                      (CHARACTERS — mới có 6/16 nhân vật, xem trạng thái bên dưới)
   server/
     index.ts     ← Worker entry, định tuyến theo mã phòng
     room.ts      ← lớp Durable Object, 1 instance = 1 phòng
