@@ -135,7 +135,7 @@ Nguyên tắc chung:
 
 > Cập nhật dòng này mỗi khi xong một giai đoạn. Xem `LO-TRINH.md`.
 
-**Đang ở:** Giai đoạn 4 xong (4.1-4.6 khung, còn thiếu ảnh thật). **Vừa xong việc 5.1** (hệ thống hook cho nhân vật) — xem `NHAN-VAT-BANG-CO-BAN.txt` (đặc tả đủ 16 nhân vật + 9 loại hook, chủ dự án viết) và lịch sử Giai đoạn 4 phía dưới.
+**Đang ở:** Giai đoạn 4 xong (4.1-4.6 khung, còn thiếu ảnh thật). Giai đoạn 5 — việc 5.1 (hệ thống hook) xong. **Vừa xong việc 5.2 đợt 1**: 6/16 nhân vật (Bart Cassidy, El Gringo, Paul Regret, Rose Doolan, Vulture Sam, Willy the Kid) — 10 người còn lại (cần pending/luồng action mới) để dành đợt sau. Xem `NHAN-VAT-BANG-CO-BAN.txt` (đặc tả đủ 16 nhân vật + 9 loại hook, chủ dự án viết).
 
 - 3.1-3.4 (gọn lại): `src/server/index.ts` + `src/server/room.ts` (Durable Object `Room`) — deploy thật ở **https://bang-boardgame.nguyenngoctuan548.workers.dev**. WebSocket dùng Hibernation API đúng cách (`ctx.acceptWebSocket()`, không `server.accept()` — quy tắc 7). Định tuyến `/room/<mã phòng>`.
 - **Quan trọng (phát hiện sau việc 3.10):** deploy trước đó CHỈ đưa lên phần server (Worker) — mở link công khai chỉ thấy dòng "Thiếu mã phòng...", KHÔNG thấy giao diện chơi, vì client (`index.html`/`main.ts`/`ui.ts`) chưa từng được build+phục vụ. Đã sửa: `wrangler.jsonc` thêm `assets: { directory: "./dist", run_worker_first: ["/room/*"] }` — phục vụ file client đã build (`npm run build`, ra `dist/`) CHUNG domain với Worker; `/room/*` vẫn luôn chạy Worker trước (API/WebSocket), còn lại phục vụ thẳng file tĩnh. `npm run deploy` giờ tự `vite build` trước khi `wrangler deploy` (script trong `package.json`), tránh quên build. Đã deploy lại + kiểm bằng trình duyệt thật trên chính link công khai: mở `/` thấy đúng giao diện, tạo phòng qua `wss://` thật hoạt động đúng.
@@ -258,10 +258,31 @@ Nguyên tắc chung:
 - **Lỗi phát hiện lúc viết test (đã sửa — TEST, không phải core/):** state test dùng `deck: []` và để vai mặc định `"outlaw"` cho người sắp chết, vô tình kích hoạt luật có sẵn "hạ Outlaw thưởng rút 3 lá" — `drawTopCard()` thấy deck rỗng liền XÁO LẠI chính chồng bỏ đang muốn kiểm tra thành deck mới, làm chồng bỏ về `[]` bất ngờ. Không phải bug ở hook — đổi vai người chết trong test thành `"renegade"` là hết.
 - 175 test đều pass (162 cũ + 4 test giới hạn Bang!/lượt + 9 test hook).
 
-**Việc tiếp theo:** việc 5.2 — 16 nhân vật bản cơ bản (điền dữ liệu thật vào `CHARACTERS`, xem `NHAN-VAT-BANG-CO-BAN.txt` + `LO-TRINH.md`).
+**Giai đoạn 5 — việc 5.2, đợt 1 (6/16 nhân vật — nhóm dùng ngay được hook đã nối dây ở 5.1):**
+
+- Trước khi làm, rà lại `NHAN-VAT-BANG-CO-BAN.txt` thấy khối lượng thật lớn hơn "chỉ điền registry rỗng" — 16 nhân vật độ khó rất khác nhau (có người cần cả 1 loại `PendingAction`/luồng action mới). Đã bàn với chủ dự án, chốt chia nhỏ: **đợt này chỉ 6 nhân vật KHÔNG cần thêm cơ chế gì** (Bart Cassidy, El Gringo, Paul Regret, Rose Doolan, Vulture Sam, Willy the Kid) — 10 người còn lại (Jourdonnais, Black Jack, Jesse Jones, Kit Carlson, Pedro Ramirez, Lucky Duke, Slab the Killer, Calamity Janet, Sid Ketchum, Suzy Lafayette) để dành các đợt sau.
+- **CHƯA làm cơ chế "phát 2 lá nhân vật úp, chọn giữ 1"** (đúng luật gốc, xem ghi chú sửa khung xem trước ở trên) — đó là 1 việc RIÊNG. Đợt này gán `characterId` TẠM THỜI qua `RuleOptions.characterAssignments` (map playerId -> characterId) khi gọi `setupGame()`, chỉ để có nhân vật thật mà thử/test — không phải cơ chế chọn thật trong ván.
+- **Tách `drawTopCard()` ra file mới `core/deck.ts`** (trước là hàm private trong `reduce.ts`) — Bart Cassidy/El Gringo cần rút bài, để nguyên trong `reduce.ts` sẽ tạo VÒNG LẶP IMPORT (`reduce.ts` đã import từ `characters.ts`). Hành vi giữ nguyên y hệt, chỉ đổi chỗ ở.
+- **Sửa 1 lỗ hổng trong chính thiết kế hook của 5.1** phát hiện lúc dùng thật: `onAnyDeath` lúc đó KHÔNG nhận tham số "chính mình" (người sở hữu nhân vật) — chỉ có `next` và `deadPlayer`, khiến Vulture Sam không có cách nào biết "chuyển bài vào tay AI" ngoài tự hardcode id (dở, dễ sai). Đã thêm tham số `self: PlayerState` vào giữa: `onAnyDeath(next, self, deadPlayer)` — cập nhật cả chỗ gọi trong `eliminatePlayer()` (`reduce.ts`) lẫn test cũ ở `test/characters.test.ts`.
+- `CharacterDefinition` thêm `bullets: number` (máu tối đa CHƯA cộng Sheriff) và `bypassBangLimit?: boolean` (Willy the Kid — dữ liệu tĩnh, không phải hook). `setupGame()` (`setup.ts`) dùng `bullets` của nhân vật thay `BASE_HP=4` khi có gán qua `characterAssignments`; Sheriff vẫn luôn +1 dù có nhân vật hay không; gán nhân vật không tồn tại trong registry thì báo lỗi rõ ràng thay vì âm thầm sai.
+- 6 nhân vật, đúng dữ liệu từ file đặc tả:
+  - **Bart Cassidy** (4 máu) — `onLoseLife`: rút đúng số lá bằng số máu mất, MỌI nguồn kể cả Thuốc nổ.
+  - **El Gringo** (3 máu) — `onLoseLifeFromCard`: cướp ngẫu nhiên 1 lá tay người gây, lặp theo từng điểm máu — KHÔNG kích hoạt với Thuốc nổ.
+  - **Paul Regret** (3 máu) — `modifyDistance` vai target +1 (như có sẵn Ngựa Mustang).
+  - **Rose Doolan** (4 máu) — `modifyDistance` vai attacker -1 (như có sẵn Ống nhắm).
+  - **Vulture Sam** (4 máu) — `onAnyDeath`: gom hết bài người chết (tay + sân, kể cả Thuốc nổ chưa nổ) về tay mình.
+  - **Willy the Kid** (4 máu) — `bypassBangLimit: true`, không cần hook nào — `playBang()` (`reduce.ts`) giờ kiểm tra CẢ Volcanic LẪN field này.
+- Test mới **`test/characters-basic.test.ts`** (14 test) — dùng THẲNG id thật (khác `test/characters.test.ts` dùng nhân vật giả để kiểm dây nối): `setupGame()` gán đúng máu/số lá khởi đầu theo `bullets`, Sheriff vẫn +1, báo lỗi khi gán nhân vật không tồn tại; hành vi từng người trong 6 người qua `reduce()` thật.
+- **Lỗi tự phát hiện lúc viết test (đã sửa — TEST, không phải core/):** test Bart Cassidy dùng deck chỉ vừa đủ 1 lá cho draw!, để Bart rút thêm 3 lá thưởng thì deck cạn giữa chừng, `drawTopCard()` tự xáo lại chồng bỏ (phụ thuộc RNG) làm bài rút được không đoán trước được — sửa bằng cách cho deck đủ hẳn 4 lá (1 cho draw! + 3 cho Bart), không chạm nhánh xáo lại.
+- Đã tự kiểm: `npx tsc --noEmit` sạch, 189 test đều pass (175 cũ + 14 test mới).
+- Không sửa `ui.ts`/`main.ts` — 6 nhân vật này CHƯA hiện được trên giao diện (chưa có màn hình chọn nhân vật, `characterAssignments` chỉ gọi được qua code/test).
+
+189 test đều pass.
+
+**Việc tiếp theo:** việc 5.2 đợt 2 — nhóm nhân vật kế tiếp (Jourdonnais/Black Jack trước, ít phức tạp hơn nhóm cần `PendingAction` mới), hoặc làm cơ chế "phát 2 lá nhân vật, chọn giữ 1" thật nếu chủ dự án muốn ưu tiên trước — xem `NHAN-VAT-BANG-CO-BAN.txt` + `LO-TRINH.md`.
 
 ## Chưa làm tới, đừng đụng vào
 
-16 nhân vật thật (việc 5.1 mới xong HỆ THỐNG hook rỗng — xem `core/characters.ts` — `CHARACTERS` chưa có nhân vật nào, mọi người vẫn 4 máu không skill y hệt trước giờ), expansion, house rules, đồ hoạ đẹp, âm thanh, tài khoản/đăng nhập, bảng xếp hạng.
+10/16 nhân vật còn lại (Jourdonnais, Black Jack, Jesse Jones, Kit Carlson, Pedro Ramirez, Lucky Duke, Slab the Killer, Calamity Janet, Sid Ketchum, Suzy Lafayette — xem `NHAN-VAT-BANG-CO-BAN.txt`), cơ chế "phát 2 lá nhân vật thật/chọn giữ 1" (hiện chỉ gán tạm qua `RuleOptions.characterAssignments`, KHÔNG có màn hình chọn nhân vật nào trên giao diện), expansion, house rules, đồ hoạ đẹp, âm thanh, tài khoản/đăng nhập, bảng xếp hạng.
 
-Bản đầu tiên **cố tình bỏ nhân vật** cho tới việc 5.2 — để tránh 16 ngoại lệ luật khi engine chưa vững.
+6 nhân vật đầu (Bart Cassidy, El Gringo, Paul Regret, Rose Doolan, Vulture Sam, Willy the Kid) đã có THẬT trong `core/characters.ts` (việc 5.2 đợt 1) nhưng CHỈ dùng được qua code/test — chưa ai chơi được qua giao diện thật vì chưa có cơ chế chọn nhân vật.
