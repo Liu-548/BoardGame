@@ -135,7 +135,7 @@ Nguyên tắc chung:
 
 > Cập nhật dòng này mỗi khi xong một giai đoạn. Xem `LO-TRINH.md`.
 
-**Đang ở:** Giai đoạn 4 — Hoàn thiện. Giai đoạn 3 (việc 3.1 → 3.10 + 2 việc bổ sung) đã xong hẳn — xem lịch sử bên dưới. **Vừa xong việc 4.4** (giao diện dễ nhìn hơn, responsive).
+**Đang ở:** Giai đoạn 4 — Hoàn thiện. Giai đoạn 3 (việc 3.1 → 3.10 + 2 việc bổ sung) đã xong hẳn — xem lịch sử bên dưới. **Vừa xong việc 4.5** (kiểm tra hạn mức Cloudflare).
 
 - 3.1-3.4 (gọn lại): `src/server/index.ts` + `src/server/room.ts` (Durable Object `Room`) — deploy thật ở **https://bang-boardgame.nguyenngoctuan548.workers.dev**. WebSocket dùng Hibernation API đúng cách (`ctx.acceptWebSocket()`, không `server.accept()` — quy tắc 7). Định tuyến `/room/<mã phòng>`.
 - **Quan trọng (phát hiện sau việc 3.10):** deploy trước đó CHỈ đưa lên phần server (Worker) — mở link công khai chỉ thấy dòng "Thiếu mã phòng...", KHÔNG thấy giao diện chơi, vì client (`index.html`/`main.ts`/`ui.ts`) chưa từng được build+phục vụ. Đã sửa: `wrangler.jsonc` thêm `assets: { directory: "./dist", run_worker_first: ["/room/*"] }` — phục vụ file client đã build (`npm run build`, ra `dist/`) CHUNG domain với Worker; `/room/*` vẫn luôn chạy Worker trước (API/WebSocket), còn lại phục vụ thẳng file tĩnh. `npm run deploy` giờ tự `vite build` trước khi `wrangler deploy` (script trong `package.json`), tránh quên build. Đã deploy lại + kiểm bằng trình duyệt thật trên chính link công khai: mở `/` thấy đúng giao diện, tạo phòng qua `wss://` thật hoạt động đúng.
@@ -204,7 +204,19 @@ Nguyên tắc chung:
 
 162 test đều pass (không đổi `core/` ở việc 4.4 nên không cần thêm test).
 
-**Việc tiếp theo:** việc 4.5 — kiểm tra hạn mức Cloudflare (xem `LO-TRINH.md`).
+**Giai đoạn 4 — việc 4.5 (kiểm tra hạn mức Cloudflare):**
+
+- Việc XEM DASHBOARD thuần — không có gì để code/commit/deploy (không sửa file nào trong repo trừ cập nhật trạng thái này).
+- Vào **dash.cloudflare.com → Durable Objects → `bang-boardgame_Room` → Metrics**, kiểm tra đúng chỉ số quy tắc 7 CLAUDE.md lo ngại (Hibernation API dùng đúng thì duration phải GẦN 0, không phải chạy suốt 24h):
+  - **Billable duration: 1.23 GB-sec** — cả ở khung "Last 24 hours" LẪN "Last 30 days" (2 số giống hệt nhau, nghĩa là TOÀN BỘ lịch sử dùng thử của namespace này gói gọn trong hôm nay) — so với hạn mức miễn phí **13.000 GB-sec/ngày**, tức mới dùng ~0,01% hạn mức. Xác nhận `ctx.acceptWebSocket()` (không `ws.accept()`) đang hoạt động đúng như thiết kế — phòng KHÔNG bị tính duration suốt lúc kết nối mở, chỉ tính lúc DO thật sự thức xử lý.
+  - Đối chiếu thêm: mục "WebSocket messages" ghi `Inbound, hibernatable: 185` và `Inbound, non-hibernatable: 0` — xác nhận 100% tin nhắn đi qua đúng đường hibernate, không có kết nối nào lỡ dùng `ws.accept()`.
+  - 212 requests / 18 "Errors" trong 24h qua — đào sâu thấy `Errors by invocation status` ghi toàn bộ 18 lỗi là **"Client disconnected"** — đây là cách Cloudflare phân loại lúc 1 kết nối WebSocket đóng lại (đóng tab, mất mạng, chuyển màn hình...), KHÔNG phải lỗi code — khớp đúng số lần chủ dự án tự đóng/mở tab lúc chơi thử với bạn bè trước đó. Không có lỗi "Exceeded CPU limits" hay loại lỗi thật nào khác.
+  - Storage: 86.02 kB (SQLite, theo `ctx.storage`) — không đáng kể.
+- **Kết luận:** hạn mức Cloudflare hoàn toàn an toàn ở quy mô hiện tại (vài người bạn chơi thử). Không cần đổi gì trong code.
+
+162 test đều pass (không đổi `core/` ở việc 4.5 nên không cần thêm test — bản thân việc này cũng không đổi code gì).
+
+**Việc tiếp theo:** việc 4.6 — hình ảnh lá bài (xem `LO-TRINH.md`).
 
 ## Chưa làm tới, đừng đụng vào
 
