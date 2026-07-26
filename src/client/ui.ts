@@ -5,7 +5,7 @@
 
 import { cardNameFromId, cardSuitRankFromId } from "../core/cards";
 import type { CardName } from "../core/cards";
-import type { GameState, PendingAction, PlayerState, Role, Suit } from "../core/types";
+import type { GameEvent, GameState, PendingAction, PlayerState, Role, Suit } from "../core/types";
 import type { PlayerHandView, PlayerView } from "../core/view";
 import type { DeadlineInfo } from "../protocol";
 
@@ -90,6 +90,90 @@ function renderDrawCheckNotice(container: HTMLElement, notice: DrawCheckNotice):
     `${notice.playerName} vừa lật bài kiểm tra: ${cardFaceLabel(notice.cardId)} — ` +
     (notice.matched ? "KHỚP" : "không khớp");
   container.appendChild(el);
+}
+
+// Việc 4.2: nhật ký ván đấu. Mỗi GameEvent do reduce() trả về được dịch
+// thành 1 dòng tiếng Việt ngay lúc nhận (main.ts gọi hàm này rồi LƯU CHUỖI
+// KẾT QUẢ, không lưu lại GameEvent thô) — vì nameOf() cần state/view TẠI THỜI
+// ĐIỂM đó, không tiện tính lại mỗi lần vẽ màn hình.
+export function describeEvent(event: GameEvent, nameOf: (id: string) => string): string {
+  switch (event.type) {
+    case "CARDS_DRAWN":
+      return `${nameOf(event.playerId)} rút ${event.count} lá`;
+    case "TURN_ENDED":
+      return `${nameOf(event.playerId)} kết thúc lượt`;
+    case "CARDS_DISCARDED":
+      return `${nameOf(event.playerId)} bỏ ${event.cardIds.length} lá thừa`;
+    case "CARD_PLAYED":
+      return (
+        `${nameOf(event.playerId)} đánh ${cardLabel(event.cardId)}` +
+        (event.targetId ? ` nhắm vào ${nameOf(event.targetId)}` : "")
+      );
+    case "MISSED_PLAYED":
+      return `${nameOf(event.playerId)} đỡ bằng Missed!`;
+    case "BANG_DISCARDED":
+      return `${nameOf(event.playerId)} bỏ 1 lá Bang! để đỡ`;
+    case "DAMAGE_DEALT":
+      return `${nameOf(event.playerId)} mất ${event.amount} máu`;
+    case "HP_RESTORED":
+      return `${nameOf(event.playerId)} hồi ${event.amount} máu`;
+    case "STORE_REVEALED":
+      return `Cửa hàng tổng hợp lật ${event.cardIds.length} lá`;
+    case "STORE_CARD_TAKEN":
+      return `${nameOf(event.playerId)} lấy ${cardLabel(event.cardId)} từ Cửa hàng tổng hợp`;
+    case "CARD_STOLEN":
+      return `${nameOf(event.playerId)} cướp ${cardLabel(event.cardId)} của ${nameOf(event.fromPlayerId)}`;
+    case "CARD_FORCE_DISCARDED":
+      return `${nameOf(event.byPlayerId)} bắt ${nameOf(event.playerId)} bỏ ${cardLabel(event.cardId)}`;
+    case "DRAW_CHECK_RESOLVED":
+      return (
+        `${nameOf(event.playerId)} lật bài kiểm tra: ${cardFaceLabel(event.cardId)} — ` +
+        (event.matched ? "KHỚP" : "không khớp")
+      );
+    case "WEAPON_REPLACED":
+      return `${nameOf(event.playerId)} đổi súng, bỏ ${cardLabel(event.oldCardId)}`;
+    case "BARREL_DODGED":
+      return `${nameOf(event.playerId)} né đòn nhờ Thùng rượu`;
+    case "DYNAMITE_EXPLODED":
+      return `Thuốc nổ phát nổ ở ${nameOf(event.playerId)}, mất ${event.amount} máu`;
+    case "DYNAMITE_PASSED":
+      return `Thuốc nổ không nổ ở ${nameOf(event.playerId)}, chuyền sang người kế tiếp`;
+    case "JAIL_ESCAPED":
+      return `${nameOf(event.playerId)} thoát khỏi Nhà tù`;
+    case "JAIL_SKIPPED_TURN":
+      return `${nameOf(event.playerId)} bị giam trong Nhà tù, mất lượt`;
+    case "PLAYER_ELIMINATED":
+      return event.killedBy
+        ? `${nameOf(event.playerId)} bị ${nameOf(event.killedBy)} hạ gục`
+        : `${nameOf(event.playerId)} đã chết`;
+    case "OUTLAW_BOUNTY_DRAWN":
+      return `${nameOf(event.playerId)} được thưởng vì kết liễu Tội phạm, rút ${event.count} lá`;
+    case "SHERIFF_KILLED_DEPUTY_PENALTY":
+      return `${nameOf(event.playerId)} giết nhầm Phó cảnh sát trưởng, bị phạt mất hết bài`;
+    case "GAME_ENDED":
+      return `VÁN KẾT THÚC — phe thắng: ${WINNER_LABELS[event.winner]}`;
+  }
+}
+
+// Danh sách các dòng nhật ký đã dịch sẵn (mới nhất ở ĐẦU mảng — xem main.ts).
+// Không tự tính lại từ GameEvent mỗi lần vẽ, chỉ vẽ chuỗi có sẵn.
+function renderLog(container: HTMLElement, log: string[]): void {
+  if (log.length === 0) return;
+  const panel = document.createElement("div");
+  panel.className = "panel log";
+  const heading = document.createElement("p");
+  heading.className = "pending-heading";
+  heading.textContent = "Nhật ký ván đấu";
+  panel.appendChild(heading);
+  const list = document.createElement("ul");
+  list.className = "log-list";
+  for (const line of log) {
+    const item = document.createElement("li");
+    item.textContent = line;
+    list.appendChild(item);
+  }
+  panel.appendChild(list);
+  container.appendChild(panel);
 }
 
 // Việc 4.1: đồng hồ đếm ngược lượt (chỉ chơi qua mạng — xem room.ts). Số giây
@@ -441,6 +525,7 @@ export interface RenderOptions {
   error: string | null;
   discardSelection: string[]; // các cardId đã chọn để bỏ, chỉ có ý nghĩa khi turnPhase === "discard"
   lastDrawCheck: DrawCheckNotice;
+  log: string[]; // việc 4.2: nhật ký ván đấu, mới nhất ở đầu mảng
 }
 
 export function renderApp(
@@ -494,6 +579,8 @@ export function renderApp(
     playersEl.appendChild(renderPlayer(state, player, index, options, handlers));
   }
   container.appendChild(playersEl);
+
+  renderLog(container, options.log);
 }
 
 // ----- Việc 2.5: màn hình thiết lập ván mới (chế độ hotseat — 4-7 người chia
@@ -740,6 +827,7 @@ export interface NetworkGameOptions {
   discardSelection: string[];
   lastDrawCheck: DrawCheckNotice;
   deadline: DeadlineInfo | null;
+  log: string[]; // việc 4.2: nhật ký ván đấu, mới nhất ở đầu mảng
 }
 
 function networkRenderHandSection(
@@ -1064,4 +1152,6 @@ export function renderNetworkGame(
     playersEl.appendChild(networkRenderPlayer(view, player, index, options, handlers));
   });
   container.appendChild(playersEl);
+
+  renderLog(container, options.log);
 }

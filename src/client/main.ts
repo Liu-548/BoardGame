@@ -30,6 +30,7 @@ import type { PlayerView } from "../core/view";
 import { RoomConnection } from "./net";
 import type { DeadlineInfo, ServerMessage } from "../protocol";
 import {
+  describeEvent,
   renderApp,
   renderHomeScreen,
   renderNetworkGame,
@@ -61,6 +62,10 @@ let error: string | null = null;
 // Lá vừa lật khi draw! (Barrel/Jail/Dynamite...), tính lại sau MỖI dispatch —
 // yêu cầu thiết kế: check bài phải công khai cho tất cả mọi người xem.
 let lastDrawCheck: DrawCheckNotice = null;
+// Việc 4.2: nhật ký ván đấu — mỗi GameEvent dịch sẵn ra 1 dòng tiếng Việt
+// (describeEvent() ở ui.ts) rồi thêm vào ĐẦU mảng (mới nhất lên trên, khỏi
+// phải tự cuộn xuống cuối mỗi lần có hành động mới).
+let gameLog: string[] = [];
 
 // ----- Chế độ chơi qua mạng (việc 3.9) -----
 let networkName = "";
@@ -74,6 +79,7 @@ let networkView: PlayerView | null = null;
 let networkSelection: Selection = { step: "idle" };
 let networkDiscardSelectionIds: string[] = [];
 let networkLastDrawCheck: DrawCheckNotice = null;
+let networkGameLog: string[] = []; // việc 4.2, xem ghi chú ở gameLog phía trên
 // Việc 4.1: đồng hồ đếm ngược lượt (server tự tính, xem room.ts) — client chỉ
 // đọc `expiresAt` rồi TỰ đếm lùi mỗi giây bằng setInterval CỦA RIÊNG CLIENT
 // (không phải Durable Object — quy tắc 8 CLAUDE.md chỉ cấm setInterval TRONG
@@ -95,7 +101,7 @@ function render(): void {
       });
       return;
     case "local-game":
-      renderApp(root, state, { selection, discardSelection: discardSelectionIds, error, lastDrawCheck }, {
+      renderApp(root, state, { selection, discardSelection: discardSelectionIds, error, lastDrawCheck, log: gameLog }, {
         onDrawCards,
         onEndTurn,
         onToggleDiscardCard,
@@ -134,6 +140,7 @@ function render(): void {
             discardSelection: networkDiscardSelectionIds,
             lastDrawCheck: networkLastDrawCheck,
             deadline: networkDeadline,
+            log: networkGameLog,
           },
           {
             onDrawCards: onNetworkDrawCards,
@@ -207,6 +214,7 @@ function onStartGame(): void {
   selection = { step: "idle" };
   discardSelectionIds = [];
   error = null;
+  gameLog = [];
   render();
 }
 
@@ -231,6 +239,10 @@ function dispatch(action: Action): void {
           matched: checkEvent.matched,
         }
       : null;
+    const nameOf = (id: string) => state.players.find((p) => p.id === id)?.name ?? id;
+    for (const event of result.events) {
+      gameLog.unshift(describeEvent(event, nameOf));
+    }
   } catch (e) {
     error = e instanceof Error ? e.message : "Có lỗi không rõ khi thực hiện hành động";
   }
@@ -420,6 +432,7 @@ function onJoinRoom(): void {
   lobbyPlayers = [];
   lobbyOwnerId = null;
   networkView = null;
+  networkGameLog = [];
 
   netConnection = new RoomConnection(roomWebSocketUrl(trimmedCode), myPlayerId, trimmedName, {
     onMessage: onNetworkMessage,
@@ -464,6 +477,10 @@ function onNetworkMessage(message: ServerMessage): void {
             matched: checkEvent.matched,
           }
         : null;
+      const nameOf = (id: string) => networkView!.players.find((p) => p.id === id)?.name ?? id;
+      for (const event of message.events) {
+        networkGameLog.unshift(describeEvent(event, nameOf));
+      }
       networkDeadline = message.deadline;
       syncCountdownTick();
       screen = "network-game";

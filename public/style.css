@@ -146,3 +146,19 @@ button {
   font-size: 1rem;
   padding: 0.4rem 0.6rem;
 }
+
+.log {
+  border-color: #999;
+}
+
+.log-list {
+  margin: 0;
+  padding-left: 1.25rem;
+  max-height: 12rem;
+  overflow-y: auto;
+  font-size: 0.9rem;
+}
+
+.log-list li {
+  margin: 0.15rem 0;
+}
