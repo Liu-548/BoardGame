@@ -56,17 +56,23 @@ function handleDrawCards(
   const next = cloneState(state);
   const player = next.players[next.currentPlayerIndex];
 
-  for (let i = 0; i < DRAW_COUNT; i++) {
-    const card = drawTopCard(next);
-    if (card) giveCardToPlayer(next.players, player, card);
+  // Giai đoạn 5 (Black Jack, xem core/characters.ts) — onDrawPhase THAY HẲN
+  // pha rút 2 lá mặc định khi nhân vật có định nghĩa hook này.
+  const onDrawPhase = getCharacterHooks(player.characterId).onDrawPhase;
+  let events: GameEvent[];
+  if (onDrawPhase) {
+    events = onDrawPhase(next, player);
+  } else {
+    for (let i = 0; i < DRAW_COUNT; i++) {
+      const card = drawTopCard(next);
+      if (card) giveCardToPlayer(next.players, player, card);
+    }
+    events = [{ type: "CARDS_DRAWN", playerId: player.id, count: DRAW_COUNT }];
   }
 
   next.turnPhase = "play";
 
-  return {
-    state: next,
-    events: [{ type: "CARDS_DRAWN", playerId: player.id, count: DRAW_COUNT }],
-  };
+  return { state: next, events };
 }
 
 function handleEndTurn(state: GameState, action: Action & { type: "END_TURN" }): Result {
@@ -245,17 +251,25 @@ function playBang(
   };
 }
 
-// Đẩy NEED_MISSED cho mục tiêu; nếu mục tiêu có Barrel trước mặt, đẩy thêm
-// NEED_DRAW_CHECK lên TRÊN nó — Barrel tự động draw! trước, không cần hỏi
-// Missed! ngay (mục 11/12 file luật). resolveDrawCheck() sẽ tự bỏ luôn
-// NEED_MISSED bên dưới nếu draw! khớp Cơ.
+// Đẩy NEED_MISSED cho mục tiêu; với MỖI nguồn Barrel mục tiêu có (Barrel thật
+// trên sân, VÀ/HOẶC Barrel ảo của Jourdonnais — Giai đoạn 5, xem
+// core/characters.ts), đẩy thêm 1 NEED_DRAW_CHECK lên TRÊN nó — Barrel tự
+// động draw! trước, không cần hỏi Missed! ngay (mục 11/12 file luật). Có cả 2
+// nguồn (Jourdonnais + Barrel thật) → 2 lượt draw!, chỉ cần 1 lần ra Cơ là né
+// (xem đoạn dọn dẹp trong resolveDrawCheck() bên dưới). resolveDrawCheck() sẽ
+// tự bỏ luôn NEED_MISSED bên dưới nếu bất kỳ lượt draw! nào khớp Cơ.
 function pushMissedReaction(
   next: GameState,
   target: PlayerState,
   source: { card: string; from: string }
 ): void {
   next.pending.push({ kind: "NEED_MISSED", player: target.id, source });
-  if (target.equipment.some((id) => cardNameFromId(id) === "barrel")) {
+
+  const hasRealBarrel = target.equipment.some((id) => cardNameFromId(id) === "barrel");
+  const hasVirtualBarrel = getCharacterDefinition(target.characterId)?.virtualBarrel === true;
+  const barrelCheckCount = (hasRealBarrel ? 1 : 0) + (hasVirtualBarrel ? 1 : 0);
+
+  for (let i = 0; i < barrelCheckCount; i++) {
     next.pending.push({
       kind: "NEED_DRAW_CHECK",
       player: target.id,
@@ -797,14 +811,24 @@ function resolveDrawCheck(
     { type: "DRAW_CHECK_RESOLVED", playerId: action.playerId, cardId, matched },
   ];
 
-  // Barrel khớp Cơ: né miễn phí, tự bỏ luôn NEED_MISSED đang chờ ngay bên dưới
-  // (được pushMissedReaction() đẩy liền kề) — không tốn bài Missed! trên tay.
+  // Barrel khớp Cơ: né miễn phí, không tốn bài Missed! trên tay. Có thể còn
+  // NHIỀU NEED_DRAW_CHECK nguồn Barrel khác chồng bên dưới (Jourdonnais + Barrel
+  // thật cộng dồn, xem pushMissedReaction()) — đã né rồi thì KHÔNG cần lật thêm
+  // lần nữa, dọn hết chúng rồi mới bỏ luôn NEED_MISSED đang chờ ngay dưới cùng.
   if (top.source.card === "barrel" && matched) {
-    const below = next.pending[next.pending.length - 1];
-    if (below && below.kind === "NEED_MISSED" && below.player === top.player) {
-      next.pending.pop();
-    }
     events.push({ type: "BARREL_DODGED", playerId: top.player });
+    while (next.pending.length > 0) {
+      const below = next.pending[next.pending.length - 1];
+      if (below.player !== top.player) break;
+      if (below.kind === "NEED_DRAW_CHECK" && below.source.card === "barrel") {
+        next.pending.pop();
+        continue;
+      }
+      if (below.kind === "NEED_MISSED") {
+        next.pending.pop();
+      }
+      break;
+    }
   }
 
   // Dynamite đầu lượt: khớp Bích 2-9 → nổ, mất 3 máu (sàn 0), bỏ Dynamite.
