@@ -1,4 +1,4 @@
-// Tạo state ban đầu cho 1 ván đấu 4-7 người, theo đúng luật gốc BANG!.
+// Tạo state ban đầu cho 1 ván đấu 4-8 người, theo đúng luật gốc BANG!.
 
 import type { CardName } from "./cards";
 import { buildDeck } from "./cards";
@@ -25,28 +25,46 @@ export interface RuleOptions {
   dealCharacterCards?: boolean;
 }
 
-// Danh sách vai theo số người chơi, đúng phân bổ luật gốc BANG! (chỉ 4-7 người).
+// Danh sách vai theo số người chơi, đúng phân bổ luật gốc BANG! (4-8 người —
+// biến thể 8 người, xem LO-TRINH.md: giống 7 người mặc định, cộng thêm 1 Kẻ
+// phản bội nữa. win.ts đã sẵn sàng cho nhiều Renegade cùng lúc từ trước, xem
+// test "Sheriff chết, còn 2 Renegade sống" trong test/death.test.ts).
 const ROLE_SETS: Record<number, Role[]> = {
   4: ["sheriff", "renegade", "outlaw", "outlaw"],
   5: ["sheriff", "renegade", "outlaw", "outlaw", "deputy"],
   6: ["sheriff", "renegade", "outlaw", "outlaw", "outlaw", "deputy"],
   7: ["sheriff", "renegade", "outlaw", "outlaw", "outlaw", "deputy", "deputy"],
+  8: ["sheriff", "renegade", "renegade", "outlaw", "outlaw", "outlaw", "deputy", "deputy"],
 };
+
+// Biến thể 2 người (xem LO-TRINH.md) — KHÔNG chia vai, `role: null` cho cả 2
+// (kiểu dữ liệu đã tính trước từ Giai đoạn 1, xem PlayerState.role ở
+// types.ts). Giết người kia là thắng, không theo phe nào cả — xem
+// checkWinCondition() trong win.ts (kiểm `role === null` khắp bàn để biết
+// đang ở chế độ này). Không có Sheriff nên không có ai "đi trước theo luật" —
+// CHỐT đơn giản: người đầu tiên trong danh sách (ghế đầu) đi trước.
+function isDuelMode(playerIds: string[]): boolean {
+  return playerIds.length === 2;
+}
 
 export function setupGame(
   playerIds: string[],
   seed: number,
   options: RuleOptions = {}
 ): GameState {
-  const roleSet = ROLE_SETS[playerIds.length];
+  const duel = isDuelMode(playerIds);
+  const roleSet: (Role | null)[] | undefined = duel ? [null, null] : ROLE_SETS[playerIds.length];
   if (!roleSet) {
     throw new Error(
-      `Số người chơi không hợp lệ: ${playerIds.length}. Chỉ hỗ trợ 4-7 người ở bản cơ bản.`
+      `Số người chơi không hợp lệ: ${playerIds.length}. Chỉ hỗ trợ 2 hoặc 4-8 người ở bản cơ bản.`
     );
   }
 
   // Xáo vai trước, lấy nextState để xáo bài tiếp — cùng seed luôn ra đúng 1 kết quả
-  // duy nhất cho cả vai lẫn bài.
+  // duy nhất cho cả vai lẫn bài. 2 người thì "xáo" 2 phần tử null với nhau
+  // không có ý nghĩa gì, nhưng vẫn gọi shuffle() để rngState tiến đúng 1 bước
+  // GIỐNG HỆT đường 4-8 người — tránh 2 đường có "hình dạng" rngState khác
+  // nhau chỉ vì số nhánh gọi shuffle() không đều.
   const { result: shuffledRoles, nextState: stateAfterRoles } = shuffle(roleSet, seed);
 
   const deck = buildDeck(options.cardCounts);
@@ -123,7 +141,9 @@ export function setupGame(
     }
   }
 
-  const sheriffIndex = players.findIndex((player) => player.role === "sheriff");
+  // Biến thể 2 người không có Sheriff (role toàn null) — người đầu tiên
+  // trong danh sách đi trước (xem isDuelMode() ở trên).
+  const firstPlayerIndex = duel ? 0 : players.findIndex((player) => player.role === "sheriff");
 
   const characterSelection: CharacterChoice[] | null = useCharacterSelection
     ? playerIds.map((id) => ({ playerId: id, options: characterOptionsByPlayer[id], chosen: null }))
@@ -134,7 +154,7 @@ export function setupGame(
     deck: remainingDeck.map((card) => card.id),
     discardPile: [],
     pending: [],
-    currentPlayerIndex: sheriffIndex, // Sheriff luôn đi lượt đầu tiên
+    currentPlayerIndex: firstPlayerIndex, // Sheriff đi trước (4-8 người); ghế đầu đi trước (2 người, không có Sheriff)
     turnPhase: "draw",
     rngState: rngStateAfterCharacterDeck,
     winner: null,

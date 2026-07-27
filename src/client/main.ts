@@ -2,9 +2,9 @@
 // bấm là 1 lần gọi reduce() đồng bộ, xong ngay, vẽ lại màn hình.
 //
 // Việc 2.5: chế độ hotseat — trước khi có GameState, hiện màn hình thiết lập
-// (gõ tên 4-7 người), rồi mới setupGame(). Ván kết thúc thì có nút quay lại
-// màn hình thiết lập (giữ nguyên tên cũ) để chơi ván khác, không cần tải lại
-// trang.
+// (gõ tên 4-8 người — biến thể 8 người, xem LO-TRINH.md), rồi mới setupGame().
+// Ván kết thúc thì có nút quay lại màn hình thiết lập (giữ nguyên tên cũ) để
+// chơi ván khác, không cần tải lại trang.
 //
 // Việc 3.9: thêm màn hình chọn cách chơi (chung 1 máy / qua mạng) + lobby
 // (tạo phòng / vào phòng bằng mã 6 ký tự).
@@ -230,15 +230,20 @@ function onNameChange(index: number, value: string): void {
   playerNames[index] = value;
 }
 
+// Hỗ trợ 2 hoặc 4-8 người (xem LO-TRINH.md) — 3 người để dành biến thể sau
+// (setup.ts's setupGame() sẽ báo lỗi nếu lỡ tới đúng 3), nên nhảy thẳng qua
+// số 3 theo cả 2 chiều tăng/giảm, không dừng lại ở đó.
 function onAddPlayer(): void {
-  if (playerNames.length >= 7) return;
+  if (playerNames.length >= 8) return;
   playerNames.push("");
+  if (playerNames.length === 3) playerNames.push("");
   render();
 }
 
 function onRemovePlayer(): void {
-  if (playerNames.length <= 4) return;
+  if (playerNames.length <= 2) return;
   playerNames.pop();
+  if (playerNames.length === 3) playerNames.pop();
   render();
 }
 

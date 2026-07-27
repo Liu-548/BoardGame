@@ -119,7 +119,7 @@ describe("viewFor — thông tin luôn công khai", () => {
         pending: [{ kind: "NEED_MISSED", player: "b", source: { card: "bang", from: "a" } }],
         currentPlayerIndex: 1,
         turnPhase: "discard",
-        winner: "outlaw",
+        winner: { kind: "faction", faction: "outlaw" },
       }
     );
 
@@ -133,7 +133,7 @@ describe("viewFor — thông tin luôn công khai", () => {
     expect(view.pending).toEqual([{ kind: "NEED_MISSED", player: "b", source: { card: "bang", from: "a" } }]);
     expect(view.currentPlayerIndex).toBe(1);
     expect(view.turnPhase).toBe("discard");
-    expect(view.winner).toBe("outlaw");
+    expect(view.winner).toEqual({ kind: "faction", faction: "outlaw" });
   });
 
   it("gắn đúng viewerId vào kết quả", () => {

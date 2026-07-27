@@ -116,16 +116,16 @@ Vài ý tưởng đã nghĩ ra (mỗi luật khi thiết kế thật sẽ nói r
 
 ### Biến thể theo số người chơi (2 / 3 / 8) — ngoài phạm vi 4–7 người mặc định
 
-Cũng là ý tưởng nháp cho 5.3, chưa thiết kế chi tiết:
+Thứ tự làm đã chốt: **8 → 2 → 3 người**, tăng dần độ khó (xem CLAUDE.md).
 
-- **2 người:** không chia vai. Giết người kia là thắng.
-- **3 người:** chia ngẫu nhiên 3 vai **cảnh sát / tội phạm / kẻ phản bội**, mục tiêu xếp vòng tròn:
+- **8 người — ✅ ĐÃ XONG** (core + UI hotseat, đã tự kiểm bằng trình duyệt thật): giống 7 người mặc định, cộng thêm 1 kẻ phản bội (renegade) nữa (`ROLE_SETS[8]` trong `setup.ts`). `win.ts` không cần sửa gì — đã hỗ trợ nhiều Renegade cùng lúc từ trước.
+- **2 người — ✅ ĐÃ XONG** (core + UI hotseat/qua mạng, đã tự kiểm bằng trình duyệt thật chơi trọn 1 ván tới khi có người thắng): không chia vai (`role: null`). Giết người kia là thắng. `GameState.winner` đổi thành union `Winner` theo `kind` (`"faction"` cho 4-8 người, `"player"` cho 2 người — xem CLAUDE.md).
+- **3 người (chưa làm, để sau cùng):** chia ngẫu nhiên 3 vai **cảnh sát / tội phạm / kẻ phản bội**, mục tiêu xếp vòng tròn:
   cảnh sát → giết tội phạm, tội phạm → giết kẻ phản bội, kẻ phản bội → giết cảnh sát.
   Ai giết đúng mục tiêu của mình thì thắng ngay lập tức.
   Nếu mục tiêu chết nhưng **không phải do đúng người săn nó giết** (vd giết nhầm, chết vì Dynamite...),
   ván quay về luật 2 người ở trên với 2 người còn sống — ai sống đến cuối thì thắng.
-  > Chưa rõ cách engine xác định "ai là người giết" (ai đánh lá khiến máu về 0) — cần làm rõ khi thiết kế 5.3.
-- **8 người:** giống 7 người mặc định, cộng thêm 1 kẻ phản bội (renegade) nữa.
+  > Cách xác định "ai là người giết" **đã có sẵn** (`killerId`/`killedBy`, xem việc 1.13) — không còn là điểm chưa rõ như ghi chú cũ ở đây. Điểm CÒN chưa rõ: vai "cảnh sát" có công khai từ đầu như Sheriff không? Mục tiêu săn của mỗi người gán/hiển thị lúc nào?
 
 ---
 
