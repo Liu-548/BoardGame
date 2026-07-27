@@ -51,9 +51,50 @@ describe("reduce — PLAY_CARD (Beer)", () => {
     expect(next.players[0].hp).toBe(5);
     expect(events).toEqual([{ type: "CARD_PLAYED", playerId: "a", cardId: "beer_1" }]);
   });
+
+  it("chỉ còn 2 người sống: Bia vô tác dụng — lá vẫn bị bỏ, nhưng không hồi máu", () => {
+    const state = makeState({
+      players: [
+        { id: "a", name: "a", role: "sheriff", hp: 3, maxHp: 5, hand: ["beer_1"], equipment: [], alive: true, characterId: null },
+        { id: "b", name: "b", role: "outlaw", hp: 2, maxHp: 4, hand: [], equipment: [], alive: true, characterId: null },
+        { id: "c", name: "c", role: "outlaw", hp: 0, maxHp: 4, hand: [], equipment: [], alive: false, characterId: null },
+        { id: "d", name: "d", role: "renegade", hp: 0, maxHp: 4, hand: [], equipment: [], alive: false, characterId: null },
+      ],
+    });
+    const { state: next, events } = reduce(state, { type: "PLAY_CARD", playerId: "a", cardId: "beer_1" });
+
+    expect(next.players[0].hp).toBe(3); // không đổi
+    expect(next.discardPile).toEqual(["beer_1"]); // lá vẫn bị bỏ như bình thường
+    expect(events).toEqual([
+      { type: "CARD_PLAYED", playerId: "a", cardId: "beer_1" },
+      { type: "BEER_INEFFECTIVE", playerId: "a" },
+    ]);
+  });
 });
 
 describe("reduce — PLAY_CARD (Saloon)", () => {
+  // Ngoại lệ "chỉ còn 2 người sống thì vô tác dụng" CHỈ áp dụng riêng cho Bia
+  // (luật gốc) — Saloon (và mọi nguồn hồi máu khác) không bị ảnh hưởng gì.
+  it("chỉ còn 2 người sống: Saloon VẪN hồi máu bình thường, không giống Bia", () => {
+    const state = makeState({
+      players: [
+        { id: "a", name: "a", role: "sheriff", hp: 3, maxHp: 5, hand: ["saloon_1"], equipment: [], alive: true, characterId: null },
+        { id: "b", name: "b", role: "outlaw", hp: 2, maxHp: 4, hand: [], equipment: [], alive: true, characterId: null },
+        { id: "c", name: "c", role: "outlaw", hp: 0, maxHp: 4, hand: [], equipment: [], alive: false, characterId: null },
+        { id: "d", name: "d", role: "renegade", hp: 0, maxHp: 4, hand: [], equipment: [], alive: false, characterId: null },
+      ],
+    });
+    const { state: next, events } = reduce(state, { type: "PLAY_CARD", playerId: "a", cardId: "saloon_1" });
+
+    expect(next.players[0].hp).toBe(4);
+    expect(next.players[1].hp).toBe(3);
+    expect(events).toEqual([
+      { type: "CARD_PLAYED", playerId: "a", cardId: "saloon_1" },
+      { type: "HP_RESTORED", playerId: "a", amount: 1 },
+      { type: "HP_RESTORED", playerId: "b", amount: 1 },
+    ]);
+  });
+
   it("hồi 1 máu cho mọi người còn sống, bỏ qua người đã chết và người đầy máu", () => {
     const state = makeState({
       players: [

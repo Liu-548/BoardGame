@@ -829,15 +829,24 @@ function otherAlivePlayersInOrder(state: GameState, attackerId: string): PlayerS
   return result;
 }
 
-// Chưa xử lý ngoại lệ "Beer vô tác dụng khi chỉ còn 2 người sống" — cần đếm
-// người còn sống, để dành khi cài việc 1.13 (chết/điều kiện thắng).
+// Bia vô tác dụng khi chỉ còn 2 người sống (luật gốc — ép ván 1-chọi-1 phải
+// có kết quả, không ai tự hồi máu vô hạn). Lá vẫn bị bỏ vào chồng bỏ như bình
+// thường (đã làm ở handlePlayCard() TRƯỚC KHI gọi hàm này) — chỉ riêng hiệu
+// ứng hồi máu là không xảy ra, không phải "không đánh được lá này".
 function playBeer(next: GameState, player: PlayerState, cardId: string): Result {
-  const restored = Math.min(1, player.maxHp - player.hp);
-  player.hp += restored;
-
   const events: GameEvent[] = [{ type: "CARD_PLAYED", playerId: player.id, cardId }];
-  if (restored > 0) {
-    events.push({ type: "HP_RESTORED", playerId: player.id, amount: restored });
+
+  const aliveCount = next.players.filter((p) => p.alive).length;
+  if (aliveCount > 2) {
+    const restored = Math.min(1, player.maxHp - player.hp);
+    if (restored > 0) {
+      player.hp += restored;
+      events.push({ type: "HP_RESTORED", playerId: player.id, amount: restored });
+    }
+  } else {
+    // Báo cho người chơi biết rõ lá vừa đánh KHÔNG có tác dụng gì (khác im
+    // lặng như trước) — chỉ còn 2 người sống, không phải do đã đầy máu.
+    events.push({ type: "BEER_INEFFECTIVE", playerId: player.id });
   }
 
   return { state: next, events };
@@ -1447,10 +1456,40 @@ function triggerLoseLifeHooks(
 
 // Kiểm tra hp sau khi ĐÃ trừ máu (bởi applyDamage() hoặc trực tiếp như
 // Dynamite) — tách riêng để Dynamite không bị phát thêm DAMAGE_DEALT chồng
-// lên DYNAMITE_EXPLODED đã có sẵn ý nghĩa tương đương.
+// lên DYNAMITE_EXPLODED đã có sẵn ý nghĩa tương đương. Dùng CHUNG cho MỌI
+// nguồn sát thương (Bang!/Gatling/Duel/Indians!/Dynamite) nên "Bia hồi sinh"
+// đặt ĐÚNG 1 chỗ này là áp dụng đủ cho tất cả, không cần sửa từng nơi.
 function eliminateIfDead(next: GameState, target: PlayerState, killerId: string | null): GameEvent[] {
   if (target.hp > 0) return [];
-  return eliminatePlayer(next, target, killerId);
+
+  // Bia "hồi sinh" — TỰ ĐỘNG (không hỏi người chơi, đúng ghi chú "tự động"
+  // trong NHAN-VAT-BANG-CO-BAN.txt, mục Sid Ketchum): còn ít nhất 1 lá Bia
+  // trên tay VÀ tổng số người còn sống (TÍNH CẢ target — target.alive vẫn
+  // đang true tới tận eliminatePlayer()) lớn hơn 2 -> bỏ 1 lá Bia, kéo THẲNG
+  // về 1 máu (không phải +1 từ số âm nếu bị dư sát thương), không chết. Bằng
+  // hoặc dưới 2 người sống -> Bia vô tác dụng (giống playBeer() ở trên), chết
+  // như bình thường.
+  const aliveCount = next.players.filter((p) => p.alive).length;
+  const beerIndex = target.hand.findIndex((id) => cardNameFromId(id) === "beer");
+
+  if (aliveCount > 2 && beerIndex !== -1) {
+    const [beerId] = target.hand.splice(beerIndex, 1);
+    next.discardPile.push(beerId);
+    target.hp = 1;
+    return [
+      { type: "BEER_SAVED_FROM_DEATH", playerId: target.id, cardId: beerId },
+      ...triggerHandEmptyHook(next, target), // Giai đoạn 5 (Suzy Lafayette) — nếu Bia vừa bỏ là lá cuối
+    ];
+  }
+
+  // Đang cầm Bia nhưng KHÔNG cứu được vì chỉ còn 2 người sống — báo rõ cho
+  // người chơi biết lý do (khác hẳn "không có Bia nên chết", tránh hiểu nhầm
+  // là bug). CHỈ báo khi thật sự có Bia trên tay — không có thì im lặng như
+  // bình thường, không phải ca "Bia vô tác dụng".
+  const ineffectiveEvents: GameEvent[] =
+    aliveCount <= 2 && beerIndex !== -1 ? [{ type: "BEER_INEFFECTIVE", playerId: target.id }] : [];
+
+  return [...ineffectiveEvents, ...eliminatePlayer(next, target, killerId)];
 }
 
 function eliminatePlayer(next: GameState, target: PlayerState, killerId: string | null): GameEvent[] {
