@@ -244,13 +244,26 @@ describe("Bot ngẫu nhiên — cột mốc việc 1.14", () => {
     }
   }, 60_000);
 
-  // Engine hỗ trợ 4-7 người (setup.ts) — chạy thêm vài trăm ván mỗi cỡ bàn để
-  // bắt lỗi riêng của từng số người chơi (Gatling/Indians nhiều mục tiêu hơn,
-  // General Store lật nhiều lá hơn, vòng tròn khoảng cách dài hơn...).
-  it.each([5, 6, 7])("chạy 300 ván %i người liên tiếp: không crash, không treo", (playerCount) => {
+  // Engine hỗ trợ 4-8 người (setup.ts, đủ cả biến thể 8 người) — chạy thêm
+  // vài trăm ván mỗi cỡ bàn để bắt lỗi riêng của từng số người chơi (Gatling/
+  // Indians nhiều mục tiêu hơn, General Store lật nhiều lá hơn, vòng tròn
+  // khoảng cách dài hơn, 8 người có tới 2 Kẻ phản bội cùng lúc...).
+  it.each([5, 6, 7, 8])("chạy 300 ván %i người liên tiếp: không crash, không treo", (playerCount) => {
     const playerIds = Array.from({ length: playerCount }, (_, i) => `p${i}`);
 
     for (let seed = 0; seed < 300; seed++) {
+      expect(() => playOneRandomGame(seed, playerIds)).not.toThrow();
+    }
+  }, 60_000);
+
+  // Biến thể 2 người (xem LO-TRINH.md, setup.ts's isDuelMode()) — không chia
+  // vai, ván kết thúc bằng Winner.kind "player" thay vì "faction" (khác hẳn
+  // 4-8 người) — chạy riêng để bắt lỗi (Jail/Cat Balou/Panic! chỉ có đúng 1
+  // mục tiêu khả dĩ, checkWinCondition() nhánh mới...).
+  it("chạy 500 ván 2 người liên tiếp: không crash, không treo", () => {
+    const playerIds = ["a", "b"];
+
+    for (let seed = 0; seed < 500; seed++) {
       expect(() => playOneRandomGame(seed, playerIds)).not.toThrow();
     }
   }, 60_000);

@@ -177,6 +177,15 @@ export type Action =
   // ván như bình thường. Ai đã tự chọn trước đó thì giữ nguyên, không ghi đè.
   | { type: "FINALIZE_CHARACTER_SELECTION" };
 
+// ----- Thắng/thua -----
+// "faction": thắng theo PHE (4-8 người, có chia vai — luật gốc BANG!).
+// "player": thắng vì là NGƯỜI SỐNG SÓT DUY NHẤT, không theo phe nào cả — biến
+// thể 2 người (xem setup.ts's isDuelMode(), PlayerState.role = null cho cả
+// 2). Dùng playerId (không phải tên hiển thị) vì tên có thể trùng nhau.
+export type Winner =
+  | { kind: "faction"; faction: "sheriff_deputy" | "outlaw" | "renegade" }
+  | { kind: "player"; playerId: string };
+
 // ----- Sự kiện -----
 // Kết quả phụ của reduce(), để client hiển thị log — không ảnh hưởng đến state.
 
@@ -249,7 +258,7 @@ export type GameEvent =
   | { type: "OUTLAW_BOUNTY_DRAWN"; playerId: string; count: number }
   // playerId = Cảnh sát trưởng bị phạt (chính là người kết liễu Phó cảnh sát trưởng).
   | { type: "SHERIFF_KILLED_DEPUTY_PENALTY"; playerId: string }
-  | { type: "GAME_ENDED"; winner: "sheriff_deputy" | "outlaw" | "renegade" };
+  | { type: "GAME_ENDED"; winner: Winner };
 
 // ----- State tổng -----
 
@@ -261,7 +270,7 @@ export interface GameState {
   currentPlayerIndex: number; // chỉ số trong mảng players
   turnPhase: "draw" | "play" | "discard";
   rngState: number; // trạng thái bộ sinh số ngẫu nhiên — hình dạng chính xác chốt ở việc 1.3
-  winner: "sheriff_deputy" | "outlaw" | "renegade" | null;
+  winner: Winner | null;
   // Chuẩn bị cho Giai đoạn 5 (Willy the Kid/Calamity Janet, xem
   // NHAN-VAT-BANG-CO-BAN.txt): luật gốc chỉ cho đánh 1 lá Bang!/lượt, trừ khi
   // đang cầm súng Volcanic — luật này bị THIẾU từ Giai đoạn 1, bổ sung ở đây

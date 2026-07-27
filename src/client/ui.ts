@@ -6,7 +6,7 @@
 import { cardNameFromId, cardSuitRankFromId, WEAPON_RANGES } from "../core/cards";
 import type { CardName } from "../core/cards";
 import { getCharacterDefinition } from "../core/characters";
-import type { CharacterChoice, GameEvent, GameState, PendingAction, PlayerState, Role, Suit } from "../core/types";
+import type { CharacterChoice, GameEvent, GameState, PendingAction, PlayerState, Role, Suit, Winner } from "../core/types";
 import type { CharacterChoiceView, PendingActionView, PlayerHandView, PlayerView } from "../core/view";
 import type { DeadlineInfo } from "../protocol";
 
@@ -287,13 +287,21 @@ const ROLE_LABELS: Record<Role, string> = {
   renegade: "Kẻ phản bội",
 };
 
-// Thắng thua theo PHE (sheriff_deputy gộp 2 vai), nên tách bảng nhãn riêng
-// khỏi ROLE_LABELS (theo từng người) ở trên.
-const WINNER_LABELS: Record<NonNullable<GameState["winner"]>, string> = {
+// Thắng thua theo PHE (sheriff_deputy gộp 2 vai) — dùng cho 4-8 người, tách
+// bảng nhãn riêng khỏi ROLE_LABELS (theo từng người) ở trên.
+const FACTION_LABELS: Record<"sheriff_deputy" | "outlaw" | "renegade", string> = {
   sheriff_deputy: "Cảnh sát trưởng + Phó cảnh sát trưởng",
   outlaw: "Tội phạm",
   renegade: "Kẻ phản bội",
 };
+
+// Giai đoạn "biến thể số người chơi" — Winner giờ là UNION theo `kind`
+// (`types.ts`): "faction" (4-8 người, thắng theo phe, dùng FACTION_LABELS ở
+// trên) hoặc "player" (2 người, không chia vai — thắng vì là người sống sót
+// DUY NHẤT, hiện thẳng TÊN người đó thay vì tên phe).
+function describeWinner(winner: Winner, nameOf: (id: string) => string): string {
+  return winner.kind === "faction" ? FACTION_LABELS[winner.faction] : nameOf(winner.playerId);
+}
 
 const TURN_PHASE_LABELS: Record<GameState["turnPhase"], string> = {
   draw: "rút bài",
@@ -404,7 +412,7 @@ export function describeEvent(event: GameEvent, nameOf: (id: string) => string):
     case "SHERIFF_KILLED_DEPUTY_PENALTY":
       return `${nameOf(event.playerId)} giết nhầm Phó cảnh sát trưởng, bị phạt mất hết bài`;
     case "GAME_ENDED":
-      return `VÁN KẾT THÚC — phe thắng: ${WINNER_LABELS[event.winner]}`;
+      return `VÁN KẾT THÚC — thắng: ${describeWinner(event.winner, nameOf)}`;
   }
 }
 
@@ -856,11 +864,12 @@ export function renderApp(
   const summary = document.createElement("p");
   summary.className = "summary";
   const discardTop = state.discardPile[state.discardPile.length - 1];
+  const nameOfPlayer = (id: string) => state.players.find((p) => p.id === id)?.name ?? id;
   summary.textContent =
     `Giai đoạn lượt: ${TURN_PHASE_LABELS[state.turnPhase]} · ` +
     `Bộ bài còn ${state.deck.length} lá · Chồng bỏ ${state.discardPile.length} lá` +
     (discardTop ? ` (mặt trên: ${cardFaceLabel(discardTop)})` : "") +
-    (state.winner ? ` · VÁN KẾT THÚC — phe thắng: ${WINNER_LABELS[state.winner]}` : "");
+    (state.winner ? ` · VÁN KẾT THÚC — thắng: ${describeWinner(state.winner, nameOfPlayer)}` : "");
   container.appendChild(summary);
 
   renderDrawCheckNotice(container, options.lastDrawCheck);
@@ -893,10 +902,12 @@ export function renderApp(
   renderLog(container, options.log);
 }
 
-// ----- Việc 2.5: màn hình thiết lập ván mới (chế độ hotseat — 4-7 người chia
-// nhau gõ tên rồi ngồi chung 1 máy chơi hết ván). Đây là màn hình HIỆN RA
-// TRƯỚC khi có GameState (chưa gọi setupGame()), nên không nhận GameState làm
-// tham số như renderApp() — chỉ nhận danh sách tên đang gõ dở.
+// ----- Việc 2.5: màn hình thiết lập ván mới (chế độ hotseat — 2 hoặc 4-8
+// người chia nhau gõ tên rồi ngồi chung 1 máy chơi hết ván; 3 người để dành
+// biến thể sau, xem LO-TRINH.md — main.ts's onAddPlayer()/onRemovePlayer()
+// tự nhảy qua số 3). Đây là màn hình HIỆN RA TRƯỚC khi có GameState (chưa gọi
+// setupGame()), nên không nhận GameState làm tham số như renderApp() — chỉ
+// nhận danh sách tên đang gõ dở.
 
 export interface SetupHandlers {
   onNameChange(index: number, value: string): void;
@@ -905,8 +916,8 @@ export interface SetupHandlers {
   onStartGame(): void;
 }
 
-const MIN_PLAYERS = 4;
-const MAX_PLAYERS = 7;
+const MIN_PLAYERS = 2; // biến thể 2 người (xem LO-TRINH.md) — setup.ts's isDuelMode()
+const MAX_PLAYERS = 8; // biến thể 8 người (xem LO-TRINH.md) — setup.ts's ROLE_SETS đã hỗ trợ
 
 export function renderSetupScreen(
   container: HTMLElement,
@@ -921,7 +932,7 @@ export function renderSetupScreen(
   container.appendChild(heading);
 
   const hint = document.createElement("p");
-  hint.textContent = `Cần 4-7 người chơi — đang có ${names.length}. Mỗi người tự gõ tên của mình.`;
+  hint.textContent = `Cần 2, hoặc 4-8 người chơi — đang có ${names.length}. Mỗi người tự gõ tên của mình.`;
   container.appendChild(hint);
 
   if (error) {
@@ -1145,7 +1156,12 @@ export interface NetworkLobbyHandlers {
   onStartGame(): void;
 }
 
-const MIN_NETWORK_PLAYERS = 4;
+// 2 người là hợp lệ (biến thể 2 người, xem LO-TRINH.md) — 3 người CHƯA hỗ trợ
+// (setupGame() sẽ báo lỗi), nhưng lobby qua mạng là danh sách người vào ĐỘNG
+// (không phải bộ đếm +/- như hotseat) nên không chặn được trước — nếu đúng 3
+// người bấm "Bắt đầu ván", server tự báo lỗi rõ ràng qua action_error, không
+// crash gì (xem handleStartGame() trong room.ts).
+const MIN_NETWORK_PLAYERS = 2;
 
 export function renderNetworkLobby(
   container: HTMLElement,
@@ -1604,11 +1620,12 @@ export function renderNetworkGame(
   const summary = document.createElement("p");
   summary.className = "summary";
   const discardTop = view.discardPile[view.discardPile.length - 1];
+  const nameOfPlayer = (id: string) => view.players.find((p) => p.id === id)?.name ?? id;
   summary.textContent =
     `Giai đoạn lượt: ${TURN_PHASE_LABELS[view.turnPhase]} · Bộ bài còn ${view.deckCount} lá · ` +
     `Chồng bỏ ${view.discardPile.length} lá` +
     (discardTop ? ` (mặt trên: ${cardFaceLabel(discardTop)})` : "") +
-    (view.winner ? ` · VÁN KẾT THÚC — phe thắng: ${WINNER_LABELS[view.winner]}` : "");
+    (view.winner ? ` · VÁN KẾT THÚC — thắng: ${describeWinner(view.winner, nameOfPlayer)}` : "");
   container.appendChild(summary);
 
   renderCountdown(container, options.deadline, view.players);

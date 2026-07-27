@@ -51,7 +51,7 @@ describe("checkWinCondition", () => {
       makePlayer("c", { role: "outlaw", alive: false, characterId: null }),
       makePlayer("d", { role: "renegade", alive: false, characterId: null }),
     ];
-    expect(checkWinCondition(players)).toBe("sheriff_deputy");
+    expect(checkWinCondition(players)).toEqual({ kind: "faction", faction: "sheriff_deputy" });
   });
 
   it("Sheriff chết, còn Outlaw sống: Outlaw thắng", () => {
@@ -61,7 +61,7 @@ describe("checkWinCondition", () => {
       makePlayer("c", { role: "outlaw" }),
       makePlayer("d", { role: "renegade" }),
     ];
-    expect(checkWinCondition(players)).toBe("outlaw");
+    expect(checkWinCondition(players)).toEqual({ kind: "faction", faction: "outlaw" });
   });
 
   it("Sheriff chết, KHÔNG còn Outlaw nào sống nhưng Deputy vẫn sống: vẫn tính Outlaw thắng (không phải Renegade)", () => {
@@ -71,7 +71,7 @@ describe("checkWinCondition", () => {
       makePlayer("c", { role: "outlaw", alive: false, characterId: null }),
       makePlayer("d", { role: "renegade" }),
     ];
-    expect(checkWinCondition(players)).toBe("outlaw");
+    expect(checkWinCondition(players)).toEqual({ kind: "faction", faction: "outlaw" });
   });
 
   it("Sheriff chết, còn 2 Renegade sống (biến thể 8 người): vẫn tính Outlaw thắng vì Renegade không sống sót một mình", () => {
@@ -80,7 +80,7 @@ describe("checkWinCondition", () => {
       makePlayer("b", { role: "renegade" }),
       makePlayer("c", { role: "renegade" }),
     ];
-    expect(checkWinCondition(players)).toBe("outlaw");
+    expect(checkWinCondition(players)).toEqual({ kind: "faction", faction: "outlaw" });
   });
 
   it("Renegade là người sống sót DUY NHẤT: Renegade thắng", () => {
@@ -90,7 +90,20 @@ describe("checkWinCondition", () => {
       makePlayer("c", { role: "outlaw", alive: false, characterId: null }),
       makePlayer("d", { role: "renegade" }),
     ];
-    expect(checkWinCondition(players)).toBe("renegade");
+    expect(checkWinCondition(players)).toEqual({ kind: "faction", faction: "renegade" });
+  });
+
+  it("Biến thể 2 người (role toàn null): người sống sót DUY NHẤT thắng, không theo phe nào", () => {
+    const players = [
+      makePlayer("a", { role: null }),
+      makePlayer("b", { role: null, alive: false, characterId: null }),
+    ];
+    expect(checkWinCondition(players)).toEqual({ kind: "player", playerId: "a" });
+  });
+
+  it("Biến thể 2 người: cả 2 còn sống thì ván tiếp tục", () => {
+    const players = [makePlayer("a", { role: null }), makePlayer("b", { role: null })];
+    expect(checkWinCondition(players)).toBeNull();
   });
 });
 
@@ -162,9 +175,9 @@ describe("reduce — chết + thưởng/phạt", () => {
     expect(events).toEqual([
       { type: "DAMAGE_DEALT", playerId: "a", amount: 1 },
       { type: "PLAYER_ELIMINATED", playerId: "a", killedBy: "b" },
-      { type: "GAME_ENDED", winner: "outlaw" }, // Sheriff chết -> Outlaw thắng
+      { type: "GAME_ENDED", winner: { kind: "faction", faction: "outlaw" } }, // Sheriff chết -> Outlaw thắng
     ]);
-    expect(next.winner).toBe("outlaw");
+    expect(next.winner).toEqual({ kind: "faction", faction: "outlaw" });
   });
 
   it("tự nổ Dynamite: không ai được thưởng, không ai bị phạt", () => {
@@ -240,7 +253,7 @@ describe("reduce — chết + thưởng/phạt", () => {
       { type: "DAMAGE_DEALT", playerId: "b", amount: 1 },
       { type: "BEER_INEFFECTIVE", playerId: "b" },
       { type: "PLAYER_ELIMINATED", playerId: "b", killedBy: "a" },
-      { type: "GAME_ENDED", winner: "sheriff_deputy" },
+      { type: "GAME_ENDED", winner: { kind: "faction", faction: "sheriff_deputy" } },
     ]);
   });
 
@@ -295,7 +308,7 @@ describe("reduce — chết + thưởng/phạt", () => {
         makePlayer("a", { role: "sheriff" }),
         makePlayer("b", { role: "deputy" }),
       ],
-      { winner: "sheriff_deputy" }
+      { winner: { kind: "faction", faction: "sheriff_deputy" } }
     );
 
     expect(() => reduce(state, { type: "END_TURN", playerId: "a" })).toThrow(/kết thúc/);

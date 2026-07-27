@@ -9,8 +9,9 @@ function ids(count: number): string[] {
 function countRoles(state: ReturnType<typeof setupGame>) {
   const counts: Record<string, number> = {};
   for (const player of state.players) {
-    // role hiện luôn có giá trị thật ở setupGame (null để dành chế độ không
-    // chia vai trong tương lai) — "none" chỉ là khoá dự phòng cho TypeScript.
+    // role là null ở biến thể 2 người (KHÔNG chia vai, xem describe riêng bên
+    // dưới) — "none" gom lại thành 1 khoá cho TypeScript, các test 4-8 người
+    // ở đây không bao giờ thấy khoá này.
     const key = player.role ?? "none";
     counts[key] = (counts[key] ?? 0) + 1;
   }
@@ -18,9 +19,10 @@ function countRoles(state: ReturnType<typeof setupGame>) {
 }
 
 describe("setupGame", () => {
-  it("báo lỗi nếu số người chơi ngoài khoảng 4-7", () => {
+  it("báo lỗi nếu số người chơi ngoài khoảng hỗ trợ (2, hoặc 4-8 — riêng 3 người để dành biến thể sau)", () => {
+    expect(() => setupGame(ids(1), 1)).toThrow();
     expect(() => setupGame(ids(3), 1)).toThrow();
-    expect(() => setupGame(ids(8), 1)).toThrow();
+    expect(() => setupGame(ids(9), 1)).toThrow();
   });
 
   it("cùng seed + cùng danh sách người chơi luôn cho ra cùng state", () => {
@@ -29,15 +31,18 @@ describe("setupGame", () => {
     expect(a).toEqual(b);
   });
 
-  it.each([4, 5, 6, 7])("chia đúng số vai với %i người chơi", (playerCount) => {
+  it.each([4, 5, 6, 7, 8])("chia đúng số vai với %i người chơi", (playerCount) => {
     const state = setupGame(ids(playerCount), 1);
     const roleCounts = countRoles(state);
 
     expect(roleCounts.sheriff).toBe(1);
-    expect(roleCounts.renegade).toBe(1);
 
-    const expectedOutlaws: Record<number, number> = { 4: 2, 5: 2, 6: 3, 7: 3 };
-    const expectedDeputies: Record<number, number> = { 4: 0, 5: 1, 6: 1, 7: 2 };
+    // Biến thể 8 người (xem LO-TRINH.md): giống 7 người mặc định, cộng thêm
+    // 1 Kẻ phản bội nữa — 4-7 người luôn chỉ có đúng 1 Renegade.
+    const expectedRenegades: Record<number, number> = { 4: 1, 5: 1, 6: 1, 7: 1, 8: 2 };
+    const expectedOutlaws: Record<number, number> = { 4: 2, 5: 2, 6: 3, 7: 3, 8: 3 };
+    const expectedDeputies: Record<number, number> = { 4: 0, 5: 1, 6: 1, 7: 2, 8: 2 };
+    expect(roleCounts.renegade ?? 0).toBe(expectedRenegades[playerCount]);
     expect(roleCounts.outlaw ?? 0).toBe(expectedOutlaws[playerCount]);
     expect(roleCounts.deputy ?? 0).toBe(expectedDeputies[playerCount]);
   });
@@ -129,6 +134,50 @@ describe("setupGame", () => {
     it("cùng seed luôn cho ra cùng kết quả (2 lá nhân vật của từng người)", () => {
       const a = setupGame(ids(6), 11, { dealCharacterCards: true });
       const b = setupGame(ids(6), 11, { dealCharacterCards: true });
+      expect(a).toEqual(b);
+    });
+  });
+
+  describe("biến thể 2 người (không chia vai)", () => {
+    it("cả 2 người đều role: null, không ai là Sheriff", () => {
+      const state = setupGame(ids(2), 1);
+
+      expect(state.players).toHaveLength(2);
+      for (const player of state.players) {
+        expect(player.role).toBeNull();
+      }
+    });
+
+    it("cả 2 đều 4 máu (không ai được +1 Sheriff vì không có Sheriff)", () => {
+      const state = setupGame(ids(2), 1);
+
+      for (const player of state.players) {
+        expect(player.hp).toBe(4);
+        expect(player.maxHp).toBe(4);
+      }
+    });
+
+    it("người đầu tiên trong danh sách đi lượt đầu (không có Sheriff để xác định)", () => {
+      const state = setupGame(ids(2), 1);
+      expect(state.currentPlayerIndex).toBe(0);
+      expect(state.players[0].id).toBe("p1");
+    });
+
+    it("vẫn chia đủ bài tay theo máu, không ai trùng lá, và qua được Bước 0 đầu lượt", () => {
+      const state = setupGame(ids(2), 1);
+
+      for (const player of state.players) {
+        expect(player.hand.length + player.equipment.length).toBe(player.hp);
+      }
+      const allHandCards = state.players.flatMap((p) => p.hand);
+      expect(new Set(allHandCards).size).toBe(allHandCards.length);
+      expect(state.turnPhase).toBe("draw");
+      expect(state.winner).toBeNull();
+    });
+
+    it("cùng seed luôn cho ra cùng kết quả", () => {
+      const a = setupGame(ids(2), 5);
+      const b = setupGame(ids(2), 5);
       expect(a).toEqual(b);
     });
   });
