@@ -25,7 +25,7 @@ import { cardNameFromId } from "../core/cards";
 import type { CardName } from "../core/cards";
 import { reduce } from "../core/reduce";
 import { setupGame } from "../core/setup";
-import type { Action, GameState } from "../core/types";
+import type { Action, GameState, HouseRuleId } from "../core/types";
 import type { PlayerView } from "../core/view";
 import { RoomConnection } from "./net";
 import type { DeadlineInfo, ServerMessage } from "../protocol";
@@ -65,6 +65,12 @@ let screen: Screen = "home";
 // ----- Chế độ chơi chung 1 máy (hotseat, việc 2.x) -----
 let playerNames: string[] = [...DEFAULT_PLAYER_NAMES];
 let setupError: string | null = null;
+// Việc 5.3 (house rules) — chọn ở màn hình thiết lập, chỉ áp dụng cho VÁN
+// SẮP bắt đầu (không phải cấu hình toàn cục) — reset về [] mỗi khi bắt đầu
+// ván mới (onStartGame), giống cách playerNames KHÔNG bị reset (giữ nguyên
+// tên cũ) nhưng khác ở đây vì luật bổ sung PHẢI chọn lại mỗi ván, tránh quên
+// đang bật gì từ ván trước.
+let selectedHouseRules: HouseRuleId[] = [];
 let state: GameState; // chỉ tồn tại sau khi bấm "Bắt đầu ván"
 let selection: Selection = { step: "idle" };
 let discardSelectionIds: string[] = [];
@@ -97,6 +103,9 @@ let networkConnectedIds: string[] = [];
 // Ván trước bị server tự HUỶ vì còn quá ít người kết nối (việc 4.3) — hiện ở
 // màn hình lobby, tự dọn khi bắt đầu ván mới.
 let networkAbandonedNotice: string | null = null;
+// Việc 5.3 — giống selectedHouseRules ở hotseat, nhưng CHỈ chủ phòng dùng tới
+// (renderNetworkLobby() không hiện checkbox này với người khác).
+let networkSelectedHouseRules: HouseRuleId[] = [];
 // Việc 4.1: đồng hồ đếm ngược lượt (server tự tính, xem room.ts) — client chỉ
 // đọc `expiresAt` rồi TỰ đếm lùi mỗi giây bằng setInterval CỦA RIÊNG CLIENT
 // (không phải Durable Object — quy tắc 8 CLAUDE.md chỉ cấm setInterval TRONG
@@ -113,10 +122,11 @@ function render(): void {
       renderCardReferenceScreen(root, { onBack: onBackToHome });
       return;
     case "local-setup":
-      renderSetupScreen(root, playerNames, setupError, {
+      renderSetupScreen(root, playerNames, setupError, selectedHouseRules, {
         onNameChange,
         onAddPlayer,
         onRemovePlayer,
+        onToggleHouseRule,
         onStartGame,
       });
       return;
@@ -156,9 +166,20 @@ function render(): void {
       });
       return;
     case "network-lobby":
-      renderNetworkLobby(root, networkCode, lobbyPlayers, lobbyOwnerId, myPlayerId, networkError, networkAbandonedNotice, {
-        onStartGame: onNetworkStartGame,
-      });
+      renderNetworkLobby(
+        root,
+        networkCode,
+        lobbyPlayers,
+        lobbyOwnerId,
+        myPlayerId,
+        networkError,
+        networkAbandonedNotice,
+        networkSelectedHouseRules,
+        {
+          onToggleHouseRule: onNetworkToggleHouseRule,
+          onStartGame: onNetworkStartGame,
+        }
+      );
       return;
     case "network-game":
       if (networkView) {
@@ -251,6 +272,13 @@ function onRemovePlayer(): void {
   render();
 }
 
+function onToggleHouseRule(id: HouseRuleId): void {
+  selectedHouseRules = selectedHouseRules.includes(id)
+    ? selectedHouseRules.filter((existing) => existing !== id)
+    : [...selectedHouseRules, id];
+  render();
+}
+
 function onStartGame(): void {
   const trimmedNames = playerNames.map((name) => name.trim());
   if (trimmedNames.some((name) => name.length === 0)) {
@@ -261,7 +289,7 @@ function onStartGame(): void {
 
   setupError = null;
   const ids = trimmedNames.map((_, index) => `p${index}`);
-  state = setupGame(ids, Date.now(), { dealCharacterCards: true });
+  state = setupGame(ids, Date.now(), { dealCharacterCards: true, houseRules: selectedHouseRules });
   // setupGame() tạm dùng id làm tên hiển thị (xem ghi chú trong setup.ts) —
   // gán lại tên thật người chơi vừa gõ.
   state.players.forEach((player, index) => {
@@ -278,6 +306,7 @@ function onStartGame(): void {
 
 function onPlayAgain(): void {
   screen = "local-setup";
+  selectedHouseRules = []; // luật bổ sung chỉ áp dụng cho 1 ván — chọn lại từ đầu mỗi ván mới
   render();
 }
 
@@ -519,6 +548,7 @@ function onJoinRoom(): void {
   lobbyOwnerId = null;
   networkView = null;
   networkGameLog = [];
+  networkSelectedHouseRules = [];
 
   netConnection = new RoomConnection(roomWebSocketUrl(trimmedCode), myPlayerId, trimmedName, {
     onMessage: onNetworkMessage,
@@ -599,8 +629,15 @@ function onNetworkMessage(message: ServerMessage): void {
   }
 }
 
+function onNetworkToggleHouseRule(id: HouseRuleId): void {
+  networkSelectedHouseRules = networkSelectedHouseRules.includes(id)
+    ? networkSelectedHouseRules.filter((existing) => existing !== id)
+    : [...networkSelectedHouseRules, id];
+  render();
+}
+
 function onNetworkStartGame(): void {
-  netConnection?.send({ type: "start_game", seed: Date.now() });
+  netConnection?.send({ type: "start_game", seed: Date.now(), houseRules: networkSelectedHouseRules });
 }
 
 // Gửi action qua mạng — KHÔNG biết ngay kết quả (khác dispatch() cục bộ của

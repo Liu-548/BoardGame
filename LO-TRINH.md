@@ -93,7 +93,7 @@
 |---|---|---|
 | 5.1 | Hệ thống hook cho nhân vật | `onLoseLife`, `onLoseLifeFromCard`, `onDrawPhase`, `onDrawCheck`, `modifyDistance`, `onOutgoingBang`, `onHandEmpty`, `onAnyDeath`, `cardAlias`, `activatedAbility` (xem `NHAN-VAT-BANG-CO-BAN.txt`) — ✅ **xong khung**: 4/9 hook đã nối dây thật (`modifyDistance`/`onLoseLife`/`onLoseLifeFromCard`/`onAnyDeath`) + `core/characters.ts` (registry rỗng), 5 hook còn lại để dành cho 5.2. Xem chi tiết ở CLAUDE.md |
 | 5.2 | 16 nhân vật bản cơ bản | Mỗi nhân vật là dữ liệu + hook, **không** phải `if/else` — ✅ **HOÀN TẤT**: ĐỦ 16/16 nhân vật (7 đợt) + cơ chế "phát 2 lá chọn 1" (core + UI hotseat/qua mạng + đồng hồ 30 giây thật, tự chốt ngẫu nhiên khi hết giờ) **ĐÃ BẬT THẬT** ở `room.ts`/`main.ts` — chơi được qua giao diện thật hoàn chỉnh. Xem chi tiết ở CLAUDE.md |
-| 5.3 | Bật/tắt house rules | Cấu hình theo phòng |
+| 5.3 | Bật/tắt house rules | Cấu hình theo phòng — ✅ **4/6 ý tưởng nháp xong** (core + UI hotseat/qua mạng): tăng khoảng cách +1, bắt buộc súng mới đánh Bang!, cấm dùng 2 lá trùng tên/lượt, Bia vẫn có tác dụng khi còn 2 người. Còn lại "gộp 2 lá Beer hồi máu người khác" (cần cơ chế chọn mục tiêu mới) để dành đợt sau. Xem chi tiết ở CLAUDE.md |
 | 5.4 | Expansion | Chỉ là thêm file dữ liệu + hook nếu 5.1 làm đúng |
 | 5.5 | Board game thứ hai | Chung `server/`, khác `core/` |
 
@@ -107,12 +107,11 @@ Chưa thiết kế chi tiết, chỉ ghi lại để không quên. Nguyên tắc
 
 Vài ý tưởng đã nghĩ ra (mỗi luật khi thiết kế thật sẽ nói rõ chi tiết hơn, đây chỉ là danh sách nháp, chưa chốt):
 
-- Tăng khoảng cách mặc định giữa 2 người chơi (vd từ 1 lên 2)
-- Yêu cầu phải có trang bị súng mới được đánh Bang! (bỏ súng ngầm định)
-- Cho phép đánh Bang! nhiều lần trong 1 lượt, nhưng không được dùng 2 lá trùng tên
-- Cho phép dùng nhiều lá trùng tên trong 1 lượt
-- Cho phép dùng Beer kể cả khi chỉ còn 2 người sống (bỏ ngoại lệ luật gốc)
-- Cho phép gộp 2 lá Beer để hồi máu cho 1 người chơi khác (thay vì chỉ hồi cho chính mình)
+- ✅ Tăng khoảng cách mặc định giữa 2 người chơi (vd từ 1 lên 2) — `houseRules: ["extra_distance"]`
+- ✅ Yêu cầu phải có trang bị súng mới được đánh Bang! (bỏ súng ngầm định) — `"require_weapon_for_bang"`
+- ~~Cho phép đánh Bang! nhiều lần trong 1 lượt, nhưng không được dùng 2 lá trùng tên~~ / ~~Cho phép dùng nhiều lá trùng tên trong 1 lượt~~ — **làm rõ lúc code (2 ý này viết ra nghe mâu thuẫn nhau)**: luật gốc vốn ĐÃ giới hạn 1 Bang!/lượt (từ Giai đoạn 1) và ĐÃ cho phép dùng nhiều lá trùng tên khác — house rule thật sự cần thêm chỉ có 1: ✅ **cấm** dùng 2 lá NÂU trùng tên/lượt (trừ lá trang bị) — `"no_duplicate_card_names"`
+- ✅ Cho phép dùng Beer kể cả khi chỉ còn 2 người sống (bỏ ngoại lệ luật gốc) — `"beer_below_two"`
+- ⬜ Cho phép gộp 2 lá Beer để hồi máu cho 1 người chơi khác (thay vì chỉ hồi cho chính mình) — CHƯA làm, cần cơ chế chọn mục tiêu mới, để dành đợt sau
 
 ### Biến thể theo số người chơi (2 / 3 / 8) — ngoài phạm vi 4–7 người mặc định
 

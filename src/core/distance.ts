@@ -48,14 +48,25 @@ function seatDistance(players: PlayerState[], fromId: string, toId: string): num
 // Khoảng cách HIỆU DỤNG từ `fromId` (người đánh) tới `toId` (mục tiêu): khoảng
 // cách vòng tròn, trừ 1 nếu `fromId` có Scope, cộng 1 nếu `toId` có Mustang.
 // Tối thiểu là 1, dù cộng dồn nhiều hiệu ứng cũng không thể về 0 hay âm.
-export function computeDistance(players: PlayerState[], fromId: string, toId: string): number {
+//
+// `extraBaseDistance` (Giai đoạn 5, việc 5.3 — house rule "extra_distance"):
+// cộng thêm vào khoảng cách vòng tròn THÔ, TRƯỚC Scope/Mustang/hook nhân vật —
+// mặc định 0 (không đổi gì so với trước). Nhận số thuần thay vì đọc thẳng
+// GameState.houseRules để hàm này KHÔNG phải import gì từ types.ts ngoài
+// PlayerState — chỗ gọi (reduce.ts) tự tra houseRules rồi truyền số vào.
+export function computeDistance(
+  players: PlayerState[],
+  fromId: string,
+  toId: string,
+  extraBaseDistance: number = 0
+): number {
   const attacker = players.find((p) => p.id === fromId);
   const target = players.find((p) => p.id === toId);
   if (!attacker || !target) {
     throw new Error("Không tính được khoảng cách với người chơi không tồn tại");
   }
 
-  let distance = seatDistance(players, fromId, toId);
+  let distance = seatDistance(players, fromId, toId) + extraBaseDistance;
   if (hasEquipment(attacker, "scope")) distance -= 1;
   if (hasEquipment(target, "mustang")) distance += 1;
 

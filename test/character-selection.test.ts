@@ -43,6 +43,8 @@ function makeState(characterSelection: CharacterChoice[], overrides: Partial<Gam
     winner: null,
     bangUsedThisTurn: false,
     characterSelection,
+    houseRules: [],
+    cardNamesPlayedThisTurn: [],
     ...overrides,
   };
 }

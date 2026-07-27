@@ -22,7 +22,7 @@
 // lá vừa xem RIÊNG, phải ẩn với mọi người TRỪ đúng chủ nhân (xem
 // PendingActionView/viewPendingItem() bên dưới).
 
-import type { CharacterChoice, GameState, PendingAction, PlayerState, Role } from "./types";
+import type { CharacterChoice, GameState, HouseRuleId, PendingAction, PlayerState, Role } from "./types";
 
 export interface PlayerHandView {
   id: string;
@@ -65,6 +65,9 @@ export interface PlayerView {
   turnPhase: GameState["turnPhase"];
   winner: GameState["winner"];
   characterSelection: CharacterChoiceView[] | null;
+  // Việc 5.3 — luật bổ sung đang bật cho ván này, KHÔNG bí mật gì (chủ phòng
+  // chọn công khai trước khi bắt đầu ván) nên giữ nguyên, không cần ẩn/lọc.
+  houseRules: HouseRuleId[];
 }
 
 function viewRole(player: PlayerState, viewerId: string): Role | null {
@@ -122,5 +125,6 @@ export function viewFor(state: GameState, viewerId: string): PlayerView {
     characterSelection: state.characterSelection
       ? state.characterSelection.map((c) => viewCharacterChoice(c, viewerId))
       : null,
+    houseRules: state.houseRules,
   };
 }

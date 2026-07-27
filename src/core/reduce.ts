@@ -412,6 +412,21 @@ function handlePlayCard(state: GameState, action: Action & { type: "PLAY_CARD" }
     // Jail gắn lên sân NGƯỜI KHÁC (không phải người đánh) — cũng không vào chồng bỏ.
     result = playJail(next, player, action);
   } else {
+    // Việc 5.3 (house rule "no_duplicate_card_names") — CHỈ áp dụng cho lá
+    // NÂU (nhánh else này, đúng lời chủ dự án "trừ lá trang bị" — 2 nhánh
+    // trang bị/Jail ở trên không đi qua đây). Kiểm TRƯỚC khi ghi nhận lá này
+    // vào danh sách đã đánh — dùng đúng cardName in (tên thật trên lá), không
+    // phải dispatchCardName bên dưới (Janet đánh Missed! làm Bang! vẫn tính
+    // là đã đánh "missed", không phải "bang").
+    if (next.houseRules.includes("no_duplicate_card_names")) {
+      if (next.cardNamesPlayedThisTurn.includes(cardName)) {
+        throw new Error(
+          `Luật bổ sung "cấm dùng 2 lá trùng tên/lượt" đang bật — đã đánh "${cardName}" trong lượt này rồi`
+        );
+      }
+      next.cardNamesPlayedThisTurn.push(cardName);
+    }
+
     next.discardPile.push(action.cardId);
 
     // Giai đoạn 5 (Calamity Janet, đợt 7) — Janet đánh CHỦ ĐỘNG 1 lá tên
@@ -500,8 +515,20 @@ function playBang(
     throw new Error("Mục tiêu không hợp lệ");
   }
 
+  // Việc 5.3 (house rule "require_weapon_for_bang") — bỏ hẳn "súng ngầm định
+  // tầm 1" luật gốc, bắt buộc phải có 1 lá súng thật đang trang bị mới đánh
+  // Bang! được. getWeaponRange() không phân biệt được 2 ca này (luôn trả về
+  // DEFAULT_WEAPON_RANGE khi không có súng) nên phải kiểm riêng ở đây.
+  if (next.houseRules.includes("require_weapon_for_bang")) {
+    const hasWeaponEquipped = player.equipment.some((id) => isWeaponCardName(cardNameFromId(id)));
+    if (!hasWeaponEquipped) {
+      throw new Error('Luật bổ sung "bắt buộc có súng mới đánh Bang!" đang bật — chưa trang bị súng nào');
+    }
+  }
+
   const range = getWeaponRange(player);
-  const distance = computeDistance(next.players, player.id, target.id);
+  const extraDistance = next.houseRules.includes("extra_distance") ? 1 : 0;
+  const distance = computeDistance(next.players, player.id, target.id, extraDistance);
   if (distance > range) {
     throw new Error(`Mục tiêu ngoài tầm bắn (khoảng cách ${distance}, tầm súng ${range})`);
   }
@@ -657,7 +684,11 @@ function playPanic(
 ): Result {
   const target = findLivingTarget(next, player, action.targetId, "Đánh Panic! cần chọn mục tiêu", "Không thể tự cướp bài của chính mình");
 
-  const distance = computeDistance(next.players, player.id, target.id);
+  // Việc 5.3 (house rule "extra_distance") — áp dụng ĐÚNG khoảng cách hiệu
+  // dụng chung, giống playBang(): tăng "khoảng cách mặc định" ảnh hưởng MỌI
+  // lá phụ thuộc khoảng cách, không riêng gì Bang!.
+  const extraDistance = next.houseRules.includes("extra_distance") ? 1 : 0;
+  const distance = computeDistance(next.players, player.id, target.id, extraDistance);
   if (distance !== 1) {
     throw new Error(`Panic! chỉ dùng được ở khoảng cách 1 (khoảng cách hiện tại: ${distance})`);
   }
@@ -848,7 +879,10 @@ function playBeer(next: GameState, player: PlayerState, cardId: string): Result 
   const events: GameEvent[] = [{ type: "CARD_PLAYED", playerId: player.id, cardId }];
 
   const aliveCount = next.players.filter((p) => p.alive).length;
-  if (aliveCount > 2) {
+  // Việc 5.3 (house rule "beer_below_two") — bỏ hẳn ngoại lệ "còn 2 người
+  // sống" của luật gốc, coi như luôn đủ điều kiện hồi máu.
+  const beerWorksBelowTwo = next.houseRules.includes("beer_below_two");
+  if (aliveCount > 2 || beerWorksBelowTwo) {
     const restored = Math.min(1, player.maxHp - player.hp);
     if (restored > 0) {
       player.hp += restored;
@@ -1482,8 +1516,11 @@ function eliminateIfDead(next: GameState, target: PlayerState, killerId: string 
   // như bình thường.
   const aliveCount = next.players.filter((p) => p.alive).length;
   const beerIndex = target.hand.findIndex((id) => cardNameFromId(id) === "beer");
+  // Việc 5.3 (house rule "beer_below_two") — đúng ngoại lệ đã bỏ ở playBeer(),
+  // áp dụng CHUNG cho cả đường hồi sinh tự động này.
+  const beerWorksBelowTwo = next.houseRules.includes("beer_below_two");
 
-  if (aliveCount > 2 && beerIndex !== -1) {
+  if ((aliveCount > 2 || beerWorksBelowTwo) && beerIndex !== -1) {
     const [beerId] = target.hand.splice(beerIndex, 1);
     next.discardPile.push(beerId);
     target.hp = 1;
@@ -1498,7 +1535,9 @@ function eliminateIfDead(next: GameState, target: PlayerState, killerId: string 
   // là bug). CHỈ báo khi thật sự có Bia trên tay — không có thì im lặng như
   // bình thường, không phải ca "Bia vô tác dụng".
   const ineffectiveEvents: GameEvent[] =
-    aliveCount <= 2 && beerIndex !== -1 ? [{ type: "BEER_INEFFECTIVE", playerId: target.id }] : [];
+    !(aliveCount > 2 || beerWorksBelowTwo) && beerIndex !== -1
+      ? [{ type: "BEER_INEFFECTIVE", playerId: target.id }]
+      : [];
 
   return [...ineffectiveEvents, ...eliminatePlayer(next, target, killerId)];
 }
@@ -1593,6 +1632,7 @@ function advanceTurn(next: GameState): void {
   next.currentPlayerIndex = nextAlivePlayerIndex(next, next.currentPlayerIndex);
   next.turnPhase = "draw";
   next.bangUsedThisTurn = false;
+  next.cardNamesPlayedThisTurn = []; // việc 5.3 (house rule "no_duplicate_card_names")
   applyTurnStartChecks(next);
 }
 

@@ -6,7 +6,7 @@
 import { cardNameFromId, cardSuitRankFromId, WEAPON_RANGES } from "../core/cards";
 import type { CardName } from "../core/cards";
 import { getCharacterDefinition } from "../core/characters";
-import type { CharacterChoice, GameEvent, GameState, PendingAction, PlayerState, Role, Suit, Winner } from "../core/types";
+import type { CharacterChoice, GameEvent, GameState, HouseRuleId, PendingAction, PlayerState, Role, Suit, Winner } from "../core/types";
 import type { CharacterChoiceView, PendingActionView, PlayerHandView, PlayerView } from "../core/view";
 import type { DeadlineInfo } from "../protocol";
 
@@ -306,6 +306,67 @@ const FACTION_LABELS: Record<"sheriff_deputy" | "outlaw" | "renegade", string> =
 // DUY NHẤT, hiện thẳng TÊN người đó thay vì tên phe).
 function describeWinner(winner: Winner, nameOf: (id: string) => string): string {
   return winner.kind === "faction" ? FACTION_LABELS[winner.faction] : nameOf(winner.playerId);
+}
+
+// Việc 5.3 (house rules) — nhãn + mô tả ngắn cho MỖI luật bổ sung đã cài
+// (xem HouseRuleId ở types.ts). Thứ tự trong mảng HOUSE_RULE_IDS là thứ tự
+// hiện checkbox trên màn hình thiết lập ván (hotseat + lobby qua mạng).
+const HOUSE_RULE_LABELS: Record<HouseRuleId, string> = {
+  extra_distance: "Tăng khoảng cách mặc định +1",
+  require_weapon_for_bang: "Bắt buộc có súng mới đánh Bang!",
+  no_duplicate_card_names: "Cấm dùng 2 lá trùng tên/lượt",
+  beer_below_two: "Bia vẫn có tác dụng dù chỉ còn 2 người sống",
+};
+const HOUSE_RULE_DESCRIPTIONS: Record<HouseRuleId, string> = {
+  extra_distance: "Mọi khoảng cách vòng tròn (tầm bắn Bang!, khoảng cách 1 của Panic!...) đều +1 so với luật gốc.",
+  require_weapon_for_bang: "Bỏ 'súng ngầm định tầm 1' — phải trang bị 1 lá súng thật mới đánh Bang! được.",
+  no_duplicate_card_names: "Không được đánh chủ động 2 lá NÂU trùng tên trong cùng 1 lượt (lá trang bị không tính).",
+  beer_below_two: "Bỏ ngoại lệ luật gốc — Bia vẫn hồi máu/cứu mạng bình thường kể cả khi chỉ còn 2 người sống.",
+};
+const HOUSE_RULE_IDS: HouseRuleId[] = [
+  "extra_distance",
+  "require_weapon_for_bang",
+  "no_duplicate_card_names",
+  "beer_below_two",
+];
+
+function renderHouseRuleCheckboxes(
+  container: HTMLElement,
+  selected: HouseRuleId[],
+  onToggle: (id: HouseRuleId) => void
+): void {
+  const wrapper = document.createElement("div");
+  wrapper.className = "panel";
+
+  const heading = document.createElement("p");
+  heading.textContent = "Luật bổ sung (tuỳ chọn, chỉ áp dụng cho ván này):";
+  wrapper.appendChild(heading);
+
+  for (const id of HOUSE_RULE_IDS) {
+    const label = document.createElement("label");
+    label.title = HOUSE_RULE_DESCRIPTIONS[id];
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.checked = selected.includes(id);
+    checkbox.addEventListener("change", () => onToggle(id));
+    label.appendChild(checkbox);
+    label.append(" " + HOUSE_RULE_LABELS[id]);
+    wrapper.appendChild(label);
+    wrapper.appendChild(document.createElement("br"));
+  }
+
+  container.appendChild(wrapper);
+}
+
+// Hiện đúng 1 dòng tóm tắt trong LÚC ĐANG CHƠI (đầu bàn chơi) nếu ván này có
+// BẤT KỲ luật bổ sung nào đang bật — không hiện gì nếu mảng rỗng (đúng luật
+// gốc, không cần nhắc).
+function renderActiveHouseRules(container: HTMLElement, houseRules: HouseRuleId[]): void {
+  if (houseRules.length === 0) return;
+  const el = document.createElement("p");
+  el.className = "summary";
+  el.textContent = "Luật bổ sung đang bật: " + houseRules.map((id) => HOUSE_RULE_LABELS[id]).join(", ");
+  container.appendChild(el);
 }
 
 const TURN_PHASE_LABELS: Record<GameState["turnPhase"], string> = {
@@ -912,6 +973,8 @@ export function renderApp(
     (state.winner ? ` · VÁN KẾT THÚC — thắng: ${describeWinner(state.winner, nameOfPlayer)}` : "");
   container.appendChild(summary);
 
+  renderActiveHouseRules(container, state.houseRules);
+
   renderDrawCheckNotice(container, options.lastDrawCheck);
 
   if (state.winner) {
@@ -953,6 +1016,7 @@ export interface SetupHandlers {
   onNameChange(index: number, value: string): void;
   onAddPlayer(): void;
   onRemovePlayer(): void;
+  onToggleHouseRule(id: HouseRuleId): void;
   onStartGame(): void;
 }
 
@@ -963,6 +1027,7 @@ export function renderSetupScreen(
   container: HTMLElement,
   names: string[],
   error: string | null,
+  selectedHouseRules: HouseRuleId[],
   handlers: SetupHandlers
 ): void {
   container.replaceChildren();
@@ -1005,6 +1070,8 @@ export function renderSetupScreen(
   removeBtn.disabled = names.length <= MIN_PLAYERS;
   controls.appendChild(removeBtn);
   container.appendChild(controls);
+
+  renderHouseRuleCheckboxes(container, selectedHouseRules, handlers.onToggleHouseRule);
 
   container.appendChild(button("Bắt đầu ván", () => handlers.onStartGame()));
 }
@@ -1193,6 +1260,7 @@ export interface LobbyPlayer {
 }
 
 export interface NetworkLobbyHandlers {
+  onToggleHouseRule(id: HouseRuleId): void;
   onStartGame(): void;
 }
 
@@ -1209,6 +1277,10 @@ export function renderNetworkLobby(
   // Việc 4.3: ván trước bị server tự huỷ vì còn quá ít người kết nối — null
   // nếu không có gì để báo.
   abandonedNotice: string | null,
+  // Việc 5.3 — chỉ CHỦ PHÒNG chọn (giống seed: không broadcast lựa chọn đang
+  // gõ dở cho cả phòng), gửi kèm 1 lần lúc bấm "Bắt đầu ván". Người khác
+  // không thấy checkbox này, chỉ thấy dòng chờ như trước.
+  selectedHouseRules: HouseRuleId[],
   handlers: NetworkLobbyHandlers
 ): void {
   container.replaceChildren();
@@ -1252,6 +1324,8 @@ export function renderNetworkLobby(
   // chỉ thấy dòng chờ, không có nút. Server (room.ts) cũng tự kiểm tra lại,
   // nút ẩn ở đây chỉ để đỡ bấm nhầm, không phải chốt chặn duy nhất.
   if (viewerId === ownerId) {
+    renderHouseRuleCheckboxes(container, selectedHouseRules, handlers.onToggleHouseRule);
+
     const startBtn = button("Bắt đầu ván", () => handlers.onStartGame());
     startBtn.disabled = players.length < MIN_NETWORK_PLAYERS;
     container.appendChild(startBtn);
@@ -1703,6 +1777,8 @@ export function renderNetworkGame(
     (discardTop ? ` (mặt trên: ${cardFaceLabel(discardTop)})` : "") +
     (view.winner ? ` · VÁN KẾT THÚC — thắng: ${describeWinner(view.winner, nameOfPlayer)}` : "");
   container.appendChild(summary);
+
+  renderActiveHouseRules(container, view.houseRules);
 
   renderCountdown(container, options.deadline, view.players);
   renderDrawCheckNotice(container, options.lastDrawCheck);
