@@ -172,7 +172,7 @@ export class Room {
     }
 
     const existing = await this.ctx.storage.get<GameState>(GAME_STATE_KEY);
-    if (existing) {
+    if (existing && !existing.winner) {
       this.sendError(ws, "Phòng này đã có ván đang chơi, không thể bắt đầu ván mới");
       return;
     }
@@ -204,6 +204,19 @@ export class Room {
   }
 
   private async handleAction(ws: WebSocket, action: Action): Promise<void> {
+    // Chống giả mạo: action nào có field playerId thì playerId đó PHẢI đúng
+    // bằng danh tính thật của socket đang gửi (không phải client tự khai) —
+    // nếu không, 1 client có thể gửi hành động THAY MẶT người chơi khác (vd
+    // tự chọn hộ lá bỏ của Cat Balou nhắm vào người khác). Cùng nguyên tắc
+    // handleStartGame() đã áp dụng với ownerId.
+    if ("playerId" in action) {
+      const attachment = ws.deserializeAttachment() as SocketAttachment | null;
+      if (action.playerId !== attachment?.playerId) {
+        this.sendError(ws, "Không thể gửi hành động thay người chơi khác");
+        return;
+      }
+    }
+
     const state = await this.ctx.storage.get<GameState>(GAME_STATE_KEY);
     if (!state) {
       this.sendError(ws, "Ván chưa bắt đầu — gửi start_game trước");
@@ -225,7 +238,11 @@ export class Room {
     // Giai đoạn 5) là action HỆ THỐNG DUY NHẤT không có playerId — không có
     // "ai vừa hành động" cụ thể nào liên quan tới việc giữ nguyên đồng hồ.
     const actingPlayerId = "playerId" in action ? action.playerId : undefined;
-    await this.afterStateChange(result.state, result.events, actingPlayerId);
+    // USE_ABILITY (Sid Ketchum) không bao giờ là "quyết định đang được tính
+    // giờ" — đánh dấu riêng để scheduleDeadline() không tự cấp lại đồng hồ dù
+    // chính người dùng kỹ năng đang là người bị tính giờ (xem ghi chú ở đó).
+    const isSelfServiceAction = action.type === "USE_ABILITY";
+    await this.afterStateChange(result.state, result.events, actingPlayerId, isSelfServiceAction);
   }
 
   // ----- Việc 4.1: đồng hồ đếm ngược lượt -----
@@ -247,7 +264,8 @@ export class Room {
   private async afterStateChange(
     state: GameState,
     events: GameEvent[],
-    actingPlayerId?: string
+    actingPlayerId?: string,
+    isSelfServiceAction?: boolean
   ): Promise<void> {
     let finalState = state;
     let allEvents = events;
@@ -276,7 +294,7 @@ export class Room {
     }
 
     await this.ctx.storage.put(GAME_STATE_KEY, finalState);
-    const deadline = await this.scheduleDeadline(finalState, actingPlayerId);
+    const deadline = await this.scheduleDeadline(finalState, actingPlayerId, isSelfServiceAction);
     this.broadcastState(finalState, allEvents, deadline);
   }
 
@@ -306,7 +324,11 @@ export class Room {
   // ctx.storage.setAlarm() — quy tắc 8 CLAUDE.md cấm setInterval/setTimeout
   // trong Durable Object, Alarm là cách THAY THẾ được phép, sống sót qua
   // hibernate.
-  private async scheduleDeadline(state: GameState, actingPlayerId?: string): Promise<DeadlineInfo | null> {
+  private async scheduleDeadline(
+    state: GameState,
+    actingPlayerId?: string,
+    isSelfServiceAction?: boolean
+  ): Promise<DeadlineInfo | null> {
     const decision = this.determineActiveDecision(state);
 
     if (!decision) {
@@ -326,12 +348,19 @@ export class Room {
     // lại thời gian mới — đúng yêu cầu "không can thiệp vào cơ chế tính giờ
     // của bất kỳ ai". Người ĐANG được tính giờ tự hành động (vd chơi thêm 1 lá
     // Bia trong lượt mình) vẫn được cấp lại đồng hồ mới như trước giờ.
+    //
+    // NGOẠI LỆ (phát hiện sau đợt 7): `isSelfServiceAction` (USE_ABILITY) LUÔN
+    // giữ nguyên đồng hồ dù actingPlayerId === decision.playerId — vì kỹ năng
+    // này KHÔNG BAO GIỜ thật sự là "quyết định đang được tính giờ" (không đụng
+    // pending/turnPhase của ai, kể cả chính người dùng). Thiếu điều kiện này,
+    // chính người ĐANG bị tính giờ (vd đang chờ đỡ Missed!) có thể tự dùng kỹ
+    // năng lặp lại để tự cấp lại đồng hồ mới cho MÌNH nhiều lần — "câu giờ" vô
+    // hạn cho phản hồi của chính họ.
     if (
-      actingPlayerId !== undefined &&
-      actingPlayerId !== decision.playerId &&
       previous &&
       previous.kind === decision.kind &&
-      previous.playerId === decision.playerId
+      previous.playerId === decision.playerId &&
+      (isSelfServiceAction || (actingPlayerId !== undefined && actingPlayerId !== decision.playerId))
     ) {
       return previous;
     }
@@ -503,9 +532,17 @@ export class Room {
 
   // Danh sách người ĐANG kết nối và đã "join" — lấy trực tiếp từ các socket
   // đang mở (không lưu riêng ở đâu cả, xem ghi chú đầu file).
-  private joinedPlayers(): { id: string; name: string }[] {
+  //
+  // `excludeSocket`: loại theo ĐÚNG socket (so sánh tham chiếu), KHÔNG PHẢI
+  // theo playerId — quan trọng lúc socket cũ sắp đóng chồng lấn với socket
+  // mới đã tự reconnect xong (net.ts tự nối lại + gửi "join" ngay, có thể xảy
+  // ra TRƯỚC khi server nhận ra socket cũ đã đóng): nếu loại theo playerId sẽ
+  // xoá NHẦM CẢ socket mới (cùng playerId) dù nó vẫn đang sống, khiến đếm
+  // thiếu người/chuyển nhầm quyền chủ phòng/huỷ nhầm ván (xem handleSocketGone()).
+  private joinedPlayers(excludeSocket?: WebSocket): { id: string; name: string }[] {
     const players: { id: string; name: string }[] = [];
     for (const socket of this.ctx.getWebSockets()) {
+      if (socket === excludeSocket) continue;
       const attachment = socket.deserializeAttachment() as SocketAttachment | null;
       if (attachment?.playerId) players.push({ id: attachment.playerId, name: attachment.name });
     }
@@ -608,11 +645,29 @@ export class Room {
     } catch {
       // Mã đóng không hợp lệ để gửi lại — bỏ qua, không ảnh hưởng gì thêm.
     }
+    await this.handleSocketGone(ws);
+  }
 
-    // Báo cho người còn lại biết phòng vừa vơi đi 1 người — loại trừ chính
-    // socket đang đóng (getWebSockets() có thể vẫn còn liệt kê nó lúc này).
+  // Cloudflare gọi hàm này (thay vì webSocketClose()) khi kết nối bị lỗi chứ
+  // không đóng "sạch" — theo tài liệu Hibernatable WebSockets, chỉ ĐÚNG MỘT
+  // TRONG HAI hàm này chạy cho mỗi lần mất kết nối, không phải cả hai. Trước
+  // đây file này CHỈ có webSocketClose() — nếu runtime chọn gọi đường lỗi này,
+  // toàn bộ dọn dẹp bên dưới (chuyển quyền chủ phòng, huỷ ván khi hết người,
+  // cập nhật "đã mất kết nối") sẽ bị bỏ sót hoàn toàn cho ca đó. Dùng chung
+  // đúng 1 hàm dọn dẹp với webSocketClose() để không lặp lại logic 2 nơi.
+  async webSocketError(ws: WebSocket, _error: unknown): Promise<void> {
+    await this.handleSocketGone(ws);
+  }
+
+  // Dọn dẹp DÙNG CHUNG cho cả webSocketClose() lẫn webSocketError() — 1 socket
+  // vừa rời phòng (dù rời sạch hay rời vì lỗi): chuyển quyền chủ phòng nếu cần,
+  // huỷ ván nếu chỉ còn ≤1 người, báo lại danh sách phòng cho người còn lại.
+  private async handleSocketGone(ws: WebSocket): Promise<void> {
+    // Báo cho người còn lại biết phòng vừa vơi đi 1 người — loại trừ ĐÚNG
+    // socket này theo tham chiếu (không phải theo playerId, xem ghi chú ở
+    // joinedPlayers()) — getWebSockets() có thể vẫn còn liệt kê nó lúc này.
     const closingAttachment = ws.deserializeAttachment() as SocketAttachment | null;
-    const remaining = this.joinedPlayers().filter((p) => p.id !== closingAttachment?.playerId);
+    const remaining = this.joinedPlayers(ws);
 
     // Chủ phòng vừa rời (mất socket cuối cùng của họ) -> tự chuyển quyền cho
     // người đang có mặt kế tiếp; hết sạch người thì để trống — ai join đầu
@@ -636,7 +691,7 @@ export class Room {
     // động (xem abandonGame()). Dùng `remaining` đã tính sẵn ở trên (đã loại
     // trừ đúng socket vừa đóng) thay vì gọi lại connectedPlayerIdsInGame() từ
     // joinedPlayers() — lúc này getWebSockets() có thể vẫn còn liệt kê socket
-    // đang đóng, dễ đếm dư 1.
+    // đang đóng.
     const state = await this.ctx.storage.get<GameState>(GAME_STATE_KEY);
     if (state && !state.winner) {
       const remainingIdsInGame = remaining.filter((p) => state.players.some((sp) => sp.id === p.id));

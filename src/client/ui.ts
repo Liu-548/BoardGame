@@ -498,6 +498,12 @@ export interface UiHandlers {
   onRespondTakeConsequence(): void;
   onCancelSelection(): void;
   onPlayAgain(): void;
+  // Giai đoạn 5, việc bổ sung — 3 nhân vật (Pedro Ramirez/Jesse Jones/Kit
+  // Carlson) cần lựa chọn riêng ngoài các handler ở trên. "Không chọn"/mặc
+  // định của cả 3 đều tái dùng onRespondTakeConsequence có sẵn.
+  onPickDrawSource(cardId: string): void;
+  onPickDrawTarget(targetId: string, letTargetChoose: boolean): void;
+  onPickKeptCard(cardId: string): void;
 }
 
 function button(label: string, onClick: () => void): HTMLButtonElement {
@@ -546,6 +552,9 @@ function renderHandSection(
   const isResponding = top !== undefined && top.player === player.id;
   const respondableName = isResponding ? respondableCardName(top.kind) : null;
   const isDiscardFromHand = isResponding && top.kind === "NEED_DISCARD_FROM_ZONE" && top.zone === "hand";
+  // Jesse Jones (đợt 5) — nạn nhân tự chọn 1 lá BẤT KỲ của mình để đưa, không
+  // giới hạn tên lá như respondableCardName (chỉ dùng cho Missed!/Bang!).
+  const isGivingCardToJesse = isResponding && top.kind === "NEED_GIVE_CARD_TO_PLAYER";
 
   for (const cardId of player.hand) {
     const name = cardNameFromId(cardId);
@@ -558,7 +567,7 @@ function renderHandSection(
       continue;
     }
 
-    if (isDiscardFromHand) {
+    if (isDiscardFromHand || isGivingCardToJesse) {
       wrapper.appendChild(cardButton(cardId, () => handlers.onHandCardClick(cardId)));
       continue;
     }
@@ -754,6 +763,32 @@ function renderPendingPanel(container: HTMLElement, state: GameState, handlers: 
     panel.appendChild(button("Lật bài", () => handlers.onRespondTakeConsequence()));
   } else if (top.kind === "NEED_MISSED" || top.kind === "NEED_DISCARD_BANG" || top.kind === "NEED_DUEL_RESPONSE") {
     panel.appendChild(button("Chịu mất máu (không đỡ)", () => handlers.onRespondTakeConsequence()));
+  } else if (top.kind === "NEED_PICK_DRAW_SOURCE") {
+    const topOfDiscard = state.discardPile[state.discardPile.length - 1];
+    if (topOfDiscard) {
+      const wrapper = document.createElement("div");
+      wrapper.className = "cards";
+      wrapper.appendChild(cardButton(topOfDiscard, () => handlers.onPickDrawSource(topOfDiscard)));
+      panel.appendChild(wrapper);
+    }
+    panel.appendChild(button("Rút từ bộ bài", () => handlers.onRespondTakeConsequence()));
+  } else if (top.kind === "NEED_PICK_DRAW_TARGET") {
+    panel.appendChild(button("Rút từ bộ bài", () => handlers.onRespondTakeConsequence()));
+    for (const p of state.players) {
+      if (!p.alive || p.id === top.player) continue;
+      panel.appendChild(button(`${p.name}: để họ tự chọn lá đưa`, () => handlers.onPickDrawTarget(p.id, true)));
+      panel.appendChild(button(`${p.name}: cướp ngẫu nhiên`, () => handlers.onPickDrawTarget(p.id, false)));
+    }
+  } else if (top.kind === "NEED_GIVE_CARD_TO_PLAYER") {
+    panel.appendChild(button("Không chọn — rút ngẫu nhiên thay tôi", () => handlers.onRespondTakeConsequence()));
+  } else if (top.kind === "NEED_PICK_KEPT_CARDS") {
+    const wrapper = document.createElement("div");
+    wrapper.className = "cards";
+    for (const cardId of top.cards) {
+      wrapper.appendChild(cardButton(cardId, () => handlers.onPickKeptCard(cardId)));
+    }
+    panel.appendChild(wrapper);
+    panel.appendChild(button("Giữ 2 lá đầu (bỏ lá thứ 3)", () => handlers.onRespondTakeConsequence()));
   }
 
   container.appendChild(panel);
@@ -1257,6 +1292,9 @@ export interface NetworkGameHandlers {
   onZoneClick(zone: "hand" | "equipment"): void;
   onRespondTakeConsequence(): void;
   onCancelSelection(): void;
+  onPickDrawSource(cardId: string): void;
+  onPickDrawTarget(targetId: string, letTargetChoose: boolean): void;
+  onPickKeptCard(cardId: string): void;
 }
 
 export interface NetworkGameOptions {
@@ -1303,6 +1341,9 @@ function networkRenderHandSection(
   const isResponding = top !== undefined && top.player === player.id;
   const respondableName = isResponding ? respondableCardName(top.kind) : null;
   const isDiscardFromHand = isResponding && top.kind === "NEED_DISCARD_FROM_ZONE" && top.zone === "hand";
+  // Jesse Jones (đợt 5) — nạn nhân tự chọn 1 lá BẤT KỲ của mình để đưa, không
+  // giới hạn tên lá như respondableCardName (chỉ dùng cho Missed!/Bang!).
+  const isGivingCardToJesse = isResponding && top.kind === "NEED_GIVE_CARD_TO_PLAYER";
 
   for (const cardId of player.hand) {
     const name = cardNameFromId(cardId);
@@ -1315,7 +1356,7 @@ function networkRenderHandSection(
       continue;
     }
 
-    if (isDiscardFromHand) {
+    if (isDiscardFromHand || isGivingCardToJesse) {
       wrapper.appendChild(cardButton(cardId, () => handlers.onHandCardClick(cardId)));
       continue;
     }
@@ -1352,8 +1393,14 @@ function networkRenderEquipmentSection(
   wrapper.className = "cards";
 
   const top = view.pending[view.pending.length - 1];
+  // player.id === view.viewerId: CHỈ đúng nạn nhân (không phải ai khác đang
+  // xem) mới thấy nút bấm — y hệt cách networkRenderHandSection() đã làm.
   const isDiscardFromEquipment =
-    top !== undefined && top.player === player.id && top.kind === "NEED_DISCARD_FROM_ZONE" && top.zone === "equipment";
+    top !== undefined &&
+    top.player === player.id &&
+    player.id === view.viewerId &&
+    top.kind === "NEED_DISCARD_FROM_ZONE" &&
+    top.zone === "equipment";
   const isPickingPanicTarget = selection.step === "picking-panic-equipment" && selection.targetId === player.id;
 
   for (const cardId of player.equipment) {
@@ -1505,6 +1552,34 @@ function networkRenderPendingPanel(container: HTMLElement, view: PlayerView, han
       panel.appendChild(button("Lật bài", () => handlers.onRespondTakeConsequence()));
     } else if (top.kind === "NEED_MISSED" || top.kind === "NEED_DISCARD_BANG" || top.kind === "NEED_DUEL_RESPONSE") {
       panel.appendChild(button("Chịu mất máu (không đỡ)", () => handlers.onRespondTakeConsequence()));
+    } else if (top.kind === "NEED_PICK_DRAW_SOURCE") {
+      const topOfDiscard = view.discardPile[view.discardPile.length - 1];
+      if (topOfDiscard) {
+        const wrapper = document.createElement("div");
+        wrapper.className = "cards";
+        wrapper.appendChild(cardButton(topOfDiscard, () => handlers.onPickDrawSource(topOfDiscard)));
+        panel.appendChild(wrapper);
+      }
+      panel.appendChild(button("Rút từ bộ bài", () => handlers.onRespondTakeConsequence()));
+    } else if (top.kind === "NEED_PICK_DRAW_TARGET") {
+      panel.appendChild(button("Rút từ bộ bài", () => handlers.onRespondTakeConsequence()));
+      for (const p of view.players) {
+        if (!p.alive || p.id === top.player) continue;
+        panel.appendChild(button(`${p.name}: để họ tự chọn lá đưa`, () => handlers.onPickDrawTarget(p.id, true)));
+        panel.appendChild(button(`${p.name}: cướp ngẫu nhiên`, () => handlers.onPickDrawTarget(p.id, false)));
+      }
+    } else if (top.kind === "NEED_GIVE_CARD_TO_PLAYER") {
+      panel.appendChild(button("Không chọn — rút ngẫu nhiên thay tôi", () => handlers.onRespondTakeConsequence()));
+    } else if (top.kind === "NEED_PICK_KEPT_CARDS") {
+      if (top.cards) {
+        const wrapper = document.createElement("div");
+        wrapper.className = "cards";
+        for (const cardId of top.cards) {
+          wrapper.appendChild(cardButton(cardId, () => handlers.onPickKeptCard(cardId)));
+        }
+        panel.appendChild(wrapper);
+      }
+      panel.appendChild(button("Giữ 2 lá đầu (bỏ lá thứ 3)", () => handlers.onRespondTakeConsequence()));
     }
   }
 
