@@ -49,7 +49,7 @@ const CARD_LABELS: Record<CardName, string> = {
 const CARD_DESCRIPTIONS: Record<CardName, string> = {
   bang: "Bắn 1 người trong tầm súng — họ phải đỡ bằng Missed! hoặc mất 1 máu.",
   missed: "Không tự đánh được — chỉ dùng để đỡ khi bị Bang!/Gatling.",
-  beer: "Tự hồi 1 máu cho chính mình (không vượt quá máu tối đa).",
+  beer: "Tự hồi 1 máu cho chính mình (không vượt quá máu tối đa). Vô tác dụng khi chỉ còn 2 người sống. Máu về 0 mà còn Bia trên tay thì tự động dùng để sống sót.",
   saloon: "Mọi người còn sống hồi 1 máu, kể cả người đánh.",
   stagecoach: "Rút thêm 2 lá từ bộ bài.",
   wells_fargo: "Rút thêm 3 lá từ bộ bài.",
@@ -391,6 +391,10 @@ export function describeEvent(event: GameEvent, nameOf: (id: string) => string):
       return `${nameOf(event.playerId)} (Sid Ketchum) bỏ 2 lá để hồi ${event.amount} máu`;
     case "CHARACTER_CHOSEN":
       return `${nameOf(event.playerId)} chọn nhân vật`;
+    case "BEER_SAVED_FROM_DEATH":
+      return `${nameOf(event.playerId)} tự động bỏ Bia để hồi sinh, còn 1 máu`;
+    case "BEER_INEFFECTIVE":
+      return `Bia của ${nameOf(event.playerId)} không có tác dụng — chỉ còn 2 người sống`;
     case "PLAYER_ELIMINATED":
       return event.killedBy
         ? `${nameOf(event.playerId)} bị ${nameOf(event.killedBy)} hạ gục`

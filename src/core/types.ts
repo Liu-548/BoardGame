@@ -227,6 +227,20 @@ export type GameEvent =
   // bị chốt mặc định lúc hết giờ (cả 2 trường hợp đều bắn event này).
   | { type: "CHARACTER_CHOSEN"; playerId: string; characterId: string }
   // ----- Việc 1.13: chết, thưởng/phạt, điều kiện thắng -----
+  // Bia "hồi sinh" — máu về 0 (hoặc thấp hơn) nhưng còn ít nhất 1 lá Bia trên
+  // tay VÀ còn hơn 2 người sống (đúng luật gốc: Bia vô tác dụng khi chỉ còn 2
+  // người, xem playBeer()) -> TỰ ĐỘNG bỏ lá Bia đó, kéo thẳng về 1 máu, KHÔNG
+  // chết. Bắn event này THAY VÌ PLAYER_ELIMINATED — xem eliminateIfDead()
+  // trong reduce.ts (dùng chung cho MỌI nguồn sát thương: Bang!/Gatling/Duel/
+  // Indians!/Dynamite, vì tất cả đều gọi qua đúng 1 hàm này).
+  | { type: "BEER_SAVED_FROM_DEATH"; playerId: string; cardId: string }
+  // Chỉ còn 2 người sống — Bia KHÔNG có tác dụng (luật gốc, xem playBeer()/
+  // eliminateIfDead()). Bắn ở CẢ 2 tình huống: (1) tự đánh Bia chủ động trong
+  // lượt mình mà không hồi được máu gì, (2) máu về 0 mà đang cầm Bia trên tay
+  // nhưng không cứu được (event này bắn TRƯỚC PLAYER_ELIMINATED trong ca đó).
+  // CHỈ RIÊNG Bia bị ảnh hưởng — mọi lá/kỹ năng hồi máu khác (Saloon, Sid
+  // Ketchum...) vẫn hoạt động bình thường dù chỉ còn 2 người, không đổi gì.
+  | { type: "BEER_INEFFECTIVE"; playerId: string }
   // killedBy = người trực tiếp gây đòn đánh khiến hp về 0 (Bang!/Gatling/
   // Indians!/Duel). null nếu tự chết (Dynamite) — không có ai "giết" cả.
   | { type: "PLAYER_ELIMINATED"; playerId: string; killedBy: string | null }

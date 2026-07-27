@@ -194,6 +194,101 @@ describe("reduce — chết + thưởng/phạt", () => {
     expect(events).toContainEqual({ type: "PLAYER_ELIMINATED", playerId: "b", killedBy: null });
   });
 
+  it("còn Bia trên tay + hơn 2 người sống: TỰ ĐỘNG bỏ Bia, hồi về 1 máu, không chết", () => {
+    const state = makeState(
+      [
+        makePlayer("a", { role: "sheriff", hand: ["bang_1"] }),
+        makePlayer("b", { role: "outlaw", hp: 1, hand: ["beer_1", "missed_1"] }),
+        makePlayer("c", { role: "renegade" }),
+      ],
+    );
+
+    const { state: afterPlay } = reduce(state, {
+      type: "PLAY_CARD", playerId: "a", cardId: "bang_1", targetId: "b",
+    });
+    const { state: next, events } = reduce(afterPlay, { type: "RESPOND", playerId: "b" }); // không đỡ -> đáng lẽ chết
+
+    expect(next.players[1].alive).toBe(true);
+    expect(next.players[1].hp).toBe(1); // kéo THẲNG về 1, không phải +1
+    expect(next.players[1].hand).toEqual(["missed_1"]); // mất đúng lá Bia, giữ nguyên lá còn lại
+    expect(next.discardPile).toContain("beer_1");
+    expect(next.winner).toBeNull(); // ván chưa kết thúc — không ai chết thật
+    expect(events).toEqual([
+      { type: "DAMAGE_DEALT", playerId: "b", amount: 1 },
+      { type: "BEER_SAVED_FROM_DEATH", playerId: "b", cardId: "beer_1" },
+    ]);
+  });
+
+  it("chỉ còn 2 người sống: Bia vô tác dụng dù có trên tay — chết như bình thường", () => {
+    // role "renegade" (không phải "outlaw") — CỐ TÌNH tránh kích hoạt luật
+    // thưởng "hạ Outlaw thì rút 3 lá": deck rỗng ở đây sẽ làm nó xáo lại
+    // CHÍNH chồng bỏ đang muốn kiểm tra (đúng lưu ý đã có ở nhiều test khác).
+    const state = makeState([
+      makePlayer("a", { role: "sheriff", hand: ["bang_1"] }),
+      makePlayer("b", { role: "renegade", hp: 1, hand: ["beer_1"] }),
+    ]);
+
+    const { state: afterPlay } = reduce(state, {
+      type: "PLAY_CARD", playerId: "a", cardId: "bang_1", targetId: "b",
+    });
+    const { state: next, events } = reduce(afterPlay, { type: "RESPOND", playerId: "b" });
+
+    expect(next.players[1].alive).toBe(false);
+    expect(next.players[1].hand).toEqual([]); // Bia vẫn còn nguyên trong tay lúc chết -> vào chồng bỏ như mọi lá khác
+    expect(next.discardPile).toContain("beer_1");
+    expect(events).toEqual([
+      { type: "DAMAGE_DEALT", playerId: "b", amount: 1 },
+      { type: "BEER_INEFFECTIVE", playerId: "b" },
+      { type: "PLAYER_ELIMINATED", playerId: "b", killedBy: "a" },
+      { type: "GAME_ENDED", winner: "sheriff_deputy" },
+    ]);
+  });
+
+  it("Bia hồi sinh áp dụng cả cho Thuốc nổ tự nổ (dùng chung eliminateIfDead())", () => {
+    const state = makeState(
+      [
+        makePlayer("a", { role: "sheriff" }),
+        makePlayer("b", { role: "outlaw", hp: 2, hand: ["beer_1"], equipment: ["dynamite_1"] }),
+        makePlayer("c", { role: "renegade" }),
+      ],
+      {
+        currentPlayerIndex: 1,
+        deck: ["missed_6"], // Bích, 2 — khớp Bích 2-9 -> nổ mất 3 máu (sàn 0)
+        pending: [
+          {
+            kind: "NEED_DRAW_CHECK", player: "b", source: { card: "dynamite" },
+            matchSuits: ["spades"], matchRanks: ["2", "3", "4", "5", "6", "7", "8", "9"],
+          },
+        ],
+      }
+    );
+
+    const { state: next, events } = reduce(state, { type: "RESPOND", playerId: "b" });
+
+    expect(next.players[1].alive).toBe(true);
+    expect(next.players[1].hp).toBe(1);
+    expect(next.players[1].hand).toEqual([]);
+    expect(events).toContainEqual({ type: "BEER_SAVED_FROM_DEATH", playerId: "b", cardId: "beer_1" });
+    expect(events.some((e) => e.type === "PLAYER_ELIMINATED")).toBe(false);
+  });
+
+  it("Bia vừa tự động bỏ là lá CUỐI CÙNG: Suzy Lafayette vẫn được rút bù ngay", () => {
+    const state = makeState([
+      makePlayer("a", { role: "sheriff", hand: ["bang_1"] }),
+      makePlayer("b", { role: "outlaw", hp: 1, hand: ["beer_1"], characterId: "suzy_lafayette" }),
+      makePlayer("c", { role: "renegade" }),
+    ], { deck: ["card_1"] });
+
+    const { state: afterPlay } = reduce(state, {
+      type: "PLAY_CARD", playerId: "a", cardId: "bang_1", targetId: "b",
+    });
+    const { state: next } = reduce(afterPlay, { type: "RESPOND", playerId: "b" });
+
+    expect(next.players[1].alive).toBe(true);
+    expect(next.players[1].hp).toBe(1);
+    expect(next.players[1].hand).toEqual(["card_1"]); // tay về 0 sau khi mất Bia -> rút bù ngay 1 lá
+  });
+
   it("game kết thúc: không thể reduce() tiếp", () => {
     const state = makeState(
       [

@@ -210,7 +210,10 @@ describe("onAnyDeath", () => {
         // luật thưởng "hạ Outlaw thì rút 3 lá" (eliminatePlayer trong
         // reduce.ts) không liên quan gì tới test này, mà deck rỗng ở đây sẽ
         // làm nó rút bằng cách xáo lại CHÍNH chồng bỏ đang muốn kiểm tra.
-        makePlayer("b", { role: "renegade", hp: 1, hand: ["beer_1", "missed_1"], equipment: ["scope_1"] }),
+        // KHÔNG dùng "beer" trong tay — giờ kích hoạt cơ chế "hồi sinh tự
+        // động" (xem eliminateIfDead() trong reduce.ts), làm b sống sót thay
+        // vì chết như bài test này cần.
+        makePlayer("b", { role: "renegade", hp: 1, hand: ["missed_1", "bang_2"], equipment: ["scope_1"] }),
         makePlayer("c"),
       ],
     });
@@ -240,8 +243,8 @@ describe("onAnyDeath", () => {
     const { state: next } = reduce(played.state, { type: "RESPOND", playerId: "b" }); // không đỡ -> chết
 
     expect(next.players[1].alive).toBe(false);
-    expect(next.players[0].hand).toEqual(expect.arrayContaining(["beer_1", "missed_1", "scope_1"]));
-    // Không bị bỏ lại vào chồng bỏ — chỉ có bang_1 (lá a vừa đánh), không có beer_1/missed_1/scope_1.
+    expect(next.players[0].hand).toEqual(expect.arrayContaining(["missed_1", "bang_2", "scope_1"]));
+    // Không bị bỏ lại vào chồng bỏ — chỉ có bang_1 (lá a vừa đánh), không có missed_1/bang_2/scope_1.
     expect(next.discardPile).toEqual(["bang_1"]);
   });
 
@@ -251,7 +254,8 @@ describe("onAnyDeath", () => {
         makeState({
           players: [
             makePlayer("a", { hand: ["bang_1"] }),
-            makePlayer("b", { role: "renegade", hp: 1, hand: ["beer_1"] }), // xem ghi chú stateWithDyingB() ở trên
+            // KHÔNG dùng "beer" — xem ghi chú stateWithDyingB() ở trên.
+            makePlayer("b", { role: "renegade", hp: 1, hand: ["missed_1"] }),
             makePlayer("c"),
           ],
         }),
@@ -261,6 +265,6 @@ describe("onAnyDeath", () => {
     })();
 
     expect(next.players[1].hand).toEqual([]);
-    expect(next.discardPile).toEqual(expect.arrayContaining(["bang_1", "beer_1"]));
+    expect(next.discardPile).toEqual(expect.arrayContaining(["bang_1", "missed_1"]));
   });
 });

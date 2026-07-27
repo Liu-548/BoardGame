@@ -199,7 +199,10 @@ describe("Vulture Sam — người chết thì mất hết bài về tay Sam", (
     const state = makeState({
       players: [
         makePlayer("a", { hand: ["bang_1"], characterId: "vulture_sam" }),
-        makePlayer("b", { role: "renegade", hp: 1, hand: ["beer_1"], equipment: ["scope_1"] }),
+        // KHÔNG dùng "beer" ở đây — Bia trên tay người sắp chết giờ kích hoạt
+        // cơ chế "hồi sinh tự động" (xem eliminateIfDead() trong reduce.ts),
+        // làm b sống sót thay vì chết như bài test này cần kiểm tra.
+        makePlayer("b", { role: "renegade", hp: 1, hand: ["missed_1"], equipment: ["scope_1"] }),
         makePlayer("c"),
       ],
     });
@@ -210,9 +213,9 @@ describe("Vulture Sam — người chết thì mất hết bài về tay Sam", (
     expect(next.players[1].alive).toBe(false);
     expect(next.players[1].hand).toEqual([]);
     expect(next.players[1].equipment).toEqual([]);
-    expect(next.players[0].hand).toEqual(expect.arrayContaining(["beer_1", "scope_1"]));
-    expect(next.discardPile).toEqual(["bang_1"]); // KHÔNG có beer_1/scope_1 — về tay Sam, không vào chồng bỏ
-    expect(events).toContainEqual({ type: "CARD_STOLEN", playerId: "a", fromPlayerId: "b", cardId: "beer_1" });
+    expect(next.players[0].hand).toEqual(expect.arrayContaining(["missed_1", "scope_1"]));
+    expect(next.discardPile).toEqual(["bang_1"]); // KHÔNG có missed_1/scope_1 — về tay Sam, không vào chồng bỏ
+    expect(events).toContainEqual({ type: "CARD_STOLEN", playerId: "a", fromPlayerId: "b", cardId: "missed_1" });
   });
 
   it("người chết đang cầm Dynamite chưa nổ: Sam thừa kế luôn, tự gắn vào trang bị Sam", () => {
