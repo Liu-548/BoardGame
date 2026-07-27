@@ -30,7 +30,7 @@
 import { cardNameFromId } from "../core/cards";
 import { reduce } from "../core/reduce";
 import { setupGame } from "../core/setup";
-import type { Action, GameEvent, GameState, PendingAction } from "../core/types";
+import type { Action, GameEvent, GameState, HouseRuleId, PendingAction } from "../core/types";
 import { viewFor } from "../core/view";
 import type { ClientMessage, DeadlineInfo, ServerMessage } from "../protocol";
 
@@ -123,7 +123,7 @@ export class Room {
         this.broadcastChat(ws, parsed.text, parsed.to);
         return;
       case "start_game":
-        await this.handleStartGame(ws, parsed.seed);
+        await this.handleStartGame(ws, parsed.seed, parsed.houseRules);
         return;
       case "action":
         await this.handleAction(ws, parsed.action);
@@ -163,7 +163,7 @@ export class Room {
     return (await this.ctx.storage.get<string>(OWNER_KEY)) ?? null;
   }
 
-  private async handleStartGame(ws: WebSocket, seed: number): Promise<void> {
+  private async handleStartGame(ws: WebSocket, seed: number, houseRules?: HouseRuleId[]): Promise<void> {
     const attachment = ws.deserializeAttachment() as SocketAttachment | null;
     const ownerId = await this.getOwnerId();
     if (!attachment?.playerId || attachment.playerId !== ownerId) {
@@ -188,7 +188,7 @@ export class Room {
       // còn kết nối nhưng cứ không bấm chọn, ván sẽ chờ vô thời hạn ở bước
       // này (mất kết nối thì cơ chế huỷ ván có sẵn từ việc 4.3 vẫn hoạt động
       // bình thường, không liên quan gì tới field mới này).
-      state = setupGame(playerIds, seed, { dealCharacterCards: true });
+      state = setupGame(playerIds, seed, { dealCharacterCards: true, houseRules });
     } catch (e) {
       this.sendError(ws, e instanceof Error ? e.message : "Không tạo được ván mới");
       return;

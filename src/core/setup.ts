@@ -7,10 +7,13 @@ import { CHARACTERS, computeStartingHp, getCharacterDefinition } from "./charact
 import { giveCardToPlayer } from "./equipment";
 import { applyTurnStartChecks } from "./reduce";
 import { shuffle } from "./rng";
-import type { CharacterChoice, GameState, PlayerState, Role } from "./types";
+import type { CharacterChoice, GameState, HouseRuleId, PlayerState, Role } from "./types";
 
 export interface RuleOptions {
   cardCounts?: Partial<Record<CardName, number>>; // tuỳ chỉnh số lượng bài, để dành cho house rules sau này
+  // Giai đoạn 5, việc 5.3 — luật bổ sung chủ phòng BẬT cho riêng ván này (xem
+  // HouseRuleId ở types.ts). Mặc định [] = đúng luật gốc, không đổi gì.
+  houseRules?: HouseRuleId[];
   // Giai đoạn 5, việc 5.2 (đợt 1) — gán THẲNG nhân vật cho từng người chơi
   // theo playerId, BỎ QUA HẲN bước "phát 2 lá, tự chọn" bên dưới — chỉ để có
   // nhân vật thật mà thử/test nhanh (đa số test hiện có dùng cách này).
@@ -177,6 +180,8 @@ export function setupGame(
     winner: null,
     bangUsedThisTurn: false,
     characterSelection,
+    houseRules: options.houseRules ?? [],
+    cardNamesPlayedThisTurn: [],
   };
 
   // Lượt đầu tiên cũng phải qua Bước 0 (mục 4): nếu Sheriff (hoặc ai đi lượt

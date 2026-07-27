@@ -10,7 +10,7 @@
 // là "ngôn ngữ chung" cả 2 bên đều cần đọc — core/ vẫn không đụng tới file
 // này (không vi phạm quy tắc 1), chỉ server/ và client/ cùng import.
 
-import type { Action, GameEvent } from "./core/types";
+import type { Action, GameEvent, HouseRuleId } from "./core/types";
 import type { PlayerView } from "./core/view";
 
 // Việc 4.1: đồng hồ đếm ngược lượt (chỉ chơi qua mạng — dùng DO Alarm ở
@@ -50,7 +50,11 @@ export type ClientMessage =
   // đã "join" (server tự biết, không cần client liệt kê lại — khác việc 3.7
   // lúc CHƯA có lobby thật, phải gõ tay playerIds). Nếu phòng đã có ván đang
   // chơi, server bỏ qua (không ghi đè ván đang chơi dở).
-  | { type: "start_game"; seed: number }
+  // `houseRules` (việc 5.3): luật bổ sung CHỦ PHÒNG chọn ngay trên màn hình
+  // lobby trước khi bấm nút này — không broadcast lựa chọn đang gõ dở cho cả
+  // phòng (giống `seed`, không ai khác cần biết trước khi ván thật sự bắt
+  // đầu), chỉ gửi kèm 1 lần lúc bắt đầu ván thật.
+  | { type: "start_game"; seed: number; houseRules?: HouseRuleId[] }
   // Một hành động luật chơi (rút bài, đánh bài, trả lời...) — forward nguyên
   // si vào reduce(state, action) ở server.
   | { type: "action"; action: Action }

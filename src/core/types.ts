@@ -295,4 +295,27 @@ export interface GameState {
   // reduce()) — chờ đủ mọi người chọn xong (hoặc hết giờ, chốt mặc định) mới
   // tính máu + chia bài tay + vào lượt đầu tiên thật.
   characterSelection: CharacterChoice[] | null;
+  // Giai đoạn 5, việc 5.3 (house rules) — luật bổ sung chủ phòng chọn BẬT cho
+  // RIÊNG ván này (ghi đè luật gốc chỉ trong ván đó), xem setup.ts's
+  // RuleOptions.houseRules. Mảng RỖNG (mặc định) = chơi đúng luật gốc, không
+  // đổi gì so với trước — mọi ván cũ/test cũ không cần quan tâm field này.
+  houseRules: HouseRuleId[];
+  // Chỉ có ý nghĩa khi houseRules chứa "no_duplicate_card_names" — tên các lá
+  // NÂU (không tính trang bị) người đang tới lượt đã đánh CHỦ ĐỘNG trong CHÍNH
+  // lượt này. Reset về [] mỗi khi sang lượt mới (advanceTurn() trong
+  // reduce.ts), giống bangUsedThisTurn. Vẫn luôn có mặt trong state (không
+  // phải optional) để đúng quy tắc 3 (state JSON thuần, không có field tuỳ
+  // ý xuất hiện/biến mất) — chỉ đơn giản không ai đọc tới nếu luật này tắt.
+  cardNamesPlayedThisTurn: string[];
 }
+
+// Giai đoạn 5, việc 5.3 — danh sách id luật bổ sung đã cài (xem LO-TRINH.md
+// mục "Ghi chú cho 5.3" để biết ý tưởng gốc, và CLAUDE.md để biết chi tiết
+// từng luật). Thêm luật mới thì thêm 1 giá trị vào union này + xử lý ở đúng
+// chỗ luật gốc tương ứng trong reduce.ts/distance.ts, KHÔNG tạo cơ chế chung
+// chung — mỗi luật là 1 điều kiện rẽ nhánh riêng, đơn giản, dễ đọc.
+export type HouseRuleId =
+  | "extra_distance" // khoảng cách vòng tròn mặc định +1 (distance.ts)
+  | "require_weapon_for_bang" // phải có súng trang bị mới đánh Bang! được, bỏ súng ngầm định tầm 1 (playBang())
+  | "no_duplicate_card_names" // cấm đánh 2 lá NÂU trùng tên trong 1 lượt (trừ lá trang bị, handlePlayCard())
+  | "beer_below_two"; // Bia vẫn có tác dụng dù chỉ còn 2 người sống, bỏ ngoại lệ luật gốc (playBeer()/eliminateIfDead())

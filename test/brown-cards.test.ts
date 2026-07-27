@@ -19,6 +19,8 @@ function makeState(overrides: Partial<GameState> = {}): GameState {
     winner: null,
     bangUsedThisTurn: false,
     characterSelection: null,
+    houseRules: [],
+    cardNamesPlayedThisTurn: [],
     ...overrides,
   };
 }
