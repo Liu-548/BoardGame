@@ -248,31 +248,38 @@ function respondToGiveCardToPlayer(
   const victim = next.players.find((p) => p.id === action.playerId)!;
   const jesse = next.players.find((p) => p.id === top.giveTo)!;
 
-  let givenCardId: string;
+  let givenCardId: string | undefined;
   if (action.cardId) {
     const cardIndex = victim.hand.indexOf(action.cardId);
     if (cardIndex === -1) {
       throw new Error(`Người chơi ${victim.id} không có lá bài ${action.cardId} trong tay`);
     }
     [givenCardId] = victim.hand.splice(cardIndex, 1);
-  } else {
+  } else if (victim.hand.length > 0) {
     const { value, nextState } = nextRandom(next.rngState);
     next.rngState = nextState;
     const index = Math.floor(value * victim.hand.length);
     [givenCardId] = victim.hand.splice(index, 1);
   }
-  giveCardToPlayer(next.players, jesse, givenCardId);
+  // Tay nạn nhân có thể đã rỗng ngay lúc này (vd Sid Ketchum tự dùng kỹ năng
+  // bỏ sạch 2 lá trong lúc đang chờ họ trả lời — kỹ năng đó cố tình dùng được
+  // bất cứ lúc nào, không kiểm tra pending) — coi như không còn gì để lấy,
+  // bỏ qua lá 1, y hệt cách respondToPickDrawTarget() xử lý khi tay mục tiêu
+  // rỗng ngay từ đầu. KHÔNG rơi vào nhánh else ở trên (tránh index vào mảng
+  // rỗng, khiến givenCardId thành undefined rồi lọt vào tay Jesse).
 
-  const events: GameEvent[] = [
-    { type: "CARD_STOLEN", playerId: jesse.id, fromPlayerId: victim.id, cardId: givenCardId },
-  ];
-  events.push(...triggerHandEmptyHook(next, victim)); // Giai đoạn 5 (Suzy Lafayette)
+  const events: GameEvent[] = [];
+  if (givenCardId) {
+    giveCardToPlayer(next.players, jesse, givenCardId);
+    events.push({ type: "CARD_STOLEN", playerId: jesse.id, fromPlayerId: victim.id, cardId: givenCardId });
+    events.push(...triggerHandEmptyHook(next, victim)); // Giai đoạn 5 (Suzy Lafayette)
+  }
 
   const secondCard = drawTopCard(next);
   if (secondCard) giveCardToPlayer(next.players, jesse, secondCard);
 
   next.turnPhase = "play";
-  events.push({ type: "CARDS_DRAWN", playerId: jesse.id, count: 1 + (secondCard ? 1 : 0) });
+  events.push({ type: "CARDS_DRAWN", playerId: jesse.id, count: (givenCardId ? 1 : 0) + (secondCard ? 1 : 0) });
   return { state: next, events };
 }
 
@@ -470,7 +477,11 @@ function handlePlayCard(state: GameState, action: Action & { type: "PLAY_CARD" }
     }
   }
 
-  return { state: result.state, events: [...result.events, ...handEmptyEvents] };
+  // handEmptyEvents xảy ra TRƯỚC (lá vừa rời tay, kiểm tra ngay — xem ghi chú
+  // ở trên), result.events là hiệu ứng RIÊNG của lá vừa đánh (có thể tự rút
+  // lại bài, vd Stagecoach/Wells Fargo) — xảy ra SAU. Xếp đúng thứ tự thời
+  // gian thật để nhật ký ván đấu (việc 4.2) không hiện ngược.
+  return { state: result.state, events: [...handEmptyEvents, ...result.events] };
 }
 
 function playBang(
@@ -1533,10 +1544,14 @@ function eliminatePlayer(next: GameState, target: PlayerState, killerId: string 
     } else if (killer.role === "sheriff" && target.role === "deputy") {
       // Phạt Cảnh sát trưởng giết nhầm Phó cảnh sát trưởng: bỏ hết bài của
       // CHÍNH killer (không phải của người vừa chết) tay lẫn sân.
+      const killerHadCards = killer.hand.length > 0; // Giai đoạn 5 (Suzy Lafayette) — chỉ tính là "vừa rời tay" nếu THẬT SỰ có gì để mất
       next.discardPile.push(...killer.hand, ...killer.equipment);
       killer.hand = [];
       killer.equipment = [];
       events.push({ type: "SHERIFF_KILLED_DEPUTY_PENALTY", playerId: killer.id });
+      if (killerHadCards) {
+        events.push(...triggerHandEmptyHook(next, killer));
+      }
     }
   }
 

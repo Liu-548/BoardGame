@@ -142,6 +142,9 @@ function render(): void {
         onRespondTakeConsequence,
         onCancelSelection,
         onPlayAgain,
+        onPickDrawSource,
+        onPickDrawTarget,
+        onPickKeptCard,
       });
       return;
     case "network-form":
@@ -191,6 +194,9 @@ function render(): void {
             onZoneClick: onNetworkZoneClick,
             onRespondTakeConsequence: onNetworkRespondTakeConsequence,
             onCancelSelection: onNetworkCancelSelection,
+            onPickDrawSource: onNetworkPickDrawSource,
+            onPickDrawTarget: onNetworkPickDrawTarget,
+            onPickKeptCard: onNetworkPickKeptCard,
           }
         );
       }
@@ -415,9 +421,29 @@ function onZoneClick(zone: "hand" | "equipment"): void {
 
 // "Chịu hậu quả" dùng chung cho: chịu mất máu thay vì đỡ (Missed!/Indians!/
 // Duel), và tự lật bài kiểm tra (draw!) — cả 2 đều là RESPOND không kèm cardId.
+// Cũng tái dùng cho "rút bộ bài"/"rút ngẫu nhiên"/"giữ 2 lá đầu" (3 nhân vật
+// bên dưới) — đều là RESPOND không kèm cardId/targetId, y hệt.
 function onRespondTakeConsequence(): void {
   const top = state.pending[state.pending.length - 1];
   if (top) dispatch({ type: "RESPOND", playerId: top.player });
+}
+
+// Pedro Ramirez — lấy đúng lá trên cùng chồng bỏ làm lá 1.
+function onPickDrawSource(cardId: string): void {
+  const top = state.pending[state.pending.length - 1];
+  if (top) dispatch({ type: "RESPOND", playerId: top.player, cardId });
+}
+
+// Jesse Jones (bước 1) — chọn lấy bài từ tay ai, và có để họ tự chọn lá không.
+function onPickDrawTarget(targetId: string, letTargetChoose: boolean): void {
+  const top = state.pending[state.pending.length - 1];
+  if (top) dispatch({ type: "RESPOND", playerId: top.player, targetId, letTargetChoose });
+}
+
+// Kit Carlson — bỏ đúng lá vừa bấm trong 3 lá đã xem, giữ 2 lá còn lại.
+function onPickKeptCard(cardId: string): void {
+  const top = state.pending[state.pending.length - 1];
+  if (top) dispatch({ type: "RESPOND", playerId: top.player, cardId });
 }
 
 function onCancelSelection(): void {
@@ -695,6 +721,27 @@ function onNetworkRespondTakeConsequence(): void {
   if (!networkView) return;
   const top = networkView.pending[networkView.pending.length - 1];
   if (top) networkDispatch({ type: "RESPOND", playerId: top.player });
+}
+
+// Pedro Ramirez — lấy đúng lá trên cùng chồng bỏ làm lá 1.
+function onNetworkPickDrawSource(cardId: string): void {
+  if (!networkView) return;
+  const top = networkView.pending[networkView.pending.length - 1];
+  if (top) networkDispatch({ type: "RESPOND", playerId: top.player, cardId });
+}
+
+// Jesse Jones (bước 1) — chọn lấy bài từ tay ai, và có để họ tự chọn lá không.
+function onNetworkPickDrawTarget(targetId: string, letTargetChoose: boolean): void {
+  if (!networkView) return;
+  const top = networkView.pending[networkView.pending.length - 1];
+  if (top) networkDispatch({ type: "RESPOND", playerId: top.player, targetId, letTargetChoose });
+}
+
+// Kit Carlson — bỏ đúng lá vừa bấm trong 3 lá đã xem, giữ 2 lá còn lại.
+function onNetworkPickKeptCard(cardId: string): void {
+  if (!networkView) return;
+  const top = networkView.pending[networkView.pending.length - 1];
+  if (top) networkDispatch({ type: "RESPOND", playerId: top.player, cardId });
 }
 
 function onNetworkCancelSelection(): void {

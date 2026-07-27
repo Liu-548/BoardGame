@@ -550,6 +550,28 @@ describe("Suzy Lafayette — tay CHUYỂN từ còn bài sang hết bài (0 lá)
     expect(events).toContainEqual({ type: "CARDS_DRAWN", playerId: "b", count: 1 });
   });
 
+  it("đánh Cỗ xe ngựa (Stagecoach) là lá cuối cùng: rút bù xảy ra TRƯỚC, đúng thứ tự thời gian thật trong nhật ký", () => {
+    const state = makeState({
+      players: [
+        makePlayer("a", { characterId: "suzy_lafayette", hand: ["stagecoach_1"] }),
+        makePlayer("b"),
+        makePlayer("c"),
+      ],
+      deck: ["saloon_3", "saloon_2", "saloon_1"],
+    });
+
+    const { state: next, events } = reduce(state, { type: "PLAY_CARD", playerId: "a", cardId: "stagecoach_1" });
+
+    // Rút bù (Suzy) xảy ra TRƯỚC lúc rời tay, Stagecoach tự rút 2 lá RIÊNG của
+    // nó xảy ra SAU — đúng thứ tự thời gian thật, không phải thứ tự viết code.
+    expect(events).toEqual([
+      { type: "CARDS_DRAWN", playerId: "a", count: 1 },
+      { type: "CARD_PLAYED", playerId: "a", cardId: "stagecoach_1" },
+      { type: "CARDS_DRAWN", playerId: "a", count: 2 },
+    ]);
+    expect(next.players[0].hand).toEqual(["saloon_1", "saloon_2", "saloon_3"]);
+  });
+
   it("El Gringo cướp đúng lá cuối cùng của Suzy: Suzy vẫn được rút bù (2 hook nối tiếp nhau)", () => {
     const state = makeState({
       players: [
@@ -790,6 +812,43 @@ describe("Jesse Jones — đầu lượt được HỎI: lá 1 từ bộ bài ha
     expect(next.players[1].hand).toEqual([]);
     expect(next.players[0].hand).toEqual(["bang_1", "saloon_1"]);
     expect(events).toContainEqual({ type: "CARD_STOLEN", playerId: "a", fromPlayerId: "b", cardId: "bang_1" });
+  });
+
+  it("nạn nhân là Sid Ketchum, tự dùng kỹ năng bỏ sạch tay TRƯỚC KHI trả lời: không lọt lá undefined vào tay Jesse", () => {
+    const state = makeState({
+      players: [
+        makePlayer("a", { characterId: "jesse_jones" }),
+        makePlayer("b", { characterId: "sid_ketchum", hand: ["bang_1", "missed_1"] }),
+        makePlayer("c"),
+      ],
+      turnPhase: "draw",
+      deck: ["saloon_1"],
+    });
+
+    const drawn = reduce(state, { type: "DRAW_CARDS", playerId: "a" });
+    const asked = reduce(drawn.state, {
+      type: "RESPOND",
+      playerId: "a",
+      targetId: "b",
+      letTargetChoose: true,
+    });
+    expect(asked.state.pending).toEqual([{ kind: "NEED_GIVE_CARD_TO_PLAYER", player: "b", giveTo: "a" }]);
+
+    // b (Sid Ketchum) tự dùng kỹ năng NGAY LÚC ĐANG BỊ CHỜ trả lời — hợp lệ vì
+    // USE_ABILITY cố tình không kiểm tra pending. Tay b về rỗng trước khi kịp
+    // trả lời NEED_GIVE_CARD_TO_PLAYER.
+    const healed = reduce(asked.state, { type: "USE_ABILITY", playerId: "b", cardIds: ["bang_1", "missed_1"] });
+    expect(healed.state.players[1].hand).toEqual([]);
+    expect(healed.state.pending).toEqual([{ kind: "NEED_GIVE_CARD_TO_PLAYER", player: "b", giveTo: "a" }]);
+
+    // Giờ mới xử lý RESPOND (hết giờ/không chọn gì) — tay b đã rỗng từ trước.
+    const { state: next, events } = reduce(healed.state, { type: "RESPOND", playerId: "b" });
+
+    expect(next.players[0].hand).toEqual(["saloon_1"]); // chỉ có lá 2 (từ bộ bài), KHÔNG có undefined
+    expect(next.players[1].hand).toEqual([]);
+    expect(next.turnPhase).toBe("play");
+    expect(events).not.toContainEqual(expect.objectContaining({ type: "CARD_STOLEN" }));
+    expect(events).toContainEqual({ type: "CARDS_DRAWN", playerId: "a", count: 1 });
   });
 
   it("mục tiêu tay rỗng: coi như rút bộ bài cho lá 1, không cướp gì cả", () => {

@@ -222,6 +222,53 @@ describe("reduce — chết + thưởng/phạt", () => {
     ]);
   });
 
+  it("Sheriff (Suzy Lafayette) giết nhầm Deputy bằng đúng lá cuối cùng: rút bù 2 LẦN (đánh Bang! là lá cuối + bị phạt bỏ luôn lá vừa rút bù)", () => {
+    const state = makeState([
+      makePlayer("a", { role: "sheriff", characterId: "suzy_lafayette", hand: ["bang_1"] }),
+      makePlayer("b", { role: "deputy", hp: 1 }),
+      makePlayer("c", { role: "outlaw" }),
+    ], { deck: ["saloon_2", "saloon_1"] });
+
+    // Đánh Bang! (lá DUY NHẤT trên tay) -> tay về 0 ngay trong handlePlayCard()
+    // -> Suzy rút bù NGAY lá "saloon_1" (đỉnh bộ bài) TRƯỚC KHI biết Deputy có
+    // chết hay không.
+    const { state: afterPlay, events: playEvents } = reduce(state, {
+      type: "PLAY_CARD", playerId: "a", cardId: "bang_1", targetId: "b",
+    });
+    expect(afterPlay.players[0].hand).toEqual(["saloon_1"]);
+    expect(playEvents).toContainEqual({ type: "CARDS_DRAWN", playerId: "a", count: 1 });
+
+    // Deputy không đỡ -> chết -> Sheriff bị phạt bỏ NỐT lá "saloon_1" vừa rút
+    // bù -> tay về 0 LẦN THỨ 2, vì lý do HOÀN TOÀN KHÁC (hình phạt, không phải
+    // tự đánh bài) -> vẫn là 1 lần "chuyển từ có sang hết" THẬT SỰ, Suzy rút
+    // bù tiếp lá "saloon_2".
+    const { state: next, events } = reduce(afterPlay, { type: "RESPOND", playerId: "b" });
+
+    expect(next.players[1].alive).toBe(false);
+    expect(next.players[0].hand).toEqual(["saloon_2"]);
+    expect(events).toContainEqual({ type: "SHERIFF_KILLED_DEPUTY_PENALTY", playerId: "a" });
+    expect(events).toContainEqual({ type: "CARDS_DRAWN", playerId: "a", count: 1 });
+  });
+
+  it("Sheriff giết nhầm Deputy (không phải Suzy Lafayette): vẫn còn 1 lá khác sau khi đánh, phạt bỏ nốt KHÔNG rút bù gì (không có hook)", () => {
+    const state = makeState([
+      makePlayer("a", { role: "sheriff", hand: ["bang_1", "missed_1"] }),
+      makePlayer("b", { role: "deputy", hp: 1 }),
+      makePlayer("c", { role: "outlaw" }),
+    ]);
+
+    const { state: afterPlay } = reduce(state, {
+      type: "PLAY_CARD", playerId: "a", cardId: "bang_1", targetId: "b",
+    });
+    expect(afterPlay.players[0].hand).toEqual(["missed_1"]); // còn 1 lá, chưa rỗng
+
+    const { state: next, events } = reduce(afterPlay, { type: "RESPOND", playerId: "b" });
+
+    expect(next.players[1].alive).toBe(false);
+    expect(next.players[0].hand).toEqual([]); // phạt bỏ nốt lá còn lại
+    expect(events).not.toContainEqual(expect.objectContaining({ type: "CARDS_DRAWN" }));
+  });
+
   it("Duel: thua duel với chính mình cũng tính killer là đối thủ hiện tại", () => {
     const state = makeState(
       [
