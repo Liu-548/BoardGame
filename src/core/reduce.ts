@@ -3,7 +3,7 @@
 
 import type { CardName } from "./cards";
 import { cardNameFromId, cardSuitRankFromId, isSelfEquipBlueCardName, isWeaponCardName } from "./cards";
-import { getCharacterDefinition, getCharacterHooks, triggerHandEmptyHook } from "./characters";
+import { computeStartingHp, getCharacterDefinition, getCharacterHooks, triggerHandEmptyHook } from "./characters";
 import { drawTopCard } from "./deck";
 import { computeDistance, getWeaponRange } from "./distance";
 import { giveCardToPlayer, transferDynamiteToNextPlayer } from "./equipment";
@@ -40,6 +40,13 @@ export function reduce(state: GameState, action: Action): Result {
     throw new Error("Ván đã kết thúc, không thể tiếp tục hành động");
   }
 
+  // Đang chờ chọn nhân vật (xem CharacterChoice ở types.ts) — ván CHƯA thật
+  // sự bắt đầu (hp/hand mọi người còn tạm 0/rỗng), nên CHẶN mọi action khác
+  // ngoài đúng 2 loại việc của giai đoạn này.
+  if (state.characterSelection && action.type !== "CHOOSE_CHARACTER" && action.type !== "FINALIZE_CHARACTER_SELECTION") {
+    throw new Error("Đang chờ mọi người chọn nhân vật, chưa thể làm hành động khác");
+  }
+
   switch (action.type) {
     case "DRAW_CARDS":
       return handleDrawCards(state, action);
@@ -53,6 +60,10 @@ export function reduce(state: GameState, action: Action): Result {
       return handleRespond(state, action);
     case "USE_ABILITY":
       return handleUseAbility(state, action);
+    case "CHOOSE_CHARACTER":
+      return handleChooseCharacter(state, action);
+    case "FINALIZE_CHARACTER_SELECTION":
+      return handleFinalizeCharacterSelection(state);
     default: {
       // Nếu sau này thêm loại action mới vào union mà quên xử lý ở đây,
       // dòng dưới sẽ báo lỗi biên dịch (exhaustiveness check).
@@ -925,6 +936,96 @@ function handleUseAbility(state: GameState, action: Action & { type: "USE_ABILIT
       ...handEmptyEvents,
     ],
   };
+}
+
+// ----- Chọn nhân vật đầu ván (xem CharacterChoice ở types.ts) -----
+// KHÔNG dùng chung switch/handleRespond() với `pending` — đây KHÔNG phải
+// ngăn xếp, mỗi người chọn ĐỘC LẬP, không cần đúng thứ tự. Validate trên
+// STATE GỐC (state, chưa cloneState()) trước khi tạo bản sao, giống các hàm
+// khác trong file — chỉ khác object đang đọc là characterSelection.
+
+function handleChooseCharacter(state: GameState, action: Action & { type: "CHOOSE_CHARACTER" }): Result {
+  if (!state.characterSelection) {
+    throw new Error("Ván này không ở giai đoạn chọn nhân vật");
+  }
+  const index = state.characterSelection.findIndex((c) => c.playerId === action.playerId);
+  if (index === -1) {
+    throw new Error(`Người chơi ${action.playerId} không có trong danh sách chọn nhân vật`);
+  }
+  const entry = state.characterSelection[index];
+  if (entry.chosen !== null) {
+    throw new Error("Người chơi này đã chọn nhân vật rồi, không đổi lại được");
+  }
+  if (!entry.options.includes(action.characterId)) {
+    throw new Error(`Nhân vật "${action.characterId}" không nằm trong 2 lá được phát cho người chơi này`);
+  }
+
+  const next = cloneState(state);
+  // Thay THẲNG cả mảng bằng mảng mới (không mutate entry cũ tại chỗ) — giữ
+  // đúng nguyên tắc reduce() không sửa state truyền vào, dù cloneState() chỉ
+  // copy nông (shallow) mảng characterSelection.
+  next.characterSelection = next.characterSelection!.map((c, i) => (i === index ? { ...c, chosen: action.characterId } : c));
+  next.players.find((p) => p.id === action.playerId)!.characterId = action.characterId;
+
+  const events: GameEvent[] = [{ type: "CHARACTER_CHOSEN", playerId: action.playerId, characterId: action.characterId }];
+
+  if (next.characterSelection.every((c) => c.chosen !== null)) {
+    events.push(...finishCharacterSelection(next));
+  }
+
+  return { state: next, events };
+}
+
+// Hết giờ CHUNG cho cả bàn (room.ts gọi action này, xem ghi chú ở types.ts)
+// — chốt NGẪU NHIÊN 1 trong 2 lá được phát cho MỌI người CHƯA tự chọn (chủ dự
+// án CHỐT rõ phải ngẫu nhiên, không ưu tiên lá nào — KHÁC quy ước "mặc định
+// lá đầu tiên" ở những chỗ hết giờ khác trong dự án, vd Kit Carlson). Ai đã tự
+// chọn trước đó thì giữ nguyên, không ghi đè.
+function handleFinalizeCharacterSelection(state: GameState): Result {
+  if (!state.characterSelection) {
+    throw new Error("Ván này không ở giai đoạn chọn nhân vật");
+  }
+
+  const next = cloneState(state);
+  const events: GameEvent[] = [];
+
+  next.characterSelection = next.characterSelection!.map((entry) => {
+    if (entry.chosen !== null) return entry;
+    const { value, nextState } = nextRandom(next.rngState);
+    next.rngState = nextState;
+    const chosen = entry.options[value < 0.5 ? 0 : 1];
+    next.players.find((p) => p.id === entry.playerId)!.characterId = chosen;
+    events.push({ type: "CHARACTER_CHOSEN", playerId: entry.playerId, characterId: chosen });
+    return { ...entry, chosen };
+  });
+
+  events.push(...finishCharacterSelection(next));
+  return { state: next, events };
+}
+
+// Gọi ĐÚNG 1 LẦN, khi MỌI người đã chọn xong (tự chọn thật hoặc bị chốt mặc
+// định lúc hết giờ) — tính máu theo nhân vật (+1 nếu Sheriff, đúng luật gốc
+// dù nhân vật là ai), chia bài tay theo đúng số máu (y hệt setupGame() cũ,
+// chỉ khác là biết nhân vật MUỘN hơn nên phải chia ở đây thay vì lúc setup),
+// rồi mở khoá ván thật (characterSelection = null) và chạy Bước 0 đầu lượt
+// cho Cảnh sát trưởng — giống hệt việc setupGame() làm trước khi có cơ chế
+// chọn nhân vật này.
+function finishCharacterSelection(next: GameState): GameEvent[] {
+  for (const player of next.players) {
+    const hp = computeStartingHp(player.role, player.characterId);
+    player.hp = hp;
+    player.maxHp = hp;
+  }
+  for (const player of next.players) {
+    for (let n = 0; n < player.hp; n++) {
+      const cardId = drawTopCard(next);
+      if (!cardId) break;
+      giveCardToPlayer(next.players, player, cardId);
+    }
+  }
+  next.characterSelection = null;
+  applyTurnStartChecks(next);
+  return [];
 }
 
 function handleRespond(state: GameState, action: Action & { type: "RESPOND" }): Result {

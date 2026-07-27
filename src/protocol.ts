@@ -18,14 +18,26 @@ import type { PlayerView } from "./core/view";
 // deadline phụ thuộc THỜI GIAN THỰC (Date.now()), mà quy tắc 2 CLAUDE.md cấm
 // core/ đụng tới Date.now() — nên nó sống ở "ngôn ngữ chung" protocol.ts, coi
 // như 1 phần state THÊM VÀO của server, không phải của core/.
-export interface DeadlineInfo {
-  playerId: string; // ai đang bị tính giờ
-  expiresAt: number; // mốc thời gian hết hạn, epoch mili-giây — client tự tính
-  // giây còn lại bằng (expiresAt - Date.now())/1000, tự đếm lùi bằng
-  // setInterval CỦA RIÊNG CLIENT (không phải server/DO — không vi phạm quy
-  // tắc 8, quy tắc đó chỉ cấm setInterval/setTimeout TRONG Durable Object).
-  kind: "play" | "reactive" | "discard"; // xem room.ts để biết ý nghĩa + thời lượng từng loại
-}
+//
+// Giai đoạn 5, cơ chế chọn nhân vật — "character_selection" là loại đồng hồ
+// DUY NHẤT không gắn với 1 người chơi cụ thể (đồng hồ CHUNG cho cả bàn, MỌI
+// người cùng chọn độc lập trong 1 khoảng thời gian — xem CharacterChoice ở
+// core/types.ts), nên `playerId` ở nhánh này LUÔN là `null`. Union theo `kind`
+// để TypeScript tự bắt lỗi nếu lỡ đọc `playerId` như `string` ở nhánh đó.
+export type DeadlineInfo =
+  | {
+      playerId: string; // ai đang bị tính giờ
+      expiresAt: number; // mốc thời gian hết hạn, epoch mili-giây — client tự tính
+      // giây còn lại bằng (expiresAt - Date.now())/1000, tự đếm lùi bằng
+      // setInterval CỦA RIÊNG CLIENT (không phải server/DO — không vi phạm quy
+      // tắc 8, quy tắc đó chỉ cấm setInterval/setTimeout TRONG Durable Object).
+      kind: "play" | "reactive" | "discard"; // xem room.ts để biết ý nghĩa + thời lượng từng loại
+    }
+  | {
+      playerId: null;
+      expiresAt: number;
+      kind: "character_selection"; // 30 giây CHUNG cho cả bàn chọn nhân vật — xem room.ts
+    };
 
 // ----- Client → Server -----
 

@@ -36,6 +36,19 @@ export interface PlayerState {
   characterId: string | null;
 }
 
+// ----- Chọn nhân vật đầu ván (xem setup.ts's RuleOptions.dealCharacterCards) -----
+// Khác HẲN cơ chế "pending" bên dưới: pending là NGĂN XẾP, luôn xử lý 1 việc ở
+// đỉnh, dùng cho phản ứng nối tiếp nhau (Bang! -> Missed! -> draw!...). Chọn
+// nhân vật đầu ván KHÔNG phải phản ứng nối tiếp — MỌI người chơi tự xem 2 lá
+// riêng của mình và chọn ĐỘC LẬP, không ai phải chờ ai trước. Nên đây là 1
+// MẢNG riêng (không phải ngăn xếp), mỗi người 1 phần tử, xử lý được theo BẤT
+// KỲ thứ tự nào — không phải luôn phần tử cuối như `pending`.
+export interface CharacterChoice {
+  playerId: string;
+  options: [string, string]; // 2 lá nhân vật được phát riêng cho người này — ẨN với người khác (xem view.ts)
+  chosen: string | null; // null = CHƯA chọn. Đã chọn thì công khai (đặt lá ngửa lên bàn, đúng luật gốc).
+}
+
 // ----- Việc đang chờ -----
 // Các loại "kind" cụ thể khác (NEED_DRAW_CHECK cho Jail/Dynamite/Barrel...) sẽ
 // thêm dần khi cài từng cơ chế mới, từ việc 1.10/1.11 trở đi.
@@ -148,7 +161,21 @@ export type Action =
   // mọi action khác — cố tình để dùng được cả ngoài lượt mình, kể cả đang bị
   // tấn công (xem handleUseAbility() trong reduce.ts). Không làm gì tới lượt/
   // pending của bất kỳ ai — chỉ đổi hand/discardPile/hp của CHÍNH player này.
-  | { type: "USE_ABILITY"; playerId: string; cardIds: [string, string] };
+  | { type: "USE_ABILITY"; playerId: string; cardIds: [string, string] }
+  // Chọn nhân vật đầu ván (xem CharacterChoice ở trên + setup.ts's
+  // RuleOptions.dealCharacterCards) — CHỈ hợp lệ khi state.characterSelection
+  // đang có giá trị (khác null). `characterId` PHẢI là 1 trong 2 lá đã phát
+  // riêng cho playerId đó (options), không phải lá bất kỳ trong registry.
+  | { type: "CHOOSE_CHARACTER"; playerId: string; characterId: string }
+  // Hết giờ CHUNG cho cả bàn lúc đang chọn nhân vật (đồng hồ thật sống ở
+  // room.ts/protocol.ts — quy tắc 2 cấm Date.now() trong core/, nên "hết giờ"
+  // ở ĐÂY chỉ là 1 action bình thường được server GỌI đúng lúc, không phải
+  // core/ tự biết thời gian). Không có playerId vì đây KHÔNG phải quyết định
+  // của 1 người — chốt THAY cho MỌI người còn chưa chọn: rút NGẪU NHIÊN 1
+  // trong 2 lá được phát (chủ dự án CHỐT rõ phải ngẫu nhiên, KHÁC quy ước
+  // "mặc định lá đầu tiên" ở các chỗ hết giờ khác trong dự án), rồi bắt đầu
+  // ván như bình thường. Ai đã tự chọn trước đó thì giữ nguyên, không ghi đè.
+  | { type: "FINALIZE_CHARACTER_SELECTION" };
 
 // ----- Sự kiện -----
 // Kết quả phụ của reduce(), để client hiển thị log — không ảnh hưởng đến state.
@@ -194,6 +221,11 @@ export type GameEvent =
   // CARDS_DISCARDED đã gắn nghĩa "bỏ bài thừa cuối lượt", tách riêng dễ hiểu
   // nhầm giống lý do của KIT_CARLSON_DISCARDED ở trên.
   | { type: "SID_KETCHUM_HEALED"; playerId: string; cardIds: [string, string]; amount: number }
+  // Chọn nhân vật đầu ván (xem CharacterChoice/CHOOSE_CHARACTER/
+  // FINALIZE_CHARACTER_SELECTION ở trên) — `characterId` CÔNG KHAI ngay khi
+  // chọn xong (đặt lá ngửa lên bàn, đúng luật gốc), dù là người TỰ chọn hay
+  // bị chốt mặc định lúc hết giờ (cả 2 trường hợp đều bắn event này).
+  | { type: "CHARACTER_CHOSEN"; playerId: string; characterId: string }
   // ----- Việc 1.13: chết, thưởng/phạt, điều kiện thắng -----
   // killedBy = người trực tiếp gây đòn đánh khiến hp về 0 (Bang!/Gatling/
   // Indians!/Duel). null nếu tự chết (Dynamite) — không có ai "giết" cả.
@@ -222,4 +254,14 @@ export interface GameState {
   // (không phải hook nhân vật, là luật nền ai cũng áp dụng). Reset về false
   // mỗi khi sang lượt mới (advanceTurn() trong reduce.ts).
   bangUsedThisTurn: boolean;
+  // Giai đoạn 5, cơ chế "phát 2 lá nhân vật, chọn giữ 1" (xem CharacterChoice
+  // ở trên + setup.ts's RuleOptions.dealCharacterCards) — null nghĩa là
+  // KHÔNG (hoặc chưa xong) ở giai đoạn chọn nhân vật: ván bình thường như
+  // trước giờ (mọi nơi khác trong reduce.ts chỉ cần coi field này = null là
+  // "ván đã bắt đầu thật sự"). Khác null nghĩa là ván CHƯA thật sự bắt đầu —
+  // hp/maxHp mọi người đang tạm là 0, hand rỗng, MỌI action khác ngoài
+  // CHOOSE_CHARACTER/FINALIZE_CHARACTER_SELECTION đều bị chặn (xem đầu
+  // reduce()) — chờ đủ mọi người chọn xong (hoặc hết giờ, chốt mặc định) mới
+  // tính máu + chia bài tay + vào lượt đầu tiên thật.
+  characterSelection: CharacterChoice[] | null;
 }

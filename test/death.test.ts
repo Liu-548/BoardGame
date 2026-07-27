@@ -29,6 +29,7 @@ function makeState(players: PlayerState[], overrides: Partial<GameState> = {}): 
     rngState: 1,
     winner: null,
     bangUsedThisTurn: false,
+    characterSelection: null,
     ...overrides,
   };
 }
