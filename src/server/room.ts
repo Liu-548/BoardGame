@@ -67,6 +67,18 @@ interface PausedPlay {
 const PLAY_PHASE_MS = 60_000; // lượt đánh bài (turnPhase "play") của người đang tới lượt
 const REACTIVE_MS = 10_000; // người khác phải phản hồi (đỡ Missed!/Đấu tay đôi/Người da đỏ/Cat Balou/Cửa hàng tổng hợp...)
 const DISCARD_PHASE_MS = 15_000; // bỏ bài thừa cuối lượt (chỉ khi hand > hp)
+// Giai đoạn 5, cơ chế chọn nhân vật — 30 giây CHUNG cho CẢ BÀN (không phải
+// từng người riêng), tính từ lúc ván vừa được tạo (setupGame() với
+// dealCharacterCards:true) cho tới khi MỌI người đã chọn xong.
+const CHARACTER_SELECTION_MS = 30_000;
+
+// Ai/việc gì đang cần tính giờ — dùng chung cho determineActiveDecision() và
+// DeadlineInfo (protocol.ts, trừ `expiresAt`). Tách riêng "character_selection"
+// (playerId luôn null, đồng hồ CHUNG cho cả bàn) khỏi 3 loại còn lại (luôn
+// gắn đúng 1 người) để TypeScript tự phân biệt kiểu playerId theo `kind`.
+type ActiveDecision =
+  | { kind: "play" | "reactive" | "discard"; playerId: string }
+  | { kind: "character_selection"; playerId: null };
 
 export class Room {
   private readonly ctx: DurableObjectState;
@@ -170,7 +182,13 @@ export class Room {
 
     let state: GameState;
     try {
-      state = setupGame(playerIds, seed);
+      // Giai đoạn 5, cơ chế "phát 2 lá nhân vật, chọn giữ 1" — bật thật ở đây
+      // (xem CLAUDE.md): mọi ván qua mạng từ giờ đều bắt đầu bằng bước chọn
+      // nhân vật. CHƯA có đồng hồ "hết giờ tổng" thật ở việc này — nếu ai đó
+      // còn kết nối nhưng cứ không bấm chọn, ván sẽ chờ vô thời hạn ở bước
+      // này (mất kết nối thì cơ chế huỷ ván có sẵn từ việc 4.3 vẫn hoạt động
+      // bình thường, không liên quan gì tới field mới này).
+      state = setupGame(playerIds, seed, { dealCharacterCards: true });
     } catch (e) {
       this.sendError(ws, e instanceof Error ? e.message : "Không tạo được ván mới");
       return;
@@ -203,8 +221,11 @@ export class Room {
     // Giai đoạn 5 (Sid Ketchum, đợt 7) — truyền kèm ai VỪA hành động, để
     // scheduleDeadline() biết mà KHÔNG cấp lại đồng hồ mới cho người khác khi
     // hành động này không phải của chính người đang được tính giờ (xem ghi
-    // chú ở scheduleDeadline()).
-    await this.afterStateChange(result.state, result.events, action.playerId);
+    // chú ở scheduleDeadline()). FINALIZE_CHARACTER_SELECTION (chọn nhân vật,
+    // Giai đoạn 5) là action HỆ THỐNG DUY NHẤT không có playerId — không có
+    // "ai vừa hành động" cụ thể nào liên quan tới việc giữ nguyên đồng hồ.
+    const actingPlayerId = "playerId" in action ? action.playerId : undefined;
+    await this.afterStateChange(result.state, result.events, actingPlayerId);
   }
 
   // ----- Việc 4.1: đồng hồ đếm ngược lượt -----
@@ -239,7 +260,12 @@ export class Room {
         allEvents = allEvents.concat(result.events);
         continue;
       }
-      if (finalState.pending.length === 0 && finalState.turnPhase === "draw") {
+      // Giai đoạn 5, cơ chế chọn nhân vật — CHƯA thể tự rút bài đầu lượt lúc
+      // characterSelection còn khác null (chưa ai có máu/bài tay thật, xem
+      // CLAUDE.md) — reduce() cũng chặn DRAW_CARDS lúc này, tự gọi vào đây sẽ
+      // ném lỗi không được bắt (crash luôn Durable Object), nên PHẢI kiểm
+      // trước khi vào nhánh "cuốn" rút bài tự động.
+      if (!finalState.characterSelection && finalState.pending.length === 0 && finalState.turnPhase === "draw") {
         const currentPlayerId = finalState.players[finalState.currentPlayerIndex].id;
         const result = reduce(finalState, { type: "DRAW_CARDS", playerId: currentPlayerId });
         finalState = result.state;
@@ -257,11 +283,14 @@ export class Room {
   // Ai/việc gì đang thật sự cần tính giờ NGAY BÂY GIỜ, sau khi đã cuốn qua
   // hết các bước tự động ở afterStateChange() — false nếu ván đã kết thúc.
   // "reactive" = có người (không nhất thiết là người đang tới lượt) phải trả
-  // lời 1 pending cụ thể; "play"/"discard" = 2 pha của chính lượt hiện tại.
-  private determineActiveDecision(
-    state: GameState
-  ): { kind: "play" | "reactive" | "discard"; playerId: string } | null {
+  // lời 1 pending cụ thể; "play"/"discard" = 2 pha của chính lượt hiện tại;
+  // "character_selection" (Giai đoạn 5) = CẢ BÀN đang chọn nhân vật, kiểm
+  // TRƯỚC mọi nhánh khác — lúc này pending/turnPhase chưa có ý nghĩa thật
+  // (xem finishCharacterSelection() trong core/reduce.ts).
+  private determineActiveDecision(state: GameState): ActiveDecision | null {
     if (state.winner) return null;
+
+    if (state.characterSelection) return { kind: "character_selection", playerId: null };
 
     const top = state.pending[state.pending.length - 1];
     if (top) return { kind: "reactive", playerId: top.player };
@@ -328,11 +357,17 @@ export class Room {
       }
 
       const durationMs =
-        decision.kind === "play" ? PLAY_PHASE_MS : decision.kind === "discard" ? DISCARD_PHASE_MS : REACTIVE_MS;
+        decision.kind === "play"
+          ? PLAY_PHASE_MS
+          : decision.kind === "discard"
+            ? DISCARD_PHASE_MS
+            : decision.kind === "character_selection"
+              ? CHARACTER_SELECTION_MS
+              : REACTIVE_MS;
       expiresAt = Date.now() + durationMs;
     }
 
-    const deadline: DeadlineInfo = { playerId: decision.playerId, expiresAt, kind: decision.kind };
+    const deadline: DeadlineInfo = { ...decision, expiresAt };
     await this.ctx.storage.put(DEADLINE_KEY, deadline);
     await this.ctx.storage.setAlarm(expiresAt);
     return deadline;
@@ -354,8 +389,10 @@ export class Room {
     if (!action) {
       // State đã đổi khác trước khi kịp hết giờ (hiếm — DO chạy đơn luồng
       // nên gần như không xảy ra) -> không có gì để tự làm, chỉ lên lịch lại
-      // đúng theo state hiện tại.
-      await this.scheduleDeadline(state, deadline.playerId);
+      // đúng theo state hiện tại. deadline.playerId là `null` ở đồng hồ
+      // "character_selection" (không gắn 1 người) — scheduleDeadline() nhận
+      // `actingPlayerId?: string`, nên đổi null -> undefined ở đây.
+      await this.scheduleDeadline(state, deadline.playerId ?? undefined);
       return;
     }
 
@@ -363,15 +400,16 @@ export class Room {
     try {
       result = reduce(state, action);
     } catch {
-      await this.scheduleDeadline(state, deadline.playerId);
+      await this.scheduleDeadline(state, deadline.playerId ?? undefined);
       return;
     }
 
     // "Người vừa hành động" ở đây chính là chủ nhân đồng hồ vừa hết giờ (hệ
     // thống tự bấm nút mặc định thay họ) — không phải ca "bystander" của Sid
     // Ketchum, nên vẫn cấp lại đồng hồ mới bình thường cho quyết định TIẾP
-    // THEO (thường đã đổi người/kind sau hành động mặc định này).
-    await this.afterStateChange(result.state, result.events, deadline.playerId);
+    // THEO (thường đã đổi người/kind sau hành động mặc định này). null ->
+    // undefined cùng lý do ở trên (đồng hồ "character_selection").
+    await this.afterStateChange(result.state, result.events, deadline.playerId ?? undefined);
   }
 
   // Hành động MẶC ĐỊNH khi hết giờ, theo đúng loại đồng hồ đang chạy — không
@@ -379,6 +417,13 @@ export class Room {
   // hậu quả"/"chọn đại 1 lá hợp lệ" cho các trường hợp KHÔNG có lựa chọn
   // "không làm gì".
   private buildTimeoutAction(state: GameState, deadline: DeadlineInfo): Action | null {
+    // Giai đoạn 5, chọn nhân vật — hết giờ CHUNG cho cả bàn, chốt hết những ai
+    // còn chưa tự chọn (xem handleFinalizeCharacterSelection() trong
+    // core/reduce.ts — rút NGẪU NHIÊN 1 trong 2 lá, không ưu tiên lá nào).
+    if (deadline.kind === "character_selection") {
+      return { type: "FINALIZE_CHARACTER_SELECTION" };
+    }
+
     if (deadline.kind === "play") {
       return { type: "END_TURN", playerId: deadline.playerId };
     }

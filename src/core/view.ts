@@ -22,7 +22,7 @@
 // lá vừa xem RIÊNG, phải ẩn với mọi người TRỪ đúng chủ nhân (xem
 // PendingActionView/viewPendingItem() bên dưới).
 
-import type { GameState, PendingAction, PlayerState, Role } from "./types";
+import type { CharacterChoice, GameState, PendingAction, PlayerState, Role } from "./types";
 
 export interface PlayerHandView {
   id: string;
@@ -45,6 +45,16 @@ export type PendingActionView = Exclude<PendingAction, { kind: "NEED_PICK_KEPT_C
   cards: string[] | null;
 };
 
+// Giai đoạn 5, cơ chế chọn nhân vật — giống PlayerHandView.hand: `options` chỉ
+// có giá trị thật với chính chủ (playerId === viewerId), còn lại null. Đây là
+// 2 lá RIÊNG được phát, khác `chosen` (LUÔN công khai, kể cả null = "chưa
+// chọn" — biết ai CHƯA chọn không lộ gì về nội dung 2 lá của họ).
+export interface CharacterChoiceView {
+  playerId: string;
+  options: [string, string] | null;
+  chosen: string | null;
+}
+
 export interface PlayerView {
   viewerId: string;
   players: PlayerHandView[];
@@ -54,6 +64,7 @@ export interface PlayerView {
   currentPlayerIndex: number;
   turnPhase: GameState["turnPhase"];
   winner: GameState["winner"];
+  characterSelection: CharacterChoiceView[] | null;
 }
 
 function viewRole(player: PlayerState, viewerId: string): Role | null {
@@ -70,6 +81,16 @@ function viewPendingItem(item: PendingAction, viewerId: string): PendingActionVi
     return { kind: item.kind, player: item.player, cards: null };
   }
   return item;
+}
+
+// Giai đoạn 5, cơ chế chọn nhân vật — ẩn `options` với bất kỳ ai KHÔNG PHẢI
+// chính chủ của phần tử đó.
+function viewCharacterChoice(choice: CharacterChoice, viewerId: string): CharacterChoiceView {
+  return {
+    playerId: choice.playerId,
+    options: choice.playerId === viewerId ? choice.options : null,
+    chosen: choice.chosen,
+  };
 }
 
 export function viewFor(state: GameState, viewerId: string): PlayerView {
@@ -94,5 +115,8 @@ export function viewFor(state: GameState, viewerId: string): PlayerView {
     currentPlayerIndex: state.currentPlayerIndex,
     turnPhase: state.turnPhase,
     winner: state.winner,
+    characterSelection: state.characterSelection
+      ? state.characterSelection.map((c) => viewCharacterChoice(c, viewerId))
+      : null,
   };
 }

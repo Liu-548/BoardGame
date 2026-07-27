@@ -28,6 +28,7 @@ function makeState(players: PlayerState[], overrides: Partial<GameState> = {}): 
     rngState: 1,
     winner: null,
     bangUsedThisTurn: false,
+    characterSelection: null,
     ...overrides,
   };
 }
@@ -160,5 +161,44 @@ describe("viewFor — NEED_PICK_KEPT_CARDS (Kit Carlson, Giai đoạn 5 đợt 6
     const view = viewFor(state, "b");
 
     expect(view.pending).toEqual([{ kind: "NEED_PICK_KEPT_CARDS", player: "a", cards: null }]);
+  });
+});
+
+describe("viewFor — characterSelection (cơ chế phát 2 lá nhân vật, chọn giữ 1)", () => {
+  it("null khi ván không ở giai đoạn chọn nhân vật (đúng bản v1 hiện tại)", () => {
+    const state = makeState([makePlayer("a"), makePlayer("b")]);
+    expect(viewFor(state, "a").characterSelection).toBeNull();
+  });
+
+  it("chính chủ thấy đúng 2 lá của mình", () => {
+    const state = makeState([makePlayer("a"), makePlayer("b")], {
+      characterSelection: [
+        { playerId: "a", options: ["el_gringo", "bart_cassidy"], chosen: null },
+        { playerId: "b", options: ["willy_the_kid", "rose_doolan"], chosen: null },
+      ],
+    });
+
+    const view = viewFor(state, "a");
+
+    expect(view.characterSelection).toEqual([
+      { playerId: "a", options: ["el_gringo", "bart_cassidy"], chosen: null },
+      { playerId: "b", options: null, chosen: null },
+    ]);
+  });
+
+  it("chosen LUÔN công khai (kể cả với người khác), chỉ options bị ẩn", () => {
+    const state = makeState([makePlayer("a"), makePlayer("b")], {
+      characterSelection: [
+        { playerId: "a", options: ["el_gringo", "bart_cassidy"], chosen: "el_gringo" },
+        { playerId: "b", options: ["willy_the_kid", "rose_doolan"], chosen: null },
+      ],
+    });
+
+    const view = viewFor(state, "b");
+
+    expect(view.characterSelection).toEqual([
+      { playerId: "a", options: null, chosen: "el_gringo" },
+      { playerId: "b", options: ["willy_the_kid", "rose_doolan"], chosen: null },
+    ]);
   });
 });

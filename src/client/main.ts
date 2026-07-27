@@ -33,7 +33,9 @@ import {
   describeEvent,
   renderApp,
   renderCardReferenceScreen,
+  renderCharacterSelectionScreen,
   renderHomeScreen,
+  renderNetworkCharacterSelectionScreen,
   renderNetworkGame,
   renderNetworkLobby,
   renderNetworkLobbyForm,
@@ -119,6 +121,14 @@ function render(): void {
       });
       return;
     case "local-game":
+      // Giai đoạn 5, cơ chế chọn nhân vật — hiện màn hình riêng TRƯỚC bàn chơi
+      // thật, cho tới khi mọi người chọn xong (state.characterSelection về null).
+      if (state.characterSelection) {
+        renderCharacterSelectionScreen(root, state.players, state.characterSelection, {
+          onChooseCharacter: onChooseCharacter,
+        });
+        return;
+      }
       renderApp(root, state, { selection, discardSelection: discardSelectionIds, error, lastDrawCheck, log: gameLog }, {
         onDrawCards,
         onEndTurn,
@@ -149,6 +159,14 @@ function render(): void {
       return;
     case "network-game":
       if (networkView) {
+        // Giai đoạn 5, cơ chế chọn nhân vật — hiện màn hình riêng TRƯỚC bàn
+        // chơi thật qua mạng, cho tới khi networkView.characterSelection về null.
+        if (networkView.characterSelection) {
+          renderNetworkCharacterSelectionScreen(root, networkView, networkDeadline, {
+            onChooseCharacter: onNetworkChooseCharacter,
+          });
+          return;
+        }
         renderNetworkGame(
           root,
           networkView,
@@ -234,7 +252,7 @@ function onStartGame(): void {
 
   setupError = null;
   const ids = trimmedNames.map((_, index) => `p${index}`);
-  state = setupGame(ids, Date.now());
+  state = setupGame(ids, Date.now(), { dealCharacterCards: true });
   // setupGame() tạm dùng id làm tên hiển thị (xem ghi chú trong setup.ts) —
   // gán lại tên thật người chơi vừa gõ.
   state.players.forEach((player, index) => {
@@ -402,6 +420,14 @@ function onRespondTakeConsequence(): void {
 function onCancelSelection(): void {
   selection = { step: "idle" };
   render();
+}
+
+// Giai đoạn 5, cơ chế chọn nhân vật — KHÔNG dùng currentPlayerId() như các
+// handler khác ở trên: chọn nhân vật KHÔNG phải hành động "đúng lượt", MỖI
+// người tự chọn ĐỘC LẬP (xem core/types.ts's CharacterChoice), nên playerId
+// tới thẳng từ người vừa bấm (renderCharacterSelectionScreen truyền vào).
+function onChooseCharacter(playerId: string, characterId: string): void {
+  dispatch({ type: "CHOOSE_CHARACTER", playerId, characterId });
 }
 
 // ----- Chế độ chơi qua mạng (việc 3.9) -----
@@ -671,6 +697,12 @@ function onNetworkRespondTakeConsequence(): void {
 function onNetworkCancelSelection(): void {
   networkSelection = { step: "idle" };
   render();
+}
+
+// Giai đoạn 5, cơ chế chọn nhân vật qua mạng — chỉ CHÍNH MÌNH mới bấm được
+// (renderNetworkCharacterSelectionScreen chỉ hiện nút cho đúng viewerId).
+function onNetworkChooseCharacter(characterId: string): void {
+  networkDispatch({ type: "CHOOSE_CHARACTER", playerId: myPlayerId, characterId });
 }
 
 render();

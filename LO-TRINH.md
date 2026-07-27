@@ -92,7 +92,7 @@
 | # | Việc | Ghi chú |
 |---|---|---|
 | 5.1 | Hệ thống hook cho nhân vật | `onLoseLife`, `onLoseLifeFromCard`, `onDrawPhase`, `onDrawCheck`, `modifyDistance`, `onOutgoingBang`, `onHandEmpty`, `onAnyDeath`, `cardAlias`, `activatedAbility` (xem `NHAN-VAT-BANG-CO-BAN.txt`) — ✅ **xong khung**: 4/9 hook đã nối dây thật (`modifyDistance`/`onLoseLife`/`onLoseLifeFromCard`/`onAnyDeath`) + `core/characters.ts` (registry rỗng), 5 hook còn lại để dành cho 5.2. Xem chi tiết ở CLAUDE.md |
-| 5.2 | 16 nhân vật bản cơ bản | Mỗi nhân vật là dữ liệu + hook, **không** phải `if/else` — 🚧 **đợt 1: 6/16 xong** (Bart Cassidy, El Gringo, Paul Regret, Rose Doolan, Vulture Sam, Willy the Kid — nhóm dùng ngay được 4 hook đã nối dây ở 5.1, không cần thêm cơ chế). 10 người còn lại cần thêm (`PendingAction` mới, luồng action mới cho Sid Ketchum...) để dành đợt sau. CHƯA có cơ chế "phát 2 lá chọn 1" thật, CHƯA có màn hình chọn nhân vật. Xem chi tiết ở CLAUDE.md |
+| 5.2 | 16 nhân vật bản cơ bản | Mỗi nhân vật là dữ liệu + hook, **không** phải `if/else` — ✅ **HOÀN TẤT**: ĐỦ 16/16 nhân vật (7 đợt) + cơ chế "phát 2 lá chọn 1" (core + UI hotseat/qua mạng + đồng hồ 30 giây thật, tự chốt ngẫu nhiên khi hết giờ) **ĐÃ BẬT THẬT** ở `room.ts`/`main.ts` — chơi được qua giao diện thật hoàn chỉnh. Xem chi tiết ở CLAUDE.md |
 | 5.3 | Bật/tắt house rules | Cấu hình theo phòng |
 | 5.4 | Expansion | Chỉ là thêm file dữ liệu + hook nếu 5.1 làm đúng |
 | 5.5 | Board game thứ hai | Chung `server/`, khác `core/` |

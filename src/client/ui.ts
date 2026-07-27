@@ -5,8 +5,9 @@
 
 import { cardNameFromId, cardSuitRankFromId, WEAPON_RANGES } from "../core/cards";
 import type { CardName } from "../core/cards";
-import type { GameEvent, GameState, PendingAction, PlayerState, Role, Suit } from "../core/types";
-import type { PendingActionView, PlayerHandView, PlayerView } from "../core/view";
+import { getCharacterDefinition } from "../core/characters";
+import type { CharacterChoice, GameEvent, GameState, PendingAction, PlayerState, Role, Suit } from "../core/types";
+import type { CharacterChoiceView, PendingActionView, PlayerHandView, PlayerView } from "../core/view";
 import type { DeadlineInfo } from "../protocol";
 
 // Tầm bắn súng lấy THẲNG từ WEAPON_RANGES (core/cards.ts, cũng là nguồn
@@ -220,6 +221,58 @@ function cardChip(cardId: string): HTMLSpanElement {
   return el;
 }
 
+// Giai đoạn 5, cơ chế "phát 2 lá nhân vật, chọn giữ 1" — mô tả ngắn chức năng
+// từng nhân vật, soạn theo ĐÚNG hook đã cài trong core/characters.ts (đọc lại
+// file đó trước khi viết, không chép nguyên văn NHAN-VAT-BANG-CO-BAN.txt vì
+// vài chỗ mô tả gốc là house rule/quyết định lúc code, vd Kit Carlson bỏ lá
+// thứ 3 vào chồng bỏ thay vì trả lại đỉnh bộ bài). Dùng chung `title`/nhấn giữ
+// giống CARD_DESCRIPTIONS (attachDescriptionReveal() trong appendCardVisual()).
+const CHARACTER_DESCRIPTIONS: Record<string, string> = {
+  bart_cassidy: "Mỗi lần mất máu (bất kỳ nguồn nào), rút thêm số lá bằng đúng số máu vừa mất.",
+  el_gringo: "Mỗi lần mất máu DO lá bài người khác đánh (không tính Thuốc nổ), cướp ngẫu nhiên từng lá trên tay người đó.",
+  jourdonnais: "Luôn coi như có sẵn 1 Thùng rượu (né Bang! nếu lật ra Cơ) — cộng dồn được với Thùng rượu thật nếu có.",
+  black_jack: "Rút bài đầu lượt: lật ngửa lá thứ 2 cho mọi người xem — ra Cơ/Rô thì rút thêm lá thứ 3.",
+  paul_regret: "Luôn coi như có sẵn 1 Ngựa Mustang — người khác nhìn mình xa hơn 1.",
+  rose_doolan: "Luôn coi như có sẵn 1 Ống nhắm — mình nhìn người khác gần hơn 1.",
+  vulture_sam: "Mỗi khi có người bị loại, nhận hết bài của họ (tay + trang bị) về tay mình.",
+  willy_the_kid: "Đánh bao nhiêu lá Bang! mỗi lượt cũng được, không cần súng Volcanic.",
+  slab_the_killer: "Người bị Bang!/Gatling của mình bắn cần đủ 2 lá Missed! mới né được.",
+  suzy_lafayette: "Ngay khi tay hết sạch bài, tự động rút bù 1 lá.",
+  pedro_ramirez: "Đầu lượt được chọn: lấy lá đầu tiên từ đỉnh chồng bài bỏ, hoặc rút bộ bài như thường.",
+  lucky_duke: "Mọi lần lật bài kiểm tra (draw!) đều lật thêm 1 lá, lấy kết quả có lợi hơn.",
+  jesse_jones: "Đầu lượt được chọn: lấy lá đầu tiên từ tay 1 người khác, hoặc rút bộ bài như thường.",
+  kit_carlson: "Đầu lượt xem riêng 3 lá trên cùng bộ bài, chọn giữ 2 bỏ 1 (lá bỏ vào chồng bài bỏ).",
+  calamity_janet: "Lá Bang! và Missed! trên tay dùng thay thế cho nhau được (tự chọn lúc cần).",
+  sid_ketchum: "Bất cứ lúc nào, bỏ 2 lá trên tay để hồi 1 máu — dùng được nhiều lần.",
+};
+
+function characterImageUrl(characterId: string): string {
+  return `/sprites/characters/${characterId}.png`;
+}
+
+function characterLabel(characterId: string): string {
+  return getCharacterDefinition(characterId)?.name ?? characterId;
+}
+
+// Lá nhân vật BẤM ĐƯỢC — dùng lúc đang chọn giữ 1 trong 2 lá được phát.
+function characterButton(characterId: string, onClick: () => void): HTMLButtonElement {
+  const el = document.createElement("button");
+  el.type = "button";
+  el.className = "card-box card-box--character";
+  appendCardVisual(el, characterImageUrl(characterId), characterLabel(characterId), CHARACTER_DESCRIPTIONS[characterId]);
+  el.addEventListener("click", onClick);
+  return el;
+}
+
+// Lá nhân vật CHỈ ĐỂ XEM — nhân vật ĐÃ chọn xong (của mình hoặc người khác,
+// công khai ngay khi chọn — xem CharacterChoice ở types.ts).
+function characterChip(characterId: string): HTMLSpanElement {
+  const el = document.createElement("span");
+  el.className = "card-box card-box--inert card-box--character";
+  appendCardVisual(el, characterImageUrl(characterId), characterLabel(characterId), CHARACTER_DESCRIPTIONS[characterId]);
+  return el;
+}
+
 const SUIT_LABELS: Record<Suit, string> = {
   spades: "Bích",
   hearts: "Cơ",
@@ -336,6 +389,8 @@ export function describeEvent(event: GameEvent, nameOf: (id: string) => string):
       return `${nameOf(event.playerId)} (Kit Carlson) bỏ ${cardFaceLabel(event.cardId)} trong 3 lá vừa xem`;
     case "SID_KETCHUM_HEALED":
       return `${nameOf(event.playerId)} (Sid Ketchum) bỏ 2 lá để hồi ${event.amount} máu`;
+    case "CHARACTER_CHOSEN":
+      return `${nameOf(event.playerId)} chọn nhân vật`;
     case "PLAYER_ELIMINATED":
       return event.killedBy
         ? `${nameOf(event.playerId)} bị ${nameOf(event.killedBy)} hạ gục`
@@ -378,6 +433,10 @@ const DEADLINE_KIND_LABELS: Record<DeadlineInfo["kind"], string> = {
   play: "đang đánh bài",
   reactive: "cần phản hồi",
   discard: "đang bỏ bài thừa",
+  // Giai đoạn 5, chọn nhân vật — không dùng tới nhãn này thật sự (renderCountdown()
+  // rẽ nhánh riêng theo playerId === null, xem bên dưới), chỉ khai báo cho đủ
+  // key để qua kiểm tra kiểu Record<DeadlineInfo["kind"], string>.
+  character_selection: "đang chọn nhân vật",
 };
 
 function renderCountdown(
@@ -387,11 +446,15 @@ function renderCountdown(
 ): void {
   if (!deadline) return;
   const secondsLeft = Math.max(0, Math.ceil((deadline.expiresAt - Date.now()) / 1000));
-  const name = players.find((p) => p.id === deadline.playerId)?.name ?? "?";
 
   const el = document.createElement("p");
   el.className = "countdown" + (secondsLeft <= 10 ? " countdown--urgent" : "");
-  el.textContent = `⏱ Còn ${secondsLeft}s — ${name} ${DEADLINE_KIND_LABELS[deadline.kind]}`;
+  // Giai đoạn 5, chọn nhân vật — đồng hồ CHUNG cho cả bàn, không gắn 1 người
+  // cụ thể (playerId luôn null ở kind "character_selection", xem protocol.ts).
+  el.textContent =
+    deadline.playerId === null
+      ? `⏱ Còn ${secondsLeft}s để mọi người chọn nhân vật`
+      : `⏱ Còn ${secondsLeft}s — ${players.find((p) => p.id === deadline.playerId)?.name ?? "?"} ${DEADLINE_KIND_LABELS[deadline.kind]}`;
   container.appendChild(el);
 }
 
@@ -707,6 +770,60 @@ function renderPhaseActions(
   }
 
   container.appendChild(panel);
+}
+
+// Giai đoạn 5, cơ chế "phát 2 lá nhân vật, chọn giữ 1" (hotseat) — hiện ra
+// TRƯỚC renderApp() khi state.characterSelection còn khác null (xem main.ts).
+// Hotseat vốn KHÔNG có khái niệm "ẩn thông tin với người khác" (dùng thẳng
+// GameState đầy đủ, tin tưởng mọi người cùng ngồi 1 máy — xem ghi chú việc
+// 3.10) nên hiện LUÔN cả 2 lá của MỌI người cùng lúc, ai xong trước bấm
+// trước, không cần đúng thứ tự (đúng khớp characterSelection là 1 MẢNG độc
+// lập, không phải ngăn xếp — xem CharacterChoice ở types.ts).
+export interface CharacterSelectionHandlers {
+  onChooseCharacter(playerId: string, characterId: string): void;
+}
+
+export function renderCharacterSelectionScreen(
+  container: HTMLElement,
+  players: PlayerState[],
+  characterSelection: CharacterChoice[],
+  handlers: CharacterSelectionHandlers
+): void {
+  container.replaceChildren();
+
+  const heading = document.createElement("h2");
+  heading.textContent = "Chọn nhân vật";
+  container.appendChild(heading);
+
+  const rule = document.createElement("p");
+  rule.textContent =
+    "Mỗi người xem 2 lá nhân vật riêng của mình rồi chọn giữ 1 lá — bấm được theo bất kỳ thứ tự nào, không cần chờ ai.";
+  container.appendChild(rule);
+
+  for (const choice of characterSelection) {
+    const playerName = players.find((p) => p.id === choice.playerId)?.name ?? choice.playerId;
+    const section = document.createElement("div");
+    section.className = "panel";
+
+    const nameEl = document.createElement("h3");
+    section.appendChild(nameEl);
+
+    const cardsEl = document.createElement("div");
+    cardsEl.className = "cards";
+
+    if (choice.chosen) {
+      nameEl.textContent = `${playerName} — đã chọn`;
+      cardsEl.appendChild(characterChip(choice.chosen));
+    } else {
+      nameEl.textContent = `${playerName} — chọn 1 trong 2 lá`;
+      for (const characterId of choice.options) {
+        cardsEl.appendChild(characterButton(characterId, () => handlers.onChooseCharacter(choice.playerId, characterId)));
+      }
+    }
+    section.appendChild(cardsEl);
+
+    container.appendChild(section);
+  }
 }
 
 export interface RenderOptions {
@@ -1404,6 +1521,65 @@ function networkRenderPhaseActions(
   }
 
   container.appendChild(panel);
+}
+
+// Giai đoạn 5, cơ chế "phát 2 lá nhân vật, chọn giữ 1" (qua mạng) — hiện ra
+// TRƯỚC renderNetworkGame() khi view.characterSelection còn khác null (xem
+// main.ts). Khác hotseat: CHỈ CHÍNH MÌNH (view.viewerId) thấy được 2 lá riêng
+// của mình (`options`) — server đã lọc `options` của người khác thành `null`
+// qua viewFor() (quy tắc 6 CLAUDE.md, xem view.ts), nên với người khác chỉ
+// hiện được trạng thái "đã chọn xong (lộ tên)" hay "đang chọn..." (không lộ 2
+// lá họ đang cân nhắc).
+export interface NetworkCharacterSelectionHandlers {
+  onChooseCharacter(characterId: string): void;
+}
+
+export function renderNetworkCharacterSelectionScreen(
+  container: HTMLElement,
+  view: PlayerView,
+  deadline: DeadlineInfo | null,
+  handlers: NetworkCharacterSelectionHandlers
+): void {
+  container.replaceChildren();
+
+  const heading = document.createElement("h2");
+  heading.textContent = "Chọn nhân vật";
+  container.appendChild(heading);
+
+  const rule = document.createElement("p");
+  rule.textContent = "Xem 2 lá nhân vật riêng của bạn rồi chọn giữ 1 lá — không cần chờ người khác chọn xong.";
+  container.appendChild(rule);
+
+  renderCountdown(container, deadline, view.players);
+
+  const choices: CharacterChoiceView[] = view.characterSelection ?? [];
+  for (const choice of choices) {
+    const playerName = view.players.find((p) => p.id === choice.playerId)?.name ?? choice.playerId;
+    const isMe = choice.playerId === view.viewerId;
+    const section = document.createElement("div");
+    section.className = "panel";
+
+    const nameEl = document.createElement("h3");
+    section.appendChild(nameEl);
+
+    const cardsEl = document.createElement("div");
+    cardsEl.className = "cards";
+
+    if (choice.chosen) {
+      nameEl.textContent = `${playerName}${isMe ? " (bạn)" : ""} — đã chọn`;
+      cardsEl.appendChild(characterChip(choice.chosen));
+    } else if (isMe && choice.options) {
+      nameEl.textContent = `${playerName} (bạn) — chọn 1 trong 2 lá`;
+      for (const characterId of choice.options) {
+        cardsEl.appendChild(characterButton(characterId, () => handlers.onChooseCharacter(characterId)));
+      }
+    } else {
+      nameEl.textContent = `${playerName} — đang chọn...`;
+    }
+    section.appendChild(cardsEl);
+
+    container.appendChild(section);
+  }
 }
 
 export function renderNetworkGame(

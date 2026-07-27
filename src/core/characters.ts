@@ -32,7 +32,21 @@ import { cardSuitRankFromId } from "./cards";
 import { giveCardToPlayer } from "./equipment";
 import { drawTopCard } from "./deck";
 import { nextRandom } from "./rng";
-import type { GameEvent, GameState, PlayerState } from "./types";
+import type { GameEvent, GameState, PlayerState, Role } from "./types";
+
+// Máu khởi điểm — dùng chung cho CẢ 2 đường vào ván (setup.ts's
+// characterAssignments/dealCharacterCards LẪN finishCharacterSelection() ở
+// reduce.ts) để không lặp công thức 2 nơi. Đặt ở đây (không phải setup.ts)
+// để tránh vòng lặp import: setup.ts đã import applyTurnStartChecks từ
+// reduce.ts, nếu đặt ở setup.ts thì reduce.ts import ngược lại sẽ thành vòng.
+export const BASE_HP = 4; // ai cũng 4 máu nếu chưa có nhân vật
+export const SHERIFF_BONUS_HP = 1;
+
+export function computeStartingHp(role: Role | null, characterId: string | null): number {
+  const character = getCharacterDefinition(characterId);
+  const baseHp = character ? character.bullets : BASE_HP;
+  return role === "sheriff" ? baseHp + SHERIFF_BONUS_HP : baseHp;
+}
 
 export interface CharacterHooks {
   // Thay thế HOÀN TOÀN pha rút 2 lá đầu lượt mặc định (xem handleDrawCards()

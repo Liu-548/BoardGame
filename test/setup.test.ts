@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { CHARACTERS } from "../src/core/characters";
 import { setupGame } from "../src/core/setup";
 
 function ids(count: number): string[] {
@@ -82,5 +83,53 @@ describe("setupGame", () => {
     const state = setupGame(ids(4), 1, { cardCounts: { bang: 35 } });
     const dealtTotal = state.players.reduce((sum, p) => sum + p.hand.length + p.equipment.length, 0);
     expect(dealtTotal + state.deck.length).toBe(90); // 80 + 10 lá bang thêm
+  });
+
+  describe("dealCharacterCards (cơ chế phát 2 lá nhân vật, chọn giữ 1)", () => {
+    it("phát đúng 2 lá KHÔNG TRÙNG cho mỗi người, lấy từ registry CHARACTERS", () => {
+      const state = setupGame(ids(5), 3, { dealCharacterCards: true });
+
+      expect(state.characterSelection).not.toBeNull();
+      expect(state.characterSelection).toHaveLength(5);
+
+      const allDealt = state.characterSelection!.flatMap((c) => c.options);
+      expect(new Set(allDealt).size).toBe(allDealt.length); // không ai trùng lá với ai
+      for (const characterId of allDealt) {
+        expect(CHARACTERS[characterId]).toBeDefined();
+      }
+      for (const choice of state.characterSelection!) {
+        expect(choice.chosen).toBeNull();
+      }
+    });
+
+    it("chưa biết máu/bài tay lúc còn chờ chọn — hp/hand tạm 0/rỗng, bộ bài CHÍNH chưa bị đụng tới", () => {
+      const state = setupGame(ids(4), 3, { dealCharacterCards: true });
+
+      for (const player of state.players) {
+        expect(player.hp).toBe(0);
+        expect(player.maxHp).toBe(0);
+        expect(player.hand).toEqual([]);
+        expect(player.equipment).toEqual([]);
+        expect(player.characterId).toBeNull();
+      }
+      expect(state.deck.length).toBe(80); // đủ 80 lá, chưa ai rút gì
+      expect(state.pending).toEqual([]);
+    });
+
+    it("characterAssignments được ưu tiên hơn — có cả 2 thì dealCharacterCards bị bỏ qua", () => {
+      const state = setupGame(ids(4), 3, {
+        dealCharacterCards: true,
+        characterAssignments: { p1: "el_gringo" },
+      });
+
+      expect(state.characterSelection).toBeNull();
+      expect(state.players[0].characterId).toBe("el_gringo");
+    });
+
+    it("cùng seed luôn cho ra cùng kết quả (2 lá nhân vật của từng người)", () => {
+      const a = setupGame(ids(6), 11, { dealCharacterCards: true });
+      const b = setupGame(ids(6), 11, { dealCharacterCards: true });
+      expect(a).toEqual(b);
+    });
   });
 });
