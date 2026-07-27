@@ -105,6 +105,73 @@ describe("checkWinCondition", () => {
     const players = [makePlayer("a", { role: null }), makePlayer("b", { role: null })];
     expect(checkWinCondition(players)).toBeNull();
   });
+
+  describe("Biến thể 3 người (vòng tròn săn đuổi công khai)", () => {
+    it("cảnh sát giết ĐÚNG mục tiêu (tội phạm) -> thắng ngay", () => {
+      const players = [
+        makePlayer("a", { role: "police" }),
+        makePlayer("b", { role: "criminal", alive: false, characterId: null }),
+        makePlayer("c", { role: "traitor" }),
+      ];
+      expect(checkWinCondition(players, "a")).toEqual({ kind: "player", playerId: "a" });
+    });
+
+    it("tội phạm giết ĐÚNG mục tiêu (kẻ phản bội) -> thắng ngay", () => {
+      const players = [
+        makePlayer("a", { role: "police" }),
+        makePlayer("b", { role: "criminal" }),
+        makePlayer("c", { role: "traitor", alive: false, characterId: null }),
+      ];
+      expect(checkWinCondition(players, "b")).toEqual({ kind: "player", playerId: "b" });
+    });
+
+    it("kẻ phản bội giết ĐÚNG mục tiêu (cảnh sát) -> thắng ngay", () => {
+      const players = [
+        makePlayer("a", { role: "police", alive: false, characterId: null }),
+        makePlayer("b", { role: "criminal" }),
+        makePlayer("c", { role: "traitor" }),
+      ];
+      expect(checkWinCondition(players, "c")).toEqual({ kind: "player", playerId: "c" });
+    });
+
+    it("giết SAI mục tiêu (vd cảnh sát giết kẻ phản bội) -> KHÔNG ai thắng ngay, ván tiếp tục", () => {
+      const players = [
+        makePlayer("a", { role: "police" }),
+        makePlayer("b", { role: "criminal" }),
+        makePlayer("c", { role: "traitor", alive: false, characterId: null }),
+      ];
+      // a (police) giết c (traitor) — police chỉ nên giết criminal, không phải traitor.
+      expect(checkWinCondition(players, "a")).toBeNull();
+    });
+
+    it("tự chết (killerId null, vd Thuốc nổ) -> không tính là giết đúng mục tiêu, ván tiếp tục", () => {
+      const players = [
+        makePlayer("a", { role: "police" }),
+        makePlayer("b", { role: "criminal", alive: false, characterId: null }),
+        makePlayer("c", { role: "traitor" }),
+      ];
+      expect(checkWinCondition(players, null)).toBeNull();
+    });
+
+    it("sau khi giết sai mục tiêu, ván 'rơi' về luật sống sót — người cuối cùng còn sống thắng", () => {
+      const players = [
+        makePlayer("a", { role: "police", alive: false, characterId: null }),
+        makePlayer("b", { role: "criminal", alive: false, characterId: null }),
+        makePlayer("c", { role: "traitor" }),
+      ];
+      // Không cần killerId đúng nữa — chỉ còn 1 người sống là đủ để thắng.
+      expect(checkWinCondition(players, "c")).toEqual({ kind: "player", playerId: "c" });
+    });
+
+    it("cả 3 còn sống thì ván tiếp tục", () => {
+      const players = [
+        makePlayer("a", { role: "police" }),
+        makePlayer("b", { role: "criminal" }),
+        makePlayer("c", { role: "traitor" }),
+      ];
+      expect(checkWinCondition(players, null)).toBeNull();
+    });
+  });
 });
 
 describe("reduce — chết + thưởng/phạt", () => {
@@ -178,6 +245,49 @@ describe("reduce — chết + thưởng/phạt", () => {
       { type: "GAME_ENDED", winner: { kind: "faction", faction: "outlaw" } }, // Sheriff chết -> Outlaw thắng
     ]);
     expect(next.winner).toEqual({ kind: "faction", faction: "outlaw" });
+  });
+
+  it("Biến thể 3 người qua reduce() thật: giết ĐÚNG mục tiêu bằng Bang! thì thắng ngay, không thưởng/phạt gì", () => {
+    const state = makeState([
+      makePlayer("a", { role: "police", hand: ["bang_1"] }),
+      makePlayer("b", { role: "criminal", hp: 1 }),
+      makePlayer("c", { role: "traitor" }),
+    ]);
+
+    const { state: afterPlay } = reduce(state, {
+      type: "PLAY_CARD", playerId: "a", cardId: "bang_1", targetId: "b",
+    });
+    const { state: next, events } = reduce(afterPlay, { type: "RESPOND", playerId: "b" }); // không đỡ -> chết
+
+    expect(next.players[1].alive).toBe(false);
+    expect(next.winner).toEqual({ kind: "player", playerId: "a" });
+    expect(events).toEqual([
+      { type: "DAMAGE_DEALT", playerId: "b", amount: 1 },
+      { type: "PLAYER_ELIMINATED", playerId: "b", killedBy: "a" },
+      { type: "GAME_ENDED", winner: { kind: "player", playerId: "a" } },
+    ]);
+    // Không có OUTLAW_BOUNTY_DRAWN/SHERIFF_KILLED_DEPUTY_PENALTY nào — vai
+    // "police"/"criminal"/"traitor" KHÔNG kế thừa luật phụ của Sheriff/Outlaw.
+  });
+
+  it("Biến thể 3 người qua reduce() thật: giết SAI mục tiêu thì ván tiếp tục (chưa ai thắng)", () => {
+    const state = makeState([
+      makePlayer("a", { role: "police", hand: ["bang_1"] }),
+      makePlayer("b", { role: "criminal" }),
+      makePlayer("c", { role: "traitor", hp: 1 }),
+    ]);
+
+    const { state: afterPlay } = reduce(state, {
+      type: "PLAY_CARD", playerId: "a", cardId: "bang_1", targetId: "c",
+    });
+    const { state: next, events } = reduce(afterPlay, { type: "RESPOND", playerId: "c" });
+
+    expect(next.players[2].alive).toBe(false);
+    expect(next.winner).toBeNull(); // police giết traitor -> SAI mục tiêu (đáng lẽ phải giết criminal)
+    expect(events).toEqual([
+      { type: "DAMAGE_DEALT", playerId: "c", amount: 1 },
+      { type: "PLAYER_ELIMINATED", playerId: "c", killedBy: "a" },
+    ]); // không có GAME_ENDED
   });
 
   it("tự nổ Dynamite: không ai được thưởng, không ai bị phạt", () => {

@@ -1,4 +1,5 @@
-// Tạo state ban đầu cho 1 ván đấu 4-8 người, theo đúng luật gốc BANG!.
+// Tạo state ban đầu cho 1 ván đấu 4-8 người (luật gốc BANG!), hoặc 2/3 người
+// (biến thể riêng của dự án, xem LO-TRINH.md).
 
 import type { CardName } from "./cards";
 import { buildDeck } from "./cards";
@@ -47,16 +48,32 @@ function isDuelMode(playerIds: string[]): boolean {
   return playerIds.length === 2;
 }
 
+// Biến thể 3 người (xem LO-TRINH.md) — vòng tròn săn đuổi CÔNG KHAI: cảnh
+// sát (thường, KHÁC Sheriff — không kế thừa luật phụ nào) săn tội phạm, tội
+// phạm săn kẻ phản bội, kẻ phản bội săn cảnh sát. Giết ĐÚNG mục tiêu của
+// mình thì thắng ngay (xem HUNT_CIRCLE trong win.ts) — vì cả 3 vai CÔNG
+// KHAI ngay từ đầu (view.ts's viewRole()), ai cũng tự biết chính xác mục
+// tiêu của mình, không cần cơ chế "tiết lộ mục tiêu" riêng.
+const HUNT_ROLES: Role[] = ["police", "criminal", "traitor"];
+function isHuntMode(playerIds: string[]): boolean {
+  return playerIds.length === 3;
+}
+
 export function setupGame(
   playerIds: string[],
   seed: number,
   options: RuleOptions = {}
 ): GameState {
   const duel = isDuelMode(playerIds);
-  const roleSet: (Role | null)[] | undefined = duel ? [null, null] : ROLE_SETS[playerIds.length];
+  const hunt = isHuntMode(playerIds);
+  const roleSet: (Role | null)[] | undefined = duel
+    ? [null, null]
+    : hunt
+      ? HUNT_ROLES
+      : ROLE_SETS[playerIds.length];
   if (!roleSet) {
     throw new Error(
-      `Số người chơi không hợp lệ: ${playerIds.length}. Chỉ hỗ trợ 2 hoặc 4-8 người ở bản cơ bản.`
+      `Số người chơi không hợp lệ: ${playerIds.length}. Chỉ hỗ trợ 2, 3, hoặc 4-8 người ở bản cơ bản.`
     );
   }
 
@@ -141,9 +158,9 @@ export function setupGame(
     }
   }
 
-  // Biến thể 2 người không có Sheriff (role toàn null) — người đầu tiên
-  // trong danh sách đi trước (xem isDuelMode() ở trên).
-  const firstPlayerIndex = duel ? 0 : players.findIndex((player) => player.role === "sheriff");
+  // Biến thể 2/3 người không có Sheriff — người đầu tiên trong danh sách đi
+  // trước (xem isDuelMode()/isHuntMode() ở trên).
+  const firstPlayerIndex = duel || hunt ? 0 : players.findIndex((player) => player.role === "sheriff");
 
   const characterSelection: CharacterChoice[] | null = useCharacterSelection
     ? playerIds.map((id) => ({ playerId: id, options: characterOptionsByPlayer[id], chosen: null }))

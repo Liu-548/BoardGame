@@ -1540,7 +1540,8 @@ function eliminatePlayer(next: GameState, target: PlayerState, killerId: string 
     }
   }
 
-  const winner = checkWinCondition(next.players);
+  // killerId cần cho biến thể 3 người (vòng tròn săn đuổi) — xem win.ts.
+  const winner = checkWinCondition(next.players, killerId);
   if (winner) {
     next.winner = winner;
     events.push({ type: "GAME_ENDED", winner });

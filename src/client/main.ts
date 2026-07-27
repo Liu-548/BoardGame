@@ -230,20 +230,18 @@ function onNameChange(index: number, value: string): void {
   playerNames[index] = value;
 }
 
-// Hỗ trợ 2 hoặc 4-8 người (xem LO-TRINH.md) — 3 người để dành biến thể sau
-// (setup.ts's setupGame() sẽ báo lỗi nếu lỡ tới đúng 3), nên nhảy thẳng qua
-// số 3 theo cả 2 chiều tăng/giảm, không dừng lại ở đó.
+// Hỗ trợ 2-8 người (xem LO-TRINH.md — 2/3 người là biến thể riêng của dự
+// án, 4-8 người theo luật gốc BANG!, setup.ts's setupGame() lo phần chia
+// vai đúng theo từng cỡ bàn).
 function onAddPlayer(): void {
   if (playerNames.length >= 8) return;
   playerNames.push("");
-  if (playerNames.length === 3) playerNames.push("");
   render();
 }
 
 function onRemovePlayer(): void {
   if (playerNames.length <= 2) return;
   playerNames.pop();
-  if (playerNames.length === 3) playerNames.pop();
   render();
 }
 

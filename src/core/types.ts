@@ -16,14 +16,22 @@ export interface Card {
 
 // ----- Người chơi -----
 
-export type Role = "sheriff" | "deputy" | "outlaw" | "renegade"; // 4 phe ẩn danh
+// 4 phe ẩn danh (luật gốc BANG!, 4-8 người) + 3 vai biến thể 3 người (vòng
+// tròn săn đuổi công khai — xem CharacterChoice không liên quan, mà là
+// setup.ts's isHuntMode()/win.ts's HUNT_CIRCLE). CỐ TÌNH dùng tên KHÁC hẳn
+// "sheriff"/"outlaw"/"renegade" dù ý tưởng gần giống (cảnh sát/tội phạm/kẻ
+// phản bội) — chủ dự án CHỐT: đây là "cảnh sát THƯỜNG", KHÔNG PHẢI Sheriff,
+// không kế thừa bất kỳ luật phụ nào gắn với 3 vai gốc (không thưởng rút bài,
+// không phạt gì) — chỉ đơn giản là 3 nhãn khác cho vòng tròn săn đuổi.
+export type Role =
+  | "sheriff" | "deputy" | "outlaw" | "renegade"
+  | "police" | "criminal" | "traitor";
 
 export interface PlayerState {
   id: string;
   name: string;
-  // null = chưa/không chia vai — để dành chế độ chơi tương lai không chia role
-  // (xem LO-TRINH.md, ý tưởng "2 người: không chia vai"). Bản v1 hiện tại luôn
-  // gán Role thật cho mọi người, setup.ts chưa dùng nhánh null.
+  // null = KHÔNG chia vai — biến thể 2 người (xem setup.ts's isDuelMode()),
+  // ai sống sót cuối cùng thắng, không phe/vòng tròn nào cả.
   role: Role | null;
   hp: number;
   maxHp: number;

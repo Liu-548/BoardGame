@@ -285,6 +285,11 @@ const ROLE_LABELS: Record<Role, string> = {
   deputy: "Phó cảnh sát trưởng",
   outlaw: "Tội phạm",
   renegade: "Kẻ phản bội",
+  // Biến thể 3 người (vòng tròn săn đuổi) — "cảnh sát" ở đây CỐ TÌNH khác chữ
+  // với "Cảnh sát trưởng" (Sheriff) phía trên, để không gây nhầm 2 khái niệm.
+  police: "Cảnh sát",
+  criminal: "Tội phạm",
+  traitor: "Kẻ phản bội",
 };
 
 // Thắng thua theo PHE (sheriff_deputy gộp 2 vai) — dùng cho 4-8 người, tách
@@ -902,12 +907,12 @@ export function renderApp(
   renderLog(container, options.log);
 }
 
-// ----- Việc 2.5: màn hình thiết lập ván mới (chế độ hotseat — 2 hoặc 4-8
-// người chia nhau gõ tên rồi ngồi chung 1 máy chơi hết ván; 3 người để dành
-// biến thể sau, xem LO-TRINH.md — main.ts's onAddPlayer()/onRemovePlayer()
-// tự nhảy qua số 3). Đây là màn hình HIỆN RA TRƯỚC khi có GameState (chưa gọi
-// setupGame()), nên không nhận GameState làm tham số như renderApp() — chỉ
-// nhận danh sách tên đang gõ dở.
+// ----- Việc 2.5: màn hình thiết lập ván mới (chế độ hotseat — 2-8 người
+// chia nhau gõ tên rồi ngồi chung 1 máy chơi hết ván; 2/3 người là biến thể
+// riêng của dự án, 4-8 người theo luật gốc BANG!, xem LO-TRINH.md). Đây là
+// màn hình HIỆN RA TRƯỚC khi có GameState (chưa gọi setupGame()), nên không
+// nhận GameState làm tham số như renderApp() — chỉ nhận danh sách tên đang
+// gõ dở.
 
 export interface SetupHandlers {
   onNameChange(index: number, value: string): void;
@@ -932,7 +937,7 @@ export function renderSetupScreen(
   container.appendChild(heading);
 
   const hint = document.createElement("p");
-  hint.textContent = `Cần 2, hoặc 4-8 người chơi — đang có ${names.length}. Mỗi người tự gõ tên của mình.`;
+  hint.textContent = `Cần 2-8 người chơi — đang có ${names.length}. Mỗi người tự gõ tên của mình.`;
   container.appendChild(hint);
 
   if (error) {
@@ -1156,11 +1161,7 @@ export interface NetworkLobbyHandlers {
   onStartGame(): void;
 }
 
-// 2 người là hợp lệ (biến thể 2 người, xem LO-TRINH.md) — 3 người CHƯA hỗ trợ
-// (setupGame() sẽ báo lỗi), nhưng lobby qua mạng là danh sách người vào ĐỘNG
-// (không phải bộ đếm +/- như hotseat) nên không chặn được trước — nếu đúng 3
-// người bấm "Bắt đầu ván", server tự báo lỗi rõ ràng qua action_error, không
-// crash gì (xem handleStartGame() trong room.ts).
+// 2-8 người đều hợp lệ (2/3 người là biến thể riêng, xem LO-TRINH.md).
 const MIN_NETWORK_PLAYERS = 2;
 
 export function renderNetworkLobby(

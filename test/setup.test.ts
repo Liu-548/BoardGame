@@ -19,9 +19,8 @@ function countRoles(state: ReturnType<typeof setupGame>) {
 }
 
 describe("setupGame", () => {
-  it("báo lỗi nếu số người chơi ngoài khoảng hỗ trợ (2, hoặc 4-8 — riêng 3 người để dành biến thể sau)", () => {
+  it("báo lỗi nếu số người chơi ngoài khoảng hỗ trợ (2-8)", () => {
     expect(() => setupGame(ids(1), 1)).toThrow();
-    expect(() => setupGame(ids(3), 1)).toThrow();
     expect(() => setupGame(ids(9), 1)).toThrow();
   });
 
@@ -178,6 +177,46 @@ describe("setupGame", () => {
     it("cùng seed luôn cho ra cùng kết quả", () => {
       const a = setupGame(ids(2), 5);
       const b = setupGame(ids(2), 5);
+      expect(a).toEqual(b);
+    });
+  });
+
+  describe("biến thể 3 người (vòng tròn săn đuổi công khai)", () => {
+    it("chia đúng đủ 3 vai police/criminal/traitor, mỗi vai đúng 1 người", () => {
+      const state = setupGame(ids(3), 1);
+      const roles = state.players.map((p) => p.role).sort();
+      expect(roles).toEqual(["criminal", "police", "traitor"]);
+    });
+
+    it("không ai được +máu (không có Sheriff) — đều 4 máu mặc định", () => {
+      const state = setupGame(ids(3), 1);
+      for (const player of state.players) {
+        expect(player.hp).toBe(4);
+        expect(player.maxHp).toBe(4);
+      }
+    });
+
+    it("người đầu tiên trong danh sách đi lượt đầu (không có Sheriff để xác định)", () => {
+      const state = setupGame(ids(3), 1);
+      expect(state.currentPlayerIndex).toBe(0);
+      expect(state.players[0].id).toBe("p1");
+    });
+
+    it("vẫn chia đủ bài tay theo máu, không ai trùng lá, và qua được Bước 0 đầu lượt", () => {
+      const state = setupGame(ids(3), 1);
+
+      for (const player of state.players) {
+        expect(player.hand.length + player.equipment.length).toBe(player.hp);
+      }
+      const allHandCards = state.players.flatMap((p) => p.hand);
+      expect(new Set(allHandCards).size).toBe(allHandCards.length);
+      expect(state.turnPhase).toBe("draw");
+      expect(state.winner).toBeNull();
+    });
+
+    it("cùng seed luôn cho ra cùng kết quả", () => {
+      const a = setupGame(ids(3), 5);
+      const b = setupGame(ids(3), 5);
       expect(a).toEqual(b);
     });
   });

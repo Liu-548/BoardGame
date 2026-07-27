@@ -120,12 +120,12 @@ Thứ tự làm đã chốt: **8 → 2 → 3 người**, tăng dần độ khó 
 
 - **8 người — ✅ ĐÃ XONG** (core + UI hotseat, đã tự kiểm bằng trình duyệt thật): giống 7 người mặc định, cộng thêm 1 kẻ phản bội (renegade) nữa (`ROLE_SETS[8]` trong `setup.ts`). `win.ts` không cần sửa gì — đã hỗ trợ nhiều Renegade cùng lúc từ trước.
 - **2 người — ✅ ĐÃ XONG** (core + UI hotseat/qua mạng, đã tự kiểm bằng trình duyệt thật chơi trọn 1 ván tới khi có người thắng): không chia vai (`role: null`). Giết người kia là thắng. `GameState.winner` đổi thành union `Winner` theo `kind` (`"faction"` cho 4-8 người, `"player"` cho 2 người — xem CLAUDE.md).
-- **3 người (chưa làm, để sau cùng):** chia ngẫu nhiên 3 vai **cảnh sát / tội phạm / kẻ phản bội**, mục tiêu xếp vòng tròn:
+- **3 người — ✅ ĐÃ XONG** (core + UI hotseat, đã tự kiểm bằng trình duyệt thật chơi trọn 1 ván tới khi có người thắng): chia ngẫu nhiên 3 vai **cảnh sát / tội phạm / kẻ phản bội** (`Role` mới, KHÔNG kế thừa hành vi Sheriff/Outlaw/Renegade), công khai từ đầu ván cho mọi người (`view.ts`). Vòng tròn săn đuổi:
   cảnh sát → giết tội phạm, tội phạm → giết kẻ phản bội, kẻ phản bội → giết cảnh sát.
   Ai giết đúng mục tiêu của mình thì thắng ngay lập tức.
   Nếu mục tiêu chết nhưng **không phải do đúng người săn nó giết** (vd giết nhầm, chết vì Dynamite...),
-  ván quay về luật 2 người ở trên với 2 người còn sống — ai sống đến cuối thì thắng.
-  > Cách xác định "ai là người giết" **đã có sẵn** (`killerId`/`killedBy`, xem việc 1.13) — không còn là điểm chưa rõ như ghi chú cũ ở đây. Điểm CÒN chưa rõ: vai "cảnh sát" có công khai từ đầu như Sheriff không? Mục tiêu săn của mỗi người gán/hiển thị lúc nào?
+  ván tiếp tục bình thường tới khi chỉ còn 1 người sống — ai sống đến cuối thì thắng (dùng chung `Winner.kind: "player"` với biến thể 2 người).
+  Chi tiết cài đặt xem CLAUDE.md ("Biến thể số người chơi — đợt 3: 3 người").
 
 ---
 
