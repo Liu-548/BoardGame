@@ -70,6 +70,10 @@ export interface PlayerView {
 function viewRole(player: PlayerState, viewerId: string): Role | null {
   if (player.id === viewerId) return player.role;
   if (player.role === "sheriff") return player.role;
+  // Biến thể 3 người (vòng tròn săn đuổi) — chủ dự án CHỐT cả 3 vai công
+  // khai ngay từ đầu, khác hẳn Sheriff (chỉ 1 trong 4 vai công khai ở luật
+  // gốc) — xem setup.ts's isHuntMode()/win.ts's HUNT_CIRCLE.
+  if (player.role === "police" || player.role === "criminal" || player.role === "traitor") return player.role;
   if (!player.alive) return player.role; // lật vai công khai khi bị loại
   return null;
 }

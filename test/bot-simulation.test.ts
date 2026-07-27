@@ -267,4 +267,15 @@ describe("Bot ngẫu nhiên — cột mốc việc 1.14", () => {
       expect(() => playOneRandomGame(seed, playerIds)).not.toThrow();
     }
   }, 60_000);
+
+  // Biến thể 3 người (vòng tròn săn đuổi công khai, xem LO-TRINH.md,
+  // setup.ts's isHuntMode()) — checkWinCondition() có nhánh mới xét killerId
+  // + có thể "rơi" về chế độ sống sót giữa ván, chạy riêng để bắt lỗi.
+  it("chạy 500 ván 3 người liên tiếp: không crash, không treo", () => {
+    const playerIds = ["a", "b", "c"];
+
+    for (let seed = 0; seed < 500; seed++) {
+      expect(() => playOneRandomGame(seed, playerIds)).not.toThrow();
+    }
+  }, 60_000);
 });
