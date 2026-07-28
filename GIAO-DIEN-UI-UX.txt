@@ -1,0 +1,263 @@
+========================================================================
+ĐẶC TẢ GIAO DIỆN (UI/UX) — GAME BANG! ONLINE
+========================================================================
+
+Mục đích: hướng dẫn Claude Code dựng giao diện. Đây là ĐẶC TẢ, không phải code.
+Claude Code tự chọn cách cài đặt (DOM thuần, theo CLAUDE.md), miễn đạt các yêu cầu.
+
+Định hướng đã chốt:
+- Phong cách: TỐI GIẢN HIỆN ĐẠI (phẳng, sạch, nhiều khoảng trắng, ít trang trí).
+- Thiết bị: CÂN BẰNG điện thoại & máy tính (responsive, xem mục 10).
+- Ưu tiên số 1: DỄ HIỂU AI ĐANG LÀM GÌ.
+- Bố cục bàn: NGỒI BÀN TRÒN (mục 3).
+
+
+========================================================================
+1. NGUYÊN TẮC MÀU  (ĐỌC KỸ — quy tắc cứng)
+========================================================================
+
+MÀU CHỈ DÀNH CHO LÁ BÀI / PHẦN TỬ GAME. Giao diện (chrome) KHÔNG được mượn các
+màu này làm tín hiệu trạng thái.
+
+BẢNG MÀU ĐÃ ĐẶT NGHĨA (viền lá / phần tử):
+  - NÂU            = bài chức năng (Bang!, Beer, Panic!, Duel, Gatling... — bài nâu)
+  - XANH DƯƠNG     = bài trang bị (Barrel, Scope, Mustang, Jail, Dynamite, súng)
+  - XANH LÁ        = lá nhân vật
+  - VÀNG           = bài chức năng nhưng được BÀY như trang bị (chi tiết update sau)
+  - TÍM            = bài tình huống
+  - XANH LÁ NHẠT   = bài tình huống
+  - ĐEN            = bài tình huống
+  (Tím / xanh lá nhạt / đen đều là nhóm "bài tình huống" — phân biệt nhau bằng
+   sắc màu; ý nghĩa cụ thể update sau.)
+
+GIAO DIỆN (chrome) — KHÔNG dùng bảy màu trên. Chỉ dùng:
+  - THANG XÁM (trắng / xám / gần đen cho chữ) cho toàn bộ khung, nền, viền thường.
+  - ĐỎ: màu điểm nhấn DUY NHẤT của giao diện, chỉ cho NGUY HIỂM / KHẨN CẤP
+    (bị nhắm, sắp hết giờ). Dùng tiết chế.
+  - Đỏ KHÔNG nằm trong bảy màu lá → không đụng. (Nếu sau này thêm lá viền đỏ,
+    báo lại; thiết kế đã không phụ thuộc màu nên vẫn đổi được.)
+
+PHÂN BIỆT TRẠNG THÁI KHÔNG BẰNG MÀU (bền vững, không sợ đụng màu lá):
+  - Đang tới lượt      → viền XÁM DÀY + nhãn "đang đánh".
+  - Bị nhắm / khẩn cấp → viền ĐỎ + NHẤP NHÁY + nhãn đỏ + đồng hồ + icon cảnh báo.
+                         (Bỏ đỏ đi thì viền dày + nhấp nháy + icon vẫn phân biệt được.)
+  - Đang chờ           → MỜ đi (opacity thấp).
+  - Đã bị loại         → mờ nặng + gạch tên.
+  - Lá đánh được       → rõ nét; KHÔNG hợp lệ lúc này → mờ, không bấm.
+  - Lá đang chọn       → VÒNG XÁM ĐẬM bao ngoài viền màu của lá (outline, không đụng
+                         màu phân loại lá).
+- Không hardcode giá trị màu; dùng biến theme để đổi sáng/tối dễ.
+
+
+========================================================================
+2. DANH SÁCH MÀN HÌNH
+========================================================================
+
+(1) TRANG CHỦ: 3 lựa chọn — Hotseat / Chơi qua mạng / Chú giải lá bài. Nút Cài đặt.
+(2) CHƠI QUA MẠNG: nhập tên + mã phòng (tạo/vào). → dẫn tới Phòng chờ.
+(3) PHÒNG CHỜ: danh sách người vào, mã phòng chia sẻ, cấu hình ván, nút Bắt đầu.
+(4) BÀN CHƠI — LÚC TỚI LƯỢT MÌNH: rút bài, đánh bài, chọn mục tiêu, kết thúc lượt.
+(5) BÀN CHƠI — LÚC PHẢI PHẢN ỨNG: bị Bang!/Indians!/Duel..., chọn lá đáp, có đồng hồ.
+(6) MÀN KẾT THÚC VÁN: phe nào thắng, lộ toàn bộ vai trò, nút "Chơi lại" / "Về sảnh".
+(+) HOTSEAT: nhánh chơi chung 1 máy, vào thẳng bàn không qua phòng chờ mạng.
+
+File này tập trung vào (4)(5). Màn khác mô tả ngắn ở cuối.
+
+
+========================================================================
+3. BỐ CỤC BÀN TRÒN — XẾP 2 ĐẾN 8 NGƯỜI
+========================================================================
+
+Các ô người chơi (seat) xếp quanh một BÀN ở giữa. BẠN luôn ở ĐÁY, nhìn lên; người
+khác vây quanh theo đúng thứ tự ngồi (để khoảng cách/tầm bắn khớp hình). Giữa bàn:
+bộ bài rút + chồng bài bỏ (mặt trên).
+
+XẾP CHỖ (desktop / màn rộng):
+- "Bạn" cố định ở giữa ĐÁY (góc 270°).
+- Người còn lại rải ĐỀU trên ELLIPSE theo thứ tự ngồi, chia đều 360°/N. Code theo
+  công thức góc, KHÔNG hardcode từng N → 2–8 người tự xếp.
+- Gợi ý cảm quan: 2 (bạn–đỉnh); 3 (bạn–trên trái/phải); 4 (bạn–trái–đỉnh–phải);
+  5–6 rải cung trên; 7–8 rải quanh gần trọn vòng.
+
+RESPONSIVE: điện thoại dọc → chuyển DANH SÁCH DỌC (mục 10). Cùng dữ liệu, khác xếp.
+
+[LƯU Ý] 2–8 người là ràng buộc thật (2 cho đấu tay đôi, 8 cần expansion). Nhưng ca
+hay gặp là 4–6 → ưu tiên bàn tròn đẹp cho 4–6; đông hơn xem QUY TẮC ĐÔNG NGƯỜI dưới.
+
+
+========================================================================
+4. Ô NGƯỜI CHƠI (SEAT) — HAI MỨC HIỂN THỊ
+========================================================================
+
+*** QUY TẮC ĐÔNG NGƯỜI (đã chốt): ***
+  - TỪ 6 NGƯỜI TRỞ XUỐNG (≤6): ô ĐẦY ĐỦ — hiện cả khu trang bị (mục 5).
+  - HƠN 6 NGƯỜI (>6): ô THU NHỎ — chỉ hiện THÔNG TIN CƠ BẢN. Muốn xem trang bị của
+    ai thì BẤM vào người đó → ô nở ra hiện đầy đủ trang bị của riêng người đó.
+
+THÔNG TIN CƠ BẢN (luôn hiện, kể cả ô thu nhỏ) — đều là thông tin CÔNG KHAI:
+  a) LÁ NHÂN VẬT: ô nhỏ VIỀN XANH LÁ, sát cạnh tên. Chừa chỗ dán ẢNH chân dung sau.
+  b) TÊN người chơi.
+  c) SỐ MÁU: dãy tim (đầy/rỗng) + số "3/4".
+  d) SỐ BÀI TRÊN TAY: chỉ CON SỐ (không hiện nội dung bài người khác — mục 11).
+  e) SỐ BÀI TRÊN SÂN (trang bị): CON SỐ, cho biết người đó đang bày mấy lá xanh.
+     (Ở ô đầy đủ thì hiện luôn các lá; ở ô thu nhỏ chỉ hiện số, bấm mới xem.)
+  f) ROLE: chỉ lộ với Cảnh sát trưởng (luôn) và người ĐÃ CHẾT. Người sống khác không
+     hiện role (lộ hết khi kết thúc ván — mục 11).
+  g) NHÃN TRẠNG THÁI: "đang đánh" / "bị bắn" / "trong tù" / "đã loại"...
+
+Ô ĐẦY ĐỦ (≤6 người, hoặc ô đang được bấm để nở): thêm KHU TRANG BỊ (mục 5).
+
+Seat của BẠN (đáy): luôn hiện đầy đủ + bài trên tay (ngửa) + thanh hành động (mục 6).
+Bài trên tay của bạn là thứ DUY NHẤT hiện nội dung.
+
+
+========================================================================
+5. KHU TRANG BỊ (bài xanh dương / vàng) — công khai, mở rộng được
+========================================================================
+
+Hiện các lá đang bày trước mặt: Barrel, Scope, Mustang, Jail, Dynamite, Súng
+(viền xanh dương); tương lai thêm loại "vàng" bày như trang bị. Ai cũng thấy (bày
+ngửa như chơi ngoài đời).
+
+- PHẢI CHỨA NHIỀU LÁ: một người có thể có súng + Barrel + Scope + Mustang + Jail +
+  Dynamite (tối đa ~5–6 lá). Bố cục không được vỡ.
+- Dạng "hàng thẻ co giãn" (flex-wrap): mỗi lá là 1 phần tử dữ liệu, thêm/bớt lá
+  không phải sửa bố cục.
+- Ô đầy đủ: hiện lá nhỏ (có chỗ dán ảnh sau). Ô thu nhỏ (bàn >6 người): chỉ hiện
+  SỐ, bấm vào người đó mới nở ra xem đầy đủ.
+- Súng đang cầm: có dấu hiệu + tầm bắn (vd "Súng 2"), vì ảnh hưởng cách chơi.
+- Cảnh báo riêng: Dynamite (đang đếm), Jail (bị giam).
+
+
+========================================================================
+6. KHU BÀI TRÊN TAY + THANH HÀNH ĐỘNG (chỉ của bạn)
+========================================================================
+
+- Hàng lá bài trên tay bạn, NGỬA. Kiểu lá: ô chữ nhật bo góc, tên ở dưới, CHỪA CHỖ
+  dán ảnh. Viền = MÀU LOẠI LÁ (nâu/xanh dương/...). Đánh được = rõ; không hợp lệ =
+  mờ; đang chọn = vòng xám ngoài. Bài nhiều thì wrap/cuộn ngang.
+- THANH HÀNH ĐỘNG đổi theo ngữ cảnh:
+    Tới lượt: "Rút bài" (nếu chưa rút), "Kết thúc lượt", (+ nút chức năng nhân vật).
+    Phản ứng: "Dùng <lá> để né/đáp" + "Chịu/Bỏ qua" + ĐỒNG HỒ đếm ngược.
+- Chọn mục tiêu: bấm lá cần mục tiêu → seat HỢP LỆ sáng, seat ngoài tầm mờ; hiện
+  khoảng cách tới từng người (khỏi vẽ vòng vật lý).
+
+
+========================================================================
+7. GIỮA BÀN
+========================================================================
+
+- Bộ bài rút (úp) + số lá còn lại.
+- Chồng bài bỏ: hiện LÁ MẶT TRÊN (ngửa) + số lá đã bỏ (Pedro Ramirez rút từ đây;
+  người chơi cần thấy lá vừa bỏ).
+- (Tuỳ chọn) nơi hiện "lá vừa đánh ra" cho mọi người thấy trước khi vào chồng bỏ.
+
+
+========================================================================
+8. TRẠNG THÁI PHẢN ỨNG (pending + timeout) — làm thật rõ
+========================================================================
+
+- BĂNG THÔNG BÁO trên đầu bàn: "X đang chờ Y né" / "Chọn lá bỏ cho Cat Balou"...,
+  kèm ĐỒNG HỒ đếm ngược (khớp CHÍNH SÁCH TIMEOUT ở file luật).
+- Seat phải phản ứng: viền đỏ nhấp nháy; seat khác mờ.
+- Chuỗi phản ứng lồng nhau (Gatling → Barrel → draw!...): băng cập nhật theo ĐỈNH
+  của stack pending — luôn cho biết "việc đang chờ" hiện tại.
+- Đồng hồ người đang tới lượt TẠM DỪNG khi đang chờ người khác phản ứng (khớp luật);
+  thể hiện rõ đồng hồ nào đang chạy.
+
+
+========================================================================
+9. CÁC NÚT & DIALOG
+========================================================================
+
+Sẵn ở góc, không chiếm chỗ bàn:
+- NÚT NHẬT KÝ VÁN ĐẤU → dialog log các nước đi ("An rút 2 lá", "Chi đánh Bang! vào
+  Dũng"...). Thay khu log cố định → gọn, bấm mới hiện. Ván đông người rất cần.
+- NÚT CÀI ĐẶT → dialog (âm thanh, sáng/tối, cỡ chữ, rời phòng...).
+- NÚT MÃ PHÒNG / MỜI → hiện mã, bấm để copy.
+- (Tuỳ chọn) nút tra luật nhanh.
+Dialog dùng chung một kiểu: nền mờ sau, hộp giữa, nút đóng rõ. Không làm gián đoạn
+ván (chỉ là lớp phủ). Điện thoại: dialog chiếm gần toàn màn.
+
+
+========================================================================
+10. RESPONSIVE — DESKTOP vs ĐIỆN THOẠI
+========================================================================
+
+- DESKTOP / TABLET / màn rộng: bàn TRÒN (mục 3) + quy tắc đông người (mục 4).
+- ĐIỆN THOẠI DỌC / màn hẹp: CHUYỂN sang DANH SÁCH DỌC các seat, xếp theo thứ tự
+  ngồi bắt đầu từ người kế bạn; bạn + thanh hành động ghim ở đáy. (Giống giao diện
+  cũ của bạn — vốn hợp điện thoại.) Quy tắc >6 người thu nhỏ + bấm-để-xem vẫn áp.
+- CÙNG MỘT DỮ LIỆU, khác cách xếp — KHÔNG làm 2 giao diện. Dùng responsive.
+- Test ca chật nhất: 8 người trên màn nhỏ. Nút bấm đủ to cho ngón tay.
+
+
+========================================================================
+11. THÔNG TIN ẨN (viewFor) — đừng bỏ
+========================================================================
+
+Giao diện chỉ vẽ từ dữ liệu ĐÃ LỌC cho từng người (viewFor ở file luật):
+- Bài TRÊN TAY người khác: chỉ SỐ LƯỢNG, KHÔNG nội dung.
+- Role người khác (còn sống): KHÔNG hiện (trừ Cảnh sát trưởng). Lộ khi kết thúc ván.
+- Thứ tự bộ bài: không hiện.
+- Trang bị + máu + số lá tay + số lá sân + lá nhân vật: CÔNG KHAI.
+
+[CẢNH BÁO] Giao diện hiện tại của bạn đang lật ngửa bài tay của MỌI người — tiện
+debug, nhưng bản chơi thật là lỗ hổng gian lận (mở DevTools đọc bài đối thủ). Client
+KHÔNG nhận bài tay người khác; server chỉ gửi số lượng. Tắt chế độ ngửa trước khi
+chơi thật.
+
+
+========================================================================
+12. GHI CHÚ CHO CLAUDE CODE
+========================================================================
+
+- Giao diện chỉ VẼ LẠI state đã lọc + GỬI action lên server. KHÔNG chứa luật (luật ở
+  core/). Không tự quyết nước đi hợp lệ — hỏi core/ rồi phản ánh ra nút bấm.
+- Mỗi seat / lá bài / trang bị là 1 phần tử render từ DỮ LIỆU. Thêm người/lá/trang bị
+  = thêm dữ liệu, không sửa bố cục thủ công.
+- Seat theo ELLIPSE tính bằng công thức góc theo N, không hardcode từng số.
+- QUY TẮC ĐÔNG NGƯỜI: ≤6 ô đầy đủ; >6 ô thu nhỏ (chỉ thông tin cơ bản) + bấm-để-nở
+  xem trang bị. Áp cho cả desktop lẫn mobile.
+- Khu trang bị & khu bài tay là "hàng thẻ co giãn" (wrap được).
+- MÀU: tuân thủ mục 1 tuyệt đối — chrome chỉ xám + đỏ; bảy màu để dành cho lá.
+- Chừa sẵn chỗ dán ẢNH cho: lá bài, lá nhân vật, lá trang bị. Trước mắt icon + tên;
+  thêm ảnh sau không được làm vỡ bố cục.
+- Responsive desktop(bàn tròn)/mobile(danh sách dọc), cùng dữ liệu.
+- Ưu tiên rõ ràng hơn đẹp.
+- Làm giao diện SAU khi engine (core/) & mạng chạy — Giai đoạn 2 (bản tối giản) rồi
+  hoàn thiện Giai đoạn 4. Đừng dồn hết một lần.
+
+--- CÁC MÀN KHÁC (mô tả ngắn) ---
+
+- TRANG CHỦ: tiêu đề game + 3 lựa chọn (đã có trong bản chạy thật):
+    · "Chơi chung 1 máy (hotseat)" — mọi người dùng chung 1 máy, luân phiên.
+    · "Chơi qua mạng" — mỗi người 1 thiết bị, kết nối bằng mã phòng.
+    · "Chú giải lá bài" — tra cứu luật/hiệu ứng các lá.
+  Có nút Cài đặt.
+
+- CHƠI QUA MẠNG (đã có): nhập Tên hiển thị + Mã phòng (6 ký tự) → nút "Tạo mã ngẫu
+  nhiên" / "Vào phòng". Vào xong dẫn tới PHÒNG CHỜ.
+
+- PHÒNG CHỜ (làm tương đối là đủ ở bản đầu): dành cho nhánh chơi qua mạng.
+    · Mã phòng nổi bật + nút Chép (để mời bạn bè).
+    · Danh sách người đã vào: mỗi người 1 dòng (tên, nhãn "chủ phòng", trạng thái
+      đang vào/đã vào). Hiện sức chứa "x/8".
+    · Cấu hình ván (CHỈ chủ phòng chỉnh): bật/tắt nhân vật, thời gian mỗi lượt
+      (và sau này: các mốc timeout khác, bật/tắt expansion, house rules).
+    · Nút "Rời phòng" (phụ) + "Bắt đầu ván" (chính, chỉ chủ phòng).
+    · Nút Bắt đầu KHOÁ/mờ khi chưa đủ 2 người.
+  [Làm tương đối] Bản đầu có thể BỎ cơ chế "sẵn sàng" của từng người — chỉ cần thấy
+  ai đã vào + nút Bắt đầu. Nhóm bạn nói miệng với nhau là đủ; thêm sau nếu cần.
+
+- HOTSEAT (nhánh chơi chung 1 máy): KHÔNG cần phòng chờ kiểu mạng. Chỉ cần chọn số
+  người + nhập tên từng người (hoặc để mặc định) rồi vào thẳng bàn. Cùng một bàn
+  chơi, nhưng KHÔNG ẩn thông tin theo người (vì chung màn) — hoặc có màn "che, chuyền
+  máy cho người kế" nếu muốn giữ bí mật vai trò. (Chi tiết hoá sau.)
+
+- KẾT THÚC VÁN: hiện phe thắng, LỘ toàn bộ role, nút Chơi lại / Về sảnh.
+
+
+========================================================================
+HẾT. File này là "nguồn sự thật" về giao diện để đưa cho Claude Code ở Giai đoạn 2.
+========================================================================

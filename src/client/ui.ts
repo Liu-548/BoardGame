@@ -255,13 +255,35 @@ function characterLabel(characterId: string): string {
 }
 
 // Lá nhân vật BẤM ĐƯỢC — dùng lúc đang chọn giữ 1 trong 2 lá được phát.
-function characterButton(characterId: string, onClick: () => void): HTMLButtonElement {
+// `armed`: đã bấm CHỌN TẠM lá này, đang chờ bấm nút "Xác nhận" riêng mới thật
+// sự gửi đi (xem renderCharacterOption() bên dưới — việc bổ sung sau Giai
+// đoạn 5: tránh bấm nhầm lúc chỉ định xem mô tả chức năng, xem ghi chú ở đó).
+function characterButton(characterId: string, onClick: () => void, armed: boolean = false): HTMLButtonElement {
   const el = document.createElement("button");
   el.type = "button";
-  el.className = "card-box card-box--character";
+  el.className = "card-box card-box--character" + (armed ? " card-box--armed" : "");
   appendCardVisual(el, characterImageUrl(characterId), characterLabel(characterId), CHARACTER_DESCRIPTIONS[characterId]);
   el.addEventListener("click", onClick);
   return el;
+}
+
+// Việc bổ sung sau Giai đoạn 5 — 1 trong 2 lá nhân vật đang chờ chọn: card +
+// MÔ TẢ HIỆN LUÔN thành chữ ngay bên dưới (không chỉ ẩn trong tooltip hover/
+// nhấn giữ — vẫn giữ nguyên cả 2 cách đó, attachDescriptionReveal() gắn sẵn
+// trong appendCardVisual() không đổi gì). Lý do: quyết định chọn nhân vật chỉ
+// có ĐÚNG 1 LẦN, không tiện phải hover/nhấn giữ từng lá một để so sánh, và
+// hover gần như vô dụng trên điện thoại.
+function characterOptionCard(characterId: string, armed: boolean, onClick: () => void): HTMLElement {
+  const wrapper = document.createElement("div");
+  wrapper.className = "character-option";
+  wrapper.appendChild(characterButton(characterId, onClick, armed));
+
+  const desc = document.createElement("p");
+  desc.className = "character-option__description";
+  desc.textContent = CHARACTER_DESCRIPTIONS[characterId] ?? "";
+  wrapper.appendChild(desc);
+
+  return wrapper;
 }
 
 // Lá nhân vật CHỈ ĐỂ XEM — nhân vật ĐÃ chọn xong (của mình hoặc người khác,
@@ -693,12 +715,28 @@ function renderPlayer(
   const { selection } = options;
   const el = document.createElement("article");
   el.className = "player";
-  if (index === state.currentPlayerIndex) el.classList.add("player--current");
+  // Đợt 1 UI/UX (mục 1+8): 1 seat chỉ mang ĐÚNG 1 trong 4 trạng thái, ưu tiên
+  // từ trên xuống — đã chết luôn thắng mọi thứ khác; đang có ai phải phản hồi
+  // (đỉnh stack pending) thì KHÔNG seat nào còn được coi là "đang tới lượt"
+  // nữa (kể cả người vừa đánh bài gốc — họ cũng đang CHỜ như mọi người khác).
+  const topPending = state.pending[state.pending.length - 1];
+  const isTargeted = player.alive && topPending !== undefined && topPending.player === player.id;
+  const isCurrentTurn = player.alive && state.pending.length === 0 && index === state.currentPlayerIndex;
   if (!player.alive) el.classList.add("player--dead");
+  else if (isTargeted) el.classList.add("player--targeted");
+  else if (isCurrentTurn) el.classList.add("player--current");
+  else el.classList.add("player--waiting");
 
   const heading = document.createElement("h3");
-  heading.textContent = player.name + (index === state.currentPlayerIndex ? " ← đang tới lượt" : "");
+  heading.textContent = player.name + (isCurrentTurn ? " ← đang tới lượt" : "");
   el.appendChild(heading);
+
+  if (isTargeted) {
+    const targetedLabel = document.createElement("p");
+    targetedLabel.className = "player--targeted-label";
+    targetedLabel.textContent = "⚠ cần phản hồi";
+    el.appendChild(targetedLabel);
+  }
 
   const roleText = player.role ? ROLE_LABELS[player.role] : "(chưa chia vai)";
   const roleAndHp = document.createElement("p");
@@ -785,7 +823,7 @@ function renderPendingPanel(container: HTMLElement, state: GameState, handlers: 
   if (state.pending.length === 0) return;
 
   const panel = document.createElement("div");
-  panel.className = "panel panel--pending";
+  panel.className = "panel";
 
   const heading = document.createElement("p");
   heading.className = "pending-heading";
@@ -893,13 +931,23 @@ function renderPhaseActions(
 // trước, không cần đúng thứ tự (đúng khớp characterSelection là 1 MẢNG độc
 // lập, không phải ngăn xếp — xem CharacterChoice ở types.ts).
 export interface CharacterSelectionHandlers {
-  onChooseCharacter(playerId: string, characterId: string): void;
+  // Bấm 1 trong 2 lá — CHỈ đánh dấu "đang cân nhắc" (armed), CHƯA gửi đi thật.
+  // Bấm lá KIA thì tự đổi armed sang lá đó — không cần huỷ trước.
+  onArmCharacterChoice(playerId: string, characterId: string): void;
+  // Bấm nút "Xác nhận" riêng mới thật sự gửi CHOOSE_CHARACTER — tách hẳn khỏi
+  // bấm lá (xem ghi chú characterButton()/characterOptionCard() ở trên: tránh
+  // bấm nhầm lúc chỉ định xem mô tả chức năng, đặc biệt trên điện thoại).
+  onConfirmCharacterChoice(playerId: string): void;
 }
 
 export function renderCharacterSelectionScreen(
   container: HTMLElement,
   players: PlayerState[],
   characterSelection: CharacterChoice[],
+  // playerId -> characterId đang được người đó "cầm lên" chờ xác nhận, chưa
+  // gửi đi — trạng thái TẠM THỜI chỉ có ở client (main.ts), không phải
+  // GameState (giống hệt `selection` dùng cho chọn mục tiêu Bang!/Panic!...).
+  armedChoices: Record<string, string>,
   handlers: CharacterSelectionHandlers
 ): void {
   container.replaceChildren();
@@ -910,7 +958,8 @@ export function renderCharacterSelectionScreen(
 
   const rule = document.createElement("p");
   rule.textContent =
-    "Mỗi người xem 2 lá nhân vật riêng của mình rồi chọn giữ 1 lá — bấm được theo bất kỳ thứ tự nào, không cần chờ ai.";
+    "Mỗi người xem 2 lá nhân vật riêng của mình rồi chọn giữ 1 lá — bấm được theo bất kỳ thứ tự nào, không cần chờ ai. " +
+    "Bấm 1 lá để xem kỹ, rồi bấm \"Xác nhận\" mới thật sự chọn.";
   container.appendChild(rule);
 
   for (const choice of characterSelection) {
@@ -927,13 +976,25 @@ export function renderCharacterSelectionScreen(
     if (choice.chosen) {
       nameEl.textContent = `${playerName} — đã chọn`;
       cardsEl.appendChild(characterChip(choice.chosen));
+      section.appendChild(cardsEl);
     } else {
+      const armedId = armedChoices[choice.playerId];
       nameEl.textContent = `${playerName} — chọn 1 trong 2 lá`;
       for (const characterId of choice.options) {
-        cardsEl.appendChild(characterButton(characterId, () => handlers.onChooseCharacter(choice.playerId, characterId)));
+        cardsEl.appendChild(
+          characterOptionCard(characterId, characterId === armedId, () =>
+            handlers.onArmCharacterChoice(choice.playerId, characterId)
+          )
+        );
+      }
+      section.appendChild(cardsEl);
+
+      if (armedId) {
+        section.appendChild(
+          button(`Xác nhận chọn ${characterLabel(armedId)}`, () => handlers.onConfirmCharacterChoice(choice.playerId))
+        );
       }
     }
-    section.appendChild(cardsEl);
 
     container.appendChild(section);
   }
@@ -979,14 +1040,14 @@ export function renderApp(
 
   if (state.winner) {
     const panel = document.createElement("div");
-    panel.className = "panel panel--selection";
+    panel.className = "panel";
     panel.appendChild(button("Chơi ván mới", () => handlers.onPlayAgain()));
     container.appendChild(panel);
   }
 
   if (options.selection.step !== "idle") {
     const hint = document.createElement("div");
-    hint.className = "panel panel--selection";
+    hint.className = "panel";
     hint.appendChild(document.createTextNode("Đang chọn mục tiêu... "));
     hint.appendChild(button("Huỷ", () => handlers.onCancelSelection()));
     container.appendChild(hint);
@@ -1491,28 +1552,95 @@ function networkRenderEquipmentSection(
   container.appendChild(wrapper);
 }
 
+// Đợt 1 UI/UX (mục 3+12) — bố cục bàn tròn CHỈ cho ván chơi qua mạng (đã hỏi
+// và chốt với chủ dự án: hotseat không có 1 "BẠN" duy nhất nên không áp dụng).
+// 1 CÔNG THỨC DUY NHẤT cho mọi N từ 2-8 người, không hardcode từng trường hợp.
+//
+// `seatIndex` là vị trí (0-indexed) trong MẢNG ĐÃ XOAY `seatOrder` (xem
+// buildSeatOrder() bên dưới) — phần tử CUỐI (seatIndex === seatTotal - 1) LUÔN
+// là BẠN. Góc 90° = đáy màn hình (quy ước CSS: 0°=phải, 90°=dưới, tăng dần
+// THEO CHIỀU KIM ĐỒNG HỒ vì trục y màn hình hướng XUỐNG) — dùng 90 làm gốc để
+// BẠN (luôn là seatIndex cuối, seatIndex+1 === seatTotal → trọn 1 vòng 360°
+// cộng thêm) rơi đúng vào 90°.
+// (Lỗi đã sửa: bản đầu dùng gốc 270° — SAI, cho BẠN lên đỉnh bàn thay vì đáy,
+// phát hiện lúc tự kiểm bằng trình duyệt thật, xem CLAUDE.md.)
+function seatAngleDeg(seatIndex: number, seatTotal: number): number {
+  return (90 + ((seatIndex + 1) * 360) / seatTotal) % 360;
+}
+
+// Đổi góc (độ) sang toạ độ % trên ellipse tâm (50%, 50%), bán kính rx/ry theo
+// % — dùng cho CSS custom property --seat-x/--seat-y (xem .player--seat ở
+// style.css, chỉ có hiệu lực từ @media (min-width: 700px) trở lên).
+function seatPositionPercent(angleDeg: number): { x: number; y: number } {
+  const rad = (angleDeg * Math.PI) / 180;
+  const rx = 42;
+  const ry = 38;
+  return { x: 50 + rx * Math.cos(rad), y: 50 + ry * Math.sin(rad) };
+}
+
+// Xoay view.players sao cho bắt đầu từ người NGAY SAU viewer, kết thúc bằng
+// CHÍNH viewer (luôn là phần tử CUỐI mảng trả về) — thứ tự này vừa dùng làm
+// thứ tự DOM (danh sách dọc trên điện thoại, mục 10) vừa làm input cho
+// seatAngleDeg() (bàn tròn trên màn rộng), KHÔNG cần đổi gì khi chuyển đổi
+// giữa 2 cách xếp — chỉ CSS quyết định, xem mục 10: "cùng dữ liệu, khác cách xếp".
+function buildSeatOrder(view: PlayerView): { player: PlayerHandView; originalIndex: number }[] {
+  const n = view.players.length;
+  const viewerIndex = view.players.findIndex((p) => p.id === view.viewerId);
+  const startIndex = viewerIndex === -1 ? 0 : (viewerIndex + 1) % n;
+  return Array.from({ length: n }, (_, k) => {
+    const originalIndex = (startIndex + k) % n;
+    return { player: view.players[originalIndex], originalIndex };
+  });
+}
+
 function networkRenderPlayer(
   view: PlayerView,
   player: PlayerHandView,
-  index: number,
+  originalIndex: number,
+  // Đợt 1 UI/UX (mục 3) — vị trí (0-indexed) VÀ tổng số ghế trong `seatOrder`
+  // (mảng đã xoay để BẠN luôn ở cuối, xem renderNetworkGame()) — dùng để tính
+  // góc/toạ độ bàn tròn. KHÁC `originalIndex` (vị trí thật trong view.players,
+  // dùng để so `currentPlayerIndex` — 2 mảng thứ tự khác nhau).
+  seatIndex: number,
+  seatTotal: number,
   options: NetworkGameOptions,
   handlers: NetworkGameHandlers
 ): HTMLElement {
   const { selection } = options;
   const el = document.createElement("article");
-  el.className = "player";
-  if (index === view.currentPlayerIndex) el.classList.add("player--current");
+  el.className = "player player--seat";
+
+  const { x, y } = seatPositionPercent(seatAngleDeg(seatIndex, seatTotal));
+  el.style.setProperty("--seat-x", `${x}%`);
+  el.style.setProperty("--seat-y", `${y}%`);
+
+  // Đợt 1 UI/UX (mục 1+8) — cùng logic ưu tiên trạng thái với renderPlayer()
+  // (hotseat), viết riêng vì đọc PlayerView/PlayerHandView đã lọc, không phải
+  // GameState/PlayerState đầy đủ.
+  const topPending = view.pending[view.pending.length - 1];
+  const isTargeted = player.alive && topPending !== undefined && topPending.player === player.id;
+  const isCurrentTurn = player.alive && view.pending.length === 0 && originalIndex === view.currentPlayerIndex;
   if (!player.alive) el.classList.add("player--dead");
+  else if (isTargeted) el.classList.add("player--targeted");
+  else if (isCurrentTurn) el.classList.add("player--current");
+  else el.classList.add("player--waiting");
 
   const heading = document.createElement("h3");
   heading.textContent =
     player.name +
-    (index === view.currentPlayerIndex ? " ← đang tới lượt" : "") +
+    (isCurrentTurn ? " ← đang tới lượt" : "") +
     (player.id === view.viewerId ? " (bạn)" : "") +
     // Việc 4.3: không tính chính mình — chính socket đang vẽ màn hình này thì
     // chắc chắn đang kết nối, không cần báo lại chuyện hiển nhiên đó.
     (player.id !== view.viewerId && !options.connectedPlayerIds.includes(player.id) ? " ⚠ đã mất kết nối" : "");
   el.appendChild(heading);
+
+  if (isTargeted) {
+    const targetedLabel = document.createElement("p");
+    targetedLabel.className = "player--targeted-label";
+    targetedLabel.textContent = "⚠ cần phản hồi";
+    el.appendChild(targetedLabel);
+  }
 
   const roleText = player.role ? ROLE_LABELS[player.role] : "(ẩn)";
   const roleAndHp = document.createElement("p");
@@ -1557,7 +1685,7 @@ function networkRenderPendingPanel(container: HTMLElement, view: PlayerView, han
   if (view.pending.length === 0) return;
 
   const panel = document.createElement("div");
-  panel.className = "panel panel--pending";
+  panel.className = "panel";
 
   const heading = document.createElement("p");
   heading.className = "pending-heading";
@@ -1701,13 +1829,20 @@ function networkRenderPhaseActions(
 // hiện được trạng thái "đã chọn xong (lộ tên)" hay "đang chọn..." (không lộ 2
 // lá họ đang cân nhắc).
 export interface NetworkCharacterSelectionHandlers {
-  onChooseCharacter(characterId: string): void;
+  // Giống hệt CharacterSelectionHandlers (hotseat) — bấm lá chỉ "cầm lên" chờ
+  // xác nhận, KHÔNG gửi ngay (xem ghi chú characterOptionCard() ở trên).
+  onArmCharacterChoice(characterId: string): void;
+  onConfirmCharacterChoice(): void;
 }
 
 export function renderNetworkCharacterSelectionScreen(
   container: HTMLElement,
   view: PlayerView,
   deadline: DeadlineInfo | null,
+  // characterId đang được CHÍNH MÌNH "cầm lên" chờ xác nhận — chỉ cần 1 giá
+  // trị (không phải map theo playerId như hotseat), vì qua mạng chỉ CHÍNH
+  // MÌNH mới bấm chọn được cho chính mình.
+  armedCharacterId: string | null,
   handlers: NetworkCharacterSelectionHandlers
 ): void {
   container.replaceChildren();
@@ -1717,7 +1852,9 @@ export function renderNetworkCharacterSelectionScreen(
   container.appendChild(heading);
 
   const rule = document.createElement("p");
-  rule.textContent = "Xem 2 lá nhân vật riêng của bạn rồi chọn giữ 1 lá — không cần chờ người khác chọn xong.";
+  rule.textContent =
+    "Xem 2 lá nhân vật riêng của bạn rồi chọn giữ 1 lá — không cần chờ người khác chọn xong. " +
+    "Bấm 1 lá để xem kỹ, rồi bấm \"Xác nhận\" mới thật sự chọn.";
   container.appendChild(rule);
 
   renderCountdown(container, deadline, view.players);
@@ -1738,15 +1875,26 @@ export function renderNetworkCharacterSelectionScreen(
     if (choice.chosen) {
       nameEl.textContent = `${playerName}${isMe ? " (bạn)" : ""} — đã chọn`;
       cardsEl.appendChild(characterChip(choice.chosen));
+      section.appendChild(cardsEl);
     } else if (isMe && choice.options) {
       nameEl.textContent = `${playerName} (bạn) — chọn 1 trong 2 lá`;
       for (const characterId of choice.options) {
-        cardsEl.appendChild(characterButton(characterId, () => handlers.onChooseCharacter(characterId)));
+        cardsEl.appendChild(
+          characterOptionCard(characterId, characterId === armedCharacterId, () =>
+            handlers.onArmCharacterChoice(characterId)
+          )
+        );
+      }
+      section.appendChild(cardsEl);
+
+      if (armedCharacterId) {
+        section.appendChild(
+          button(`Xác nhận chọn ${characterLabel(armedCharacterId)}`, () => handlers.onConfirmCharacterChoice())
+        );
       }
     } else {
       nameEl.textContent = `${playerName} — đang chọn...`;
     }
-    section.appendChild(cardsEl);
 
     container.appendChild(section);
   }
@@ -1785,7 +1933,7 @@ export function renderNetworkGame(
 
   if (options.selection.step !== "idle") {
     const hint = document.createElement("div");
-    hint.className = "panel panel--selection";
+    hint.className = "panel";
     hint.appendChild(document.createTextNode("Đang chọn mục tiêu... "));
     hint.appendChild(button("Huỷ", () => handlers.onCancelSelection()));
     container.appendChild(hint);
@@ -1794,12 +1942,20 @@ export function renderNetworkGame(
   networkRenderPendingPanel(container, view, handlers);
   networkRenderPhaseActions(container, view, options, handlers);
 
-  const playersEl = document.createElement("div");
-  playersEl.className = "players";
-  view.players.forEach((player, index) => {
-    playersEl.appendChild(networkRenderPlayer(view, player, index, options, handlers));
+  // Đợt 1 UI/UX (mục 3+10) — .table bọc ngoài chỉ cho ván qua mạng (hotseat
+  // không có, xem renderApp()/renderPlayer() ở trên: giữ nguyên .players cũ).
+  // seatOrder xoay để BẠN luôn là phần tử CUỐI — vừa là thứ tự DOM (danh sách
+  // dọc, màn hẹp) vừa là input tính góc bàn tròn (màn rộng, xem CSS).
+  const tableEl = document.createElement("div");
+  tableEl.className = "table";
+  const seatsEl = document.createElement("div");
+  seatsEl.className = "players seats";
+  const seatOrder = buildSeatOrder(view);
+  seatOrder.forEach(({ player, originalIndex }, seatIndex) => {
+    seatsEl.appendChild(networkRenderPlayer(view, player, originalIndex, seatIndex, seatOrder.length, options, handlers));
   });
-  container.appendChild(playersEl);
+  tableEl.appendChild(seatsEl);
+  container.appendChild(tableEl);
 
   renderLog(container, options.log);
 }

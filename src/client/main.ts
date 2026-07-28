@@ -72,6 +72,11 @@ let setupError: string | null = null;
 // đang bật gì từ ván trước.
 let selectedHouseRules: HouseRuleId[] = [];
 let state: GameState; // chỉ tồn tại sau khi bấm "Bắt đầu ván"
+// Việc bổ sung sau Giai đoạn 5 — màn hình chọn nhân vật: playerId -> lá đang
+// "cầm lên" chờ bấm "Xác nhận" mới thật sự gửi CHOOSE_CHARACTER (tránh bấm
+// nhầm lúc chỉ định xem mô tả chức năng). Trạng thái TẠM THỜI chỉ ở client,
+// reset về {} mỗi khi bắt đầu ván mới.
+let characterArmedChoices: Record<string, string> = {};
 let selection: Selection = { step: "idle" };
 let discardSelectionIds: string[] = [];
 let error: string | null = null;
@@ -93,6 +98,9 @@ let lobbyPlayers: LobbyPlayer[] = [];
 let lobbyOwnerId: string | null = null;
 let networkView: PlayerView | null = null;
 let networkSelection: Selection = { step: "idle" };
+// Việc bổ sung sau Giai đoạn 5 — giống characterArmedChoices ở hotseat, nhưng
+// chỉ 1 giá trị (qua mạng chỉ CHÍNH MÌNH bấm chọn được cho chính mình).
+let networkArmedCharacterId: string | null = null;
 let networkDiscardSelectionIds: string[] = [];
 let networkLastDrawCheck: DrawCheckNotice = null;
 let networkGameLog: string[] = []; // việc 4.2, xem ghi chú ở gameLog phía trên
@@ -134,8 +142,9 @@ function render(): void {
       // Giai đoạn 5, cơ chế chọn nhân vật — hiện màn hình riêng TRƯỚC bàn chơi
       // thật, cho tới khi mọi người chọn xong (state.characterSelection về null).
       if (state.characterSelection) {
-        renderCharacterSelectionScreen(root, state.players, state.characterSelection, {
-          onChooseCharacter: onChooseCharacter,
+        renderCharacterSelectionScreen(root, state.players, state.characterSelection, characterArmedChoices, {
+          onArmCharacterChoice,
+          onConfirmCharacterChoice,
         });
         return;
       }
@@ -186,8 +195,9 @@ function render(): void {
         // Giai đoạn 5, cơ chế chọn nhân vật — hiện màn hình riêng TRƯỚC bàn
         // chơi thật qua mạng, cho tới khi networkView.characterSelection về null.
         if (networkView.characterSelection) {
-          renderNetworkCharacterSelectionScreen(root, networkView, networkDeadline, {
-            onChooseCharacter: onNetworkChooseCharacter,
+          renderNetworkCharacterSelectionScreen(root, networkView, networkDeadline, networkArmedCharacterId, {
+            onArmCharacterChoice: onNetworkArmCharacterChoice,
+            onConfirmCharacterChoice: onNetworkConfirmCharacterChoice,
           });
           return;
         }
@@ -301,6 +311,7 @@ function onStartGame(): void {
   discardSelectionIds = [];
   error = null;
   gameLog = [];
+  characterArmedChoices = {};
   render();
 }
 
@@ -484,7 +495,19 @@ function onCancelSelection(): void {
 // handler khác ở trên: chọn nhân vật KHÔNG phải hành động "đúng lượt", MỖI
 // người tự chọn ĐỘC LẬP (xem core/types.ts's CharacterChoice), nên playerId
 // tới thẳng từ người vừa bấm (renderCharacterSelectionScreen truyền vào).
-function onChooseCharacter(playerId: string, characterId: string): void {
+//
+// Việc bổ sung sau Giai đoạn 5 — tách hẳn "cầm lên xem" (onArmCharacterChoice,
+// chỉ đổi state client, CHƯA gửi gì) khỏi "xác nhận thật" (onConfirmCharacterChoice,
+// mới thật sự dispatch CHOOSE_CHARACTER) — tránh 1 cú bấm nhầm lúc đang xem mô
+// tả chức năng vô tình chốt luôn nhân vật, đặc biệt khó undo trên điện thoại.
+function onArmCharacterChoice(playerId: string, characterId: string): void {
+  characterArmedChoices = { ...characterArmedChoices, [playerId]: characterId };
+  render();
+}
+
+function onConfirmCharacterChoice(playerId: string): void {
+  const characterId = characterArmedChoices[playerId];
+  if (!characterId) return;
   dispatch({ type: "CHOOSE_CHARACTER", playerId, characterId });
 }
 
@@ -549,6 +572,7 @@ function onJoinRoom(): void {
   networkView = null;
   networkGameLog = [];
   networkSelectedHouseRules = [];
+  networkArmedCharacterId = null;
 
   netConnection = new RoomConnection(roomWebSocketUrl(trimmedCode), myPlayerId, trimmedName, {
     onMessage: onNetworkMessage,
@@ -621,6 +645,7 @@ function onNetworkMessage(message: ServerMessage): void {
       networkGameLog = [];
       networkDeadline = null;
       networkConnectedIds = [];
+      networkArmedCharacterId = null;
       syncCountdownTick();
       networkAbandonedNotice = "Ván vừa bị huỷ vì không đủ người chơi còn kết nối. Chờ đủ người rồi bắt đầu ván mới.";
       screen = "network-lobby";
@@ -788,8 +813,16 @@ function onNetworkCancelSelection(): void {
 
 // Giai đoạn 5, cơ chế chọn nhân vật qua mạng — chỉ CHÍNH MÌNH mới bấm được
 // (renderNetworkCharacterSelectionScreen chỉ hiện nút cho đúng viewerId).
-function onNetworkChooseCharacter(characterId: string): void {
-  networkDispatch({ type: "CHOOSE_CHARACTER", playerId: myPlayerId, characterId });
+// Việc bổ sung sau Giai đoạn 5 — tách "cầm lên xem"/"xác nhận thật", giống hệt
+// hotseat (xem ghi chú onArmCharacterChoice() ở trên).
+function onNetworkArmCharacterChoice(characterId: string): void {
+  networkArmedCharacterId = characterId;
+  render();
+}
+
+function onNetworkConfirmCharacterChoice(): void {
+  if (!networkArmedCharacterId) return;
+  networkDispatch({ type: "CHOOSE_CHARACTER", playerId: myPlayerId, characterId: networkArmedCharacterId });
 }
 
 render();

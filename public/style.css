@@ -7,6 +7,20 @@
   box-sizing: border-box;
 }
 
+/* Đợt 1 UI/UX (GIAO-DIEN-UI-UX.txt, mục 1): "chrome" (khung/nền/viền chung của
+   giao diện) CHỈ được dùng thang xám + đúng 1 màu đỏ làm điểm nhấn nguy hiểm/
+   khẩn cấp — 7 màu lá bài (nâu/xanh dương/xanh lá/vàng/tím/xanh lá nhạt/đen)
+   dành RIÊNG cho lá bài, không được mượn cho trạng thái giao diện. Gom thành
+   biến ở đây để đổi 1 chỗ là đổi khắp nơi (đặc tả: "dùng biến theme để đổi
+   sáng/tối dễ" — mới chỉ thiết lập theme SÁNG, dark mode để dành sau). */
+:root {
+  --color-border: #999;
+  --color-border-strong: #333;
+  --color-text-muted: #666;
+  --color-danger: #c0392b;
+  --color-danger-bg: #fdecea;
+}
+
 body {
   font-family: sans-serif;
   max-width: 60rem;
@@ -41,10 +55,44 @@ input[type="text"] {
 }
 
 .player {
-  border: 1px solid #999;
+  border: 1px solid var(--color-border);
   border-radius: 0.5rem;
   padding: 0.75rem 1rem;
   min-width: 14rem;
+}
+
+/* Đợt 1 UI/UX (mục 3+10) — bàn tròn, CHỈ ván chơi qua mạng (.seats, khác
+   .players thường của hotseat — xem renderNetworkGame() ở ui.ts). Mặc định
+   (màn hẹp/điện thoại): `.seats` vẫn là danh sách flex-column bình thường —
+   `.player--seat` không có gì đặc biệt, tự động thành DANH SÁCH DỌC đúng thứ
+   tự ghế (BẠN luôn là phần tử CUỐI trong DOM → luôn ở dưới cùng danh sách). */
+.table {
+  margin: 1rem 0;
+}
+
+.seats {
+  flex-direction: column;
+  flex-wrap: nowrap;
+}
+
+/* Từ 700px trở lên: đủ rộng để bật bàn tròn — .seats trở thành khung định vị
+   tuyệt đối, mỗi seat đặt theo --seat-x/--seat-y (tính bằng seatAngleDeg() +
+   seatPositionPercent() ở ui.ts, KHÔNG hardcode theo từng N). */
+@media (min-width: 700px) {
+  .seats {
+    position: relative;
+    display: block;
+    aspect-ratio: 16 / 10;
+    width: 100%;
+  }
+
+  .player--seat {
+    position: absolute;
+    left: var(--seat-x);
+    top: var(--seat-y);
+    transform: translate(-50%, -50%);
+    width: 14rem;
+  }
 }
 
 .player h3 {
@@ -55,13 +103,50 @@ input[type="text"] {
   margin: 0.25rem 0;
 }
 
+/* Đang tới lượt — mục 1: "viền XÁM DÀY + nhãn 'đang đánh'" (nhãn text đã có
+   sẵn trong ui.ts, ở đây chỉ lo phần viền). */
 .player--current {
-  border-color: #2a7;
-  border-width: 2px;
+  border-color: var(--color-border-strong);
+  border-width: 3px;
 }
 
+/* Bị nhắm / phải phản hồi ngay (mục 1 + mục 8) — viền đỏ DÀY + nhấp nháy, màu
+   ĐỎ duy nhất của chrome, chỉ dùng cho đúng tình huống khẩn cấp này. */
+.player--targeted {
+  border-color: var(--color-danger);
+  border-width: 3px;
+  animation: player-targeted-pulse 1s ease-in-out infinite;
+}
+
+.player--targeted-label {
+  color: var(--color-danger);
+  font-weight: bold;
+  margin: 0.25rem 0;
+}
+
+@keyframes player-targeted-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 var(--color-danger-bg);
+  }
+  50% {
+    box-shadow: 0 0 0 0.35rem var(--color-danger-bg);
+  }
+}
+
+/* Đang chờ (không phải lượt mình, không bị nhắm) — mục 1: "MỜ đi". */
+.player--waiting {
+  opacity: 0.6;
+}
+
+/* Đã bị loại — mục 1: "mờ nặng + gạch tên" (gạch tên áp ở chính thẻ <h3>, xem
+   .player--dead h3 bên dưới, vì opacity ở đây áp cho CẢ khối, không riêng tên). */
 .player--dead {
-  opacity: 0.5;
+  opacity: 0.4;
+}
+
+.player--dead h3 {
+  text-decoration: line-through;
 }
 
 .cards {
@@ -147,12 +232,34 @@ button.card-box {
   opacity: 0.55;
 }
 
+/* Lá đang chọn (mục 1: "VÒNG XÁM ĐẬM bao ngoài viền màu của lá — outline,
+   không đụng màu phân loại lá") — dùng outline (lớp NGOÀI border), không đổi
+   border-color, để màu nâu/xanh dương/xanh lá của chính lá bài vẫn còn nguyên. */
 .card-box--armed {
-  border-color: #2a7;
+  outline: 3px solid var(--color-border-strong);
+  outline-offset: 1px;
+}
+
+/* Việc bổ sung sau Giai đoạn 5 — màn hình chọn nhân vật: card + mô tả chức
+   năng hiện LUÔN thành chữ ngay bên dưới (xem characterOptionCard() ở ui.ts),
+   không chỉ ẩn trong tooltip hover/nhấn giữ như mọi lá bài khác. */
+.character-option {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 9rem;
+}
+
+.character-option__description {
+  font-size: 0.72rem;
+  color: #444;
+  text-align: center;
+  margin: 0.3rem 0 0;
 }
 
 .card-box--checked {
-  border-color: #2a7;
+  outline: 3px solid var(--color-border-strong);
+  outline-offset: 1px;
   position: relative;
 }
 
@@ -164,7 +271,7 @@ button.card-box {
   width: 1rem;
   height: 1rem;
   border-radius: 50%;
-  background: #2a7;
+  background: var(--color-border-strong);
   color: #fff;
   font-size: 0.65rem;
   line-height: 1rem;
@@ -237,25 +344,22 @@ button.card-box {
   margin: 0.75rem 0;
 }
 
-.panel--pending {
-  border-color: #d80;
-}
-
-.panel--selection {
-  border-color: #2a7;
-}
+/* .panel--pending/--selection trước đây mượn cam/xanh lá làm màu "trạng thái" —
+   vi phạm mục 1 (chrome chỉ xám+đỏ). Đúng "băng thông báo" ở mục 8 chỉ cần nổi
+   bật bằng chữ (đã có), không cần mượn màu — bỏ hẳn viền màu riêng, dùng chung
+   viền xám của .panel. */
 
 .error {
-  color: #c00;
+  color: var(--color-danger);
   font-weight: bold;
 }
 
 .draw-check-notice {
-  border: 1px solid #26a;
+  border: 1px solid var(--color-border);
   border-radius: 0.5rem;
   padding: 0.5rem 0.75rem;
   margin: 0.5rem 0;
-  background: #eef4fb;
+  background: #f4f4f4;
   font-weight: bold;
 }
 
@@ -265,7 +369,7 @@ button.card-box {
 }
 
 .countdown--urgent {
-  color: #c00;
+  color: var(--color-danger);
 }
 
 .pending-heading {
