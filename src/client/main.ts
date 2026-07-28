@@ -87,6 +87,10 @@ let lastDrawCheck: DrawCheckNotice = null;
 // (describeEvent() ở ui.ts) rồi thêm vào ĐẦU mảng (mới nhất lên trên, khỏi
 // phải tự cuộn xuống cuối mỗi lần có hành động mới).
 let gameLog: string[] = [];
+// Đợt 2 UI/UX (mục 4) — playerId nào đang "nở" khu trang bị khi bàn >6 người
+// (client-only, xem renderPlayerEquipmentArea() ở ui.ts). Reset về [] mỗi khi
+// bắt đầu ván mới, giống characterArmedChoices ở trên.
+let expandedSeatIds: string[] = [];
 
 // ----- Chế độ chơi qua mạng (việc 3.9) -----
 let networkName = "";
@@ -104,6 +108,8 @@ let networkArmedCharacterId: string | null = null;
 let networkDiscardSelectionIds: string[] = [];
 let networkLastDrawCheck: DrawCheckNotice = null;
 let networkGameLog: string[] = []; // việc 4.2, xem ghi chú ở gameLog phía trên
+// Đợt 2 UI/UX (mục 4) — giống expandedSeatIds ở hotseat, xem ghi chú ở đó.
+let networkExpandedSeatIds: string[] = [];
 // Việc 4.3: trong số `networkView.players`, ai ĐANG có socket mở thật sự
 // (server tự tính, xem room.ts) — hiện chú thích "đã mất kết nối" cho người
 // không nằm trong mảng này.
@@ -148,23 +154,29 @@ function render(): void {
         });
         return;
       }
-      renderApp(root, state, { selection, discardSelection: discardSelectionIds, error, lastDrawCheck, log: gameLog }, {
-        onDrawCards,
-        onEndTurn,
-        onToggleDiscardCard,
-        onConfirmDiscard,
-        onHandCardClick,
-        onEquipmentClick,
-        onPlayerClick,
-        onStoreOptionClick,
-        onZoneClick,
-        onRespondTakeConsequence,
-        onCancelSelection,
-        onPlayAgain,
-        onPickDrawSource,
-        onPickDrawTarget,
-        onPickKeptCard,
-      });
+      renderApp(
+        root,
+        state,
+        { selection, discardSelection: discardSelectionIds, error, lastDrawCheck, log: gameLog, expandedSeatIds },
+        {
+          onDrawCards,
+          onEndTurn,
+          onToggleDiscardCard,
+          onConfirmDiscard,
+          onHandCardClick,
+          onEquipmentClick,
+          onPlayerClick,
+          onStoreOptionClick,
+          onZoneClick,
+          onRespondTakeConsequence,
+          onCancelSelection,
+          onPlayAgain,
+          onPickDrawSource,
+          onPickDrawTarget,
+          onPickKeptCard,
+          onToggleSeatExpanded,
+        }
+      );
       return;
     case "network-form":
       renderNetworkLobbyForm(root, networkName, networkCode, networkError, {
@@ -212,6 +224,7 @@ function render(): void {
             deadline: networkDeadline,
             log: networkGameLog,
             connectedPlayerIds: networkConnectedIds,
+            expandedSeatIds: networkExpandedSeatIds,
           },
           {
             onDrawCards: onNetworkDrawCards,
@@ -228,6 +241,7 @@ function render(): void {
             onPickDrawSource: onNetworkPickDrawSource,
             onPickDrawTarget: onNetworkPickDrawTarget,
             onPickKeptCard: onNetworkPickKeptCard,
+            onToggleSeatExpanded: onNetworkToggleSeatExpanded,
           }
         );
       }
@@ -312,6 +326,7 @@ function onStartGame(): void {
   error = null;
   gameLog = [];
   characterArmedChoices = {};
+  expandedSeatIds = [];
   render();
 }
 
@@ -491,6 +506,15 @@ function onCancelSelection(): void {
   render();
 }
 
+// Đợt 2 UI/UX (mục 4) — bấm "nở"/"thu gọn" khu trang bị của 1 seat khi bàn >6
+// người. Client-only, không gửi action gì lên reduce()/server.
+function onToggleSeatExpanded(playerId: string): void {
+  expandedSeatIds = expandedSeatIds.includes(playerId)
+    ? expandedSeatIds.filter((id) => id !== playerId)
+    : [...expandedSeatIds, playerId];
+  render();
+}
+
 // Giai đoạn 5, cơ chế chọn nhân vật — KHÔNG dùng currentPlayerId() như các
 // handler khác ở trên: chọn nhân vật KHÔNG phải hành động "đúng lượt", MỖI
 // người tự chọn ĐỘC LẬP (xem core/types.ts's CharacterChoice), nên playerId
@@ -573,6 +597,7 @@ function onJoinRoom(): void {
   networkGameLog = [];
   networkSelectedHouseRules = [];
   networkArmedCharacterId = null;
+  networkExpandedSeatIds = [];
 
   netConnection = new RoomConnection(roomWebSocketUrl(trimmedCode), myPlayerId, trimmedName, {
     onMessage: onNetworkMessage,
@@ -646,6 +671,7 @@ function onNetworkMessage(message: ServerMessage): void {
       networkDeadline = null;
       networkConnectedIds = [];
       networkArmedCharacterId = null;
+      networkExpandedSeatIds = [];
       syncCountdownTick();
       networkAbandonedNotice = "Ván vừa bị huỷ vì không đủ người chơi còn kết nối. Chờ đủ người rồi bắt đầu ván mới.";
       screen = "network-lobby";
@@ -808,6 +834,15 @@ function onNetworkPickKeptCard(cardId: string): void {
 
 function onNetworkCancelSelection(): void {
   networkSelection = { step: "idle" };
+  render();
+}
+
+// Đợt 2 UI/UX (mục 4) — giống hệt onToggleSeatExpanded (hotseat), xem ghi chú
+// ở đó.
+function onNetworkToggleSeatExpanded(playerId: string): void {
+  networkExpandedSeatIds = networkExpandedSeatIds.includes(playerId)
+    ? networkExpandedSeatIds.filter((id) => id !== playerId)
+    : [...networkExpandedSeatIds, playerId];
   render();
 }
 

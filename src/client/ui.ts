@@ -587,6 +587,9 @@ export interface UiHandlers {
   onPickDrawSource(cardId: string): void;
   onPickDrawTarget(targetId: string, letTargetChoose: boolean): void;
   onPickKeptCard(cardId: string): void;
+  // Đợt 2 UI/UX (mục 4) — bấm "nở"/"thu gọn" khu trang bị của 1 seat khi bàn
+  // >6 người. Client-only, không phải hành động ván đấu, không gửi lên server.
+  onToggleSeatExpanded(playerId: string): void;
 }
 
 function button(label: string, onClick: () => void): HTMLButtonElement {
@@ -705,6 +708,44 @@ function renderEquipmentSection(
   container.appendChild(wrapper);
 }
 
+// Đợt 2 UI/UX (mục 4, "QUY TẮC ĐÔNG NGƯỜI") — dùng CHUNG cho hotseat và qua
+// mạng: TỪ 6 người trở xuống luôn hiện đầy đủ khu trang bị; HƠN 6 người mặc
+// định thu gọn (chỉ hiện SỐ lá), bấm nút mới "nở" ra xem/thu lại — trạng thái
+// nở là CLIENT-ONLY (expandedSeatIds, xem main.ts), không phải GameState.
+// `forceShowFull`: đang có hành động THẬT SỰ cần bấm vào khu trang bị của
+// đúng người này — LUÔN hiện đầy đủ bất kể đang thu gọn hay không (rõ ràng
+// quan trọng hơn gọn gàng, CLAUDE.md).
+function renderPlayerEquipmentArea(
+  container: HTMLElement,
+  totalPlayers: number,
+  playerId: string,
+  equipmentCount: number,
+  expandedSeatIds: string[],
+  onToggle: () => void,
+  forceShowFull: boolean,
+  renderFullEquipment: () => void
+): void {
+  const isCompactSeat = totalPlayers > 6;
+  const isExpanded = expandedSeatIds.includes(playerId);
+  const showFull = !isCompactSeat || isExpanded || forceShowFull;
+
+  if (showFull) {
+    const label = document.createElement("p");
+    label.textContent = "Trang bị:";
+    container.appendChild(label);
+    renderFullEquipment();
+    if (isCompactSeat && !forceShowFull) {
+      container.appendChild(button("▾ Thu gọn trang bị", onToggle));
+    }
+    return;
+  }
+
+  const summary = document.createElement("p");
+  summary.textContent = `Trang bị: ${equipmentCount} lá`;
+  container.appendChild(summary);
+  container.appendChild(button(`▸ Xem trang bị (${equipmentCount})`, onToggle));
+}
+
 function renderPlayer(
   state: GameState,
   player: PlayerState,
@@ -749,10 +790,26 @@ function renderPlayer(
   el.appendChild(handLabel);
   renderHandSection(el, state, player, options, handlers);
 
-  const equipmentLabel = document.createElement("p");
-  equipmentLabel.textContent = "Trang bị:";
-  el.appendChild(equipmentLabel);
-  renderEquipmentSection(el, state, player, selection, handlers);
+  // Đợt 2 UI/UX (mục 4) — đang có hành động THẬT SỰ cần bấm vào khu trang bị
+  // của người này (Cat Balou bắt bỏ / Panic! chọn mục tiêu) → LUÔN hiện đầy
+  // đủ, bất kể đang thu gọn — cùng điều kiện renderEquipmentSection() tự
+  // kiểm tra bên trong nó, viết lại ở đây chỉ để QUYẾT ĐỊNH thu/nở.
+  const forceShowEquipment =
+    (topPending !== undefined &&
+      topPending.player === player.id &&
+      topPending.kind === "NEED_DISCARD_FROM_ZONE" &&
+      topPending.zone === "equipment") ||
+    (selection.step === "picking-panic-equipment" && selection.targetId === player.id);
+  renderPlayerEquipmentArea(
+    el,
+    state.players.length,
+    player.id,
+    player.equipment.length,
+    options.expandedSeatIds,
+    () => handlers.onToggleSeatExpanded(player.id),
+    forceShowEquipment,
+    () => renderEquipmentSection(el, state, player, selection, handlers)
+  );
 
   // Chọn mục tiêu: chỉ hiện nút này cho người KHÁC người đang cầm bài, và chỉ
   // khi đang ở bước "picking-target".
@@ -1006,6 +1063,7 @@ export interface RenderOptions {
   discardSelection: string[]; // các cardId đã chọn để bỏ, chỉ có ý nghĩa khi turnPhase === "discard"
   lastDrawCheck: DrawCheckNotice;
   log: string[]; // việc 4.2: nhật ký ván đấu, mới nhất ở đầu mảng
+  expandedSeatIds: string[]; // Đợt 2 UI/UX (mục 4) — playerId nào đang "nở" khu trang bị khi bàn >6 người
 }
 
 export function renderApp(
@@ -1430,6 +1488,8 @@ export interface NetworkGameHandlers {
   onPickDrawSource(cardId: string): void;
   onPickDrawTarget(targetId: string, letTargetChoose: boolean): void;
   onPickKeptCard(cardId: string): void;
+  // Đợt 2 UI/UX (mục 4) — giống hệt UiHandlers (hotseat), xem ghi chú ở đó.
+  onToggleSeatExpanded(playerId: string): void;
 }
 
 export interface NetworkGameOptions {
@@ -1440,6 +1500,7 @@ export interface NetworkGameOptions {
   deadline: DeadlineInfo | null;
   log: string[]; // việc 4.2: nhật ký ván đấu, mới nhất ở đầu mảng
   connectedPlayerIds: string[]; // việc 4.3: ai đang có socket mở thật sự
+  expandedSeatIds: string[]; // Đợt 2 UI/UX (mục 4) — giống RenderOptions (hotseat)
 }
 
 function networkRenderHandSection(
@@ -1652,10 +1713,22 @@ function networkRenderPlayer(
   el.appendChild(handLabel);
   networkRenderHandSection(el, view, player, options, handlers);
 
-  const equipmentLabel = document.createElement("p");
-  equipmentLabel.textContent = "Trang bị:";
-  el.appendChild(equipmentLabel);
-  networkRenderEquipmentSection(el, view, player, selection, handlers);
+  // Đợt 2 UI/UX (mục 4) — seat của BẠN LUÔN đầy đủ ("Seat của BẠN (đáy): luôn
+  // hiện đầy đủ", khác quy tắc >6 người thu gọn áp cho người khác) — vế đầu
+  // đã đủ bao quát ca "chính mình đang cần bấm bỏ trang bị" nên không cần lặp
+  // lại điều kiện NEED_DISCARD_FROM_ZONE riêng như bên hotseat.
+  const forceShowEquipment =
+    player.id === view.viewerId || (selection.step === "picking-panic-equipment" && selection.targetId === player.id);
+  renderPlayerEquipmentArea(
+    el,
+    view.players.length,
+    player.id,
+    player.equipment.length,
+    options.expandedSeatIds,
+    () => handlers.onToggleSeatExpanded(player.id),
+    forceShowEquipment,
+    () => networkRenderEquipmentSection(el, view, player, selection, handlers)
+  );
 
   // Chọn mục tiêu: chỉ hiện nút này khi CHÍNH MÌNH đang chọn mục tiêu, cho
   // người KHÁC mình (không tự nhắm vào bản thân).
