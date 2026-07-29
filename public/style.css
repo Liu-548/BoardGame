@@ -279,6 +279,40 @@ button.card-box {
   z-index: 2;
 }
 
+/* Đợt 4 UI/UX (mục 5): "Cảnh báo riêng: Dynamite (đang đếm), Jail (bị giam)"
+   — dùng ĐÚNG màu đỏ duy nhất của chrome (mục 1), viền + badge góc, giống hệt
+   kiểu ✓ của .card-box--checked ở trên nhưng đỏ thay vì xám, và đổi icon theo
+   loại lá (đặt SAU --checked/--armed để badge nguy hiểm luôn thắng nếu cùng
+   lúc có cả 2, dù thực tế hiếm khi trùng). */
+.card-box--danger {
+  outline: 3px solid var(--color-danger);
+  outline-offset: 1px;
+  position: relative;
+}
+
+.card-box--danger::after {
+  position: absolute;
+  top: 0.15rem;
+  right: 0.15rem;
+  width: 1rem;
+  height: 1rem;
+  border-radius: 50%;
+  background: var(--color-danger);
+  color: #fff;
+  font-size: 0.6rem;
+  line-height: 1rem;
+  text-align: center;
+  z-index: 2;
+}
+
+.card-box--danger-dynamite::after {
+  content: "💣";
+}
+
+.card-box--danger-jail::after {
+  content: "🔒";
+}
+
 /* Nhấn giữ (thiết bị cảm ứng) hiện mô tả chức năng — xem attachDescriptionReveal()
    ở ui.ts. Máy tính dùng luôn tooltip `title` có sẵn của trình duyệt, không
    cần popup này. */

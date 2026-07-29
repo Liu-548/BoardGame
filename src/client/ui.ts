@@ -213,12 +213,25 @@ function cardButton(cardId: string, onClick: () => void, modifierClass?: string)
 }
 
 // Lá CHỈ ĐỂ XEM (không bấm được — không tới lượt, không phải lá cần phản hồi...).
-function cardChip(cardId: string): HTMLSpanElement {
+// `modifierClass`: giống tham số cùng tên ở cardButton() — dùng cho cảnh báo
+// riêng Dynamite/Jail trong khu trang bị (mục 5), xem equipmentDangerClass().
+function cardChip(cardId: string, modifierClass?: string): HTMLSpanElement {
   const name = cardNameFromId(cardId);
   const el = document.createElement("span");
-  el.className = `card-box card-box--inert ${cardTypeModifierClass(name)}`;
+  el.className = ["card-box", "card-box--inert", cardTypeModifierClass(name), modifierClass].filter(Boolean).join(" ");
   appendCardVisual(el, cardImageUrl(name), cardLabel(cardId), CARD_DESCRIPTIONS[name]);
   return el;
+}
+
+// Đợt 4 UI/UX (mục 5) — "Cảnh báo riêng: Dynamite (đang đếm), Jail (bị giam)".
+// Cả 2 chỉ nguy hiểm khi đã NẰM TRÊN SÂN (equipment) — trong tay chưa đánh ra
+// thì chưa có tác dụng gì, không cần cảnh báo (đúng luật: Dynamite/Jail chỉ
+// "kích hoạt" sau khi đánh). Dùng ĐÚNG 1 màu đỏ duy nhất của chrome (mục 1:
+// "chỉ cho NGUY HIỂM/KHẨN CẤP") cho cả 2, phân biệt nhau bằng icon khác nhau.
+function equipmentDangerClass(cardName: CardName): string | undefined {
+  if (cardName === "dynamite") return "card-box--danger card-box--danger-dynamite";
+  if (cardName === "jail") return "card-box--danger card-box--danger-jail";
+  return undefined;
 }
 
 // Giai đoạn 5, cơ chế "phát 2 lá nhân vật, chọn giữ 1" — mô tả ngắn chức năng
@@ -785,14 +798,16 @@ function renderEquipmentSection(
   const isPickingPanicTarget = selection.step === "picking-panic-equipment" && selection.targetId === player.id;
 
   for (const cardId of player.equipment) {
-    const isDynamite = cardNameFromId(cardId) === "dynamite";
+    const name = cardNameFromId(cardId);
+    const isDynamite = name === "dynamite";
+    const dangerClass = equipmentDangerClass(name);
 
     if (!isDynamite && (isDiscardFromEquipment || isPickingPanicTarget)) {
-      wrapper.appendChild(cardButton(cardId, () => handlers.onEquipmentClick(player.id, cardId)));
+      wrapper.appendChild(cardButton(cardId, () => handlers.onEquipmentClick(player.id, cardId), dangerClass));
       continue;
     }
 
-    wrapper.appendChild(cardChip(cardId));
+    wrapper.appendChild(cardChip(cardId, dangerClass));
   }
 
   container.appendChild(wrapper);
@@ -1717,14 +1732,16 @@ function networkRenderEquipmentSection(
   const isPickingPanicTarget = selection.step === "picking-panic-equipment" && selection.targetId === player.id;
 
   for (const cardId of player.equipment) {
-    const isDynamite = cardNameFromId(cardId) === "dynamite";
+    const name = cardNameFromId(cardId);
+    const isDynamite = name === "dynamite";
+    const dangerClass = equipmentDangerClass(name);
 
     if (!isDynamite && (isDiscardFromEquipment || isPickingPanicTarget)) {
-      wrapper.appendChild(cardButton(cardId, () => handlers.onEquipmentClick(player.id, cardId)));
+      wrapper.appendChild(cardButton(cardId, () => handlers.onEquipmentClick(player.id, cardId), dangerClass));
       continue;
     }
 
-    wrapper.appendChild(cardChip(cardId));
+    wrapper.appendChild(cardChip(cardId, dangerClass));
   }
 
   container.appendChild(wrapper);
