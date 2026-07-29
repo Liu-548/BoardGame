@@ -400,10 +400,6 @@ button.card-box {
   margin: 1rem 0;
 }
 
-.log {
-  border-color: #999;
-}
-
 .log-list {
   margin: 0;
   padding-left: 1.25rem;
@@ -450,4 +446,48 @@ button.card-box {
     flex: 1 1 100%;
     min-width: 0;
   }
+
+  /* Đợt 3 UI/UX (mục 9): "Điện thoại: dialog chiếm gần toàn màn" — bỏ khung
+     bo góc căn giữa, cho dialog phủ gần trọn viewport. */
+  dialog.app-dialog {
+    width: 100%;
+    max-width: none;
+    height: 100%;
+    max-height: none;
+    border-radius: 0;
+  }
+}
+
+/* Đợt 3 UI/UX (mục 9) — hàng nút "Sẵn ở góc, không chiếm chỗ bàn": cố định
+   góc trên phải, luôn thấy được kể cả khi cuộn trang, không chen vào bố cục
+   bàn/seat bên dưới. */
+.game-toolbar {
+  position: fixed;
+  top: 0.5rem;
+  right: 0.5rem;
+  display: flex;
+  gap: 0.5rem;
+  z-index: 5;
+}
+
+/* Đợt 3 UI/UX (mục 9) — "Dialog dùng chung một kiểu: nền mờ sau, hộp giữa,
+   nút đóng rõ." Dùng THẲNG <dialog> gốc HTML: browser tự lo phần "hộp giữa"
+   (UA stylesheet căn `margin: auto` khi showModal()) — ở đây chỉ cần khung
+   viền + nền mờ phía sau (::backdrop). "Không làm gián đoạn ván" tự đúng vì
+   dialog chỉ là 1 lớp phủ, DOM bàn chơi phía dưới vẫn nguyên vẹn, showModal()
+   không xoá gì cả. */
+dialog.app-dialog {
+  border: 1px solid var(--color-border);
+  border-radius: 0.5rem;
+  padding: 1rem;
+  max-width: 26rem;
+  width: 90%;
+}
+
+dialog.app-dialog::backdrop {
+  background: rgba(0, 0, 0, 0.4);
+}
+
+dialog.app-dialog h3 {
+  margin-top: 0;
 }

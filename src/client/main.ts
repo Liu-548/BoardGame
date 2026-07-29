@@ -91,6 +91,10 @@ let gameLog: string[] = [];
 // (client-only, xem renderPlayerEquipmentArea() ở ui.ts). Reset về [] mỗi khi
 // bắt đầu ván mới, giống characterArmedChoices ở trên.
 let expandedSeatIds: string[] = [];
+// Đợt 3 UI/UX (mục 9) — 2 dialog góc màn hình (nhật ký/cài đặt), client-only,
+// giống expandedSeatIds. Reset về false mỗi khi bắt đầu ván mới.
+let logDialogOpen = false;
+let settingsDialogOpen = false;
 
 // ----- Chế độ chơi qua mạng (việc 3.9) -----
 let networkName = "";
@@ -110,6 +114,13 @@ let networkLastDrawCheck: DrawCheckNotice = null;
 let networkGameLog: string[] = []; // việc 4.2, xem ghi chú ở gameLog phía trên
 // Đợt 2 UI/UX (mục 4) — giống expandedSeatIds ở hotseat, xem ghi chú ở đó.
 let networkExpandedSeatIds: string[] = [];
+// Đợt 3 UI/UX (mục 9) — giống logDialogOpen/settingsDialogOpen ở hotseat,
+// cộng thêm dialog Mã phòng (chỉ qua mạng) và thông báo tạm thời sau khi
+// bấm "Chép mã" (null = chưa bấm lần nào từ lúc dialog này mở).
+let networkLogDialogOpen = false;
+let networkSettingsDialogOpen = false;
+let networkRoomCodeDialogOpen = false;
+let networkRoomCodeCopyStatus: string | null = null;
 // Việc 4.3: trong số `networkView.players`, ai ĐANG có socket mở thật sự
 // (server tự tính, xem room.ts) — hiện chú thích "đã mất kết nối" cho người
 // không nằm trong mảng này.
@@ -157,7 +168,16 @@ function render(): void {
       renderApp(
         root,
         state,
-        { selection, discardSelection: discardSelectionIds, error, lastDrawCheck, log: gameLog, expandedSeatIds },
+        {
+          selection,
+          discardSelection: discardSelectionIds,
+          error,
+          lastDrawCheck,
+          log: gameLog,
+          expandedSeatIds,
+          logDialogOpen,
+          settingsDialogOpen,
+        },
         {
           onDrawCards,
           onEndTurn,
@@ -175,6 +195,11 @@ function render(): void {
           onPickDrawTarget,
           onPickKeptCard,
           onToggleSeatExpanded,
+          onOpenLogDialog,
+          onCloseLogDialog,
+          onOpenSettingsDialog,
+          onCloseSettingsDialog,
+          onLeaveGame: onBackToHome,
         }
       );
       return;
@@ -225,6 +250,11 @@ function render(): void {
             log: networkGameLog,
             connectedPlayerIds: networkConnectedIds,
             expandedSeatIds: networkExpandedSeatIds,
+            logDialogOpen: networkLogDialogOpen,
+            settingsDialogOpen: networkSettingsDialogOpen,
+            roomCodeDialogOpen: networkRoomCodeDialogOpen,
+            roomCode: networkCode,
+            roomCodeCopyStatus: networkRoomCodeCopyStatus,
           },
           {
             onDrawCards: onNetworkDrawCards,
@@ -242,6 +272,14 @@ function render(): void {
             onPickDrawTarget: onNetworkPickDrawTarget,
             onPickKeptCard: onNetworkPickKeptCard,
             onToggleSeatExpanded: onNetworkToggleSeatExpanded,
+            onOpenLogDialog: onNetworkOpenLogDialog,
+            onCloseLogDialog: onNetworkCloseLogDialog,
+            onOpenSettingsDialog: onNetworkOpenSettingsDialog,
+            onCloseSettingsDialog: onNetworkCloseSettingsDialog,
+            onOpenRoomCodeDialog: onNetworkOpenRoomCodeDialog,
+            onCloseRoomCodeDialog: onNetworkCloseRoomCodeDialog,
+            onCopyRoomCode: onNetworkCopyRoomCode,
+            onLeaveGame: onLeaveNetworkGame,
           }
         );
       }
@@ -327,6 +365,8 @@ function onStartGame(): void {
   gameLog = [];
   characterArmedChoices = {};
   expandedSeatIds = [];
+  logDialogOpen = false;
+  settingsDialogOpen = false;
   render();
 }
 
@@ -515,6 +555,28 @@ function onToggleSeatExpanded(playerId: string): void {
   render();
 }
 
+// Đợt 3 UI/UX (mục 9) — mở/đóng 2 dialog góc màn hình (nhật ký/cài đặt).
+// Client-only, không gửi action gì lên reduce().
+function onOpenLogDialog(): void {
+  logDialogOpen = true;
+  render();
+}
+
+function onCloseLogDialog(): void {
+  logDialogOpen = false;
+  render();
+}
+
+function onOpenSettingsDialog(): void {
+  settingsDialogOpen = true;
+  render();
+}
+
+function onCloseSettingsDialog(): void {
+  settingsDialogOpen = false;
+  render();
+}
+
 // Giai đoạn 5, cơ chế chọn nhân vật — KHÔNG dùng currentPlayerId() như các
 // handler khác ở trên: chọn nhân vật KHÔNG phải hành động "đúng lượt", MỖI
 // người tự chọn ĐỘC LẬP (xem core/types.ts's CharacterChoice), nên playerId
@@ -598,6 +660,10 @@ function onJoinRoom(): void {
   networkSelectedHouseRules = [];
   networkArmedCharacterId = null;
   networkExpandedSeatIds = [];
+  networkLogDialogOpen = false;
+  networkSettingsDialogOpen = false;
+  networkRoomCodeDialogOpen = false;
+  networkRoomCodeCopyStatus = null;
 
   netConnection = new RoomConnection(roomWebSocketUrl(trimmedCode), myPlayerId, trimmedName, {
     onMessage: onNetworkMessage,
@@ -672,6 +738,9 @@ function onNetworkMessage(message: ServerMessage): void {
       networkConnectedIds = [];
       networkArmedCharacterId = null;
       networkExpandedSeatIds = [];
+      networkLogDialogOpen = false;
+      networkSettingsDialogOpen = false;
+      networkRoomCodeDialogOpen = false;
       syncCountdownTick();
       networkAbandonedNotice = "Ván vừa bị huỷ vì không đủ người chơi còn kết nối. Chờ đủ người rồi bắt đầu ván mới.";
       screen = "network-lobby";
@@ -843,6 +912,74 @@ function onNetworkToggleSeatExpanded(playerId: string): void {
   networkExpandedSeatIds = networkExpandedSeatIds.includes(playerId)
     ? networkExpandedSeatIds.filter((id) => id !== playerId)
     : [...networkExpandedSeatIds, playerId];
+  render();
+}
+
+// Đợt 3 UI/UX (mục 9) — giống hệt các handler mở/đóng dialog ở hotseat, cộng
+// thêm dialog Mã phòng/Mời (chỉ qua mạng).
+function onNetworkOpenLogDialog(): void {
+  networkLogDialogOpen = true;
+  render();
+}
+
+function onNetworkCloseLogDialog(): void {
+  networkLogDialogOpen = false;
+  render();
+}
+
+function onNetworkOpenSettingsDialog(): void {
+  networkSettingsDialogOpen = true;
+  render();
+}
+
+function onNetworkCloseSettingsDialog(): void {
+  networkSettingsDialogOpen = false;
+  render();
+}
+
+function onNetworkOpenRoomCodeDialog(): void {
+  networkRoomCodeCopyStatus = null; // mở dialog mới thì bỏ thông báo "Đã chép!" của lần mở trước
+  networkRoomCodeDialogOpen = true;
+  render();
+}
+
+function onNetworkCloseRoomCodeDialog(): void {
+  networkRoomCodeDialogOpen = false;
+  render();
+}
+
+// navigator.clipboard.writeText() là API bất đồng bộ CỦA TRÌNH DUYỆT (không
+// phải chờ người chơi khác trả lời — không vi phạm quy tắc 4 CLAUDE.md, quy
+// tắc đó chỉ áp dụng trong core/). 1 số trình duyệt/thiết bị chặn Clipboard
+// API (vd không phải HTTPS) — báo lỗi rõ ràng thay vì im lặng thất bại.
+function onNetworkCopyRoomCode(): void {
+  navigator.clipboard.writeText(networkCode).then(
+    () => {
+      networkRoomCodeCopyStatus = "Đã chép!";
+      render();
+    },
+    () => {
+      networkRoomCodeCopyStatus = "Không chép được — tự bôi đen và chép mã ở trên.";
+      render();
+    }
+  );
+}
+
+// "Rời phòng" bên trong dialog Cài đặt — đóng WebSocket CHỦ ĐỘNG (net.ts's
+// RoomConnection.close() đặt closedByUser=true, tắt hẳn cơ chế tự nối lại,
+// khác mất mạng ngoài ý muốn), quay lại màn hình chính.
+function onLeaveNetworkGame(): void {
+  netConnection?.close();
+  netConnection = null;
+  networkView = null;
+  networkGameLog = [];
+  networkDeadline = null;
+  networkConnectedIds = [];
+  networkLogDialogOpen = false;
+  networkSettingsDialogOpen = false;
+  networkRoomCodeDialogOpen = false;
+  syncCountdownTick();
+  screen = "home";
   render();
 }
 
