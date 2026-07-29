@@ -556,6 +556,19 @@ Nguyên tắc chung:
 
 305 test đều pass.
 
+**Giao diện UI/UX — đợt 4 (mục 5: cảnh báo riêng Dynamite/Jail):**
+
+- Rà lại mục 5 (khu trang bị) thấy 2/3 ý đã đạt sẵn từ trước (không phải việc mới): "phải chứa nhiều lá, bố cục không vỡ" — `renderEquipmentSection()`/`networkRenderEquipmentSection()` đã dùng class `.cards` có `flex-wrap: wrap` sẵn từ Giai đoạn 4; "súng đang cầm có dấu hiệu + tầm bắn" — đã làm ở việc nhỏ bổ sung trước 4.3 (`Súng Volcanic (1)`...). Đợt này chỉ còn đúng ý cuối: "Cảnh báo riêng: Dynamite (đang đếm), Jail (bị giam)".
+- `cardChip()`/`cardButton()` (`ui.ts`) đã có sẵn tham số `modifierClass` dùng chung — thêm hàm `equipmentDangerClass(cardName)` trả về class CSS mới `card-box--danger` + 1 trong 2 class con `card-box--danger-dynamite`/`card-box--danger-jail` (khác biệt icon). Chỉ tính "nguy hiểm" khi lá đã NẰM TRÊN SÂN (`player.equipment`) — trong tay chưa đánh ra thì chưa kích hoạt gì nên không cảnh báo, đúng luật.
+- CSS (`style.css`): `.card-box--danger` dùng `outline` màu đỏ duy nhất của chrome (biến `--color-danger`, đúng mục 1 — không thêm màu mới) + 1 badge tròn góc trên phải chứa icon (`::after`, `content: "💣"` cho Dynamite / `"🔒"` cho Jail) — khai báo SAU `--checked`/`--armed` để badge nguy hiểm luôn thắng nếu trùng (hiếm khi xảy ra).
+- Áp dụng ở CẢ `renderEquipmentSection()` (hotseat) lẫn `networkRenderEquipmentSection()` (qua mạng) — 2 hàm luôn đi cặp với nhau từ trước tới giờ (xem tiền lệ mọi đợt UI khác).
+- Đã tự kiểm: `npx tsc --noEmit` sạch, 305 test vẫn pass (thuần UI/CSS, không đụng `core/`).
+- Đã tự kiểm bằng trình duyệt thật (`vite dev`): dựng trực tiếp 2 khối `.card-box` mang đủ 2 class cảnh báo để xem cận cảnh (không ép chơi thật nhiều lượt chỉ để chờ rút được đúng Dynamite/Jail — logic gắn class đã qua `tsc`, phần cần mắt kiểm chỉ là CSS/icon hiển thị đúng) — xác nhận viền đỏ + badge góc hiện đúng, icon 💣/🔒 hiện rõ ràng, phân biệt được 2 loại cảnh báo. Không lỗi console.
+- **Còn lại của `GIAO-DIEN-UI-UX.txt`**: mục 4 (2 ý nhỏ còn thiếu: lá nhân vật hiện inline cạnh tên, thanh tim máu trực quan), mục 6 (thanh hành động theo ngữ cảnh — có thể đã đạt sẵn một phần, chưa rà lại), mục 7 (giữa bàn — có thể đã đạt sẵn một phần), mục 8 (phần còn lại: băng thông báo đầu bàn cho chuỗi phản ứng lồng nhau), mục 9 (còn lại: nút tra luật nhanh, toggle âm thanh/sáng-tối/cỡ chữ thật). Để dành đợt sau.
+- **CHƯA deploy lên link công khai** — chỉ mới kiểm cục bộ. Cần `npm run deploy` khi chủ dự án xác nhận.
+
+305 test đều pass.
+
 ## Chưa làm tới, đừng đụng vào
 
 Cả 3 biến thể số người chơi (2/3/8 người) đã HOÀN TẤT (xem 3 mục changelog "Biến thể số người chơi" ở trên) — không còn biến thể nào đang dang dở.
