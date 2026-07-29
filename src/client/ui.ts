@@ -504,16 +504,71 @@ export function describeEvent(event: GameEvent, nameOf: (id: string) => string):
   }
 }
 
-// Danh sách các dòng nhật ký đã dịch sẵn (mới nhất ở ĐẦU mảng — xem main.ts).
-// Không tự tính lại từ GameEvent mỗi lần vẽ, chỉ vẽ chuỗi có sẵn.
-function renderLog(container: HTMLElement, log: string[]): void {
-  if (log.length === 0) return;
-  const panel = document.createElement("div");
-  panel.className = "panel log";
-  const heading = document.createElement("p");
-  heading.className = "pending-heading";
-  heading.textContent = "Nhật ký ván đấu";
-  panel.appendChild(heading);
+// Đợt 3 UI/UX (mục 9) — dialog dùng CHUNG 1 kiểu cho mọi nơi (nhật ký/cài
+// đặt/mã phòng): thẻ `<dialog>` gốc HTML, có sẵn nền mờ phía sau (`::backdrop`,
+// xem style.css) + tự chặn tương tác với phần còn lại của trang khi
+// `showModal()` — khỏi tự dựng overlay tay. `onClose`: đồng bộ lại biến "đang
+// mở" ở main.ts (tránh lệch giữa DOM thật đã đóng và state client tưởng vẫn
+// đang mở, giống ghi chú ở expandedSeatIds) — gọi TRỰC TIẾP từ nút "Đóng"
+// (không chỉ dựa vào sự kiện `close` của `<dialog>`: đã tự kiểm thấy sự kiện
+// này KHÔNG bắn trong môi trường tự kiểm bằng trình duyệt tự động ở đây dù
+// `.close()` vẫn chạy đúng — giữ listener lại chỉ để đồng bộ khi đóng bằng
+// cách KHÁC nút này, vd phím Esc, phòng khi trình duyệt thật của người chơi
+// hoạt động khác môi trường test).
+function renderDialog(container: HTMLElement, title: string, onClose: () => void, buildBody: (body: HTMLElement) => void): void {
+  const dialog = document.createElement("dialog");
+  dialog.className = "app-dialog";
+
+  const heading = document.createElement("h3");
+  heading.textContent = title;
+  dialog.appendChild(heading);
+
+  const body = document.createElement("div");
+  buildBody(body);
+  dialog.appendChild(body);
+
+  dialog.appendChild(
+    button("Đóng", () => {
+      dialog.close();
+      onClose();
+    })
+  );
+  dialog.addEventListener("close", onClose);
+
+  container.appendChild(dialog);
+  dialog.showModal();
+}
+
+// Đợt 3 UI/UX (mục 9) — "Sẵn ở góc, không chiếm chỗ bàn": hàng nút cố định
+// góc trên phải màn hình, bấm mới mở dialog tương ứng — thay hẳn khu nhật ký
+// cố định luôn hiện trước đây. `onOpenRoomCode`: chỉ truyền vào (khác
+// `undefined`) khi đang chơi qua mạng — hotseat không có mã phòng để mời.
+function renderGameToolbar(
+  container: HTMLElement,
+  onOpenLog: () => void,
+  onOpenSettings: () => void,
+  onOpenRoomCode: (() => void) | undefined
+): void {
+  const toolbar = document.createElement("div");
+  toolbar.className = "game-toolbar";
+  toolbar.appendChild(button("Nhật ký ván đấu", onOpenLog));
+  toolbar.appendChild(button("Cài đặt", onOpenSettings));
+  if (onOpenRoomCode) {
+    toolbar.appendChild(button("Mã phòng / Mời", onOpenRoomCode));
+  }
+  container.appendChild(toolbar);
+}
+
+// Danh sách các dòng nhật ký đã dịch sẵn (mới nhất ở ĐẦU mảng — xem main.ts) —
+// nội dung BÊN TRONG dialog nhật ký, không tự tính lại từ GameEvent mỗi lần
+// vẽ, chỉ vẽ chuỗi có sẵn.
+function renderLogDialogBody(body: HTMLElement, log: string[]): void {
+  if (log.length === 0) {
+    const empty = document.createElement("p");
+    empty.textContent = "Chưa có gì trong nhật ký.";
+    body.appendChild(empty);
+    return;
+  }
   const list = document.createElement("ul");
   list.className = "log-list";
   for (const line of log) {
@@ -521,8 +576,35 @@ function renderLog(container: HTMLElement, log: string[]): void {
     item.textContent = line;
     list.appendChild(item);
   }
-  panel.appendChild(list);
-  container.appendChild(panel);
+  body.appendChild(list);
+}
+
+// Nội dung dialog Cài đặt — dùng CHUNG hotseat/qua mạng, chỉ khác nhãn nút
+// rời. CHỈ có đúng 1 hành động THẬT trong đợt này (rời ván) — âm thanh/giao
+// diện sáng-tối/cỡ chữ đều CHƯA làm (xem "Chưa làm tới" ở CLAUDE.md), cố tình
+// KHÔNG vẽ nút/toggle giả cho những thứ chưa có tác dụng thật, chỉ nói rõ.
+function renderSettingsDialogBody(body: HTMLElement, leaveLabel: string, onLeave: () => void): void {
+  const note = document.createElement("p");
+  note.textContent = "Âm thanh, giao diện sáng/tối, cỡ chữ: chưa làm, để dành đợt sau.";
+  body.appendChild(note);
+  body.appendChild(button(leaveLabel, onLeave));
+}
+
+// Nội dung dialog Mã phòng/Mời — CHỈ chơi qua mạng (hotseat không có mã
+// phòng). `copyStatus`: thông báo TẠM THỜI sau khi bấm "Chép mã" (thành công
+// hay lỗi — trình duyệt/thiết bị có thể chặn Clipboard API), null = chưa bấm
+// lần nào trong lượt mở dialog này.
+function renderRoomCodeDialogBody(body: HTMLElement, roomCode: string, copyStatus: string | null, onCopy: () => void): void {
+  const codeEl = document.createElement("p");
+  codeEl.className = "summary";
+  codeEl.textContent = `Mã phòng: ${roomCode}`;
+  body.appendChild(codeEl);
+  body.appendChild(button("Chép mã", onCopy));
+  if (copyStatus) {
+    const statusEl = document.createElement("p");
+    statusEl.textContent = copyStatus;
+    body.appendChild(statusEl);
+  }
 }
 
 // Việc 4.1: đồng hồ đếm ngược lượt (chỉ chơi qua mạng — xem room.ts). Số giây
@@ -590,6 +672,14 @@ export interface UiHandlers {
   // Đợt 2 UI/UX (mục 4) — bấm "nở"/"thu gọn" khu trang bị của 1 seat khi bàn
   // >6 người. Client-only, không phải hành động ván đấu, không gửi lên server.
   onToggleSeatExpanded(playerId: string): void;
+  // Đợt 3 UI/UX (mục 9) — mở/đóng 2 dialog góc màn hình (nhật ký/cài đặt).
+  // Client-only, y hệt onToggleSeatExpanded — không liên quan GameState.
+  onOpenLogDialog(): void;
+  onCloseLogDialog(): void;
+  onOpenSettingsDialog(): void;
+  onCloseSettingsDialog(): void;
+  // Nút "Về màn hình chính" BÊN TRONG dialog Cài đặt.
+  onLeaveGame(): void;
 }
 
 function button(label: string, onClick: () => void): HTMLButtonElement {
@@ -1064,6 +1154,8 @@ export interface RenderOptions {
   lastDrawCheck: DrawCheckNotice;
   log: string[]; // việc 4.2: nhật ký ván đấu, mới nhất ở đầu mảng
   expandedSeatIds: string[]; // Đợt 2 UI/UX (mục 4) — playerId nào đang "nở" khu trang bị khi bàn >6 người
+  logDialogOpen: boolean; // Đợt 3 UI/UX (mục 9)
+  settingsDialogOpen: boolean;
 }
 
 export function renderApp(
@@ -1121,7 +1213,15 @@ export function renderApp(
   }
   container.appendChild(playersEl);
 
-  renderLog(container, options.log);
+  renderGameToolbar(container, handlers.onOpenLogDialog, handlers.onOpenSettingsDialog, undefined);
+  if (options.logDialogOpen) {
+    renderDialog(container, "Nhật ký ván đấu", handlers.onCloseLogDialog, (body) => renderLogDialogBody(body, options.log));
+  }
+  if (options.settingsDialogOpen) {
+    renderDialog(container, "Cài đặt", handlers.onCloseSettingsDialog, (body) =>
+      renderSettingsDialogBody(body, "Về màn hình chính", handlers.onLeaveGame)
+    );
+  }
 }
 
 // ----- Việc 2.5: màn hình thiết lập ván mới (chế độ hotseat — 2-8 người
@@ -1490,6 +1590,18 @@ export interface NetworkGameHandlers {
   onPickKeptCard(cardId: string): void;
   // Đợt 2 UI/UX (mục 4) — giống hệt UiHandlers (hotseat), xem ghi chú ở đó.
   onToggleSeatExpanded(playerId: string): void;
+  // Đợt 3 UI/UX (mục 9) — giống UiHandlers (hotseat), cộng thêm dialog Mã
+  // phòng/Mời (CHỈ qua mạng — hotseat không có mã phòng).
+  onOpenLogDialog(): void;
+  onCloseLogDialog(): void;
+  onOpenSettingsDialog(): void;
+  onCloseSettingsDialog(): void;
+  onOpenRoomCodeDialog(): void;
+  onCloseRoomCodeDialog(): void;
+  onCopyRoomCode(): void;
+  // "Rời phòng" BÊN TRONG dialog Cài đặt — đóng WebSocket chủ động (khác
+  // mất mạng), quay lại màn hình chính.
+  onLeaveGame(): void;
 }
 
 export interface NetworkGameOptions {
@@ -1501,6 +1613,11 @@ export interface NetworkGameOptions {
   log: string[]; // việc 4.2: nhật ký ván đấu, mới nhất ở đầu mảng
   connectedPlayerIds: string[]; // việc 4.3: ai đang có socket mở thật sự
   expandedSeatIds: string[]; // Đợt 2 UI/UX (mục 4) — giống RenderOptions (hotseat)
+  logDialogOpen: boolean; // Đợt 3 UI/UX (mục 9)
+  settingsDialogOpen: boolean;
+  roomCodeDialogOpen: boolean;
+  roomCode: string;
+  roomCodeCopyStatus: string | null; // thông báo tạm thời sau khi bấm "Chép mã"
 }
 
 function networkRenderHandSection(
@@ -2030,5 +2147,18 @@ export function renderNetworkGame(
   tableEl.appendChild(seatsEl);
   container.appendChild(tableEl);
 
-  renderLog(container, options.log);
+  renderGameToolbar(container, handlers.onOpenLogDialog, handlers.onOpenSettingsDialog, handlers.onOpenRoomCodeDialog);
+  if (options.logDialogOpen) {
+    renderDialog(container, "Nhật ký ván đấu", handlers.onCloseLogDialog, (body) => renderLogDialogBody(body, options.log));
+  }
+  if (options.settingsDialogOpen) {
+    renderDialog(container, "Cài đặt", handlers.onCloseSettingsDialog, (body) =>
+      renderSettingsDialogBody(body, "Rời phòng", handlers.onLeaveGame)
+    );
+  }
+  if (options.roomCodeDialogOpen) {
+    renderDialog(container, "Mã phòng / Mời", handlers.onCloseRoomCodeDialog, (body) =>
+      renderRoomCodeDialogBody(body, options.roomCode, options.roomCodeCopyStatus, handlers.onCopyRoomCode)
+    );
+  }
 }
