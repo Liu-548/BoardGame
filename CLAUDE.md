@@ -704,6 +704,22 @@ Nguyên tắc chung:
 
 306 test đều pass.
 
+**Đổi hẳn layout bàn qua mạng — bỏ bàn tròn, dùng 2 hàng ngang + hàng lẻ (theo phản hồi thật lần 5, đã hỏi kỹ + xác nhận ví dụ cụ thể trước khi làm):**
+
+- Bàn tròn (`position: absolute` quanh hình elip, đợt 1 UI/UX) đã qua 2 lần sửa công thức toạ độ nhưng vẫn tràn (lần 1: bán kính %, lần 2: seat của mình nới rộng) — chủ dự án yêu cầu bỏ HẲN cách định vị tuyệt đối, đổi sang bố cục dùng LUỒNG TÀI LIỆU bình thường (2 hàng liên tiếp trong luồng KHÔNG THỂ đè lên nhau — khác định vị tuyệt đối).
+- **Đã hỏi kỹ 2 điểm còn mơ hồ trước khi code** (đúng yêu cầu "không rõ thì hỏi"), có ví dụ cụ thể kèm theo, chủ dự án xác nhận:
+  1. Cách "gấp" thứ tự lượt (coi đối thủ + bản thân là 1 VÒNG KHÉP KÍN — khái niệm để tính toán, KHÔNG vẽ ra hình tròn nữa) thành 2 hàng: kiểu "gấp rắn" (boustrophedon) — nửa ĐẦU thứ tự lượt → hàng XA (trên, trái→phải); nửa SAU → hàng GẦN (dưới, sát hàng của bạn), ĐẢO NGƯỢC (phải→trái) để giữ đúng tính liền kề khi đọc nối tiếp từ hàng xa xuống hàng gần.
+  2. Khi tổng số người CHẴN (đối thủ lẻ, không chia đều 2 hàng được): người dư ra tách lên 1 hàng CĂN GIỮA riêng ở trên cùng là người ở GIỮA thứ tự lượt (xa bản thân nhất trong vòng khép kín — giống vị trí 12 giờ ở bàn tròn cũ), KHÔNG PHẢI người đầu/cuối thứ tự lượt.
+- `ui.ts`: xoá hẳn `seatAngleDeg()`/`seatCosSin()` (toán góc/elip không còn cần). Hàm mới `buildOpponentRows(opponents)` nhận mảng đối thủ đã xoay theo thứ tự lượt (từ `buildSeatOrder()`, không đổi) — trả về `{oddRow, farRow, nearRow}`: đối thủ CHẴN → `farRow` = nửa đầu, `nearRow` = nửa sau ĐẢO NGƯỢC, `oddRow` rỗng; đối thủ LẺ → tách phần tử GIỮA (`Math.floor(n/2)`) vào `oddRow`, phần còn lại (chẵn) chia farRow/nearRow như trên. `networkRenderPlayer()` bỏ hẳn tham số `seatIndex`/`seatTotal`, thay bằng 1 boolean `isOwnRow` (chỉ còn phân biệt "hàng riêng của mình" hay "1 trong các đối thủ", không cần tính góc gì nữa). `renderNetworkGame()` dựng 3 hàng đối thủ (`.opponent-row`, chỉ vẽ hàng nào có người) rồi mới tới hàng riêng của mình — tất cả nối tiếp nhau trong luồng tài liệu.
+- CSS: xoá hẳn `.seats`/`.player--seat`/toàn bộ media query bàn tròn — thay bằng `.opponent-row` (`display:flex; flex-wrap:wrap; justify-content:center`, KHÔNG cần media query riêng cho điện thoại nữa vì flex-wrap tự lo mọi kích thước màn hình). `.player--own-row` giữ nguyên như đợt trước.
+- Đây là thay đổi cấu trúc UI thuần, KHÔNG đụng `core/` — không cần test Vitest mới.
+- Đã tự kiểm: `npx tsc --noEmit` sạch, 306 test vẫn pass, `npm run build` qua.
+- Đã tự kiểm bằng `wrangler dev` cục bộ + 6 tab thật (P1-P6, đúng luồng lobby→chọn nhân vật→bàn chơi thật, không giả lập) — đo qua DOM: đúng 3 hàng đối thủ dựng ra (`oddRow=[P4]` 1 người căn giữa trên cùng, `farRow=[P6,P5]`, `nearRow=[P2,P3]`) + hàng riêng của P1, khớp CHÍNH XÁC thuật toán đã thống nhất; đo `getBoundingClientRect()` cả 4 hàng — `bottom` hàng trước LUÔN nhỏ hơn `top` hàng sau, KHÔNG hàng nào đè lên hàng nào; ép `document.body.style.maxWidth='360px'` (mô phỏng điện thoại) — `scrollWidth === clientWidth` (360=360), không tràn ngang dù có tới 6 người chơi. Chụp ảnh xác nhận trực quan bố cục đúng như ví dụ đã chốt. Không lỗi console.
+- **Lưu ý riêng, CHƯA làm (ngoài phạm vi yêu cầu lần này)**: lớp phủ ép xoay ngang trên điện thoại (`orientation-lock-overlay`, ra đời TỪ trước để né bàn tròn cũ bị hẹp) giờ có thể không còn cần thiết nữa (layout hàng mới hoạt động tốt ở MỌI chiều màn hình, đã tự kiểm qua ép độ rộng hẹp phía trên) — nhưng đây là quyết định NGOÀI yêu cầu lần này (chỉ nói về bố cục hàng), nên CHƯA đụng vào, để chủ dự án xác nhận có muốn bỏ luôn lớp phủ đó không ở đợt sau.
+- Đã deploy lại (`npm run deploy`) lên **https://bang-boardgame.nguyenngoctuan548.workers.dev** sau khi sửa.
+
+306 test đều pass.
+
 ## Chưa làm tới, đừng đụng vào
 
 Cả 3 biến thể số người chơi (2/3/8 người) đã HOÀN TẤT (xem 3 mục changelog "Biến thể số người chơi" ở trên) — không còn biến thể nào đang dang dở.
