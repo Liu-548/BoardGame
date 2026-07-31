@@ -1905,14 +1905,21 @@ function seatAngleDeg(seatIndex: number, seatTotal: number): number {
   return (90 + ((seatIndex + 1) * 360) / seatTotal) % 360;
 }
 
-// Đổi góc (độ) sang toạ độ % trên ellipse tâm (50%, 50%), bán kính rx/ry theo
-// % — dùng cho CSS custom property --seat-x/--seat-y (xem .player--seat ở
-// style.css, chỉ có hiệu lực từ @media (min-width: 700px) trở lên).
-function seatPositionPercent(angleDeg: number): { x: number; y: number } {
+// Đổi góc (độ) sang cos/sin THÔ (không nhân bán kính) — CSS tự tính vị trí
+// bằng calc() với bán kính TRỪ 1 khoảng cố định theo rem (xem .player--seat ở
+// style.css). Lý do đổi từ bán kính THEO PHẦN TRĂM (đợt 1, `x = 50 + 42*cos`)
+// sang cách này: phản hồi thật — bàn tràn ngang trên điện thoại, KHÔNG kéo/
+// cuộn được. Nguyên nhân gốc: bán kính % không biết trước độ rộng THẬT của
+// khung seat (14rem = 224px) — ở container hẹp hơn ~1400px (tức HẦU HẾT màn
+// hình thật), seat gần rìa trái/phải bị `translate(-50%)` đẩy sang toạ độ ÂM
+// (âm hơn 0% container) → trình duyệt KHÔNG cho cuộn sang trái để thấy phần
+// đó (chỉ cuộn được sang phải/xuống, không cuộn được về âm — giới hạn cố
+// hữu của scroll, không phải lỗi thao tác). Bán kính "50% - Nrem" (N là nửa
+// độ rộng seat, cộng dư an toàn) đảm bảo LUÔN có đủ chỗ, không bao giờ âm,
+// bất kể container rộng bao nhiêu.
+function seatCosSin(angleDeg: number): { cos: number; sin: number } {
   const rad = (angleDeg * Math.PI) / 180;
-  const rx = 42;
-  const ry = 38;
-  return { x: 50 + rx * Math.cos(rad), y: 50 + ry * Math.sin(rad) };
+  return { cos: Math.cos(rad), sin: Math.sin(rad) };
 }
 
 // Xoay view.players sao cho bắt đầu từ người NGAY SAU viewer, kết thúc bằng
@@ -1954,9 +1961,9 @@ function networkRenderPlayer(
   // cỡ an toàn cũ + cuộn ngang nếu lỡ có quá nhiều trang bị.
   el.className = "player player--seat" + (player.id === view.viewerId ? " player--seat-self" : "");
 
-  const { x, y } = seatPositionPercent(seatAngleDeg(seatIndex, seatTotal));
-  el.style.setProperty("--seat-x", `${x}%`);
-  el.style.setProperty("--seat-y", `${y}%`);
+  const { cos, sin } = seatCosSin(seatAngleDeg(seatIndex, seatTotal));
+  el.style.setProperty("--seat-cos", `${cos}`);
+  el.style.setProperty("--seat-sin", `${sin}`);
 
   // Đợt 1 UI/UX (mục 1+8) — cùng logic ưu tiên trạng thái với renderPlayer()
   // (hotseat), viết riêng vì đọc PlayerView/PlayerHandView đã lọc, không phải
