@@ -181,9 +181,11 @@ bằng `wrangler dev` + trình duyệt thật, không có test Vitest tự độ
 | 7 | Toàn bộ UI/UX đợt 5 (mục 4: hàng viên đạn thay số máu, lá nhân vật thu nhỏ cạnh tên) — CẢ hotseat lẫn qua mạng | Mở `npm run dev` (hotseat) và `wrangler dev` (qua mạng), chơi vài lượt để máu giảm — xem hàng viên đạn có xếp gọn, không tràn dòng khi máu tối đa cao (vd 5 máu Sheriff); lá nhân vật mini có canh đúng cạnh tên không, đọc được tên nhân vật khi hover/nhấn giữ không | Extension trình duyệt tự động mất kết nối hoàn toàn ở phiên làm việc đó — CHƯA có bất kỳ lần mắt-thấy nào, chỉ dựa vào `tsc`/test/build sạch |
 | 8 | UI/UX đợt 6 (mục 8: băng thông báo phản ứng) — riêng CHUỖI PHẢN ỨNG LỒNG NHAU thật (Gatling→Barrel→draw!, hoặc Slab the Killer cần 2 Missed!) | Dựng đúng tình huống 1 người có 2+ pending chồng nhau, xem banner có đổi đúng theo ĐỈNH stack mỗi lần 1 việc được giải quyết, dòng "+N việc khác đang chờ" có đúng số không | Lần kiểm đợt 6 chỉ dựng được 1 tầng Bang!→Missed! (đã xác nhận banner + đồng hồ gộp + dòng "đồng hồ lượt tạm dừng" đều đúng); logic đọc đỉnh stack không đổi so với code cũ nên rủi ro thấp, nhưng chưa mắt-thấy đúng ca lồng nhiều tầng |
 
-**Lưu ý deploy:** link công khai (`https://bang-boardgame.nguyenngoctuan548.workers.dev`)
-hiện vẫn là bản TRƯỚC cả 5 đợt "Giao diện UI/UX" — mọi thay đổi từ đó tới giờ mới chỉ
-kiểm cục bộ (`vite dev`/`wrangler dev`), CHƯA `npm run deploy`. Cần tự deploy rồi kiểm
-lại 1 lượt trên chính link thật trước khi rủ bạn bè vào chơi bản mới.
+**Lưu ý deploy:** ĐÃ `npm run deploy` — link công khai (`https://bang-boardgame.nguyenngoctuan548.workers.dev`)
+giờ có đủ cả 7 đợt "Giao diện UI/UX" + fix kích thước lá nhân vật, đã tự kiểm lại
+hotseat NGAY trên link live (đúng bundle vừa build, lá nhân vật đo đúng kích thước).
+Còn thiếu: tự kiểm lại BÀN TRÒN QUA MẠNG thật trên chính link công khai (chỉ mới kiểm
+hotseat lúc deploy) — nên chơi thử với bạn bè để xác nhận nốt trước khi rủ chơi rộng
+rãi hơn.
 
 Đừng hứa với bạn bè một ngày cụ thể.
