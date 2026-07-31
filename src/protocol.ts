@@ -36,7 +36,7 @@ export type DeadlineInfo =
   | {
       playerId: null;
       expiresAt: number;
-      kind: "character_selection"; // 30 giây CHUNG cho cả bàn chọn nhân vật — xem room.ts
+      kind: "character_selection"; // CHUNG cho cả bàn chọn nhân vật — xem room.ts (thời lượng)
     };
 
 // ----- Client → Server -----

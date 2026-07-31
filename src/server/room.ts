@@ -65,12 +65,18 @@ interface PausedPlay {
 }
 
 const PLAY_PHASE_MS = 60_000; // lượt đánh bài (turnPhase "play") của người đang tới lượt
-const REACTIVE_MS = 10_000; // người khác phải phản hồi (đỡ Missed!/Đấu tay đôi/Người da đỏ/Cat Balou/Cửa hàng tổng hợp...)
+// Phản hồi thật từ chủ dự án: CHỐT lại quy tắc timeout — chỉ lượt đánh bài
+// (60s) và bỏ bài thừa (+15s) là 2 mốc riêng; MỌI hành động khác (đỡ Missed!/
+// Đấu tay đôi/Người da đỏ/Cat Balou/Cửa hàng tổng hợp/hạ Bang! ngoài lượt...)
+// ĐỀU 15s như nhau — trước đó 10s là SAI, sửa lại đúng 15s.
+const REACTIVE_MS = 15_000; // người khác phải phản hồi (đỡ Missed!/Đấu tay đôi/Người da đỏ/Cat Balou/Cửa hàng tổng hợp...)
 const DISCARD_PHASE_MS = 15_000; // bỏ bài thừa cuối lượt (chỉ khi hand > hp)
-// Giai đoạn 5, cơ chế chọn nhân vật — 30 giây CHUNG cho CẢ BÀN (không phải
-// từng người riêng), tính từ lúc ván vừa được tạo (setupGame() với
-// dealCharacterCards:true) cho tới khi MỌI người đã chọn xong.
-const CHARACTER_SELECTION_MS = 30_000;
+// Giai đoạn 5, cơ chế chọn nhân vật — CHUNG cho CẢ BÀN (không phải từng
+// người riêng), tính từ lúc ván vừa được tạo (setupGame() với
+// dealCharacterCards:true) cho tới khi MỌI người đã chọn xong. Trước đó 30s
+// — chủ dự án CHỐT lại: cũng chỉ 15s như mọi hành động khác, không phải mốc
+// riêng.
+const CHARACTER_SELECTION_MS = 15_000;
 
 // Ai/việc gì đang cần tính giờ — dùng chung cho determineActiveDecision() và
 // DeadlineInfo (protocol.ts, trừ `expiresAt`). Tách riêng "character_selection"
@@ -516,8 +522,8 @@ export class Room {
         return { type: "RESPOND", playerId: top.player };
 
       // Giai đoạn 5 (Jesse Jones) — hết giờ ở bước NẠN NHÂN tự chọn lá đưa ->
-      // rút ngẫu nhiên thay họ (không kèm cardId), đúng "Timeout 10s → rút
-      // ngẫu nhiên" trong file luật.
+      // rút ngẫu nhiên thay họ (không kèm cardId), đúng "Timeout → rút ngẫu
+      // nhiên" trong file luật.
       case "NEED_GIVE_CARD_TO_PLAYER":
         return { type: "RESPOND", playerId: top.player };
 

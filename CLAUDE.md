@@ -649,10 +649,23 @@ Nguyên tắc chung:
 
 306 test đều pass.
 
+**Sửa mốc thời gian timeout theo phản hồi thật lần 3 từ chủ dự án (chốt lại toàn bộ quy tắc timeout, thay cho bộ số cũ đoán chưa đúng):**
+
+- Chủ dự án CHỐT rõ quy tắc: **lượt đánh bài 60s** + **bỏ bài thừa cuối lượt +15s** (2 mốc này giữ nguyên, đã đúng từ việc 4.1) — còn **MỌI hành động khác đều 15s như nhau**: đỡ Missed!/Đấu tay đôi/Người da đỏ, Cat Balou/Cửa hàng tổng hợp chọn lá, hạ Bang! ngoài lượt (Duel/Indians!/Calamity Janet), Pedro Ramirez/Jesse Jones/Kit Carlson tự quyết đầu lượt, VÀ chọn nhân vật đầu ván — tất cả trước đó đang SAI (10s cho nhóm "reactive", 30s riêng cho chọn nhân vật), giờ gộp về đúng 1 mốc 15s.
+- `src/server/room.ts`: đổi `REACTIVE_MS` từ `10_000` → `15_000`, `CHARACTER_SELECTION_MS` từ `30_000` → `15_000`. Không đổi `PLAY_PHASE_MS` (60_000)/`DISCARD_PHASE_MS` (15_000) — đã đúng sẵn. Sửa nốt vài dòng comment ở `room.ts`/`protocol.ts` còn nhắc số cũ (10 giây/30 giây) cho khỏi lạc hậu.
+- **Cơ chế "đồng hồ lượt tạm dừng khi chờ người khác phản hồi"** (chủ dự án nhắc lại trong cùng phản hồi) — đã đúng sẵn từ việc 4.1/`scheduleDeadline()`, không cần sửa gì, chỉ tự kiểm lại cho chắc.
+- Đây là thay đổi HẠ TẦNG (`room.ts`, không phải `core/`) — theo đúng tiền lệ mọi thay đổi timer trong dự án, KHÔNG có test Vitest, chỉ kiểm bằng `wrangler dev` + trình duyệt thật.
+- Đã tự kiểm: `npx tsc --noEmit` sạch, 306 test vẫn pass (không đổi `core/`).
+- Đã tự kiểm bằng `wrangler dev` cục bộ + 2 tab thật (An/Bình, ván 2 người): màn chọn nhân vật hiện "⏱ Còn 13s" ngay sau khi bắt đầu (khớp mốc mới 15s, KHÔNG còn gần 30s như trước); Bình đánh Bang! nhắm An, tab An hiện "⏱ Còn 9s" cho việc đỡ Missed! (khớp mốc mới 15s, KHÔNG còn tối đa 10s như trước) — cả 2 đo được sau vài giây độ trễ thao tác thật, nhất quán với mốc 15s; dòng "Đồng hồ lượt của Binh đang tạm dừng..." vẫn hiện đúng, xác nhận cơ chế tạm dừng không bị ảnh hưởng.
+- Đã deploy lại (`npm run deploy`) lên **https://bang-boardgame.nguyenngoctuan548.workers.dev** sau khi sửa.
+- **Còn treo lại từ phản hồi trước, chưa sửa**: bàn tràn ngang trên điện thoại web (không kéo/cuộn/co giãn được) — chủ dự án hẹn bàn kỹ hơn sau khi các mốc thời gian đã đúng.
+
+306 test đều pass.
+
 ## Chưa làm tới, đừng đụng vào
 
 Cả 3 biến thể số người chơi (2/3/8 người) đã HOÀN TẤT (xem 3 mục changelog "Biến thể số người chơi" ở trên) — không còn biến thể nào đang dang dở.
 
-Cơ chế "phát 2 lá nhân vật, chọn giữ 1" coi như HOÀN TẤT — core, UI (hotseat + qua mạng), và đồng hồ 30 giây thật đều đã xong và ĐANG BẬT cho ván thật. Bia (Beer) cũng đã HOÀN THIỆN — cả ngoại lệ "vô tác dụng khi còn 2 người" lẫn cơ chế "hồi sinh tự động khi máu về 0". Việc 5.3 (house rules) đã có 4/6 luật nháp ban đầu, KÈM UI chọn thật (hotseat + qua mạng) — còn lại "gộp 2 lá Beer hồi máu người khác" (cần cơ chế chọn mục tiêu mới) để dành đợt sau. Còn lại ngoài ra: 5.4 (expansion), đồ hoạ đẹp (ảnh nhân vật thật trong `public/sprites/characters/`, giống ảnh lá bài — hiện vẫn ô xám vì chưa có file), âm thanh, tài khoản/đăng nhập, bảng xếp hạng.
+Cơ chế "phát 2 lá nhân vật, chọn giữ 1" coi như HOÀN TẤT — core, UI (hotseat + qua mạng), và đồng hồ thật (15 giây, xem changelog sửa mốc thời gian ở trên — ban đầu 30s, đã chỉnh lại) đều đã xong và ĐANG BẬT cho ván thật. Bia (Beer) cũng đã HOÀN THIỆN — cả ngoại lệ "vô tác dụng khi còn 2 người" lẫn cơ chế "hồi sinh tự động khi máu về 0". Việc 5.3 (house rules) đã có 4/6 luật nháp ban đầu, KÈM UI chọn thật (hotseat + qua mạng) — còn lại "gộp 2 lá Beer hồi máu người khác" (cần cơ chế chọn mục tiêu mới) để dành đợt sau. Còn lại ngoài ra: 5.4 (expansion), đồ hoạ đẹp (ảnh nhân vật thật trong `public/sprites/characters/`, giống ảnh lá bài — hiện vẫn ô xám vì chưa có file), âm thanh, tài khoản/đăng nhập, bảng xếp hạng.
 
 Cả 16 nhân vật đã có THẬT trong `core/characters.ts` (việc 5.2, đợt 1-7) VÀ ĐỦ 16/16 đã có nút bấm thật trên giao diện (hotseat lẫn qua mạng, kèm đồng hồ hết giờ tự động) — Giai đoạn 5 (phần nhân vật) coi như xong hoàn toàn, không còn nhân vật nào "chỉ dùng được qua code/test".
