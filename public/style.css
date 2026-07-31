@@ -95,7 +95,21 @@ input[type="text"] {
     left: var(--seat-x);
     top: var(--seat-y);
     transform: translate(-50%, -50%);
-    width: 14rem;
+    min-width: 14rem;
+    width: max-content;
+    max-width: 36rem;
+  }
+
+  /* Phản hồi thật từ chủ dự án sau khi chơi thử bàn tròn qua mạng: width cố
+     định 14rem ở trên ép bài trên tay/trang bị (.cards, xem dưới) vỡ thành
+     lưới 2 cột thay vì 1 hàng ngang — width: max-content bên trên đã giải
+     quyết phần lớn (seat tự nới theo nội dung), .cards ở đây chỉ còn là lưới
+     đỡ khi hiếm khi tay quá nhiều lá vượt max-width (cuộn ngang thay vì vỡ
+     dòng, không đụng gì tới hotseat/danh sách dọc — 2 nơi đó dùng .cards
+     KHÔNG lồng trong .player--seat nên không bị ảnh hưởng). */
+  .player--seat .cards {
+    flex-wrap: nowrap;
+    overflow-x: auto;
   }
 }
 
@@ -233,9 +247,12 @@ input[type="text"] {
   }
 }
 
-/* Đang chờ (không phải lượt mình, không bị nhắm) — mục 1: "MỜ đi". */
+/* Đang chờ (không phải lượt mình, không bị nhắm) — đặc tả gốc mục 1 ghi "MỜ
+   đi", nhưng phản hồi thật từ chủ dự án sau khi chơi thử: mờ khiến người
+   CHƯA tới lượt trông như đã bị loại/chết rồi — bỏ hẳn opacity, giữ nguyên
+   class rỗng (không xoá logic gán class ở ui.ts, chỉ bỏ phần style) để không
+   phải sửa lại toàn bộ chỗ tính "waiting vs current vs targeted vs dead". */
 .player--waiting {
-  opacity: 0.6;
 }
 
 /* Đã bị loại — mục 1: "mờ nặng + gạch tên" (gạch tên áp ở chính thẻ <h3>, xem

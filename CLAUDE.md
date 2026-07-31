@@ -627,6 +627,16 @@ Nguyên tắc chung:
 
 306 test đều pass.
 
+**Sửa theo phản hồi thật từ chủ dự án sau khi tự chơi bàn tròn qua mạng trên link công khai (gửi kèm 2 ảnh chụp màn hình):**
+
+- **Bài trên tay/trang bị bị vỡ thành lưới 2 cột** — `.player--seat` (bàn tròn, đợt 1) trước đó có `width: 14rem` CỐ ĐỊNH, không đủ chỗ cho nhiều lá nên `.cards` (flex-wrap: wrap) buộc phải xuống dòng. Sửa: `.player--seat` đổi sang `min-width: 14rem; width: max-content; max-width: 36rem` (tự nới theo nội dung, chỉ seat CỦA MÌNH thật sự nới nhiều vì seat người khác chỉ hiện số lá ẩn, không cần rộng); `.player--seat .cards` thêm `flex-wrap: nowrap; overflow-x: auto` làm lưới đỡ (cực hiếm khi tay quá nhiều lá vượt 36rem mới cần cuộn ngang, không bao giờ vỡ dòng nữa). KHÔNG đụng gì `.cards` ở hotseat/danh sách dọc (2 nơi đó không lồng trong `.player--seat`).
+- **Bỏ mờ (opacity) cho seat "đang chờ"** — đặc tả gốc mục 1 ghi "chưa tới lượt thì MỜ đi" (`​.player--waiting { opacity: 0.6 }`), nhưng chủ dự án phản hồi trực tiếp: mờ khiến người chưa tới lượt trông như đã bị loại/chết rồi (dễ nhầm với `.player--dead`, mờ nặng hơn — 0.4). Bỏ hẳn opacity ở `.player--waiting`, giữ nguyên `.player--dead` (đã chết THẬT SỰ nên vẫn cần mờ + gạch tên).
+- Đã tự kiểm: `npx tsc --noEmit` sạch, 306 test vẫn pass (thuần CSS, không đụng `core/`/`ui.ts`).
+- Đã tự kiểm bằng `wrangler dev` cục bộ + 4 tab thật (An/Bình/Chi/Dũng, qua đúng luồng lobby→chọn nhân vật→bàn chơi thật, không giả lập gì) — đo qua DOM thật (`getBoundingClientRect()`/`scrollWidth`/`getComputedStyle()`, không chỉ nhìn ảnh chụp): seat của An (7 lá trên tay: Missed!, Súng Schofield, Panic!, Bia, Cat Balou, Missed!, Panic!) tự nới rộng đúng 575px, khu `.cards` bên trong 538px = `scrollWidth` — khớp hệt `clientWidth`, nghĩa là ĐỦ 7 lá nằm 1 hàng ngang, KHÔNG cần cuộn; 3 seat còn lại (Bình/Chi/Dũng, tay ẩn) vẫn gọn 264px như cũ, không bị ảnh hưởng. Cả 3 seat "waiting" đo `getComputedStyle().opacity === "1"` (hết mờ), seat An (`--current`) cũng `opacity: 1` như trước.
+- Đã deploy lại (`npm run deploy`) lên **https://bang-boardgame.nguyenngoctuan548.workers.dev** sau khi sửa.
+
+306 test đều pass.
+
 ## Chưa làm tới, đừng đụng vào
 
 Cả 3 biến thể số người chơi (2/3/8 người) đã HOÀN TẤT (xem 3 mục changelog "Biến thể số người chơi" ở trên) — không còn biến thể nào đang dang dở.
