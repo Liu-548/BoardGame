@@ -77,8 +77,12 @@ input[type="text"] {
 
 /* Từ 700px trở lên: đủ rộng để bật bàn tròn — .seats trở thành khung định vị
    tuyệt đối, mỗi seat đặt theo --seat-x/--seat-y (tính bằng seatAngleDeg() +
-   seatPositionPercent() ở ui.ts, KHÔNG hardcode theo từng N). */
-@media (min-width: 700px) {
+   seatPositionPercent() ở ui.ts, KHÔNG hardcode theo từng N).
+   Thêm điều kiện "orientation: landscape" (kể cả khi < 700px) — sau khi ép
+   xoay ngang (`.orientation-lock-overlay` bên dưới), điện thoại xoay ngang có
+   thể vẫn hẹp hơn 700px (vd iPhone SE ~667px) nhưng vẫn nên thấy bàn tròn thay
+   vì rớt về danh sách dọc. */
+@media (min-width: 700px), (orientation: landscape) and (max-width: 699px) {
   .seats {
     position: relative;
     display: block;
@@ -95,12 +99,122 @@ input[type="text"] {
   }
 }
 
+/* Ép xoay ngang trên điện thoại — thay hẳn danh sách dọc (mục 10 cũ) cho MÀN
+   HÌNH BÀN CHƠI (hotseat lẫn qua mạng). Web không thể tự xoay máy người dùng
+   (quyền hệ điều hành, không phải trình duyệt) — cách khả thi là CHẶN thao
+   tác bằng 1 lớp phủ toàn màn hình, chờ người chơi tự xoay tay. Phần tử này
+   LUÔN có trong DOM (renderOrientationLockOverlay() ở ui.ts, gọi mỗi lần vẽ
+   màn hình bàn chơi) — mặc định ẩn, CHỈ hiện qua media query dưới, không cần
+   JS lắng nghe orientationchange (đơn giản hơn, ít lỗi vặt hơn). Ngưỡng
+   699px khớp ĐÚNG ngưỡng bàn tròn ở trên — điện thoại dọc hẹp mới bị chặn,
+   máy tính bảng dọc (vd iPad ~768–810px) đã đủ rộng cho bàn tròn nên không
+   cần ép. */
+.orientation-lock-overlay {
+  display: none;
+}
+
+@media (orientation: portrait) and (max-width: 699px) {
+  .orientation-lock-overlay {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    padding: 2rem;
+    background: #fff;
+    text-align: center;
+  }
+
+  .orientation-lock-overlay p {
+    font-size: 1.3rem;
+    font-weight: bold;
+    max-width: 20rem;
+  }
+}
+
 .player h3 {
   margin: 0 0 0.5rem;
 }
 
 .player p {
   margin: 0.25rem 0;
+}
+
+/* Đợt 5 UI/UX (mục 4 ý a) — lá nhân vật (card-box--mini) sát cạnh tên, cùng
+   1 hàng, canh giữa theo chiều dọc. */
+.player__heading-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.player__heading-row h3 {
+  margin: 0;
+}
+
+/* Đợt 5 UI/UX (mục 4 ý c) — thanh máu VIÊN ĐẠN, thay text "3/4" suông. Ẩn
+   giữa hàng chữ (display: inline-flex) để nằm gọn trong câu "Vai · Máu: ...". */
+.hp-track {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.12rem;
+  vertical-align: middle;
+}
+
+/* Hình viên đạn vẽ bằng CSS — LUÔN hiện (không phụ thuộc ảnh thật), chỉ dùng
+   thang xám đúng mục 1 (không phải màu lá bài). Bo tròn đầu trên nhiều hơn
+   đáy để gợi hình đầu đạn, không cần ảnh vẫn đọc được đầy/rỗng. */
+.hp-bullet {
+  position: relative;
+  display: inline-block;
+  width: 0.55rem;
+  height: 1rem;
+  border-radius: 45% 45% 15% 15%;
+  border: 1.5px solid var(--color-border-strong);
+  flex-shrink: 0;
+}
+
+.hp-bullet--full {
+  background: var(--color-border-strong);
+}
+
+.hp-bullet--empty {
+  background: transparent;
+  border-color: var(--color-border);
+}
+
+/* Ảnh thật (chưa có file — quy ước đường dẫn trước, xem bulletImageUrl() ở
+   ui.ts) phủ CHỒNG lên hình vẽ CSS ở trên khi có; lỗi thì tự ẩn (img.style.display
+   = "none" ở ui.ts), lộ lại hình vẽ CSS bên dưới. */
+.hp-bullet__image {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: inherit;
+}
+
+.hp-track__number {
+  margin-left: 0.15rem;
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+
+/* Đợt 5 UI/UX (mục 4 ý a) — bản THU NHỎ của .card-box, dán cạnh tên trong ô
+   người chơi (khác bản cỡ thường ở màn hình Chú giải/kết thúc ván). */
+.card-box--mini {
+  width: 2.2rem;
+}
+
+.card-box--mini .card-box__image-wrap {
+  height: 1.8rem;
+}
+
+.card-box--mini .card-box__name {
+  font-size: 0.5rem;
+  padding: 0.08rem 0.1rem;
 }
 
 /* Đang tới lượt — mục 1: "viền XÁM DÀY + nhãn 'đang đánh'" (nhãn text đã có
@@ -378,11 +492,6 @@ button.card-box {
   margin: 0.75rem 0;
 }
 
-/* .panel--pending/--selection trước đây mượn cam/xanh lá làm màu "trạng thái" —
-   vi phạm mục 1 (chrome chỉ xám+đỏ). Đúng "băng thông báo" ở mục 8 chỉ cần nổi
-   bật bằng chữ (đã có), không cần mượn màu — bỏ hẳn viền màu riêng, dùng chung
-   viền xám của .panel. */
-
 .error {
   color: var(--color-danger);
   font-weight: bold;
@@ -406,24 +515,58 @@ button.card-box {
   color: var(--color-danger);
 }
 
-.pending-heading {
+/* Mục 8 UI/UX — "băng thông báo đầu bàn": nổi bật hơn hẳn .panel thường (viền
+   trái dày) để luôn là thứ đầu tiên đập vào mắt khi có việc cần phản hồi, kể
+   cả khi chuỗi phản ứng lồng nhau (Gatling→Barrel→draw!...) đổi nội dung liên
+   tục — chính vì đổi liên tục nên KHÔNG dùng animation ở viền/nền tổng thể
+   (dễ chớp giật khi vẽ lại nhiều lần/giây lúc gõ RESPOND), nhấp nháy thật CHỈ
+   dành cho viền seat (.player--targeted, mục 1) vốn ổn định hơn giữa các lần
+   render. Đỏ CHỈ xuất hiện khi thật sự khẩn cấp (còn ≤10s) — bình thường vẫn
+   xám, đúng mục 1 "đỏ dùng tiết chế". */
+.reaction-banner {
+  border: 1px solid var(--color-border);
+  border-left: 4px solid var(--color-border-strong);
+  border-radius: 0.5rem;
+  padding: 0.75rem 1rem;
+  margin: 0.75rem 0;
+}
+
+.reaction-banner--urgent {
+  border-left-color: var(--color-danger);
+}
+
+.reaction-banner__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin: 0;
   font-weight: bold;
-  margin: 0 0 0.5rem;
+}
+
+.reaction-banner__countdown {
+  white-space: nowrap;
+}
+
+.reaction-banner__countdown--urgent {
+  color: var(--color-danger);
+}
+
+.reaction-banner__note {
+  margin: 0.4rem 0 0;
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
 }
 
 .pending-list {
-  margin: 0 0 0.5rem;
+  margin: 0.3rem 0 0.5rem;
   padding-left: 1.25rem;
 }
 
 .pending-item {
-  color: #888;
+  color: var(--color-text-muted);
   margin: 0.15rem 0;
-}
-
-.pending-item--current {
-  color: #000;
-  font-weight: bold;
 }
 
 .setup-list {

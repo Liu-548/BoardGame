@@ -138,6 +138,18 @@ describe("viewFor — thông tin luôn công khai", () => {
     expect(view.winner).toEqual({ kind: "faction", faction: "outlaw" });
   });
 
+  it("characterId công khai với MỌI người xem, kể cả không phải chính mình (Đợt 5 UI/UX)", () => {
+    const state = makeState([
+      makePlayer("a", { characterId: "bart_cassidy" }),
+      makePlayer("b", { characterId: null }),
+    ]);
+
+    const view = viewFor(state, "b");
+
+    expect(view.players[0].characterId).toBe("bart_cassidy");
+    expect(view.players[1].characterId).toBeNull();
+  });
+
   it("gắn đúng viewerId vào kết quả", () => {
     const state = makeState([makePlayer("a"), makePlayer("b")]);
     expect(viewFor(state, "b").viewerId).toBe("b");
