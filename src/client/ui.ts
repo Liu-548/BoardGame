@@ -351,6 +351,58 @@ function renderHpTrack(hp: number, maxHp: number): HTMLSpanElement {
   return track;
 }
 
+// Mục 7 UI/UX ("GIỮA BÀN") — bộ bài rút luôn ÚP (không lộ lá nào, đúng luật),
+// chưa có ảnh mặt sau thật -> quy ước đường dẫn TRƯỚC giống mọi sprite khác,
+// <img> lỗi thì tự ẩn, chỉ còn nền xám + chữ "Bộ bài" (cardBox vẫn đọc được
+// bình thường, không vỡ giao diện).
+function deckBackImageUrl(): string {
+  return "/sprites/card-back.png";
+}
+
+function renderDeckPileBox(): HTMLSpanElement {
+  const el = document.createElement("span");
+  el.className = "card-box card-box--inert card-box--deck-back";
+  appendCardVisual(el, deckBackImageUrl(), "Bộ bài");
+  return el;
+}
+
+// Mục 7 UI/UX: khu giữa bàn gồm bộ bài rút (úp, chỉ số lượng) + chồng bài bỏ
+// (lá mặt trên ngửa thật, dùng chung cardChip() như mọi nơi khác hiện 1 lá cụ
+// thể). Dùng CHUNG cho cả hotseat lẫn qua mạng — tham số chỉ cần deckCount +
+// discardPile (2 thứ CÔNG KHAI, PlayerView cũng có sẵn y hệt).
+function renderTableCenter(deckCount: number, discardPile: string[]): HTMLElement {
+  const wrap = document.createElement("div");
+  wrap.className = "table-center";
+
+  const deckPile = document.createElement("div");
+  deckPile.className = "table-center__pile";
+  deckPile.appendChild(renderDeckPileBox());
+  const deckCaption = document.createElement("span");
+  deckCaption.className = "table-center__caption";
+  deckCaption.textContent = `Còn ${deckCount} lá`;
+  deckPile.appendChild(deckCaption);
+  wrap.appendChild(deckPile);
+
+  const discardPileEl = document.createElement("div");
+  discardPileEl.className = "table-center__pile";
+  const topDiscard = discardPile[discardPile.length - 1];
+  if (topDiscard) {
+    discardPileEl.appendChild(cardChip(topDiscard));
+  } else {
+    const empty = document.createElement("span");
+    empty.className = "card-box card-box--inert table-center__empty-pile";
+    empty.textContent = "(trống)";
+    discardPileEl.appendChild(empty);
+  }
+  const discardCaption = document.createElement("span");
+  discardCaption.className = "table-center__caption";
+  discardCaption.textContent = `Đã bỏ ${discardPile.length} lá`;
+  discardPileEl.appendChild(discardCaption);
+  wrap.appendChild(discardPileEl);
+
+  return wrap;
+}
+
 const SUIT_LABELS: Record<Suit, string> = {
   spades: "Bích",
   hearts: "Cơ",
@@ -1266,14 +1318,13 @@ export function renderApp(
 
   const summary = document.createElement("p");
   summary.className = "summary";
-  const discardTop = state.discardPile[state.discardPile.length - 1];
   const nameOfPlayer = (id: string) => state.players.find((p) => p.id === id)?.name ?? id;
   summary.textContent =
-    `Giai đoạn lượt: ${TURN_PHASE_LABELS[state.turnPhase]} · ` +
-    `Bộ bài còn ${state.deck.length} lá · Chồng bỏ ${state.discardPile.length} lá` +
-    (discardTop ? ` (mặt trên: ${cardFaceLabel(discardTop)})` : "") +
+    `Giai đoạn lượt: ${TURN_PHASE_LABELS[state.turnPhase]}` +
     (state.winner ? ` · VÁN KẾT THÚC — thắng: ${describeWinner(state.winner, nameOfPlayer)}` : "");
   container.appendChild(summary);
+
+  container.appendChild(renderTableCenter(state.deck.length, state.discardPile));
 
   renderActiveHouseRules(container, state.houseRules);
 
@@ -2249,14 +2300,13 @@ export function renderNetworkGame(
 
   const summary = document.createElement("p");
   summary.className = "summary";
-  const discardTop = view.discardPile[view.discardPile.length - 1];
   const nameOfPlayer = (id: string) => view.players.find((p) => p.id === id)?.name ?? id;
   summary.textContent =
-    `Giai đoạn lượt: ${TURN_PHASE_LABELS[view.turnPhase]} · Bộ bài còn ${view.deckCount} lá · ` +
-    `Chồng bỏ ${view.discardPile.length} lá` +
-    (discardTop ? ` (mặt trên: ${cardFaceLabel(discardTop)})` : "") +
+    `Giai đoạn lượt: ${TURN_PHASE_LABELS[view.turnPhase]}` +
     (view.winner ? ` · VÁN KẾT THÚC — thắng: ${describeWinner(view.winner, nameOfPlayer)}` : "");
   container.appendChild(summary);
+
+  container.appendChild(renderTableCenter(view.deckCount, view.discardPile));
 
   renderActiveHouseRules(container, view.houseRules);
 
