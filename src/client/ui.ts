@@ -300,12 +300,55 @@ function characterOptionCard(characterId: string, armed: boolean, onClick: () =>
 }
 
 // Lá nhân vật CHỈ ĐỂ XEM — nhân vật ĐÃ chọn xong (của mình hoặc người khác,
-// công khai ngay khi chọn — xem CharacterChoice ở types.ts).
-function characterChip(characterId: string): HTMLSpanElement {
+// công khai ngay khi chọn — xem CharacterChoice ở types.ts). `mini`: đợt 5
+// UI/UX (mục 4 ý a) — bản THU NHỎ dán sát cạnh tên trong ô người chơi, khác
+// bản cỡ thường dùng ở màn hình Chú giải/kết thúc ván.
+function characterChip(characterId: string, mini: boolean = false): HTMLSpanElement {
   const el = document.createElement("span");
-  el.className = "card-box card-box--inert card-box--character";
+  el.className = "card-box card-box--inert card-box--character" + (mini ? " card-box--mini" : "");
   appendCardVisual(el, characterImageUrl(characterId), characterLabel(characterId), CHARACTER_DESCRIPTIONS[characterId]);
   return el;
+}
+
+// Đợt 5 UI/UX (mục 4 ý c) — thanh máu dạng VIÊN ĐẠN (đặc tả gốc gợi ý "tim",
+// chủ dự án chốt đổi thành viên đạn cho đúng chủ đề, để dành chỗ dán ảnh chân
+// thật sau — CHƯA có ảnh, quy ước đường dẫn TRƯỚC giống mọi sprite khác trong
+// dự án). Khác lá bài (ảnh lỗi thì CHỈ ẩn ảnh, còn tên chữ đọc được): viên đạn
+// không có "tên chữ" để thay thế, nên .hp-bullet luôn có SẴN 1 hình viên đạn
+// vẽ bằng CSS (chỉ thang xám, đúng mục 1) làm nền — ảnh thật sau này chỉ là
+// lớp phủ đẹp hơn đặt CHỒNG lên, không phải điều kiện để hiểu được máu bao
+// nhiêu.
+function bulletImageUrl(full: boolean): string {
+  return full ? "/sprites/bullet-full.png" : "/sprites/bullet-empty.png";
+}
+
+function renderHpTrack(hp: number, maxHp: number): HTMLSpanElement {
+  const track = document.createElement("span");
+  track.className = "hp-track";
+  track.setAttribute("role", "img");
+  track.setAttribute("aria-label", `Máu ${hp}/${maxHp}`);
+
+  for (let i = 0; i < maxHp; i++) {
+    const full = i < hp;
+    const bullet = document.createElement("span");
+    bullet.className = "hp-bullet" + (full ? " hp-bullet--full" : " hp-bullet--empty");
+    const img = document.createElement("img");
+    img.className = "hp-bullet__image";
+    img.alt = "";
+    img.src = bulletImageUrl(full);
+    img.addEventListener("error", () => {
+      img.style.display = "none"; // thiếu ảnh -> chỉ còn hình viên đạn vẽ bằng CSS
+    });
+    bullet.appendChild(img);
+    track.appendChild(bullet);
+  }
+
+  const number = document.createElement("span");
+  number.className = "hp-track__number";
+  number.textContent = ` ${hp}/${maxHp}`;
+  track.appendChild(number);
+
+  return track;
 }
 
 const SUIT_LABELS: Record<Suit, string> = {
@@ -528,6 +571,21 @@ export function describeEvent(event: GameEvent, nameOf: (id: string) => string):
 // `.close()` vẫn chạy đúng — giữ listener lại chỉ để đồng bộ khi đóng bằng
 // cách KHÁC nút này, vd phím Esc, phòng khi trình duyệt thật của người chơi
 // hoạt động khác môi trường test).
+// Ép xoay ngang trên điện thoại (thay mục 10 cũ "danh sách dọc" ở màn hình
+// BÀN CHƠI) — web không tự xoay được máy người dùng, chỉ có thể CHẶN thao
+// tác bằng lớp phủ toàn màn hình cho tới khi họ tự xoay tay. Phần tử này LUÔN
+// được thêm vào DOM mỗi lần vẽ màn hình bàn chơi; ẩn/hiện HOÀN TOÀN bằng CSS
+// (`@media (orientation: portrait) and (max-width: 699px)`, xem style.css) —
+// không cần JS lắng nghe orientationchange.
+function renderOrientationLockOverlay(container: HTMLElement): void {
+  const overlay = document.createElement("div");
+  overlay.className = "orientation-lock-overlay";
+  const msg = document.createElement("p");
+  msg.textContent = "📱↻ Xoay ngang điện thoại để chơi";
+  overlay.appendChild(msg);
+  container.appendChild(overlay);
+}
+
 function renderDialog(container: HTMLElement, title: string, onClose: () => void, buildBody: (body: HTMLElement) => void): void {
   const dialog = document.createElement("dialog");
   dialog.className = "app-dialog";
@@ -873,9 +931,17 @@ function renderPlayer(
   else if (isCurrentTurn) el.classList.add("player--current");
   else el.classList.add("player--waiting");
 
+  const headingRow = document.createElement("div");
+  headingRow.className = "player__heading-row";
+  // Đợt 5 UI/UX (mục 4 ý a) — lá nhân vật (đã chọn xong, công khai) sát cạnh
+  // tên, chỉ hiện khi ván có bật cơ chế chọn nhân vật VÀ người này đã chọn.
+  if (player.characterId) {
+    headingRow.appendChild(characterChip(player.characterId, true));
+  }
   const heading = document.createElement("h3");
   heading.textContent = player.name + (isCurrentTurn ? " ← đang tới lượt" : "");
-  el.appendChild(heading);
+  headingRow.appendChild(heading);
+  el.appendChild(headingRow);
 
   if (isTargeted) {
     const targetedLabel = document.createElement("p");
@@ -886,8 +952,11 @@ function renderPlayer(
 
   const roleText = player.role ? ROLE_LABELS[player.role] : "(chưa chia vai)";
   const roleAndHp = document.createElement("p");
-  roleAndHp.textContent =
-    `${roleText} · Máu: ${player.hp}/${player.maxHp} · ${player.alive ? "Còn sống" : "Đã chết"}`;
+  roleAndHp.appendChild(document.createTextNode(`${roleText} · Máu: `));
+  roleAndHp.appendChild(renderHpTrack(player.hp, player.maxHp));
+  roleAndHp.appendChild(
+    document.createTextNode(` · ${player.alive ? "Còn sống" : "Đã chết"}`)
+  );
   el.appendChild(roleAndHp);
 
   const handLabel = document.createElement("p");
@@ -984,35 +1053,40 @@ function pendingDescription(state: GameState, item: PendingAction): string {
 function renderPendingPanel(container: HTMLElement, state: GameState, handlers: UiHandlers): void {
   if (state.pending.length === 0) return;
 
+  // Mục 8 UI/UX — "băng thông báo đầu bàn": luôn hiện ĐỈNH stack làm dòng
+  // chính (⚠ + in đậm), các mục còn lại (nếu có) chỉ liệt kê phụ bên dưới —
+  // cập nhật tự động theo đỉnh mỗi lần stack thay đổi (Gatling→Barrel→draw!...).
+  const top = state.pending[state.pending.length - 1];
+
   const panel = document.createElement("div");
-  panel.className = "panel";
+  panel.className = "reaction-banner";
 
-  const heading = document.createElement("p");
-  heading.className = "pending-heading";
-  heading.textContent =
-    state.pending.length > 1
-      ? `Đang có ${state.pending.length} việc chờ xử lý (việc mới phát sinh luôn xử lý trước):`
-      : "Đang chờ xử lý:";
-  panel.appendChild(heading);
+  const head = document.createElement("p");
+  head.className = "reaction-banner__head";
+  head.textContent = `⚠ Đang chờ: ${pendingDescription(state, top)}`;
+  panel.appendChild(head);
 
-  const list = document.createElement("ol");
-  list.className = "pending-list";
-  // Duyệt từ ĐỈNH (phần tử cuối mảng) xuống ĐÁY — đúng thứ tự sẽ được xử lý.
-  for (let i = state.pending.length - 1; i >= 0; i--) {
-    const item = state.pending[i];
-    const isTop = i === state.pending.length - 1;
-    const li = document.createElement("li");
-    li.className = isTop ? "pending-item pending-item--current" : "pending-item";
-    li.textContent = isTop
-      ? `Đang chờ: ${pendingDescription(state, item)}`
-      : `Sắp tới: ${pendingDescription(state, item)}`;
-    list.appendChild(li);
+  if (state.pending.length > 1) {
+    const note = document.createElement("p");
+    note.className = "reaction-banner__note";
+    note.textContent = `+${state.pending.length - 1} việc khác đang chờ (xử lý sau khi xong việc trên):`;
+    panel.appendChild(note);
+
+    const list = document.createElement("ol");
+    list.className = "pending-list";
+    // Duyệt từ NGAY DƯỚI đỉnh xuống đáy — đúng thứ tự sẽ được xử lý sau đó.
+    for (let i = state.pending.length - 2; i >= 0; i--) {
+      const item = state.pending[i];
+      const li = document.createElement("li");
+      li.className = "pending-item";
+      li.textContent = `Sắp tới: ${pendingDescription(state, item)}`;
+      list.appendChild(li);
+    }
+    panel.appendChild(list);
   }
-  panel.appendChild(list);
 
   // Nút phản hồi CHỈ áp dụng cho đỉnh stack — các mục "sắp tới" không có nút,
   // vì chưa tới lượt xử lý (phải giải quyết xong đỉnh trước).
-  const top = state.pending[state.pending.length - 1];
   if (top.kind === "NEED_PICK_STORE_CARD") {
     const wrapper = document.createElement("div");
     wrapper.className = "cards";
@@ -1180,6 +1254,8 @@ export function renderApp(
   handlers: UiHandlers
 ): void {
   container.replaceChildren();
+
+  renderOrientationLockOverlay(container);
 
   if (options.error) {
     const errorEl = document.createElement("p");
@@ -1820,6 +1896,13 @@ function networkRenderPlayer(
   else if (isCurrentTurn) el.classList.add("player--current");
   else el.classList.add("player--waiting");
 
+  const headingRow = document.createElement("div");
+  headingRow.className = "player__heading-row";
+  // Đợt 5 UI/UX (mục 4 ý a) — giống hotseat, dùng characterId mới thêm vào
+  // PlayerHandView (core/view.ts) — công khai, không cần lọc gì thêm ở đây.
+  if (player.characterId) {
+    headingRow.appendChild(characterChip(player.characterId, true));
+  }
   const heading = document.createElement("h3");
   heading.textContent =
     player.name +
@@ -1828,7 +1911,8 @@ function networkRenderPlayer(
     // Việc 4.3: không tính chính mình — chính socket đang vẽ màn hình này thì
     // chắc chắn đang kết nối, không cần báo lại chuyện hiển nhiên đó.
     (player.id !== view.viewerId && !options.connectedPlayerIds.includes(player.id) ? " ⚠ đã mất kết nối" : "");
-  el.appendChild(heading);
+  headingRow.appendChild(heading);
+  el.appendChild(headingRow);
 
   if (isTargeted) {
     const targetedLabel = document.createElement("p");
@@ -1839,7 +1923,11 @@ function networkRenderPlayer(
 
   const roleText = player.role ? ROLE_LABELS[player.role] : "(ẩn)";
   const roleAndHp = document.createElement("p");
-  roleAndHp.textContent = `${roleText} · Máu: ${player.hp}/${player.maxHp} · ${player.alive ? "Còn sống" : "Đã chết"}`;
+  roleAndHp.appendChild(document.createTextNode(`${roleText} · Máu: `));
+  roleAndHp.appendChild(renderHpTrack(player.hp, player.maxHp));
+  roleAndHp.appendChild(
+    document.createTextNode(` · ${player.alive ? "Còn sống" : "Đã chết"}`)
+  );
   el.appendChild(roleAndHp);
 
   const handLabel = document.createElement("p");
@@ -1888,19 +1976,18 @@ function networkRenderPlayer(
   return el;
 }
 
-function networkRenderPendingPanel(container: HTMLElement, view: PlayerView, handlers: NetworkGameHandlers): void {
+// Mục 8 UI/UX — "băng thông báo đầu bàn". `deadline` CHỈ truyền vào khi kind
+// là "reactive" (xem renderNetworkGame() — room.ts đảm bảo kind này LUÔN đi
+// kèm `top.player === deadline.playerId` khi pending không rỗng, xem
+// determineActiveDecision() ở room.ts), nên gộp thẳng đồng hồ vào dòng đỉnh
+// stack mà không cần so khớp lại playerId ở đây.
+function networkRenderPendingPanel(
+  container: HTMLElement,
+  view: PlayerView,
+  handlers: NetworkGameHandlers,
+  deadline: DeadlineInfo | null
+): void {
   if (view.pending.length === 0) return;
-
-  const panel = document.createElement("div");
-  panel.className = "panel";
-
-  const heading = document.createElement("p");
-  heading.className = "pending-heading";
-  heading.textContent =
-    view.pending.length > 1
-      ? `Đang có ${view.pending.length} việc chờ xử lý (việc mới phát sinh luôn xử lý trước):`
-      : "Đang chờ xử lý:";
-  panel.appendChild(heading);
 
   const findName = (id: string) => view.players.find((p) => p.id === id)?.name ?? id;
   const describe = (item: PendingActionView): string => {
@@ -1933,22 +2020,58 @@ function networkRenderPendingPanel(container: HTMLElement, view: PlayerView, han
     }
   };
 
-  const list = document.createElement("ol");
-  list.className = "pending-list";
-  for (let i = view.pending.length - 1; i >= 0; i--) {
-    const item = view.pending[i];
-    const isTop = i === view.pending.length - 1;
-    const li = document.createElement("li");
-    li.className = isTop ? "pending-item pending-item--current" : "pending-item";
-    li.textContent = isTop ? `Đang chờ: ${describe(item)}` : `Sắp tới: ${describe(item)}`;
-    list.appendChild(li);
+  const top = view.pending[view.pending.length - 1];
+
+  const panel = document.createElement("div");
+  const secondsLeft = deadline ? Math.max(0, Math.ceil((deadline.expiresAt - Date.now()) / 1000)) : null;
+  const isUrgent = secondsLeft !== null && secondsLeft <= 10;
+  panel.className = "reaction-banner" + (isUrgent ? " reaction-banner--urgent" : "");
+
+  const head = document.createElement("p");
+  head.className = "reaction-banner__head";
+  const headText = document.createElement("span");
+  headText.textContent = `⚠ Đang chờ: ${describe(top)}`;
+  head.appendChild(headText);
+  if (secondsLeft !== null) {
+    const clock = document.createElement("span");
+    clock.className = "reaction-banner__countdown" + (isUrgent ? " reaction-banner__countdown--urgent" : "");
+    clock.textContent = `⏱ Còn ${secondsLeft}s`;
+    head.appendChild(clock);
   }
-  panel.appendChild(list);
+  panel.appendChild(head);
+
+  // Nhắc rõ đồng hồ LƯỢT (60s, việc 4.1) của người đang tới lượt đang tạm dừng
+  // trong lúc chờ phản hồi này — khớp mục 8: "thể hiện rõ đồng hồ nào đang chạy".
+  if (view.turnPhase === "play") {
+    const currentPlayerName = view.players[view.currentPlayerIndex]?.name ?? "?";
+    const note = document.createElement("p");
+    note.className = "reaction-banner__note";
+    note.textContent = `(Đồng hồ lượt của ${currentPlayerName} đang tạm dừng, chờ xong việc trên sẽ tiếp tục.)`;
+    panel.appendChild(note);
+  }
+
+  if (view.pending.length > 1) {
+    const note = document.createElement("p");
+    note.className = "reaction-banner__note";
+    note.textContent = `+${view.pending.length - 1} việc khác đang chờ (xử lý sau khi xong việc trên):`;
+    panel.appendChild(note);
+
+    const list = document.createElement("ol");
+    list.className = "pending-list";
+    // Duyệt từ NGAY DƯỚI đỉnh xuống đáy — đúng thứ tự sẽ được xử lý sau đó.
+    for (let i = view.pending.length - 2; i >= 0; i--) {
+      const item = view.pending[i];
+      const li = document.createElement("li");
+      li.className = "pending-item";
+      li.textContent = `Sắp tới: ${describe(item)}`;
+      list.appendChild(li);
+    }
+    panel.appendChild(list);
+  }
 
   // Nút phản hồi CHỈ hiện khi ĐÚNG là CHÍNH MÌNH đang bị chờ trả lời — người
   // khác cũng đang chờ (vd Gatling bắn cả phòng) thì mỗi người chỉ thấy nút ở
   // đúng lượt phản hồi của họ trên máy của họ.
-  const top = view.pending[view.pending.length - 1];
   if (top.player === view.viewerId) {
     if (top.kind === "NEED_PICK_STORE_CARD") {
       const wrapper = document.createElement("div");
@@ -2115,6 +2238,8 @@ export function renderNetworkGame(
 ): void {
   container.replaceChildren();
 
+  renderOrientationLockOverlay(container);
+
   if (options.error) {
     const errorEl = document.createElement("p");
     errorEl.className = "error";
@@ -2135,7 +2260,14 @@ export function renderNetworkGame(
 
   renderActiveHouseRules(container, view.houseRules);
 
-  renderCountdown(container, options.deadline, view.players);
+  // Mục 8 UI/UX: khi có việc đang chờ phản hồi (pending không rỗng), đồng hồ
+  // (nếu có) LUÔN thuộc kind "reactive" của ĐÚNG việc đó (xem room.ts) — gộp
+  // thẳng vào băng thông báo bên dưới thay vì hiện đứng riêng, để đọc thành 1
+  // câu duy nhất "đang chờ ai làm gì, còn bao nhiêu giây". Không có gì đang
+  // chờ thì đây là đồng hồ LƯỢT/bỏ bài thừa bình thường, vẫn đứng riêng.
+  if (view.pending.length === 0) {
+    renderCountdown(container, options.deadline, view.players);
+  }
   renderDrawCheckNotice(container, options.lastDrawCheck);
 
   if (options.selection.step !== "idle") {
@@ -2146,7 +2278,7 @@ export function renderNetworkGame(
     container.appendChild(hint);
   }
 
-  networkRenderPendingPanel(container, view, handlers);
+  networkRenderPendingPanel(container, view, handlers, view.pending.length > 0 ? options.deadline : null);
   networkRenderPhaseActions(container, view, options, handlers);
 
   // Đợt 1 UI/UX (mục 3+10) — .table bọc ngoài chỉ cho ván qua mạng (hotseat

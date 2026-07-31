@@ -34,6 +34,11 @@ export interface PlayerHandView {
   hand: string[] | null; // chỉ có giá trị thật nếu id === viewerId, còn lại null
   equipment: string[];
   alive: boolean;
+  // Đợt 5 UI/UX (mục 4 ý a) — nhân vật đã chọn xong LUÔN công khai (đặt ngửa
+  // lên bàn ngay khi chọn, xem CHARACTER_CHOSEN ở types.ts), không cần ẩn/lọc
+  // theo viewerId gì cả, khác `hand` ở trên. null = chưa chọn xong (ván chưa
+  // bật cơ chế chọn nhân vật, hoặc characterSelection còn đang chờ).
+  characterId: string | null;
 }
 
 // Giống hệt PendingAction ở mọi kind, TRỪ NEED_PICK_KEPT_CARDS: `cards` là
@@ -111,6 +116,7 @@ export function viewFor(state: GameState, viewerId: string): PlayerView {
     hand: player.id === viewerId ? [...player.hand] : null,
     equipment: [...player.equipment],
     alive: player.alive,
+    characterId: player.characterId,
   }));
 
   return {

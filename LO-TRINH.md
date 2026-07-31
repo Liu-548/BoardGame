@@ -154,4 +154,36 @@ Thứ tự làm đã chốt: **8 → 2 → 3 người**, tăng dần độ khó 
 | **Tới lúc chơi thật với bạn bè** | **~3–5 tháng** |
 | 5 | không giới hạn |
 
+---
+
+## Cần chủ dự án tự kiểm chứng (Claude Code chưa/không kiểm được)
+
+> Cập nhật mục này mỗi khi có việc mới thuộc loại này (gom lại từ ghi chú rải rác
+> trong CLAUDE.md — xem changelog gốc ở đó để biết chi tiết đầy đủ). Xoá dòng nào
+> khỏi bảng khi đã tự kiểm xong và thấy ổn; nếu phát hiện lỗi thì báo lại thay vì
+> tự xoá.
+
+Lý do các việc này chưa được Claude Code tự kiểm bằng trình duyệt thật: (1) công cụ
+trình duyệt tự động trong môi trường code đôi khi mất kết nối hoặc chập chờn, (2)
+không hạ được cửa sổ xuống đúng khung điện thoại thật, (3) nhân vật/tình huống cần
+kiểm chỉ xuất hiện NGẪU NHIÊN trong ván qua mạng nên chưa ép ra đúng lúc, hoặc (4)
+thay đổi nằm ở `room.ts` (hạ tầng mạng) — theo tiền lệ cả dự án, phần này luôn kiểm
+bằng `wrangler dev` + trình duyệt thật, không có test Vitest tự động.
+
+| # | Việc cần kiểm | Cách kiểm | Vì sao chưa kiểm được |
+|---|---|---|---|
+| 1 | Layout responsive trên điện thoại thật (việc 4.4, ngưỡng `@media (max-width: 480px)`) | Mở link trên điện thoại thật, xem có tràn ngang không; đặc biệt bấm thử vùng nút bài (`.cards button`) xem đủ to/chính xác cho ngón tay không | Không hạ được cửa sổ trình duyệt tự động xuống dưới ~500px (giới hạn của Chrome/hệ điều hành) |
+| 2 | Checkbox chọn luật bổ sung (house rules) ở LOBBY QUA MẠNG (`renderNetworkLobby`, việc 5.3 đợt 1) | `wrangler dev` + 2+ tab: xác nhận CHỈ chủ phòng thấy checkbox, chọn luật, bắt đầu ván, vào bàn thật thấy đúng luật đã chọn đang bật | Trình duyệt tự động chập chờn lúc thao tác màn lobby qua mạng đợt đó, đã dừng thay vì cố lặp lại |
+| 3 | Seat "của mình luôn hiện đầy đủ" khi phòng >6 người (UI/UX đợt 2, mục 4) qua mạng | `wrangler dev` + ≥7 tab (hoặc giả seed để ép >6 người): xác nhận seat CHÍNH MÌNH luôn đầy đủ trang bị, seat người khác vẫn thu gọn | Đợt đó chỉ kiểm được ở hotseat; nhánh mạng chỉ khác đúng 1 điều kiện đã qua `tsc`, chưa mắt thấy |
+| 4 | Nút bấm thật của Pedro Ramirez / Jesse Jones / Kit Carlson khi chơi QUA MẠNG (nhân vật gán ngẫu nhiên theo seed) | Chơi vài ván qua mạng tới khi 1 trong 3 người này xuất hiện, tự bấm thử nút của họ (chọn nguồn rút bài / chọn nạn nhân / giữ 2 bỏ 1) | Nhân vật gán ngẫu nhiên, lần kiểm trước không ra đúng 3 người này qua mạng — chỉ xác nhận được ở hotseat |
+| 5 | Sid Ketchum dùng kỹ năng NGOÀI lượt mình không được làm reset đồng hồ của người khác (`room.ts`, việc 5.2 đợt 7) | Dựng tình huống: A đang bị hỏi Missed! (đồng hồ 10s đang chạy), để Sid Ketchum (không phải A) bấm dùng kỹ năng hồi máu — xác nhận đồng hồ của A KHÔNG bị cấp lại về đủ 10s | Thay đổi ở `room.ts` (hạ tầng mạng), theo tiền lệ không có test Vitest, chỉ có `wrangler dev` + trình duyệt thật — chưa dựng đúng tình huống 2 người này cùng lúc |
+| 6 | Cảnh báo viền đỏ + icon 💣/🔒 cho Dynamite/Jail hiện đúng TRONG 1 VÁN THẬT (UI/UX đợt 4, mục 5) | Chơi vài ván tới khi có Dynamite/Jail nằm trên sân ai đó, xem viền đỏ + icon có hiện đúng không | Lần kiểm trước chỉ dựng thủ công 2 khối HTML rời để nhìn cận cảnh, chưa thấy trong ngữ cảnh ván thật (rút đúng lá, gắn lên sân) |
+| 7 | Toàn bộ UI/UX đợt 5 (mục 4: hàng viên đạn thay số máu, lá nhân vật thu nhỏ cạnh tên) — CẢ hotseat lẫn qua mạng | Mở `npm run dev` (hotseat) và `wrangler dev` (qua mạng), chơi vài lượt để máu giảm — xem hàng viên đạn có xếp gọn, không tràn dòng khi máu tối đa cao (vd 5 máu Sheriff); lá nhân vật mini có canh đúng cạnh tên không, đọc được tên nhân vật khi hover/nhấn giữ không | Extension trình duyệt tự động mất kết nối hoàn toàn ở phiên làm việc đó — CHƯA có bất kỳ lần mắt-thấy nào, chỉ dựa vào `tsc`/test/build sạch |
+| 8 | UI/UX đợt 6 (mục 8: băng thông báo phản ứng) — riêng CHUỖI PHẢN ỨNG LỒNG NHAU thật (Gatling→Barrel→draw!, hoặc Slab the Killer cần 2 Missed!) | Dựng đúng tình huống 1 người có 2+ pending chồng nhau, xem banner có đổi đúng theo ĐỈNH stack mỗi lần 1 việc được giải quyết, dòng "+N việc khác đang chờ" có đúng số không | Lần kiểm đợt 6 chỉ dựng được 1 tầng Bang!→Missed! (đã xác nhận banner + đồng hồ gộp + dòng "đồng hồ lượt tạm dừng" đều đúng); logic đọc đỉnh stack không đổi so với code cũ nên rủi ro thấp, nhưng chưa mắt-thấy đúng ca lồng nhiều tầng |
+
+**Lưu ý deploy:** link công khai (`https://bang-boardgame.nguyenngoctuan548.workers.dev`)
+hiện vẫn là bản TRƯỚC cả 5 đợt "Giao diện UI/UX" — mọi thay đổi từ đó tới giờ mới chỉ
+kiểm cục bộ (`vite dev`/`wrangler dev`), CHƯA `npm run deploy`. Cần tự deploy rồi kiểm
+lại 1 lượt trên chính link thật trước khi rủ bạn bè vào chơi bản mới.
+
 Đừng hứa với bạn bè một ngày cụ thể.
