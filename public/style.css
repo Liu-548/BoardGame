@@ -330,6 +330,51 @@ button.card-box {
   color: #222;
 }
 
+/* Mục 7 UI/UX ("GIỮA BÀN") — bộ bài rút (úp) + chồng bài bỏ (ngửa lá trên
+   cùng), đặt ngay dưới dòng tóm tắt lượt, TRƯỚC danh sách người chơi. Chưa có
+   ảnh mặt sau bộ bài thật -> nền xám + gạch chéo vẽ bằng CSS làm nền LUÔN
+   hiện (giống cách .hp-bullet đã làm), ảnh thật sau này chỉ là lớp phủ chồng
+   lên khi có (xem appendCardVisual() ở ui.ts, cơ chế <img> lỗi tự ẩn dùng lại
+   y hệt lá bài thường). */
+.table-center {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-start;
+  margin: 0.5rem 0;
+}
+
+.table-center__pile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+}
+
+.table-center__caption {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+}
+
+.table-center__empty-pile {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 4.5rem;
+  height: 3.9rem;
+  font-size: 0.7rem;
+  color: var(--color-text-muted);
+}
+
+.card-box--deck-back .card-box__image-wrap {
+  background: repeating-linear-gradient(
+    45deg,
+    var(--color-border) 0,
+    var(--color-border) 4px,
+    var(--color-border-strong) 4px,
+    var(--color-border-strong) 8px
+  );
+}
+
 .card-box--brown {
   border-color: #8b5a2b;
 }
