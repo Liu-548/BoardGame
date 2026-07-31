@@ -5,7 +5,7 @@
 
 import { cardNameFromId, cardSuitRankFromId, WEAPON_RANGES } from "../core/cards";
 import type { CardName } from "../core/cards";
-import { getCharacterDefinition } from "../core/characters";
+import { CHARACTERS, getCharacterDefinition } from "../core/characters";
 import type { CharacterChoice, GameEvent, GameState, HouseRuleId, PendingAction, PlayerState, Role, Suit, Winner } from "../core/types";
 import type { CharacterChoiceView, PendingActionView, PlayerHandView, PlayerView } from "../core/view";
 import type { DeadlineInfo } from "../protocol";
@@ -45,7 +45,7 @@ const CARD_LABELS: Record<CardName, string> = {
 // Cat Balou không giới hạn khoảng cách, Beer hiện CHƯA có ngoại lệ "vô tác
 // dụng khi chỉ còn 2 người sống"), không phải chép lại luật gốc từ trí nhớ.
 // Hiện ở 2 chỗ: thuộc tính `title` (tooltip rê chuột/giữ lâu) trên lá bài lúc
-// đang chơi, VÀ đầy đủ ở màn hình "Chú giải lá bài" (renderCardReferenceScreen).
+// đang chơi, VÀ đầy đủ ở màn hình "Thư viện bài" (renderCardReferenceScreen).
 const CARD_DESCRIPTIONS: Record<CardName, string> = {
   bang: "Bắn 1 người trong tầm súng — họ phải đỡ bằng Missed! hoặc mất 1 máu.",
   missed: "Không tự đánh được — chỉ dùng để đỡ khi bị Bang!/Gatling.",
@@ -75,7 +75,7 @@ const CARD_DESCRIPTIONS: Record<CardName, string> = {
     "Ai đang cầm, đầu lượt phải lật 1 lá: ra Bích 2-9 thì nổ mất 3 máu rồi bỏ đi; không thì tự chuyển sang người kế tiếp.",
 };
 
-// Nhóm lá nâu/xanh CHỈ để trình bày (viền màu + màn hình Chú giải) — chép lại
+// Nhóm lá nâu/xanh CHỈ để trình bày (viền màu + màn hình Thư viện bài) — chép lại
 // thủ công từ BrownCardName/BlueCardName ở core/cards.ts (2 type đó chỉ tồn
 // tại lúc biên dịch, không có mảng thật lúc chạy) — sửa core/cards.ts thì nhớ
 // sửa cả đây.
@@ -176,7 +176,7 @@ function attachDescriptionReveal(el: HTMLElement, description: string | undefine
 // RIÊNG bên dưới (không đè lên ảnh — dễ đọc trên mọi màu nền ảnh, và ảnh thiếu
 // thì tên vẫn luôn hiện đúng chỗ, không lệch). Dùng được cho cả <button> (bấm
 // được) lẫn <span>/<div> (chỉ để xem). `description` bỏ trống thì không gắn
-// tooltip/nhấn-giữ gì cả (dùng ở màn hình Chú giải, nơi mô tả đã hiện thành
+// tooltip/nhấn-giữ gì cả (dùng ở màn hình Thư viện bài, nơi mô tả đã hiện thành
 // chữ riêng ngay bên dưới, gắn thêm sẽ thừa).
 function appendCardVisual(el: HTMLElement, imageUrl: string, label: string, description?: string): void {
   const imageWrap = document.createElement("span");
@@ -703,14 +703,134 @@ function renderLogDialogBody(body: HTMLElement, log: string[]): void {
   body.appendChild(list);
 }
 
+// Hoàn thiện dialog Cài đặt — âm thanh/giao diện sáng-tối/cỡ chữ là SỞ THÍCH
+// TOÀN CỤC của trình duyệt (không thuộc về 1 ván cụ thể nào) — lưu thẳng
+// localStorage, áp dụng NGAY vào <html> (data-theme/class cỡ chữ), không cần
+// đi vòng qua GameState/PlayerView hay main.ts's render() gì cả. Vì lý do đó,
+// state + logic áp dụng đặt LUÔN ở đây (ui.ts), không cần main.ts biết tới.
+type ThemePreference = "light" | "dark";
+type FontSizePreference = "small" | "medium" | "large";
+
+const THEME_STORAGE_KEY = "bang_theme";
+const FONT_SIZE_STORAGE_KEY = "bang_font_size";
+const SOUND_STORAGE_KEY = "bang_sound_enabled";
+
+function getThemePreference(): ThemePreference {
+  return localStorage.getItem(THEME_STORAGE_KEY) === "dark" ? "dark" : "light";
+}
+
+function getFontSizePreference(): FontSizePreference {
+  const stored = localStorage.getItem(FONT_SIZE_STORAGE_KEY);
+  return stored === "small" || stored === "large" ? stored : "medium";
+}
+
+function isSoundEnabled(): boolean {
+  return localStorage.getItem(SOUND_STORAGE_KEY) !== "off"; // mặc định BẬT
+}
+
+function applyTheme(theme: ThemePreference): void {
+  document.documentElement.setAttribute("data-theme", theme);
+}
+
+function applyFontSize(size: FontSizePreference): void {
+  document.documentElement.classList.remove("font-size-small", "font-size-large");
+  if (size !== "medium") document.documentElement.classList.add(`font-size-${size}`);
+}
+
+// Gọi 1 LẦN DUY NHẤT lúc khởi động app (main.ts, TRƯỚC khi vẽ màn hình đầu
+// tiên) — áp dụng sở thích đã lưu từ lần trước, tránh nháy sáng/cỡ chữ mặc
+// định rồi mới đổi lại ngay sau đó.
+export function applyStoredSettings(): void {
+  applyTheme(getThemePreference());
+  applyFontSize(getFontSizePreference());
+}
+
+// Phát âm thanh theo sự kiện ván đấu — CHƯA có file thật (quy ước đường dẫn
+// TRƯỚC, giống mọi sprite ảnh khác trong dự án — xem cardImageUrl()), gọi
+// hàm này ở đâu cũng an toàn: tắt trong Cài đặt hoặc thiếu file đều tự im
+// lặng, không phải lỗi. `.catch()` bắt cả lỗi thiếu file LẪN lỗi trình duyệt
+// chặn autoplay (cần tương tác người dùng trước) — 2 lý do phổ biến nhất
+// khiến audio.play() thất bại, không phân biệt vì cả 2 đều nên im lặng.
+function playSound(name: string): void {
+  if (!isSoundEnabled()) return;
+  const audio = new Audio(`/sounds/${name}.mp3`);
+  audio.play().catch(() => {});
+}
+
 // Nội dung dialog Cài đặt — dùng CHUNG hotseat/qua mạng, chỉ khác nhãn nút
-// rời. CHỈ có đúng 1 hành động THẬT trong đợt này (rời ván) — âm thanh/giao
-// diện sáng-tối/cỡ chữ đều CHƯA làm (xem "Chưa làm tới" ở CLAUDE.md), cố tình
-// KHÔNG vẽ nút/toggle giả cho những thứ chưa có tác dụng thật, chỉ nói rõ.
+// rời. Đọc sở thích TRỰC TIẾP từ localStorage mỗi lần mở dialog (không cần
+// tham số/state đi qua RenderOptions) — bấm chọn là áp dụng NGAY (đổi
+// data-theme/class) + lưu lại, không cần vẽ lại cả màn hình.
 function renderSettingsDialogBody(body: HTMLElement, leaveLabel: string, onLeave: () => void): void {
-  const note = document.createElement("p");
-  note.textContent = "Âm thanh, giao diện sáng/tối, cỡ chữ: chưa làm, để dành đợt sau.";
-  body.appendChild(note);
+  const themeLabel = document.createElement("p");
+  themeLabel.textContent = "Giao diện:";
+  body.appendChild(themeLabel);
+  const themeRow = document.createElement("div");
+  themeRow.className = "settings-row";
+  for (const [value, label] of [
+    ["light", "Sáng"],
+    ["dark", "Tối"],
+  ] as const) {
+    const id = `settings-theme-${value}`;
+    const input = document.createElement("input");
+    input.type = "radio";
+    input.name = "settings-theme";
+    input.id = id;
+    input.checked = getThemePreference() === value;
+    input.addEventListener("change", () => {
+      localStorage.setItem(THEME_STORAGE_KEY, value);
+      applyTheme(value);
+    });
+    const labelEl = document.createElement("label");
+    labelEl.htmlFor = id;
+    labelEl.appendChild(input);
+    labelEl.append(` ${label}`);
+    themeRow.appendChild(labelEl);
+  }
+  body.appendChild(themeRow);
+
+  const fontLabel = document.createElement("p");
+  fontLabel.textContent = "Cỡ chữ:";
+  body.appendChild(fontLabel);
+  const fontRow = document.createElement("div");
+  fontRow.className = "settings-row";
+  for (const [value, label] of [
+    ["small", "Nhỏ"],
+    ["medium", "Vừa"],
+    ["large", "Lớn"],
+  ] as const) {
+    const id = `settings-font-${value}`;
+    const input = document.createElement("input");
+    input.type = "radio";
+    input.name = "settings-font-size";
+    input.id = id;
+    input.checked = getFontSizePreference() === value;
+    input.addEventListener("change", () => {
+      localStorage.setItem(FONT_SIZE_STORAGE_KEY, value);
+      applyFontSize(value);
+    });
+    const labelEl = document.createElement("label");
+    labelEl.htmlFor = id;
+    labelEl.appendChild(input);
+    labelEl.append(` ${label}`);
+    fontRow.appendChild(labelEl);
+  }
+  body.appendChild(fontRow);
+
+  const soundLabel = document.createElement("label");
+  const soundInput = document.createElement("input");
+  soundInput.type = "checkbox";
+  soundInput.checked = isSoundEnabled();
+  soundInput.addEventListener("change", () => {
+    localStorage.setItem(SOUND_STORAGE_KEY, soundInput.checked ? "on" : "off");
+    if (soundInput.checked) playSound("ui_toggle"); // xác nhận nghe thử ngay (im lặng nếu chưa có file)
+  });
+  soundLabel.appendChild(soundInput);
+  soundLabel.append(" Âm thanh (chưa có file thật — bật sẵn để dùng ngay khi có)");
+  const soundRow = document.createElement("p");
+  soundRow.appendChild(soundLabel);
+  body.appendChild(soundRow);
+
   body.appendChild(button(leaveLabel, onLeave));
 }
 
@@ -1473,7 +1593,7 @@ export function renderHomeScreen(container: HTMLElement, handlers: HomeHandlers)
   panel.className = "panel";
   panel.appendChild(button("Chơi chung 1 máy (hotseat)", () => handlers.onPlayLocal()));
   panel.appendChild(button("Chơi qua mạng", () => handlers.onPlayNetwork()));
-  panel.appendChild(button("Chú giải lá bài", () => handlers.onShowCardReference()));
+  panel.appendChild(button("Thư viện bài", () => handlers.onShowCardReference()));
   container.appendChild(panel);
 }
 
@@ -1516,45 +1636,42 @@ function renderCardReferenceGroup(container: HTMLElement, heading: string, names
   container.appendChild(grid);
 }
 
-// Việc bổ sung sau 4.6: DỰNG SẴN khung nhân vật (viền xanh lá, ảnh + tên riêng
-// y hệt lá bài) để Giai đoạn 5 (16 nhân vật, xem LO-TRINH.md) chỉ cần cắm dữ
-// liệu thật vào — CHƯA có nhân vật nào thật sự tồn tại trong core/ (đúng quy
-// tắc "Chưa làm tới, đừng đụng vào: Nhân vật"), đây CHỈ là khung xem trước
-// cho biết khung trông thế nào, không phải danh sách nhân vật thật.
-//
-// Đúng luật gốc BANG! (chủ dự án đã chỉnh lại sau khi hiểu lầm ban đầu — bản
-// v1 chỉ làm 1 ô ví dụ, không đúng luật): mỗi người chơi được PHÁT 2 LÁ NHÂN
-// VẬT úp, tự xem rồi CHỌN GIỮ 1 lá làm nhân vật thật của mình trong ván, bỏ lá
-// còn lại — nên khung ví dụ ở đây vẽ 2 ô cạnh nhau (đại diện 2 lá được phát),
-// không phải 1. Tên nhân vật (vd sau này "Willy the Kid") KHÁC với tên hiển
-// thị người chơi tự gõ (An, Bình...) — 2 khái niệm khác nhau.
-function renderCharacterPreviewSection(container: HTMLElement): void {
+// Hoàn thiện màn hình "Thư viện bài" (trước gọi "Chú giải lá bài", đổi tên
+// theo yêu cầu chủ dự án — bao quát hơn vì có cả lá bài LẪN nhân vật): thay
+// hẳn khung xem trước 2 ô ví dụ (từ hồi CHƯA có nhân vật thật, việc bổ sung
+// sau 4.6) bằng danh sách ĐỦ 16 nhân vật THẬT lấy từ `CHARACTERS` (đăng ký
+// thật trong core/characters.ts, xong từ Giai đoạn 5) — dùng chung
+// CHARACTER_DESCRIPTIONS đã soạn sẵn cho màn hình chọn nhân vật, không soạn
+// lại lần 2. Hiện kèm số máu (`bullets`, CHƯA cộng +1 nếu là Cảnh sát trưởng
+// — đúng số liệu tĩnh của nhân vật, giống cách NHAN-VAT-BANG-CO-BAN.txt ghi).
+function renderCharacterReferenceGroup(container: HTMLElement): void {
   const headingEl = document.createElement("h3");
   headingEl.className = "card-ref-group-heading";
-  headingEl.textContent = "Nhân vật (chưa có trong bản này — xem trước khung)";
+  headingEl.textContent = "16 nhân vật";
   container.appendChild(headingEl);
 
   const rule = document.createElement("p");
   rule.textContent =
-    "Đúng luật gốc: mỗi người chơi được phát 2 lá nhân vật úp, tự xem rồi chọn giữ 1 lá làm " +
-    "nhân vật thật của mình, bỏ lá còn lại — 2 ô dưới đây là ví dụ cho 2 lá được phát đó.";
+    "Đầu ván, mỗi người được phát 2 lá nhân vật úp, tự xem rồi chọn giữ 1 lá làm nhân vật thật " +
+    "của mình, bỏ lá còn lại. Tên nhân vật khác với tên hiển thị bạn tự gõ lúc vào phòng.";
   container.appendChild(rule);
 
   const grid = document.createElement("div");
   grid.className = "card-ref-grid";
 
-  for (const label of ["Nhân vật A (ví dụ)", "Nhân vật B (ví dụ)"]) {
+  for (const characterId of Object.keys(CHARACTERS)) {
+    const definition = CHARACTERS[characterId];
     const item = document.createElement("div");
     item.className = "card-ref-item";
 
     const box = document.createElement("div");
     box.className = "card-box card-box--character";
-    appendCardVisual(box, "/sprites/characters/_preview.png", label);
+    appendCardVisual(box, characterImageUrl(characterId), definition.name);
     item.appendChild(box);
 
     const desc = document.createElement("p");
     desc.className = "card-ref-item__desc";
-    desc.textContent = "Khung ví dụ — Giai đoạn 5 mới thật sự thêm 16 nhân vật (mỗi người 1 kỹ năng riêng).";
+    desc.textContent = `Máu: ${definition.bullets}. ${CHARACTER_DESCRIPTIONS[characterId] ?? ""}`;
     item.appendChild(desc);
 
     grid.appendChild(item);
@@ -1566,14 +1683,14 @@ export function renderCardReferenceScreen(container: HTMLElement, handlers: Card
   container.replaceChildren();
 
   const heading = document.createElement("h2");
-  heading.textContent = "Chú giải lá bài";
+  heading.textContent = "Thư viện bài";
   container.appendChild(heading);
 
   container.appendChild(button("← Quay lại", () => handlers.onBack()));
 
   renderCardReferenceGroup(container, "Bài nâu (đánh từ tay, chơi xong vào chồng bỏ)", BROWN_CARD_NAMES);
   renderCardReferenceGroup(container, "Bài xanh (trang bị, để ngửa trước mặt tới khi mất)", BLUE_CARD_NAMES);
-  renderCharacterPreviewSection(container);
+  renderCharacterReferenceGroup(container);
 }
 
 export interface NetworkLobbyFormHandlers {

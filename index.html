@@ -2,12 +2,15 @@
 <html lang="vi">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Bang! (bản tự cài lại)</title>
+    <!-- minimum-scale=0.4: phản hồi thật — màn hình điện thoại nhỏ, cho phép
+         thu nhỏ (pinch-zoom out) để nhìn được cả bàn chơi dễ hơn. Không đặt
+         user-scalable=no/maximum-scale hẹp — vẫn cho zoom vào bình thường. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=0.4" />
+    <title>Bang!</title>
     <link rel="stylesheet" href="/style.css" />
   </head>
   <body>
-    <h1>Bang! (bản tự cài lại)</h1>
+    <h1>Bang!</h1>
 
     <!-- Việc 2.2: chỉ vẽ state ra đây bằng chữ, chưa bấm bài được (việc 2.3). -->
     <div id="game-root"></div>
