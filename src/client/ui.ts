@@ -1252,12 +1252,21 @@ export function renderCharacterSelectionScreen(
   container.appendChild(rule);
 
   for (const choice of characterSelection) {
-    const playerName = players.find((p) => p.id === choice.playerId)?.name ?? choice.playerId;
+    const player = players.find((p) => p.id === choice.playerId);
+    const playerName = player?.name ?? choice.playerId;
     const section = document.createElement("div");
     section.className = "panel";
 
     const nameEl = document.createElement("h3");
     section.appendChild(nameEl);
+
+    // Bổ sung theo phản hồi thật: hiện luôn vai mỗi người ngay từ lúc chọn
+    // nhân vật — hotseat vốn không giấu gì (dùng thẳng GameState đầy đủ, xem
+    // ghi chú CharacterSelectionHandlers ở trên), nên hiện được vai THẬT của
+    // TẤT CẢ mọi người, không chỉ chính mình/Sheriff.
+    const roleEl = document.createElement("p");
+    roleEl.textContent = `Vai: ${player?.role ? ROLE_LABELS[player.role] : "(chưa chia vai)"}`;
+    section.appendChild(roleEl);
 
     const cardsEl = document.createElement("div");
     cardsEl.className = "cards";
@@ -1309,6 +1318,12 @@ export function renderApp(
   container.replaceChildren();
 
   renderOrientationLockOverlay(container);
+  // Phản hồi thật: thanh nút góc trên (`.game-toolbar`) trước đây `position:
+  // fixed` NỔI ĐÈ lên nội dung — seat trên cùng của bàn tròn hay bị che
+  // khuất. Vẽ toolbar NGAY ĐẦU (trước mọi nội dung khác) + CSS đổi sang
+  // `position: sticky` (xem style.css): giờ nó CHIẾM 1 hàng thật ở đầu
+  // trang, nội dung phía dưới luôn bắt đầu SAU nó, không bao giờ bị che.
+  renderGameToolbar(container, handlers.onOpenLogDialog, handlers.onOpenSettingsDialog, undefined);
 
   if (options.error) {
     const errorEl = document.createElement("p");
@@ -1356,7 +1371,6 @@ export function renderApp(
   }
   container.appendChild(playersEl);
 
-  renderGameToolbar(container, handlers.onOpenLogDialog, handlers.onOpenSettingsDialog, undefined);
   if (options.logDialogOpen) {
     renderDialog(container, "Nhật ký ván đấu", handlers.onCloseLogDialog, (body) => renderLogDialogBody(body, options.log));
   }
@@ -1931,7 +1945,14 @@ function networkRenderPlayer(
 ): HTMLElement {
   const { selection } = options;
   const el = document.createElement("article");
-  el.className = "player player--seat";
+  // Phản hồi thật sau đợt sửa "dàn hàng ngang": cho MỌI seat cùng nới rộng
+  // theo nội dung (.player--seat, xem CSS) khiến seat của người khác — có
+  // thể có vài lá trang bị công khai — thỉnh thoảng nới ra đè lên seat cạnh
+  // bên. Chỉ seat CỦA CHÍNH MÌNH mới thật sự cần rộng (tay đầy đủ, có thể
+  // 5-8 lá); seat người khác chỉ hiện số lá tay (ẩn) + trang bị thường ít
+  // hơn — `.player--seat-self` (CSS riêng) mới được phép nới, seat khác giữ
+  // cỡ an toàn cũ + cuộn ngang nếu lỡ có quá nhiều trang bị.
+  el.className = "player player--seat" + (player.id === view.viewerId ? " player--seat-self" : "");
 
   const { x, y } = seatPositionPercent(seatAngleDeg(seatIndex, seatTotal));
   el.style.setProperty("--seat-x", `${x}%`);
@@ -2243,13 +2264,22 @@ export function renderNetworkCharacterSelectionScreen(
 
   const choices: CharacterChoiceView[] = view.characterSelection ?? [];
   for (const choice of choices) {
-    const playerName = view.players.find((p) => p.id === choice.playerId)?.name ?? choice.playerId;
+    const player = view.players.find((p) => p.id === choice.playerId);
+    const playerName = player?.name ?? choice.playerId;
     const isMe = choice.playerId === view.viewerId;
     const section = document.createElement("div");
     section.className = "panel";
 
     const nameEl = document.createElement("h3");
     section.appendChild(nameEl);
+
+    // Bổ sung theo phản hồi thật: hiện vai ngay từ lúc chọn nhân vật —
+    // `player.role` ở đây đã qua viewFor()/viewRole() lọc đúng (quy tắc 6):
+    // chỉ CHÍNH MÌNH + Sheriff công khai, người khác vẫn "(ẩn)" như mọi lúc
+    // khác trong ván, không lộ gì thêm so với sau khi vào bàn chơi thật.
+    const roleEl = document.createElement("p");
+    roleEl.textContent = `Vai: ${player?.role ? ROLE_LABELS[player.role] : "(ẩn)"}`;
+    section.appendChild(roleEl);
 
     const cardsEl = document.createElement("div");
     cardsEl.className = "cards";
@@ -2291,6 +2321,10 @@ export function renderNetworkGame(
   container.replaceChildren();
 
   renderOrientationLockOverlay(container);
+  // Phản hồi thật: xem ghi chú y hệt ở renderApp() — vẽ toolbar NGAY ĐẦU +
+  // CSS `position: sticky` để nó chiếm chỗ thật, không đè lên seat trên
+  // cùng của bàn tròn nữa.
+  renderGameToolbar(container, handlers.onOpenLogDialog, handlers.onOpenSettingsDialog, handlers.onOpenRoomCodeDialog);
 
   if (options.error) {
     const errorEl = document.createElement("p");
@@ -2347,7 +2381,6 @@ export function renderNetworkGame(
   tableEl.appendChild(seatsEl);
   container.appendChild(tableEl);
 
-  renderGameToolbar(container, handlers.onOpenLogDialog, handlers.onOpenSettingsDialog, handlers.onOpenRoomCodeDialog);
   if (options.logDialogOpen) {
     renderDialog(container, "Nhật ký ván đấu", handlers.onCloseLogDialog, (body) => renderLogDialogBody(body, options.log));
   }
