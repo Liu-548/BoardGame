@@ -1945,25 +1945,32 @@ function networkRenderPlayer(
   // (mảng đã xoay để BẠN luôn ở cuối, xem renderNetworkGame()) — dùng để tính
   // góc/toạ độ bàn tròn. KHÁC `originalIndex` (vị trí thật trong view.players,
   // dùng để so `currentPlayerIndex` — 2 mảng thứ tự khác nhau).
-  seatIndex: number,
+  //
+  // Phản hồi thật (lần 2): dù đã sửa công thức toạ độ (calc() an toàn) và
+  // giới hạn CHỈ seat của mình mới nới rộng, seat CỦA MÌNH vẫn tràn cả trên
+  // laptop lẫn điện thoại — nguyên nhân: seat đó vẫn nằm TRONG hình elip
+  // (`position: absolute`, chừa 1 ô cố định), nới rộng bao nhiêu cũng phải
+  // "nhét" vào đúng 1 điểm trên elip, không có cách nào an toàn tuyệt đối
+  // nếu nội dung (bài trên tay) có thể dài tuỳ ý. Sửa TẬN GỐC theo yêu cầu:
+  // TÁCH hẳn seat của mình RA KHỎI hình elip, cho vào 1 hàng RIÊNG, full-độ-
+  // rộng, nằm trong luồng tài liệu bình thường (không `position: absolute`)
+  // — `seatIndex === null` nghĩa là "hàng riêng", bỏ qua mọi tính toán góc/
+  // toạ độ elip, chỉ dùng class `.player--own-row` (CSS riêng, full width).
+  seatIndex: number | null,
   seatTotal: number,
   options: NetworkGameOptions,
   handlers: NetworkGameHandlers
 ): HTMLElement {
   const { selection } = options;
   const el = document.createElement("article");
-  // Phản hồi thật sau đợt sửa "dàn hàng ngang": cho MỌI seat cùng nới rộng
-  // theo nội dung (.player--seat, xem CSS) khiến seat của người khác — có
-  // thể có vài lá trang bị công khai — thỉnh thoảng nới ra đè lên seat cạnh
-  // bên. Chỉ seat CỦA CHÍNH MÌNH mới thật sự cần rộng (tay đầy đủ, có thể
-  // 5-8 lá); seat người khác chỉ hiện số lá tay (ẩn) + trang bị thường ít
-  // hơn — `.player--seat-self` (CSS riêng) mới được phép nới, seat khác giữ
-  // cỡ an toàn cũ + cuộn ngang nếu lỡ có quá nhiều trang bị.
-  el.className = "player player--seat" + (player.id === view.viewerId ? " player--seat-self" : "");
-
-  const { cos, sin } = seatCosSin(seatAngleDeg(seatIndex, seatTotal));
-  el.style.setProperty("--seat-cos", `${cos}`);
-  el.style.setProperty("--seat-sin", `${sin}`);
+  if (seatIndex === null) {
+    el.className = "player player--own-row";
+  } else {
+    el.className = "player player--seat";
+    const { cos, sin } = seatCosSin(seatAngleDeg(seatIndex, seatTotal));
+    el.style.setProperty("--seat-cos", `${cos}`);
+    el.style.setProperty("--seat-sin", `${sin}`);
+  }
 
   // Đợt 1 UI/UX (mục 1+8) — cùng logic ưu tiên trạng thái với renderPlayer()
   // (hotseat), viết riêng vì đọc PlayerView/PlayerHandView đã lọc, không phải
@@ -2377,16 +2384,30 @@ export function renderNetworkGame(
   // không có, xem renderApp()/renderPlayer() ở trên: giữ nguyên .players cũ).
   // seatOrder xoay để BẠN luôn là phần tử CUỐI — vừa là thứ tự DOM (danh sách
   // dọc, màn hẹp) vừa là input tính góc bàn tròn (màn rộng, xem CSS).
+  //
+  // Phản hồi thật (lần 2) — seat của mình vẫn tràn dù đã sửa công thức toạ
+  // độ: TÁCH hẳn seat của mình (luôn là phần tử CUỐI trong seatOrder) RA
+  // KHỎI `.seats` (hình elip) — chỉ những người KHÁC mới vào elip, giữ
+  // NGUYÊN `seatIndex`/`seatOrder.length` cũ (để góc/vị trí của họ không đổi
+  // — chỗ của self bỏ trống trong elip, thay bằng hàng riêng ngay dưới).
   const tableEl = document.createElement("div");
   tableEl.className = "table";
   const seatsEl = document.createElement("div");
   seatsEl.className = "players seats";
   const seatOrder = buildSeatOrder(view);
   seatOrder.forEach(({ player, originalIndex }, seatIndex) => {
+    if (player.id === view.viewerId) return; // render riêng bên dưới, không vào elip
     seatsEl.appendChild(networkRenderPlayer(view, player, originalIndex, seatIndex, seatOrder.length, options, handlers));
   });
   tableEl.appendChild(seatsEl);
   container.appendChild(tableEl);
+
+  const ownEntry = seatOrder.find(({ player }) => player.id === view.viewerId);
+  if (ownEntry) {
+    container.appendChild(
+      networkRenderPlayer(view, ownEntry.player, ownEntry.originalIndex, null, seatOrder.length, options, handlers)
+    );
+  }
 
   if (options.logDialogOpen) {
     renderDialog(container, "Nhật ký ván đấu", handlers.onCloseLogDialog, (body) => renderLogDialogBody(body, options.log));

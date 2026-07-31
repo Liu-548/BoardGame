@@ -674,6 +674,19 @@ Nguyên tắc chung:
 
 306 test đều pass.
 
+**Fix lần 2: seat của mình vẫn tràn (cả laptop lẫn điện thoại) — tách hẳn seat của mình ra khỏi bàn tròn:**
+
+- Chủ dự án báo lại: dù đã sửa công thức toạ độ elip (calc() an toàn ở trên), seat CỦA MÌNH vẫn tràn — cả laptop lẫn điện thoại. Đúng vậy: bản sửa trước chỉ đảm bảo TOẠ ĐỘ không âm, nhưng seat của mình vẫn phải "nhét" vào ĐÚNG 1 ĐIỂM cố định trên elip (`position: absolute`) rồi tự nới rộng (`width: max-content`) quanh điểm đó — bài trên tay có thể dài tuỳ ý (5-8 lá), không có giới hạn an toàn tuyệt đối nào cho cách làm này, đặc biệt khi elip bị bóp hẹp (điện thoại) hoặc có nhiều người khác chiếm chỗ xung quanh (laptop nhiều người chơi).
+- **Sửa tận gốc theo đúng yêu cầu**: TÁCH HẲN seat của mình RA KHỎI hình elip, cho vào **1 hàng riêng nằm trong luồng tài liệu bình thường** (không `position: absolute`, không bị ép vào điểm/kích thước cố định nào) — ngay dưới bàn tròn, vẫn giữ đúng cấu trúc "người khác ngồi bàn tròn, bạn ở dưới cùng" (đúng ý gốc `GIAO-DIEN-UI-UX.txt`: "Bạn cố định ở giữa đáy", giờ rõ ràng hơn vì là 1 khối riêng hẳn).
+- `ui.ts`: `networkRenderPlayer()` nhận `seatIndex: number | null` — `null` nghĩa là "hàng riêng, không phải seat trong elip": bỏ qua tính `--seat-cos`/`--seat-sin`, dùng class mới `player--own-row` thay vì `player--seat`. `renderNetworkGame()`: vòng lặp đổ vào `.seats` (elip) giờ SKIP hẳn viewer (`if (player.id === view.viewerId) return`), rồi render viewer RIÊNG bằng `networkRenderPlayer(..., seatIndex: null, ...)`, append NGAY SAU `.table` (không phải bên trong). `seatOrder`/góc của những người CÒN LẠI giữ NGUYÊN không đổi (chỗ của mình bỏ trống trong elip, không dồn lại) — vị trí người khác không xê dịch so với trước.
+- CSS: xoá hẳn `.player--seat-self` (không còn dùng — `.player--seat` giờ CHỈ dành cho người khác, LUÔN đúng 14rem cố định, không cần nới rộng nữa nên không còn nguy cơ chồng lấn). Thêm `.player--own-row` (dùng chung `.player` base — không `width`/`position` gì đặc biệt, tự nhiên full độ rộng container như MỌI khối thường khác, viền đậm hơn 1 chút để phân biệt "chỗ của bạn").
+- Đây là thay đổi cấu trúc UI thuần (đổi cách nhóm seat vào DOM), KHÔNG đụng `core/` — không cần test Vitest mới.
+- Đã tự kiểm: `npx tsc --noEmit` sạch, 306 test vẫn pass, `npm run build` qua.
+- Đã tự kiểm bằng `wrangler dev` cục bộ + 3 tab thật (An/Bình/Chi, biến thể 3 người) — đo qua DOM thật: elip (`.player--seat`) giờ CHỈ còn "Chi"/"Binh", không còn "An"; "An (bạn)" xuất hiện đúng 1 lần dưới dạng `.player--own-row` NGOÀI elip. Ép `document.body.style.maxWidth = '360px'` (mô phỏng điện thoại rất hẹp) rồi đo `scrollWidth` vs `clientWidth`: **BẰNG NHAU TUYỆT ĐỐI (360 = 360)** — xác nhận KHÔNG CÒN TRÀN NGANG chút nào, kể cả ở độ rộng cực hẹp. Không lỗi console.
+- Đã deploy lại (`npm run deploy`) lên **https://bang-boardgame.nguyenngoctuan548.workers.dev** sau khi sửa.
+
+306 test đều pass.
+
 ## Chưa làm tới, đừng đụng vào
 
 Cả 3 biến thể số người chơi (2/3/8 người) đã HOÀN TẤT (xem 3 mục changelog "Biến thể số người chơi" ở trên) — không còn biến thể nào đang dang dở.
