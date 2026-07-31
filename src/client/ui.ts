@@ -300,12 +300,13 @@ function characterOptionCard(characterId: string, armed: boolean, onClick: () =>
 }
 
 // Lá nhân vật CHỈ ĐỂ XEM — nhân vật ĐÃ chọn xong (của mình hoặc người khác,
-// công khai ngay khi chọn — xem CharacterChoice ở types.ts). `mini`: đợt 5
-// UI/UX (mục 4 ý a) — bản THU NHỎ dán sát cạnh tên trong ô người chơi, khác
-// bản cỡ thường dùng ở màn hình Chú giải/kết thúc ván.
-function characterChip(characterId: string, mini: boolean = false): HTMLSpanElement {
+// công khai ngay khi chọn — xem CharacterChoice ở types.ts). Dùng chung kích
+// thước `.card-box` chuẩn với mọi lá bài khác (bản thu nhỏ `--mini` trước đây
+// khiến khung bị lép — ảnh vẫn rộng 4.5rem như lá thường nhưng chiều cao bị
+// ép xuống — bỏ hẳn, để cạnh tên bằng đúng kích thước lá bài bình thường).
+function characterChip(characterId: string): HTMLSpanElement {
   const el = document.createElement("span");
-  el.className = "card-box card-box--inert card-box--character" + (mini ? " card-box--mini" : "");
+  el.className = "card-box card-box--inert card-box--character";
   appendCardVisual(el, characterImageUrl(characterId), characterLabel(characterId), CHARACTER_DESCRIPTIONS[characterId]);
   return el;
 }
@@ -988,7 +989,7 @@ function renderPlayer(
   // Đợt 5 UI/UX (mục 4 ý a) — lá nhân vật (đã chọn xong, công khai) sát cạnh
   // tên, chỉ hiện khi ván có bật cơ chế chọn nhân vật VÀ người này đã chọn.
   if (player.characterId) {
-    headingRow.appendChild(characterChip(player.characterId, true));
+    headingRow.appendChild(characterChip(player.characterId));
   }
   const heading = document.createElement("h3");
   heading.textContent = player.name + (isCurrentTurn ? " ← đang tới lượt" : "");
@@ -1952,7 +1953,7 @@ function networkRenderPlayer(
   // Đợt 5 UI/UX (mục 4 ý a) — giống hotseat, dùng characterId mới thêm vào
   // PlayerHandView (core/view.ts) — công khai, không cần lọc gì thêm ở đây.
   if (player.characterId) {
-    headingRow.appendChild(characterChip(player.characterId, true));
+    headingRow.appendChild(characterChip(player.characterId));
   }
   const heading = document.createElement("h3");
   heading.textContent =

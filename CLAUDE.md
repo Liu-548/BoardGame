@@ -616,6 +616,16 @@ Nguyên tắc chung:
 
 306 test đều pass.
 
+**Sửa lỗi bổ sung sau đợt 7 — lá nhân vật cạnh tên bị lép (phát hiện khi chủ dự án hỏi tại sao "link công khai" chưa thấy bàn tròn — hoá ra đang test bản CŨ, chưa deploy 7 đợt UI/UX; tiện thể rà thêm phát hiện lỗi này):**
+
+- `characterChip(characterId, mini)` (đợt 5, mục 4 ý a) dùng class `card-box--mini` để thu nhỏ khung nhân vật dán cạnh tên — nhưng `.card-box--mini { width: 2.2rem }` (khai báo ở dòng ~207) và `.card-box { width: 4.5rem }` (khai báo SAU, dòng ~293) CÙNG độ ưu tiên CSS (1 class), nên rule khai báo SAU trong file (`.card-box`) THẮNG — width thực tế vẫn 4.5rem (72px, đo được qua DOM thật), chỉ có `.card-box__image-wrap`/`.card-box__name` (selector 2 class, ưu tiên cao hơn) là thật sự bị ép nhỏ theo `--mini` → kết quả: khung rộng bằng lá thường (72px) nhưng bị ép LÉP xuống chỉ 44px cao (thay vì 78-89px như lá thường) — không phải "thu nhỏ đều" như ý định ban đầu.
+- Chủ dự án yêu cầu thẳng: cho kích thước lá nhân vật BẰNG với các lá khác — thay vì sửa lại bug thu nhỏ cho đúng tỉ lệ, bỏ hẳn khái niệm "mini": `characterChip()` bỏ tham số `mini`, luôn dùng đúng kích thước `.card-box` chuẩn (72×78/89, y hệt mọi lá bài khác). Xoá hẳn CSS `.card-box--mini` (không còn nơi nào dùng).
+- Đã tự kiểm: `npx tsc --noEmit` sạch, 306 test vẫn pass, `npm run build` qua.
+- Đã tự kiểm bằng trình duyệt thật (`vite dev`, hotseat 4 người, đo qua DOM `getBoundingClientRect()` thật chứ không chỉ nhìn ảnh chụp): trước khi sửa, lá nhân vật cạnh tên đo được 72×44px; sau khi sửa, đo đúng 72×78/89px — bằng CHÍNH XÁC với lá bài thường cạnh đó trong cùng khung hình. Đánh 1 lá Bang! thật (tình huống lồng: chồng bỏ đổi lá mặt trên, băng thông báo phản ứng đợt 6 hiện đúng, seat viền đỏ đúng) — xác nhận không có hồi quy gì ở các đợt UI/UX trước.
+- **Xác nhận qua hỏi trực tiếp: chủ dự án đang test trên LINK CÔNG KHAI** (`bang-boardgame.nguyenngoctuan548.workers.dev`), bản đó còn CŨ hơn cả đợt 1 UI/UX (bàn tròn, màu chrome... đều chưa lên) — đây là lý do "cơ chế ngồi theo vòng chưa có" khi tự test, KHÔNG PHẢI bug code (`seatAngleDeg()`/`.seats`/`@media (min-width: 700px)` đã cài đúng từ đợt 1, đã tự kiểm qua `wrangler dev` nhiều lần). Cần `npm run deploy` sớm để bản công khai bắt kịp toàn bộ 7 đợt UI/UX + fix này.
+
+306 test đều pass.
+
 ## Chưa làm tới, đừng đụng vào
 
 Cả 3 biến thể số người chơi (2/3/8 người) đã HOÀN TẤT (xem 3 mục changelog "Biến thể số người chơi" ở trên) — không còn biến thể nào đang dang dở.

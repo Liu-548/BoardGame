@@ -141,8 +141,8 @@ input[type="text"] {
   margin: 0.25rem 0;
 }
 
-/* Đợt 5 UI/UX (mục 4 ý a) — lá nhân vật (card-box--mini) sát cạnh tên, cùng
-   1 hàng, canh giữa theo chiều dọc. */
+/* Đợt 5 UI/UX (mục 4 ý a) — lá nhân vật (cỡ chuẩn, bằng mọi lá bài khác) sát
+   cạnh tên, cùng 1 hàng, canh giữa theo chiều dọc. */
 .player__heading-row {
   display: flex;
   align-items: center;
@@ -200,21 +200,6 @@ input[type="text"] {
   margin-left: 0.15rem;
   font-size: 0.85rem;
   color: var(--color-text-muted);
-}
-
-/* Đợt 5 UI/UX (mục 4 ý a) — bản THU NHỎ của .card-box, dán cạnh tên trong ô
-   người chơi (khác bản cỡ thường ở màn hình Chú giải/kết thúc ván). */
-.card-box--mini {
-  width: 2.2rem;
-}
-
-.card-box--mini .card-box__image-wrap {
-  height: 1.8rem;
-}
-
-.card-box--mini .card-box__name {
-  font-size: 0.5rem;
-  padding: 0.08rem 0.1rem;
 }
 
 /* Đang tới lượt — mục 1: "viền XÁM DÀY + nhãn 'đang đánh'" (nhãn text đã có
