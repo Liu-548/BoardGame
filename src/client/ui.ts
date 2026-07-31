@@ -2006,44 +2006,9 @@ function networkRenderEquipmentSection(
   container.appendChild(wrapper);
 }
 
-// Đợt 1 UI/UX (mục 3+12) — bố cục bàn tròn CHỈ cho ván chơi qua mạng (đã hỏi
-// và chốt với chủ dự án: hotseat không có 1 "BẠN" duy nhất nên không áp dụng).
-// 1 CÔNG THỨC DUY NHẤT cho mọi N từ 2-8 người, không hardcode từng trường hợp.
-//
-// `seatIndex` là vị trí (0-indexed) trong MẢNG ĐÃ XOAY `seatOrder` (xem
-// buildSeatOrder() bên dưới) — phần tử CUỐI (seatIndex === seatTotal - 1) LUÔN
-// là BẠN. Góc 90° = đáy màn hình (quy ước CSS: 0°=phải, 90°=dưới, tăng dần
-// THEO CHIỀU KIM ĐỒNG HỒ vì trục y màn hình hướng XUỐNG) — dùng 90 làm gốc để
-// BẠN (luôn là seatIndex cuối, seatIndex+1 === seatTotal → trọn 1 vòng 360°
-// cộng thêm) rơi đúng vào 90°.
-// (Lỗi đã sửa: bản đầu dùng gốc 270° — SAI, cho BẠN lên đỉnh bàn thay vì đáy,
-// phát hiện lúc tự kiểm bằng trình duyệt thật, xem CLAUDE.md.)
-function seatAngleDeg(seatIndex: number, seatTotal: number): number {
-  return (90 + ((seatIndex + 1) * 360) / seatTotal) % 360;
-}
-
-// Đổi góc (độ) sang cos/sin THÔ (không nhân bán kính) — CSS tự tính vị trí
-// bằng calc() với bán kính TRỪ 1 khoảng cố định theo rem (xem .player--seat ở
-// style.css). Lý do đổi từ bán kính THEO PHẦN TRĂM (đợt 1, `x = 50 + 42*cos`)
-// sang cách này: phản hồi thật — bàn tràn ngang trên điện thoại, KHÔNG kéo/
-// cuộn được. Nguyên nhân gốc: bán kính % không biết trước độ rộng THẬT của
-// khung seat (14rem = 224px) — ở container hẹp hơn ~1400px (tức HẦU HẾT màn
-// hình thật), seat gần rìa trái/phải bị `translate(-50%)` đẩy sang toạ độ ÂM
-// (âm hơn 0% container) → trình duyệt KHÔNG cho cuộn sang trái để thấy phần
-// đó (chỉ cuộn được sang phải/xuống, không cuộn được về âm — giới hạn cố
-// hữu của scroll, không phải lỗi thao tác). Bán kính "50% - Nrem" (N là nửa
-// độ rộng seat, cộng dư an toàn) đảm bảo LUÔN có đủ chỗ, không bao giờ âm,
-// bất kể container rộng bao nhiêu.
-function seatCosSin(angleDeg: number): { cos: number; sin: number } {
-  const rad = (angleDeg * Math.PI) / 180;
-  return { cos: Math.cos(rad), sin: Math.sin(rad) };
-}
-
 // Xoay view.players sao cho bắt đầu từ người NGAY SAU viewer, kết thúc bằng
-// CHÍNH viewer (luôn là phần tử CUỐI mảng trả về) — thứ tự này vừa dùng làm
-// thứ tự DOM (danh sách dọc trên điện thoại, mục 10) vừa làm input cho
-// seatAngleDeg() (bàn tròn trên màn rộng), KHÔNG cần đổi gì khi chuyển đổi
-// giữa 2 cách xếp — chỉ CSS quyết định, xem mục 10: "cùng dữ liệu, khác cách xếp".
+// CHÍNH viewer (luôn là phần tử CUỐI mảng trả về) — dùng làm "thứ tự lượt"
+// (turn order) cho buildOpponentRows() (chia hàng) VÀ thứ tự DOM.
 function buildSeatOrder(view: PlayerView): { player: PlayerHandView; originalIndex: number }[] {
   const n = view.players.length;
   const viewerIndex = view.players.findIndex((p) => p.id === view.viewerId);
@@ -2054,40 +2019,65 @@ function buildSeatOrder(view: PlayerView): { player: PlayerHandView; originalInd
   });
 }
 
+type SeatEntry = { player: PlayerHandView; originalIndex: number };
+
+// Phản hồi thật — bỏ hẳn bàn tròn (`position: absolute`, từng gây tràn ngang
+// nhiều lần dù đã sửa công thức toạ độ mấy lần liền). Đối thủ (không tính
+// bản thân — luôn ở 1 hàng riêng dưới cùng, xem `.player--own-row`) giờ dàn
+// thành TỐI ĐA 2 hàng ngang bình thường (nằm trong luồng tài liệu — 2 hàng
+// liên tiếp trong luồng tài liệu KHÔNG THỂ đè lên nhau).
+//
+// Vẫn giữ tính liền kề theo THỨ TỰ LƯỢT — coi đối thủ + bản thân là 1 VÒNG
+// KHÉP KÍN (không vẽ ra hình tròn nữa, chỉ là khái niệm để tính toán): người
+// liền kề trong vòng (kề nhau trong thứ tự lượt) phải được xếp liền kề nhau
+// trên màn hình. Dùng kiểu "gấp rắn" (boustrophedon, đã chốt với chủ dự án
+// kèm ví dụ cụ thể): nửa ĐẦU thứ tự lượt → hàng XA (trên, trái→phải); nửa
+// SAU → hàng GẦN (dưới, sát hàng của bạn), NHƯNG ĐẢO NGƯỢC (phải→trái) để
+// đọc nối tiếp đúng khi đi từ hàng xa xuống hàng gần.
+//
+// Số đối thủ LẺ (xảy ra khi TỔNG số người CHẴN) → không chia đều 2 hàng
+// được — người ở GIỮA thứ tự lượt (xa bản thân nhất trong vòng khép kín,
+// giống vị trí 12 giờ ở bàn tròn cũ) tách riêng lên 1 hàng CĂN GIỮA ở trên
+// cùng; phần còn lại (giờ chẵn) mới chia đôi như bình thường.
+//
+// Ví dụ đã chốt (5 đối thủ, thứ tự lượt 1→2→3→4→5→về bạn):
+//        [3]        ← hàng lẻ (giữa thứ tự, xa bạn nhất)
+//   [1] [2]          ← hàng xa
+//   [5] [4]          ← hàng gần
+//   ---------
+//   [Bạn]
+function buildOpponentRows(opponents: SeatEntry[]): { oddRow: SeatEntry[]; farRow: SeatEntry[]; nearRow: SeatEntry[] } {
+  const n = opponents.length;
+  if (n % 2 === 0) {
+    return {
+      oddRow: [],
+      farRow: opponents.slice(0, n / 2),
+      nearRow: [...opponents.slice(n / 2)].reverse(),
+    };
+  }
+  const middleIndex = Math.floor(n / 2);
+  return {
+    oddRow: [opponents[middleIndex]],
+    farRow: opponents.slice(0, middleIndex),
+    nearRow: [...opponents.slice(middleIndex + 1)].reverse(),
+  };
+}
+
 function networkRenderPlayer(
   view: PlayerView,
   player: PlayerHandView,
   originalIndex: number,
-  // Đợt 1 UI/UX (mục 3) — vị trí (0-indexed) VÀ tổng số ghế trong `seatOrder`
-  // (mảng đã xoay để BẠN luôn ở cuối, xem renderNetworkGame()) — dùng để tính
-  // góc/toạ độ bàn tròn. KHÁC `originalIndex` (vị trí thật trong view.players,
-  // dùng để so `currentPlayerIndex` — 2 mảng thứ tự khác nhau).
-  //
-  // Phản hồi thật (lần 2): dù đã sửa công thức toạ độ (calc() an toàn) và
-  // giới hạn CHỈ seat của mình mới nới rộng, seat CỦA MÌNH vẫn tràn cả trên
-  // laptop lẫn điện thoại — nguyên nhân: seat đó vẫn nằm TRONG hình elip
-  // (`position: absolute`, chừa 1 ô cố định), nới rộng bao nhiêu cũng phải
-  // "nhét" vào đúng 1 điểm trên elip, không có cách nào an toàn tuyệt đối
-  // nếu nội dung (bài trên tay) có thể dài tuỳ ý. Sửa TẬN GỐC theo yêu cầu:
-  // TÁCH hẳn seat của mình RA KHỎI hình elip, cho vào 1 hàng RIÊNG, full-độ-
-  // rộng, nằm trong luồng tài liệu bình thường (không `position: absolute`)
-  // — `seatIndex === null` nghĩa là "hàng riêng", bỏ qua mọi tính toán góc/
-  // toạ độ elip, chỉ dùng class `.player--own-row` (CSS riêng, full width).
-  seatIndex: number | null,
-  seatTotal: number,
+  // Đổi layout (bỏ bàn tròn): không còn góc/toạ độ gì để tính — chỉ cần biết
+  // đây có phải "hàng riêng của mình" hay không (`.player--own-row`, full độ
+  // rộng, luôn dưới cùng) hay là 1 trong các đối thủ nằm trong `.opponent-row`
+  // (xem buildOpponentRows()/renderNetworkGame()).
+  isOwnRow: boolean,
   options: NetworkGameOptions,
   handlers: NetworkGameHandlers
 ): HTMLElement {
   const { selection } = options;
   const el = document.createElement("article");
-  if (seatIndex === null) {
-    el.className = "player player--own-row";
-  } else {
-    el.className = "player player--seat";
-    const { cos, sin } = seatCosSin(seatAngleDeg(seatIndex, seatTotal));
-    el.style.setProperty("--seat-cos", `${cos}`);
-    el.style.setProperty("--seat-sin", `${sin}`);
-  }
+  el.className = "player" + (isOwnRow ? " player--own-row" : "");
 
   // Đợt 1 UI/UX (mục 1+8) — cùng logic ưu tiên trạng thái với renderPlayer()
   // (hotseat), viết riêng vì đọc PlayerView/PlayerHandView đã lọc, không phải
@@ -2497,33 +2487,36 @@ export function renderNetworkGame(
   networkRenderPendingPanel(container, view, handlers, view.pending.length > 0 ? options.deadline : null);
   networkRenderPhaseActions(container, view, options, handlers);
 
-  // Đợt 1 UI/UX (mục 3+10) — .table bọc ngoài chỉ cho ván qua mạng (hotseat
-  // không có, xem renderApp()/renderPlayer() ở trên: giữ nguyên .players cũ).
-  // seatOrder xoay để BẠN luôn là phần tử CUỐI — vừa là thứ tự DOM (danh sách
-  // dọc, màn hẹp) vừa là input tính góc bàn tròn (màn rộng, xem CSS).
-  //
-  // Phản hồi thật (lần 2) — seat của mình vẫn tràn dù đã sửa công thức toạ
-  // độ: TÁCH hẳn seat của mình (luôn là phần tử CUỐI trong seatOrder) RA
-  // KHỎI `.seats` (hình elip) — chỉ những người KHÁC mới vào elip, giữ
-  // NGUYÊN `seatIndex`/`seatOrder.length` cũ (để góc/vị trí của họ không đổi
-  // — chỗ của self bỏ trống trong elip, thay bằng hàng riêng ngay dưới).
+  // Đổi layout theo phản hồi thật (bỏ bàn tròn `position: absolute`) — đối
+  // thủ (mọi người TRỪ mình) dàn thành TỐI ĐA 2 hàng ngang bình thường +
+  // 1 hàng riêng căn giữa khi số đối thủ lẻ (xem buildOpponentRows() —
+  // thuật toán "gấp rắn" giữ đúng tính liền kề theo thứ tự lượt). CẢ 3 hàng
+  // đều nằm trong LUỒNG TÀI LIỆU bình thường (không `position: absolute`)
+  // nên KHÔNG BAO GIỜ đè lên nhau. `seatOrder` (xoay để BẠN luôn ở cuối)
+  // vẫn dùng làm "thứ tự lượt" đưa vào buildOpponentRows().
   const tableEl = document.createElement("div");
   tableEl.className = "table";
-  const seatsEl = document.createElement("div");
-  seatsEl.className = "players seats";
   const seatOrder = buildSeatOrder(view);
-  seatOrder.forEach(({ player, originalIndex }, seatIndex) => {
-    if (player.id === view.viewerId) return; // render riêng bên dưới, không vào elip
-    seatsEl.appendChild(networkRenderPlayer(view, player, originalIndex, seatIndex, seatOrder.length, options, handlers));
-  });
-  tableEl.appendChild(seatsEl);
+  const opponents = seatOrder.slice(0, -1);
+  const ownEntry = seatOrder[seatOrder.length - 1] as SeatEntry | undefined;
+  const { oddRow, farRow, nearRow } = buildOpponentRows(opponents);
+
+  const appendOpponentRow = (entries: SeatEntry[], extraClass?: string) => {
+    if (entries.length === 0) return;
+    const rowEl = document.createElement("div");
+    rowEl.className = "players opponent-row" + (extraClass ? ` ${extraClass}` : "");
+    for (const { player, originalIndex } of entries) {
+      rowEl.appendChild(networkRenderPlayer(view, player, originalIndex, false, options, handlers));
+    }
+    tableEl.appendChild(rowEl);
+  };
+  appendOpponentRow(oddRow, "opponent-row--odd");
+  appendOpponentRow(farRow);
+  appendOpponentRow(nearRow);
   container.appendChild(tableEl);
 
-  const ownEntry = seatOrder.find(({ player }) => player.id === view.viewerId);
   if (ownEntry) {
-    container.appendChild(
-      networkRenderPlayer(view, ownEntry.player, ownEntry.originalIndex, null, seatOrder.length, options, handlers)
-    );
+    container.appendChild(networkRenderPlayer(view, ownEntry.player, ownEntry.originalIndex, true, options, handlers));
   }
 
   if (options.logDialogOpen) {
