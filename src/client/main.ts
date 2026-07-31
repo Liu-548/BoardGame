@@ -30,6 +30,7 @@ import type { PlayerView } from "../core/view";
 import { RoomConnection } from "./net";
 import type { DeadlineInfo, ServerMessage } from "../protocol";
 import {
+  applyStoredSettings,
   describeEvent,
   renderApp,
   renderCardReferenceScreen,
@@ -44,6 +45,10 @@ import {
 import type { DrawCheckNotice, LobbyPlayer, Selection } from "./ui";
 
 const root = document.getElementById("game-root") as HTMLDivElement;
+
+// Hoàn thiện Cài đặt — áp dụng sở thích giao diện sáng/tối + cỡ chữ đã lưu
+// TRƯỚC lần vẽ đầu tiên (tránh nháy sáng/cỡ chữ mặc định rồi đổi lại ngay).
+applyStoredSettings();
 
 // Các lá cần chọn thêm mục tiêu khi đánh — lá còn lại (bia, saloon, súng máy
 // Gatling, tự trang bị...) đánh xong ngay, không cần bước chọn nào thêm.
