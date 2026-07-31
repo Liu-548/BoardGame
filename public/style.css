@@ -95,18 +95,30 @@ input[type="text"] {
     left: var(--seat-x);
     top: var(--seat-y);
     transform: translate(-50%, -50%);
-    min-width: 14rem;
+    width: 14rem;
+  }
+
+  /* Phản hồi thật từ chủ dự án sau khi chơi thử bàn tròn qua mạng: cho MỌI
+     seat cùng nới rộng theo nội dung khiến seat người khác — có vài lá
+     trang bị công khai — thỉnh thoảng nới ra đè lên seat cạnh bên (seat
+     khác định vị `position: absolute` quanh hình elip, nới rộng không kiểm
+     soát dễ chồng lấn). CHỈ seat CỦA CHÍNH MÌNH (`.player--seat-self`, luôn
+     ở cuối `seatOrder` — xem buildSeatOrder()/networkRenderPlayer() ở
+     ui.ts) mới thật sự cần rộng (tay đầy đủ, có thể 5-8 lá); seat người khác
+     giữ nguyên 14rem an toàn, lá tràn thì cuộn ngang (xem `.cards` dưới),
+     không bao giờ nới width nên không chồng lấn. */
+  .player--seat-self {
     width: max-content;
+    min-width: 14rem;
     max-width: 36rem;
   }
 
-  /* Phản hồi thật từ chủ dự án sau khi chơi thử bàn tròn qua mạng: width cố
-     định 14rem ở trên ép bài trên tay/trang bị (.cards, xem dưới) vỡ thành
-     lưới 2 cột thay vì 1 hàng ngang — width: max-content bên trên đã giải
-     quyết phần lớn (seat tự nới theo nội dung), .cards ở đây chỉ còn là lưới
-     đỡ khi hiếm khi tay quá nhiều lá vượt max-width (cuộn ngang thay vì vỡ
-     dòng, không đụng gì tới hotseat/danh sách dọc — 2 nơi đó dùng .cards
-     KHÔNG lồng trong .player--seat nên không bị ảnh hưởng). */
+  /* width cố định (hoặc max-content) ở trên chỉ giải quyết phần thân seat —
+     .cards riêng vẫn cần flex-wrap: nowrap + overflow-x: auto để bài/trang
+     bị luôn dàn 1 hàng ngang (không vỡ thành lưới 2 cột), CUỘN thay vì vỡ
+     dòng khi seat KHÔNG PHẢI của mình có nhiều trang bị hơn 14rem chứa nổi.
+     Không đụng hotseat/danh sách dọc — 2 nơi đó dùng `.cards` KHÔNG lồng
+     trong `.player--seat`. */
   .player--seat .cards {
     flex-wrap: nowrap;
     overflow-x: auto;
@@ -682,15 +694,21 @@ button.card-box {
   }
 }
 
-/* Đợt 3 UI/UX (mục 9) — hàng nút "Sẵn ở góc, không chiếm chỗ bàn": cố định
-   góc trên phải, luôn thấy được kể cả khi cuộn trang, không chen vào bố cục
-   bàn/seat bên dưới. */
+/* Đợt 3 UI/UX (mục 9) — hàng nút góc trên phải. TỪNG dùng `position: fixed`
+   ("không chiếm chỗ bàn") nhưng phản hồi thật: nổi đè lên seat trên cùng của
+   bàn tròn (seat đó không "biết" phải né chỗ cho 1 phần tử không chiếm chỗ
+   trong luồng tài liệu). Đổi sang `position: sticky` + vẽ NGAY ĐẦU trang
+   (xem renderApp()/renderNetworkGame() ở ui.ts) — giờ nó CHIẾM 1 hàng thật ở
+   đầu, mọi nội dung sau tự động bắt đầu bên dưới nó, không bao giờ đè nhau;
+   vẫn "luôn thấy được kể cả khi cuộn trang" nhờ sticky dính lại ở top khi
+   cuộn qua, giữ đúng tinh thần "Sẵn ở góc" ban đầu. */
 .game-toolbar {
-  position: fixed;
+  position: sticky;
   top: 0.5rem;
-  right: 0.5rem;
   display: flex;
+  justify-content: flex-end;
   gap: 0.5rem;
+  margin-bottom: 0.5rem;
   z-index: 5;
 }
 

@@ -637,6 +637,18 @@ Nguyên tắc chung:
 
 306 test đều pass.
 
+**Sửa/bổ sung theo phản hồi thật lần 2 từ chủ dự án (sau khi chơi thử bàn tròn qua mạng đã sửa lần 1):**
+
+- **Fix: thanh nút góc trên (`.game-toolbar`) đè lên seat trên cùng** — trước `position: fixed` (nổi, không chiếm chỗ trong luồng tài liệu) khiến seat ở đỉnh hình elip dễ bị 3 nút (Nhật ký/Cài đặt/Mã phòng) che khuất. Đổi sang `position: sticky` + chuyển lời gọi `renderGameToolbar()` lên NGAY ĐẦU `renderApp()`/`renderNetworkGame()` (ngay sau `renderOrientationLockOverlay()`, trước mọi nội dung khác) — giờ nó chiếm 1 hàng thật ở đầu trang, mọi nội dung sau luôn bắt đầu bên dưới, không bao giờ đè nhau; vẫn dính lại ở top khi cuộn trang (đúng tinh thần "luôn thấy được" ban đầu).
+- **Bổ sung: hiện vai (role) ngay từ màn hình chọn nhân vật** — dữ liệu `role` vốn đã có sẵn từ `setupGame()` (gán ngay cả khi đang chờ chọn nhân vật, chỉ `hp`/`hand` mới tạm 0), chỉ là UI chưa hiện. Thêm 1 dòng "Vai: ..." vào cả `renderCharacterSelectionScreen()` (hotseat — hiện vai THẬT của MỌI người, đúng mô hình "không giấu gì" đã có của hotseat) và `renderNetworkCharacterSelectionScreen()` (qua mạng — dùng thẳng `view.players[].role` đã qua `viewRole()` lọc đúng quy tắc 6: chỉ chính mình + Sheriff công khai, người khác vẫn "(ẩn)", không lộ thêm gì so với lúc vào bàn chơi thật).
+- **Fix: seat nhân vật khác thỉnh thoảng giãn ra đè lên seat cạnh bên** — nguyên nhân: bản sửa "dàn hàng ngang" trước đó (đợt phản hồi lần 1) cho MỌI seat cùng `width: max-content` (tự nới theo nội dung) để tránh vỡ lưới 2 cột, nhưng seat NGƯỜI KHÁC (không phải mình) hiện trang bị công khai — nếu ai đó có vài lá trang bị, seat họ cũng nới ra và có thể chồng lên seat kế bên (định vị `position: absolute` quanh hình elip, không seat nào "biết" né seat khác). Sửa: chỉ seat CỦA CHÍNH MÌNH (class mới `player--seat-self`, gán ở `networkRenderPlayer()` khi `player.id === view.viewerId`) mới được `width: max-content` (tối đa 36rem); seat người khác quay lại `width: 14rem` CỐ ĐỊNH an toàn — lá trang bị/tay ẩn của họ tràn thì tự cuộn ngang (`.player--seat .cards { flex-wrap: nowrap; overflow-x: auto }`, áp dụng chung mọi seat) thay vì nới box.
+- Đã tự kiểm: `npx tsc --noEmit` sạch, 306 test vẫn pass (thuần UI/CSS, không đụng `core/`).
+- Đã tự kiểm bằng `wrangler dev` cục bộ + 4 tab thật (An/Bình/Chi/Dũng, đúng luồng lobby→chọn nhân vật→bàn chơi, không giả lập) — đo qua DOM thật: màn chọn nhân vật, tab An thấy đúng "Dung — Vai: Cảnh sát trưởng" (Sheriff công khai), "Chi — Vai: (ẩn)" (người khác), "An (bạn) — Vai: Tội phạm" (vai chính mình); sau khi cả 4 chọn xong vào bàn chơi thật, đo `getBoundingClientRect()`: toolbar nằm y 90-129px, CẢ 4 seat đều bắt đầu từ y ≥ 259px (`overlapsToolbar: false` cho tất cả); seat An (chính mình) rộng 339px (đã nới), 3 seat còn lại (Dung/Chi/Binh) đều đúng 224px (14rem) cố định, không seat nào chồng lấn seat khác. Không lỗi console.
+- Đã deploy lại (`npm run deploy`) lên **https://bang-boardgame.nguyenngoctuan548.workers.dev** sau khi sửa.
+- **Chủ dự án nêu thêm 2 điểm, CHỐT để dành bàn sau (chưa sửa gì)**: (1) trên điện thoại web, bàn tràn ra ngoài màn hình mà không kéo/cuộn/co giãn được; (2) các mốc thời gian đếm ngược (`pending`) trong ván có vẻ chưa đúng. Cả 2 đợi bàn kỹ hơn ở lượt sau, KHÔNG tự đoán rồi sửa.
+
+306 test đều pass.
+
 ## Chưa làm tới, đừng đụng vào
 
 Cả 3 biến thể số người chơi (2/3/8 người) đã HOÀN TẤT (xem 3 mục changelog "Biến thể số người chơi" ở trên) — không còn biến thể nào đang dang dở.
