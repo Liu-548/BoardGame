@@ -90,10 +90,17 @@ input[type="text"] {
     width: 100%;
   }
 
+  /* Phản hồi thật: bàn tràn ngang trên điện thoại, không kéo/cuộn được — xem
+     ghi chú đầy đủ ở seatCosSin() (ui.ts). `--seat-cos`/`--seat-sin` giờ là
+     SỐ THÔ (cos/sin góc, không nhân bán kính) — bán kính tính NGAY TRONG
+     calc() bằng "50% - 7.5rem" (nửa độ rộng seat 14rem + 0.5rem đệm an
+     toàn), KHÔNG BAO GIỜ cho toạ độ âm bất kể container rộng bao nhiêu
+     (khác bán kính theo % cũ, phụ thuộc độ rộng container mà không biết
+     trước độ rộng THẬT của seat). */
   .player--seat {
     position: absolute;
-    left: var(--seat-x);
-    top: var(--seat-y);
+    left: calc(50% + var(--seat-cos) * (50% - 7.5rem));
+    top: calc(50% + var(--seat-sin) * (50% - 7.5rem));
     transform: translate(-50%, -50%);
     width: 14rem;
   }
@@ -110,7 +117,11 @@ input[type="text"] {
   .player--seat-self {
     width: max-content;
     min-width: 14rem;
-    max-width: 36rem;
+    /* Seat của mình LUÔN nằm chính giữa theo chiều ngang (cos = 0 vì luôn ở
+       góc 90° — đáy bàn), nên nới rộng không bao giờ lệch âm, CHỈ cần đảm
+       bảo không vượt quá chính độ rộng container (điện thoại hẹp) — dùng
+       min() để tự hạ trần theo container thay vì luôn cố định 36rem. */
+    max-width: min(36rem, calc(100% - 1rem));
   }
 
   /* width cố định (hoặc max-content) ở trên chỉ giải quyết phần thân seat —
