@@ -113,6 +113,31 @@ Vài ý tưởng đã nghĩ ra (mỗi luật khi thiết kế thật sẽ nói r
 - ✅ Cho phép dùng Beer kể cả khi chỉ còn 2 người sống (bỏ ngoại lệ luật gốc) — `"beer_below_two"`
 - ⬜ Cho phép gộp 2 lá Beer để hồi máu cho 1 người chơi khác (thay vì chỉ hồi cho chính mình) — CHƯA làm, cần cơ chế chọn mục tiêu mới, để dành đợt sau
 
+### Ghi chú: bản Beta song song (dự tính, CHƯA làm — chủ dự án tạm hoãn để fix lỗi trước)
+
+Chủ dự án đang chơi bản chính (`https://bang-boardgame.nguyenngoctuan548.workers.dev`)
+thật với bạn bè, nhưng vẫn muốn tiếp tục phát triển mà không làm gián đoạn ván đang
+chơi. Đã bàn và CHỐT hướng làm (chưa code):
+
+- Thêm 1 "environment" mới tên `beta` trong `wrangler.jsonc` → Worker riêng tên
+  `bang-boardgame-beta`, ra URL riêng
+  (`https://bang-boardgame-beta.nguyenngoctuan548.workers.dev`). Tên Worker khác
+  nhau → Durable Object (dữ liệu phòng/ván) tách biệt hoàn toàn với bản chính.
+- `package.json` thêm script `deploy:beta` (= `vite build && wrangler deploy --env
+  beta`). Script `deploy` hiện tại **giữ nguyên y hệt** — bạn bè vẫn ở đúng URL cũ,
+  không đổi gì cho tới khi tự tay chạy `deploy:beta`.
+- Trong game: 1 nút "Bản Beta (thử nghiệm)" ở màn hình chính — chỉ là link mở sang
+  URL beta ở tab mới (không phải logic chuyển đổi runtime, không đụng `core/`). Bản
+  beta có link ngược lại "Về bản chính" để đối xứng.
+- Quy trình từ lúc làm xong: code/commit như bình thường, chỉ chạy `npm run
+  deploy:beta` cho tới khi tính năng mới ổn — lúc đó mới `npm run deploy` để "chốt"
+  vào bản chính.
+
+**Chưa chốt:** tên Worker/URL bản beta có thể đổi khác `bang-boardgame-beta` nếu
+chủ dự án muốn tên khác lúc bắt tay vào làm.
+
+---
+
 ### Biến thể theo số người chơi (2 / 3 / 8) — ngoài phạm vi 4–7 người mặc định
 
 Thứ tự làm đã chốt: **8 → 2 → 3 người**, tăng dần độ khó (xem CLAUDE.md).

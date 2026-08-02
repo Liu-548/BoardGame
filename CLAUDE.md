@@ -720,6 +720,18 @@ Nguyên tắc chung:
 
 306 test đều pass.
 
+**Fix: dùng lại 1 mã phòng đã trống hẳn từ vài ngày trước thì không ai được công nhận chủ phòng (theo báo lỗi thật từ chủ dự án):**
+
+- **Nguyên nhân gốc**: chủ phòng trước đây lưu trực tiếp 1 giá trị `ownerId` (khoá `OWNER_KEY`) trong `ctx.storage`, chỉ được CẬP NHẬT thủ công đúng lúc `webSocketClose()`/`webSocketError()` chạy cho ĐÚNG socket của chủ phòng. Nếu vì bất kỳ lý do gì (rớt mạng đột ngột không đóng socket "sạch", hay bất kỳ ca hiếm nào khác) mà 2 hàm đó không kịp chạy trước khi phòng bị bỏ trống hẳn, `ownerId` cũ bị KẸT LẠI trong storage, trỏ tới 1 playerId không còn ai kết nối. Vài ngày sau dùng lại đúng mã phòng đó, `handleJoin()` thấy `ownerId` đã có sẵn (giá trị cũ) nên KHÔNG gán chủ phòng mới cho người vừa join — kết quả: `ownerId` gửi kèm lobby trỏ tới 1 người không tồn tại, không ai được công nhận chủ phòng.
+- **Sửa tận gốc theo yêu cầu chủ dự án**: bỏ hẳn việc lưu 1 giá trị `ownerId` rời rạc cần tự tay giữ đồng bộ. Thay bằng `JOIN_ORDER_KEY` (`ctx.storage`) — 1 mảng CHỈ THÊM (không bao giờ xoá) ghi lại đúng 1 lần thứ tự "vào phòng lần đầu" của từng `playerId` (`handleJoin()` đẩy vào cuối mảng nếu chưa có). Chủ phòng giờ LUÔN được TÍNH LẠI (không đọc giá trị đã lưu): `getOwnerId()` duyệt mảng theo đúng thứ tự, trả về `playerId` ĐẦU TIÊN đang THẬT SỰ CÒN KẾT NỐI (tra qua `joinedPlayers()`, vốn đã đọc trực tiếp từ `ctx.getWebSockets()` — nguồn sự thật duy nhất, không lệ thuộc gì vào việc handler đóng socket có chạy kịp hay không).
+- `handleSocketGone()` (dùng chung cho cả `webSocketClose()`/`webSocketError()`) bỏ hẳn khối code "chuyển quyền chủ phòng thủ công" — không còn cần thiết, vì `getOwnerId()` tự tính đúng ngay lần gọi tiếp theo (broadcast lobby cuối hàm). Thêm tham số `excludeSocket` cho `getOwnerId()` (giống `joinedPlayers()` đã có sẵn) — dùng đúng lúc socket vừa đóng có thể vẫn còn bị `ctx.getWebSockets()` liệt kê, tránh tính nhầm người vừa rời làm chủ phòng ở đúng broadcast cuối cùng đó.
+- Đây là thay đổi hạ tầng mạng (`room.ts`), không đụng `core/` — theo đúng tiền lệ cả dự án, không có test Vitest riêng.
+- Đã tự kiểm: `npx tsc --noEmit` sạch, 306 test vẫn pass.
+- Đã tự kiểm bằng `wrangler dev` cục bộ + script Node mô phỏng WebSocket thật (không phải trình duyệt tự động, để tránh chập chờn đã gặp nhiều lần trước đó) — đúng kịch bản lỗi thật: An join (thành chủ) → Bình join (An vẫn chủ) → An rời (Bình tự thành chủ, đúng hành vi cũ vẫn giữ nguyên) → Bình cũng rời (phòng trống hẳn) → chờ 1 giây rồi Chi join lại ĐÚNG mã phòng đó (mô phỏng "dùng lại phòng cũ vài ngày sau") → **Chi được công nhận chủ phòng ngay lập tức** (trước đây sẽ bị kẹt `ownerId` cũ, không ai được công nhận).
+- Đã deploy (`npm run deploy`) lên **https://bang-boardgame.nguyenngoctuan548.workers.dev**.
+
+306 test đều pass.
+
 ## Chưa làm tới, đừng đụng vào
 
 Cả 3 biến thể số người chơi (2/3/8 người) đã HOÀN TẤT (xem 3 mục changelog "Biến thể số người chơi" ở trên) — không còn biến thể nào đang dang dở.

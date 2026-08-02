@@ -40,11 +40,18 @@ interface SocketAttachment {
 }
 
 const GAME_STATE_KEY = "gameState";
-// Chủ phòng — người ĐẦU TIÊN join vào phòng trống, CHỈ họ được gửi
-// "start_game" (yêu cầu thêm sau việc 3.10). Ghi theo playerId (không phải
-// socket) trong ctx.storage, giống lý do state ván đấu không nằm ở field
-// thường của class (xem ghi chú đầu file) — sống sót qua hibernate/reconnect.
-const OWNER_KEY = "ownerId";
+// Chủ phòng — KHÔNG lưu trực tiếp 1 giá trị "ownerId" nữa (bug phát hiện sau
+// khi chơi thật: dùng lại 1 mã phòng đã trống hẳn từ vài ngày trước, không ai
+// được công nhận là chủ phòng — vì "ownerId" cũ vẫn còn ĐỌNG LẠI trong storage
+// trỏ tới 1 playerId đã rời từ lâu, và không có gì đảm bảo webSocketClose()/
+// webSocketError() LUÔN chạy kịp lúc mất kết nối đột ngột — vd rớt mạng không
+// đóng socket "sạch" — để dọn giá trị đó). Đổi sang lưu THỨ TỰ VÀO PHÒNG LẦN
+// ĐẦU của từng playerId (mảng CHỈ THÊM, không bao giờ xoá) — chủ phòng LUÔN
+// được TÍNH LẠI (không lưu rời rạc): là người có thứ tự thấp nhất trong số
+// đang THẬT SỰ CÒN KẾT NỐI (xem getOwnerId()). Cách này tự "lành" — playerId
+// cũ dù còn kẹt trong mảng cũng không bao giờ được tính là chủ phòng nữa 1
+// khi không còn socket nào của họ đang mở, bất kể vì lý do gì.
+const JOIN_ORDER_KEY = "joinOrder";
 
 // ----- Việc 4.1: đồng hồ đếm ngược lượt (chỉ chơi qua mạng) -----
 // Đồng hồ hiện tại (DeadlineInfo | null), lưu bền để: (1) người vừa
@@ -145,12 +152,13 @@ export class Room {
     const attachment: SocketAttachment = { playerId, name };
     ws.serializeAttachment(attachment);
 
-    // Chưa có chủ phòng (phòng mới toanh, hoặc vừa trống hẳn rồi có người
-    // join lại — xem webSocketClose) -> người ĐẦU TIÊN join lúc này tự thành
-    // chủ phòng mới.
-    const ownerId = await this.getOwnerId();
-    if (!ownerId) {
-      await this.ctx.storage.put(OWNER_KEY, playerId);
+    // Ghi lại đúng 1 LẦN thứ tự "vào phòng lần đầu" của playerId này (không
+    // ghi lại nếu họ đã từng vào trước đó, kể cả đang reconnect) — chủ phòng
+    // không gán ở đây nữa, xem getOwnerId().
+    const joinOrder = (await this.ctx.storage.get<string[]>(JOIN_ORDER_KEY)) ?? [];
+    if (!joinOrder.includes(playerId)) {
+      joinOrder.push(playerId);
+      await this.ctx.storage.put(JOIN_ORDER_KEY, joinOrder);
     }
 
     await this.broadcastLobby();
@@ -165,8 +173,19 @@ export class Room {
     }
   }
 
-  private async getOwnerId(): Promise<string | null> {
-    return (await this.ctx.storage.get<string>(OWNER_KEY)) ?? null;
+  // Chủ phòng = người có thứ tự vào phòng THẤP NHẤT trong số đang THẬT SỰ
+  // CÒN KẾT NỐI ngay lúc gọi hàm này — tính lại mỗi lần, không đọc 1 giá trị
+  // đã lưu sẵn (xem lý do đổi ở ghi chú JOIN_ORDER_KEY). `excludeSocket`
+  // dùng đúng lúc socket vừa đóng có thể vẫn còn bị `ctx.getWebSockets()`
+  // liệt kê (xem ghi chú ở `joinedPlayers()`), để không tính nhầm người vừa
+  // rời làm chủ phòng.
+  private async getOwnerId(excludeSocket?: WebSocket): Promise<string | null> {
+    const joinOrder = (await this.ctx.storage.get<string[]>(JOIN_ORDER_KEY)) ?? [];
+    const connected = new Set(this.joinedPlayers(excludeSocket).map((p) => p.id));
+    for (const id of joinOrder) {
+      if (connected.has(id)) return id;
+    }
+    return null;
   }
 
   private async handleStartGame(ws: WebSocket, seed: number, houseRules?: HouseRuleId[]): Promise<void> {
@@ -672,25 +691,14 @@ export class Room {
     // Báo cho người còn lại biết phòng vừa vơi đi 1 người — loại trừ ĐÚNG
     // socket này theo tham chiếu (không phải theo playerId, xem ghi chú ở
     // joinedPlayers()) — getWebSockets() có thể vẫn còn liệt kê nó lúc này.
-    const closingAttachment = ws.deserializeAttachment() as SocketAttachment | null;
     const remaining = this.joinedPlayers(ws);
 
-    // Chủ phòng vừa rời (mất socket cuối cùng của họ) -> tự chuyển quyền cho
-    // người đang có mặt kế tiếp; hết sạch người thì để trống — ai join đầu
-    // tiên sau đó sẽ tự thành chủ phòng mới (xem handleJoin). LƯU Ý: đây là
-    // chuyển NGAY khi mất kết nối, không phân biệt được "rời hẳn" hay "chỉ
-    // mất mạng tạm, sắp tự reconnect" — nếu chủ phòng mất mạng chớp nhoáng
-    // lúc còn người khác trong phòng, quyền sẽ đổi chủ ngay, không tự trả lại
-    // khi họ nối lại.
-    const ownerId = await this.getOwnerId();
-    if (closingAttachment?.playerId && closingAttachment.playerId === ownerId) {
-      const nextOwnerId = remaining[0]?.id;
-      if (nextOwnerId) {
-        await this.ctx.storage.put(OWNER_KEY, nextOwnerId);
-      } else {
-        await this.ctx.storage.delete(OWNER_KEY);
-      }
-    }
+    // Chủ phòng KHÔNG cần chuyển thủ công ở đây nữa — getOwnerId() tự tính
+    // lại ngay lần gọi TIẾP THEO (vd broadcastLobby ở cuối hàm này), luôn ra
+    // đúng người có thứ tự vào phòng thấp nhất trong số CÒN KẾT NỐI. Chủ
+    // phòng vừa rời (dù rời hẳn hay chỉ mất mạng tạm) tự động không còn được
+    // tính nữa vì không có socket nào của họ đang mở; nối lại thì tự nhiên có
+    // socket lại, tự động được tính lại đúng theo thứ tự cũ của họ.
 
     // Việc 4.3: ván đang chơi dở mà giờ chỉ còn 0-1 người CỦA VÁN ĐÓ còn kết
     // nối -> huỷ luôn, không để nó tự chạy 1 mình mãi bằng toàn hết-giờ-tự-
@@ -718,7 +726,7 @@ export class Room {
       }
     }
 
-    const message: ServerMessage = { type: "lobby", players: remaining, ownerId: await this.getOwnerId() };
+    const message: ServerMessage = { type: "lobby", players: remaining, ownerId: await this.getOwnerId(ws) };
     const payload = JSON.stringify(message);
     for (const socket of this.ctx.getWebSockets()) {
       if (socket !== ws) socket.send(payload);
