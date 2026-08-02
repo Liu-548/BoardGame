@@ -933,6 +933,32 @@ function button(label: string, onClick: () => void): HTMLButtonElement {
   return el;
 }
 
+// Giai đoạn 5 (Calamity Janet) — lá `cardId` có ĐÓNG VAI Bang!/Missed! được
+// không, mirror ĐÚNG logic actsAsBang()/actsAsMissed() (core/reduce.ts, không
+// export) — chỉ để UI biết vẽ nút bấm được ở đâu, KHÔNG thay cho việc reduce()
+// tự kiểm tra lại. Sửa 1 bên thì nhớ sửa bên kia.
+export function cardActsAsBang(cardId: string, characterId: string | null): boolean {
+  const name = cardNameFromId(cardId);
+  if (name === "bang") return true;
+  return name === "missed" && getCharacterDefinition(characterId)?.hasBangMissedAlias === true;
+}
+
+function cardActsAsMissed(cardId: string, characterId: string | null): boolean {
+  const name = cardNameFromId(cardId);
+  if (name === "missed") return true;
+  return name === "bang" && getCharacterDefinition(characterId)?.hasBangMissedAlias === true;
+}
+
+// So khớp 1 lá trên tay với `respondableName` (kết quả của respondableCardName
+// bên dưới) — dùng cardActsAsBang/cardActsAsMissed thay vì so tên chuỗi trực
+// tiếp, để Janet bấm được Bang! khi cần đỡ (respondableName "missed") và
+// Missed! khi cần đánh trả (respondableName "bang").
+function cardMatchesRespondable(cardId: string, characterId: string | null, respondableName: CardName): boolean {
+  if (respondableName === "missed") return cardActsAsMissed(cardId, characterId);
+  if (respondableName === "bang") return cardActsAsBang(cardId, characterId);
+  return cardNameFromId(cardId) === respondableName;
+}
+
 // Danh sách tên bài mà người ĐANG PHẢN HỒI (đứng đầu pending) có thể bấm để
 // đáp lại — mỗi kind chỉ chấp nhận đúng 1 loại bài (xem PendingAction ở
 // types.ts). Chỉ để quyết định bấm được lá nào, KHÔNG thay cho việc reduce()
@@ -993,7 +1019,7 @@ function renderHandSection(
     }
 
     if (respondableName !== null) {
-      if (name === respondableName) {
+      if (cardMatchesRespondable(cardId, player.characterId, respondableName)) {
         wrapper.appendChild(cardButton(cardId, () => handlers.onHandCardClick(cardId)));
       } else {
         wrapper.appendChild(cardChip(cardId));
@@ -1001,7 +1027,10 @@ function renderHandSection(
       continue;
     }
 
-    if (isCurrentTurnToPlay && name !== "missed") {
+    // Giai đoạn 5 (Calamity Janet) — Missed! của Janet ĐÓNG VAI Bang! nên vẫn
+    // bấm được chủ động trong lượt mình, khác Missed! thường (không bao giờ
+    // đánh chủ động được).
+    if (isCurrentTurnToPlay && (name !== "missed" || cardActsAsBang(cardId, player.characterId))) {
       const armed = selection.step === "picking-target" && selection.cardId === cardId;
       wrapper.appendChild(cardButton(cardId, () => handlers.onHandCardClick(cardId), armed ? "card-box--armed" : undefined));
       continue;
@@ -1949,7 +1978,7 @@ function networkRenderHandSection(
     }
 
     if (respondableName !== null) {
-      if (name === respondableName) {
+      if (cardMatchesRespondable(cardId, player.characterId, respondableName)) {
         wrapper.appendChild(cardButton(cardId, () => handlers.onHandCardClick(cardId)));
       } else {
         wrapper.appendChild(cardChip(cardId));
@@ -1957,7 +1986,8 @@ function networkRenderHandSection(
       continue;
     }
 
-    if (isCurrentTurnToPlay && name !== "missed") {
+    // Giai đoạn 5 (Calamity Janet) — xem ghi chú y hệt ở renderHandSection().
+    if (isCurrentTurnToPlay && (name !== "missed" || cardActsAsBang(cardId, player.characterId))) {
       const armed = selection.step === "picking-target" && selection.cardId === cardId;
       wrapper.appendChild(cardButton(cardId, () => handlers.onHandCardClick(cardId), armed ? "card-box--armed" : undefined));
       continue;
