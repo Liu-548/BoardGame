@@ -111,6 +111,12 @@ let expandedSeatIds: string[] = [];
 // giống expandedSeatIds. Reset về false mỗi khi bắt đầu ván mới.
 let logDialogOpen = false;
 let settingsDialogOpen = false;
+// Bổ sung — dialog "Thư viện bài" mở giữa ván (xem ghi chú UiHandlers ở
+// ui.ts). Client-only, giống 2 dialog trên.
+let cardReferenceDialogOpen = false;
+// Bổ sung — đang ở bước xác nhận "huỷ ván hiện tại để bắt đầu ván mới" BÊN
+// TRONG dialog Cài đặt (chỉ có ý nghĩa khi settingsDialogOpen === true).
+let confirmingNewGame = false;
 
 // ----- Chế độ chơi qua mạng (việc 3.9) -----
 let networkName = "";
@@ -135,6 +141,10 @@ let networkExpandedSeatIds: string[] = [];
 // bấm "Chép mã" (null = chưa bấm lần nào từ lúc dialog này mở).
 let networkLogDialogOpen = false;
 let networkSettingsDialogOpen = false;
+// Bổ sung — giống cardReferenceDialogOpen/confirmingNewGame ở hotseat, xem
+// ghi chú ở đó.
+let networkCardReferenceDialogOpen = false;
+let networkConfirmingNewGame = false;
 let networkRoomCodeDialogOpen = false;
 let networkRoomCodeCopyStatus: string | null = null;
 // Việc 4.3: trong số `networkView.players`, ai ĐANG có socket mở thật sự
@@ -193,6 +203,8 @@ function render(): void {
           expandedSeatIds,
           logDialogOpen,
           settingsDialogOpen,
+          cardReferenceDialogOpen,
+          confirmingNewGame,
         },
         {
           onDrawCards,
@@ -215,7 +227,12 @@ function render(): void {
           onCloseLogDialog,
           onOpenSettingsDialog,
           onCloseSettingsDialog,
+          onOpenCardReferenceDialog,
+          onCloseCardReferenceDialog,
           onLeaveGame: onBackToHome,
+          onRequestNewGame,
+          onConfirmNewGame,
+          onCancelNewGameConfirm,
         }
       );
       return;
@@ -268,6 +285,9 @@ function render(): void {
             expandedSeatIds: networkExpandedSeatIds,
             logDialogOpen: networkLogDialogOpen,
             settingsDialogOpen: networkSettingsDialogOpen,
+            cardReferenceDialogOpen: networkCardReferenceDialogOpen,
+            confirmingNewGame: networkConfirmingNewGame,
+            isRoomOwner: myPlayerId === lobbyOwnerId,
             roomCodeDialogOpen: networkRoomCodeDialogOpen,
             roomCode: networkCode,
             roomCodeCopyStatus: networkRoomCodeCopyStatus,
@@ -292,10 +312,15 @@ function render(): void {
             onCloseLogDialog: onNetworkCloseLogDialog,
             onOpenSettingsDialog: onNetworkOpenSettingsDialog,
             onCloseSettingsDialog: onNetworkCloseSettingsDialog,
+            onOpenCardReferenceDialog: onNetworkOpenCardReferenceDialog,
+            onCloseCardReferenceDialog: onNetworkCloseCardReferenceDialog,
             onOpenRoomCodeDialog: onNetworkOpenRoomCodeDialog,
             onCloseRoomCodeDialog: onNetworkCloseRoomCodeDialog,
             onCopyRoomCode: onNetworkCopyRoomCode,
             onLeaveGame: onLeaveNetworkGame,
+            onRequestNewGame: onNetworkRequestNewGame,
+            onConfirmNewGame: onNetworkConfirmNewGame,
+            onCancelNewGameConfirm: onNetworkCancelNewGameConfirm,
           }
         );
       }
@@ -383,12 +408,15 @@ function onStartGame(): void {
   expandedSeatIds = [];
   logDialogOpen = false;
   settingsDialogOpen = false;
+  cardReferenceDialogOpen = false;
+  confirmingNewGame = false;
   render();
 }
 
 function onPlayAgain(): void {
   screen = "local-setup";
   selectedHouseRules = []; // luật bổ sung chỉ áp dụng cho 1 ván — chọn lại từ đầu mỗi ván mới
+  confirmingNewGame = false;
   render();
 }
 
@@ -590,6 +618,41 @@ function onOpenSettingsDialog(): void {
 
 function onCloseSettingsDialog(): void {
   settingsDialogOpen = false;
+  confirmingNewGame = false; // đóng dialog thì huỷ luôn bước xác nhận dở dang, tránh hiện lại lần mở sau
+  render();
+}
+
+// Bổ sung — dialog "Thư viện bài" mở giữa ván (xem ghi chú UiHandlers ở
+// ui.ts). KHÔNG đụng gì `state`/`screen` — chỉ là 1 dialog nổi lên trên,
+// đóng lại là chơi tiếp đúng y như trước khi mở.
+function onOpenCardReferenceDialog(): void {
+  cardReferenceDialogOpen = true;
+  render();
+}
+
+function onCloseCardReferenceDialog(): void {
+  cardReferenceDialogOpen = false;
+  render();
+}
+
+// Bổ sung — nút "Bắt đầu ván mới" trong dialog Cài đặt (hotseat). Ván ĐÃ kết
+// thúc thì bắt đầu ngay (tái dùng onPlayAgain() có sẵn — quay lại màn hình
+// thiết lập); CHƯA kết thúc thì chuyển dialog sang bước xác nhận trước.
+function onRequestNewGame(): void {
+  if (state.winner) {
+    onPlayAgain();
+    return;
+  }
+  confirmingNewGame = true;
+  render();
+}
+
+function onConfirmNewGame(): void {
+  onPlayAgain();
+}
+
+function onCancelNewGameConfirm(): void {
+  confirmingNewGame = false;
   render();
 }
 
@@ -715,6 +778,8 @@ function onJoinRoom(): void {
   networkExpandedSeatIds = [];
   networkLogDialogOpen = false;
   networkSettingsDialogOpen = false;
+  networkCardReferenceDialogOpen = false;
+  networkConfirmingNewGame = false;
   networkRoomCodeDialogOpen = false;
   networkRoomCodeCopyStatus = null;
 
@@ -793,6 +858,8 @@ function onNetworkMessage(message: ServerMessage): void {
       networkExpandedSeatIds = [];
       networkLogDialogOpen = false;
       networkSettingsDialogOpen = false;
+      networkCardReferenceDialogOpen = false;
+      networkConfirmingNewGame = false;
       networkRoomCodeDialogOpen = false;
       syncCountdownTick();
       networkAbandonedNotice = "Ván vừa bị huỷ vì không đủ người chơi còn kết nối. Chờ đủ người rồi bắt đầu ván mới.";
@@ -988,6 +1055,47 @@ function onNetworkOpenSettingsDialog(): void {
 
 function onNetworkCloseSettingsDialog(): void {
   networkSettingsDialogOpen = false;
+  networkConfirmingNewGame = false; // đóng dialog thì huỷ luôn bước xác nhận dở dang
+  render();
+}
+
+// Bổ sung — dialog "Thư viện bài" mở giữa ván qua mạng, giống hotseat (xem
+// ghi chú onOpenCardReferenceDialog()) — không gửi gì lên server, chỉ là
+// dialog nổi lên trên, đóng lại là chơi tiếp bình thường.
+function onNetworkOpenCardReferenceDialog(): void {
+  networkCardReferenceDialogOpen = true;
+  render();
+}
+
+function onNetworkCloseCardReferenceDialog(): void {
+  networkCardReferenceDialogOpen = false;
+  render();
+}
+
+// Bổ sung — nút "Bắt đầu ván mới" trong dialog Cài đặt (qua mạng, CHỈ chủ
+// phòng thấy nút này — xem NetworkGameOptions.isRoomOwner). Ván ĐÃ kết thúc
+// (view.winner khác null) thì gửi start_game bình thường ngay (existing đã
+// có winner nên server vốn đã cho qua, không cần `force`); CHƯA kết thúc thì
+// chuyển dialog sang bước xác nhận trước — xác nhận xong mới gửi kèm
+// `force: true` (xem protocol.ts/room.ts) để server bỏ qua kiểm tra "đang có
+// ván dở" và ghi đè bằng ván mới.
+function onNetworkRequestNewGame(): void {
+  if (!networkView) return;
+  if (networkView.winner) {
+    netConnection?.send({ type: "start_game", seed: Date.now(), houseRules: networkSelectedHouseRules });
+    return;
+  }
+  networkConfirmingNewGame = true;
+  render();
+}
+
+function onNetworkConfirmNewGame(): void {
+  netConnection?.send({ type: "start_game", seed: Date.now(), houseRules: networkSelectedHouseRules, force: true });
+  networkConfirmingNewGame = false;
+}
+
+function onNetworkCancelNewGameConfirm(): void {
+  networkConfirmingNewGame = false;
   render();
 }
 
@@ -1031,6 +1139,8 @@ function onLeaveNetworkGame(): void {
   networkConnectedIds = [];
   networkLogDialogOpen = false;
   networkSettingsDialogOpen = false;
+  networkCardReferenceDialogOpen = false;
+  networkConfirmingNewGame = false;
   networkRoomCodeDialogOpen = false;
   syncCountdownTick();
   screen = "home";

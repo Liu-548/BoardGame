@@ -667,15 +667,20 @@ function renderDialog(container: HTMLElement, title: string, onClose: () => void
 // góc trên phải màn hình, bấm mới mở dialog tương ứng — thay hẳn khu nhật ký
 // cố định luôn hiện trước đây. `onOpenRoomCode`: chỉ truyền vào (khác
 // `undefined`) khi đang chơi qua mạng — hotseat không có mã phòng để mời.
+// `onOpenCardReference` (bổ sung sau UI/UX): mở "Thư viện bài" bằng DIALOG
+// (giống Nhật ký/Cài đặt) — KHÔNG chuyển `screen` như bấm từ màn hình chính,
+// nên đóng lại là chơi tiếp ngay, không văng khỏi ván.
 function renderGameToolbar(
   container: HTMLElement,
   onOpenLog: () => void,
   onOpenSettings: () => void,
+  onOpenCardReference: () => void,
   onOpenRoomCode: (() => void) | undefined
 ): void {
   const toolbar = document.createElement("div");
   toolbar.className = "game-toolbar";
   toolbar.appendChild(button("Nhật ký ván đấu", onOpenLog));
+  toolbar.appendChild(button("Thư viện bài", onOpenCardReference));
   toolbar.appendChild(button("Cài đặt", onOpenSettings));
   if (onOpenRoomCode) {
     toolbar.appendChild(button("Mã phòng / Mời", onOpenRoomCode));
@@ -757,11 +762,35 @@ function playSound(name: string): void {
   audio.play().catch(() => {});
 }
 
+// Tham số cho phần "Bắt đầu ván mới" trong dialog Cài đặt (bổ sung) — dùng
+// CHUNG hotseat/qua mạng. `onRequestNewGame` (main.ts) TỰ QUYẾT theo
+// `state.winner`/`view.winner`: ván ĐÃ kết thúc thì bắt đầu NGAY, không cần
+// hỏi; ván CHƯA kết thúc thì chuyển dialog sang bước xác nhận
+// (`confirmingNewGame`), bấm "Huỷ ván, bắt đầu mới" mới thật sự gọi
+// onConfirmNewGame(). Đặt CHUNG 1 dialog (đổi nội dung theo `confirmingNewGame`)
+// thay vì mở dialog THỨ 2 chồng lên — tránh đúng lỗi "2 dialog cùng mở" đã
+// gặp và sửa ở đợt UI/UX trước (xem ghi chú renderDialog()).
+interface NewGameSettingsOptions {
+  // Hotseat: LUÔN true (không có khái niệm chủ phòng). Qua mạng: chỉ true
+  // với đúng chủ phòng — người khác không thấy nút này (server cũng tự chặn
+  // lại nếu lỡ gửi, giống nút "Bắt đầu ván" ở lobby).
+  visible: boolean;
+  confirmingNewGame: boolean;
+  onRequestNewGame(): void;
+  onConfirmNewGame(): void;
+  onCancelNewGameConfirm(): void;
+}
+
 // Nội dung dialog Cài đặt — dùng CHUNG hotseat/qua mạng, chỉ khác nhãn nút
 // rời. Đọc sở thích TRỰC TIẾP từ localStorage mỗi lần mở dialog (không cần
 // tham số/state đi qua RenderOptions) — bấm chọn là áp dụng NGAY (đổi
 // data-theme/class) + lưu lại, không cần vẽ lại cả màn hình.
-function renderSettingsDialogBody(body: HTMLElement, leaveLabel: string, onLeave: () => void): void {
+function renderSettingsDialogBody(
+  body: HTMLElement,
+  leaveLabel: string,
+  onLeave: () => void,
+  newGame: NewGameSettingsOptions
+): void {
   const themeLabel = document.createElement("p");
   themeLabel.textContent = "Giao diện:";
   body.appendChild(themeLabel);
@@ -830,6 +859,22 @@ function renderSettingsDialogBody(body: HTMLElement, leaveLabel: string, onLeave
   const soundRow = document.createElement("p");
   soundRow.appendChild(soundLabel);
   body.appendChild(soundRow);
+
+  if (newGame.visible) {
+    if (newGame.confirmingNewGame) {
+      const warning = document.createElement("p");
+      warning.className = "error";
+      warning.textContent = "Ván hiện tại CHƯA kết thúc. Huỷ ván này để bắt đầu ván mới?";
+      body.appendChild(warning);
+      const confirmRow = document.createElement("div");
+      confirmRow.className = "settings-row";
+      confirmRow.appendChild(button("Huỷ ván, bắt đầu mới", () => newGame.onConfirmNewGame()));
+      confirmRow.appendChild(button("Không, tiếp tục ván này", () => newGame.onCancelNewGameConfirm()));
+      body.appendChild(confirmRow);
+    } else {
+      body.appendChild(button("Bắt đầu ván mới", () => newGame.onRequestNewGame()));
+    }
+  }
 
   body.appendChild(button(leaveLabel, onLeave));
 }
@@ -922,8 +967,22 @@ export interface UiHandlers {
   onCloseLogDialog(): void;
   onOpenSettingsDialog(): void;
   onCloseSettingsDialog(): void;
+  // Bổ sung — dialog "Thư viện bài" mở giữa ván, không văng khỏi ván (xem
+  // renderGameToolbar()). Client-only, y hệt 2 dialog trên.
+  onOpenCardReferenceDialog(): void;
+  onCloseCardReferenceDialog(): void;
   // Nút "Về màn hình chính" BÊN TRONG dialog Cài đặt.
   onLeaveGame(): void;
+  // Bổ sung — nút "Bắt đầu ván mới" BÊN TRONG dialog Cài đặt. Bấm lần đầu gọi
+  // onRequestNewGame() — ván ĐÃ kết thúc thì main.ts tự bắt đầu ngay (không
+  // cần hỏi); ván CHƯA kết thúc thì main.ts chuyển dialog sang bước xác nhận
+  // (renderSettingsDialogBody() đọc `confirmingNewGame` để đổi nội dung dialog
+  // — KHÔNG mở thêm 1 dialog mới, tránh lỗi chồng dialog đã gặp ở đợt trước).
+  // onConfirmNewGame(): xác nhận huỷ ván cũ, thật sự bắt đầu ván mới.
+  // onCancelNewGameConfirm(): huỷ bước xác nhận, quay lại dialog Cài đặt bình thường.
+  onRequestNewGame(): void;
+  onConfirmNewGame(): void;
+  onCancelNewGameConfirm(): void;
 }
 
 function button(label: string, onClick: () => void): HTMLButtonElement {
@@ -1456,6 +1515,11 @@ export interface RenderOptions {
   expandedSeatIds: string[]; // Đợt 2 UI/UX (mục 4) — playerId nào đang "nở" khu trang bị khi bàn >6 người
   logDialogOpen: boolean; // Đợt 3 UI/UX (mục 9)
   settingsDialogOpen: boolean;
+  // Bổ sung — dialog "Thư viện bài" mở giữa ván (xem renderGameToolbar()).
+  cardReferenceDialogOpen: boolean;
+  // Bổ sung — đang ở bước xác nhận "huỷ ván hiện tại để bắt đầu ván mới"
+  // BÊN TRONG dialog Cài đặt (chỉ có ý nghĩa khi settingsDialogOpen === true).
+  confirmingNewGame: boolean;
 }
 
 export function renderApp(
@@ -1472,7 +1536,13 @@ export function renderApp(
   // khuất. Vẽ toolbar NGAY ĐẦU (trước mọi nội dung khác) + CSS đổi sang
   // `position: sticky` (xem style.css): giờ nó CHIẾM 1 hàng thật ở đầu
   // trang, nội dung phía dưới luôn bắt đầu SAU nó, không bao giờ bị che.
-  renderGameToolbar(container, handlers.onOpenLogDialog, handlers.onOpenSettingsDialog, undefined);
+  renderGameToolbar(
+    container,
+    handlers.onOpenLogDialog,
+    handlers.onOpenSettingsDialog,
+    handlers.onOpenCardReferenceDialog,
+    undefined
+  );
 
   if (options.error) {
     const errorEl = document.createElement("p");
@@ -1523,9 +1593,18 @@ export function renderApp(
   if (options.logDialogOpen) {
     renderDialog(container, "Nhật ký ván đấu", handlers.onCloseLogDialog, (body) => renderLogDialogBody(body, options.log));
   }
+  if (options.cardReferenceDialogOpen) {
+    renderDialog(container, "Thư viện bài", handlers.onCloseCardReferenceDialog, (body) => renderCardReferenceBody(body));
+  }
   if (options.settingsDialogOpen) {
     renderDialog(container, "Cài đặt", handlers.onCloseSettingsDialog, (body) =>
-      renderSettingsDialogBody(body, "Về màn hình chính", handlers.onLeaveGame)
+      renderSettingsDialogBody(body, "Về màn hình chính", handlers.onLeaveGame, {
+        visible: true,
+        confirmingNewGame: options.confirmingNewGame,
+        onRequestNewGame: handlers.onRequestNewGame,
+        onConfirmNewGame: handlers.onConfirmNewGame,
+        onCancelNewGameConfirm: handlers.onCancelNewGameConfirm,
+      })
     );
   }
 }
@@ -1708,6 +1787,18 @@ function renderCharacterReferenceGroup(container: HTMLElement): void {
   container.appendChild(grid);
 }
 
+// Tách riêng phần NỘI DUNG (không có tiêu đề/nút quay lại) — dùng chung cho
+// CẢ 2 nơi: màn hình đầy đủ (renderCardReferenceScreen, vào từ home) LẪN
+// dialog mở giữa ván (renderApp()/renderNetworkGame() — nút mới ở toolbar,
+// xem GIAO-DIEN-UI-UX.txt/yêu cầu bổ sung "xem thư viện bài mà không văng ra
+// khỏi ván"). Dialog tự có sẵn tiêu đề + nút "Đóng" riêng (renderDialog()),
+// không cần lặp lại ở đây.
+function renderCardReferenceBody(container: HTMLElement): void {
+  renderCardReferenceGroup(container, "Bài nâu (đánh từ tay, chơi xong vào chồng bỏ)", BROWN_CARD_NAMES);
+  renderCardReferenceGroup(container, "Bài xanh (trang bị, để ngửa trước mặt tới khi mất)", BLUE_CARD_NAMES);
+  renderCharacterReferenceGroup(container);
+}
+
 export function renderCardReferenceScreen(container: HTMLElement, handlers: CardReferenceHandlers): void {
   container.replaceChildren();
 
@@ -1717,9 +1808,7 @@ export function renderCardReferenceScreen(container: HTMLElement, handlers: Card
 
   container.appendChild(button("← Quay lại", () => handlers.onBack()));
 
-  renderCardReferenceGroup(container, "Bài nâu (đánh từ tay, chơi xong vào chồng bỏ)", BROWN_CARD_NAMES);
-  renderCardReferenceGroup(container, "Bài xanh (trang bị, để ngửa trước mặt tới khi mất)", BLUE_CARD_NAMES);
-  renderCharacterReferenceGroup(container);
+  renderCardReferenceBody(container);
 }
 
 export interface NetworkLobbyFormHandlers {
@@ -1899,12 +1988,22 @@ export interface NetworkGameHandlers {
   onCloseLogDialog(): void;
   onOpenSettingsDialog(): void;
   onCloseSettingsDialog(): void;
+  // Bổ sung — giống UiHandlers (hotseat), xem ghi chú ở đó.
+  onOpenCardReferenceDialog(): void;
+  onCloseCardReferenceDialog(): void;
   onOpenRoomCodeDialog(): void;
   onCloseRoomCodeDialog(): void;
   onCopyRoomCode(): void;
   // "Rời phòng" BÊN TRONG dialog Cài đặt — đóng WebSocket chủ động (khác
   // mất mạng), quay lại màn hình chính.
   onLeaveGame(): void;
+  // Bổ sung — nút "Bắt đầu ván mới" BÊN TRONG dialog Cài đặt, xem ghi chú ở
+  // UiHandlers (hotseat). Qua mạng: CHỈ CHỦ PHÒNG mới thấy nút này (giống
+  // "Bắt đầu ván" ở lobby) — server (room.ts) cũng tự kiểm tra lại đúng
+  // ownerId, nút ẩn ở client chỉ để đỡ bấm nhầm, không phải chốt chặn duy nhất.
+  onRequestNewGame(): void;
+  onConfirmNewGame(): void;
+  onCancelNewGameConfirm(): void;
 }
 
 export interface NetworkGameOptions {
@@ -1918,6 +2017,9 @@ export interface NetworkGameOptions {
   expandedSeatIds: string[]; // Đợt 2 UI/UX (mục 4) — giống RenderOptions (hotseat)
   logDialogOpen: boolean; // Đợt 3 UI/UX (mục 9)
   settingsDialogOpen: boolean;
+  cardReferenceDialogOpen: boolean; // bổ sung — giống RenderOptions (hotseat)
+  confirmingNewGame: boolean; // bổ sung — giống RenderOptions (hotseat)
+  isRoomOwner: boolean; // bổ sung — chỉ chủ phòng mới thấy nút "Bắt đầu ván mới"
   roomCodeDialogOpen: boolean;
   roomCode: string;
   roomCodeCopyStatus: string | null; // thông báo tạm thời sau khi bấm "Chép mã"
@@ -2491,7 +2593,13 @@ export function renderNetworkGame(
   // Phản hồi thật: xem ghi chú y hệt ở renderApp() — vẽ toolbar NGAY ĐẦU +
   // CSS `position: sticky` để nó chiếm chỗ thật, không đè lên seat trên
   // cùng của bàn tròn nữa.
-  renderGameToolbar(container, handlers.onOpenLogDialog, handlers.onOpenSettingsDialog, handlers.onOpenRoomCodeDialog);
+  renderGameToolbar(
+    container,
+    handlers.onOpenLogDialog,
+    handlers.onOpenSettingsDialog,
+    handlers.onOpenCardReferenceDialog,
+    handlers.onOpenRoomCodeDialog
+  );
 
   if (options.error) {
     const errorEl = document.createElement("p");
@@ -2568,9 +2676,18 @@ export function renderNetworkGame(
   if (options.logDialogOpen) {
     renderDialog(container, "Nhật ký ván đấu", handlers.onCloseLogDialog, (body) => renderLogDialogBody(body, options.log));
   }
+  if (options.cardReferenceDialogOpen) {
+    renderDialog(container, "Thư viện bài", handlers.onCloseCardReferenceDialog, (body) => renderCardReferenceBody(body));
+  }
   if (options.settingsDialogOpen) {
     renderDialog(container, "Cài đặt", handlers.onCloseSettingsDialog, (body) =>
-      renderSettingsDialogBody(body, "Rời phòng", handlers.onLeaveGame)
+      renderSettingsDialogBody(body, "Rời phòng", handlers.onLeaveGame, {
+        visible: options.isRoomOwner,
+        confirmingNewGame: options.confirmingNewGame,
+        onRequestNewGame: handlers.onRequestNewGame,
+        onConfirmNewGame: handlers.onConfirmNewGame,
+        onCancelNewGameConfirm: handlers.onCancelNewGameConfirm,
+      })
     );
   }
   if (options.roomCodeDialogOpen) {
