@@ -2076,8 +2076,24 @@ type SeatEntry = { player: PlayerHandView; originalIndex: number };
 //   [5] [4]          ← hàng gần
 //   ---------
 //   [Bạn]
+// Bug đã sửa (báo lỗi thật từ chủ dự án — test 4 người, đối thủ bị xếp
+// thành 1 HÀNG DỌC thay vì đúng bố cục): công thức chia hàng ở dưới, áp
+// dụng KHÔNG ĐIỀU KIỆN với MỌI số đối thủ, tạo ra các hàng chỉ 1 người khi
+// số đối thủ ít (n=2 -> farRow 1 + nearRow 1; n=3 -> oddRow 1 + farRow 1 +
+// nearRow 1) — mỗi hàng lúc đó chỉ có ĐÚNG 1 người, mà `.opponent-row`
+// không có gì phân biệt hàng "xa"/"gần" ngoài khoảng cách margin, nên 3
+// hàng-1-người xếp liên tiếp NHÌN Y HỆT 1 cột dọc, đúng như đã báo. Chỉ
+// thật sự ĐÁNG chia 2 hàng khi đủ đông để mỗi hàng có ÍT NHẤT 2 người (từ 5
+// đối thủ trở lên, tức 6 người chơi trở lên) — ít hơn thì gộp chung ĐÚNG 1
+// hàng ngang duy nhất (đặt ở `nearRow`, ngay sát hàng của bản thân, giống
+// cách 1 hàng đối thủ bình thường quây quanh bàn).
+const MIN_OPPONENTS_TO_SPLIT_ROWS = 5;
+
 function buildOpponentRows(opponents: SeatEntry[]): { oddRow: SeatEntry[]; farRow: SeatEntry[]; nearRow: SeatEntry[] } {
   const n = opponents.length;
+  if (n < MIN_OPPONENTS_TO_SPLIT_ROWS) {
+    return { oddRow: [], farRow: [], nearRow: opponents };
+  }
   if (n % 2 === 0) {
     return {
       oddRow: [],
