@@ -757,6 +757,16 @@ Nguyên tắc chung:
 
 307 test đều pass.
 
+**Fix: bố cục bàn qua mạng xếp SAI khi ít đối thủ — 4 người chơi (3 đối thủ) bị xếp thành 1 hàng DỌC thay vì hàng ngang (theo báo lỗi thật từ chủ dự án):**
+
+- **Nguyên nhân gốc**: `buildOpponentRows()` (`ui.ts`, đổi từ đợt layout "bỏ bàn tròn, dùng 2 hàng ngang + hàng lẻ" trước đó) áp dụng công thức chia 2 hàng ("gấp rắn") KHÔNG ĐIỀU KIỆN với MỌI số đối thủ — số đối thủ ÍT (2 hoặc 3, tức 3-4 người chơi) khiến công thức chia ra CÁC HÀNG CHỈ 1 NGƯỜI (vd 3 đối thủ → hàng lẻ 1 người + hàng xa 1 người + hàng gần 1 người = 3 hàng riêng biệt, MỖI HÀNG ĐÚNG 1 NGƯỜI). `.opponent-row` không có gì phân biệt trực quan "hàng xa"/"hàng gần" (chỉ khác `margin-bottom`), nên 3 hàng-1-người xếp liên tiếp trong luồng tài liệu NHÌN Y HỆT 1 cột dọc — đúng triệu chứng đã báo. Thuật toán này chỉ thật sự ĐÚNG Ý ĐỊNH (mỗi hàng ≥2 người, nhìn rõ là "hàng ngang") khi đủ đông đối thủ — đã tự kiểm ở đợt trước với 5-6 đối thủ, chưa từng kiểm số ít.
+- **Sửa**: thêm ngưỡng `MIN_OPPONENTS_TO_SPLIT_ROWS = 5` — dưới 5 đối thủ (2-8 người chơi trừ 3-4 người chơi tương ứng, thực tế là 3-4 người chơi cho tới hết mọi ca có ≤4 đối thủ) thì gộp CHUNG ĐÚNG 1 hàng ngang duy nhất (đặt ở `nearRow`, ngay sát hàng của bản thân — giống 1 hàng đối thủ bình thường quây quanh bàn), KHÔNG chia gì cả. Từ 5 đối thủ trở lên mới áp dụng đúng công thức "gấp rắn" cũ (giữ nguyên 100% logic đã kiểm ở đợt trước, không đổi gì).
+- Không đụng gì `core/` — thuần thay đổi cách nhóm vào `.opponent-row`, không đổi thứ tự lượt/tính liền kề.
+- Đã tự kiểm: `npx tsc --noEmit` sạch, `npm run build` qua, 307 test vẫn pass (thuần UI, không đổi `core/`).
+- Đã tự kiểm bằng `wrangler dev` cục bộ + 4 tab thật (P1-P4, đúng luồng lobby→chọn nhân vật→bàn chơi thật qua JS thao tác DOM) — đo qua DOM (`document.querySelectorAll('.opponent-row')`): ĐÚNG 1 `.opponent-row` DUY NHẤT chứa cả 3 đối thủ (P4, P3, P2) cạnh nhau, không còn 3 hàng riêng biệt như trước khi sửa. Không lỗi console. Nhánh ≥5 đối thủ giữ nguyên logic đã kiểm ở đợt trước (6 tab, oddRow/farRow/nearRow đúng), không sửa gì nên không kiểm lại.
+
+307 test đều pass.
+
 ## Chưa làm tới, đừng đụng vào
 
 Cả 3 biến thể số người chơi (2/3/8 người) đã HOÀN TẤT (xem 3 mục changelog "Biến thể số người chơi" ở trên) — không còn biến thể nào đang dang dở.
