@@ -101,24 +101,29 @@ input[type="text"] {
 
 /* Đổi hẳn layout theo phản hồi thật (bỏ bàn tròn `position: absolute` —
    từng gây tràn ngang nhiều lần dù đã sửa công thức toạ độ mấy lần liền).
-   Đối thủ (không tính bản thân) giờ dàn thành TỐI ĐA 2 hàng ngang bình
-   thường (`.opponent-row`, xem dưới) NẰM TRONG LUỒNG TÀI LIỆU — 2 hàng liên
-   tiếp trong luồng tài liệu KHÔNG THỂ đè lên nhau (khác định vị tuyệt đối),
-   đúng yêu cầu "tuyệt đối không để 2 row đè lên nhau". Vẫn giữ tính liền kề
-   theo thứ tự lượt (coi như 1 vòng khép kín, KHÔNG vẽ ra hình tròn nữa) —
-   xem buildOpponentRows() ở ui.ts để biết thuật toán chia hàng đầy đủ. */
+   Đối thủ (không tính bản thân) giờ dàn thành ĐÚNG 1 hàng ngang duy nhất
+   (`.opponent-row`, xem dưới) NẰM TRONG LUỒNG TÀI LIỆU. Từng thử chia
+   nhiều hàng ("gấp rắn" rồi ngưỡng số lượng) nhưng đều bị báo lỗi thật (xem
+   ghi chú renderNetworkGame() ở ui.ts) — chốt lại CHỈ 1 hàng, không chia
+   gì nữa, tính liền kề theo thứ tự lượt vẫn đúng ở 2 đầu hàng nhờ
+   buildSeatOrder() (ui.ts), không cần CSS lo gì thêm về việc đó. */
 .table {
   margin: 1rem 0;
 }
 
-/* Mỗi hàng đối thủ: flex-wrap để tự xuống dòng nếu màn quá hẹp thay vì tràn
-   (an toàn tuyệt đối trên mọi kích thước màn hình, không cần media query
-   riêng cho điện thoại như bàn tròn cũ nữa). justify-content: center để
-   hàng có ít người (đặc biệt hàng lẻ chỉ 1 người) vẫn nằm giữa, cân đối. */
+/* Hàng đối thủ: KHÔNG xuống dòng (nowrap) — nếu đông người hơn bề rộng màn
+   hình thì CUỘN NGANG (overflow-x: auto) thay vì tách thành nhiều hàng
+   (từng gây hiểu nhầm "xếp dọc"/"tách 2 hàng", xem ghi chú ở ui.ts).
+   `justify-content: safe center` (CSS Box Alignment cấp 3, các trình duyệt
+   hiện đại đều hỗ trợ): canh giữa BÌNH THƯỜNG khi đủ chỗ, nhưng tự động lùi
+   về canh trái ("safe") khi tràn — tránh đúng lỗi phổ biến của
+   `justify-content: center` thường (không có "safe") kết hợp cuộn ngang:
+   phần ĐẦU nội dung bị kẹt ngoài vùng cuộn được, không tài nào xem/cuộn tới. */
 .opponent-row {
   display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  justify-content: safe center;
   gap: 1rem;
   margin-bottom: 0.75rem;
 }

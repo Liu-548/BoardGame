@@ -787,6 +787,18 @@ Nguyên tắc chung:
 
 307 test đều pass.
 
+**Fix: bố cục bàn qua mạng vẫn SAI với 5 người chơi (đợt trước chỉ sửa được ca ÍT đối thủ, chưa sửa hết) — 4 đối thủ bị tách 3+1 thành 2 hàng thay vì đúng 1 hàng (theo báo lỗi thật từ chủ dự án):**
+
+- **Bối cảnh**: đợt sửa layout ngay trước (`MIN_OPPONENTS_TO_SPLIT_ROWS = 5`) chỉ gộp 1 hàng khi đối thủ ÍT hơn 5 — từ 5 đối thủ trở lên (6 người chơi trở lên) vẫn dùng công thức "gấp rắn" cũ chia far/near/hàng-lẻ. Chủ dự án test đúng ca 5 người chơi (4 đối thủ — dưới ngưỡng 5, đáng lẽ đã gộp 1 hàng theo đợt sửa trước) nhưng vẫn thấy tách 3+1 — cho thấy vấn đề THẬT SỰ không phải "ngưỡng bao nhiêu đối thủ mới chia", mà là bản chất yêu cầu: **KHÔNG BAO GIỜ được chia nhiều hàng nữa, bất kể bao nhiêu đối thủ**. `.opponent-row` trước đó dùng `flex-wrap: wrap` — với 4 đối thủ (mỗi khung tối thiểu 14rem/224px, cộng khoảng cách) dễ VƯỢT bề rộng màn hình thật, khiến trình duyệt TỰ ĐỘNG xuống dòng ngay trong CÙNG 1 `.opponent-row` — đây mới là nguyên nhân "tách 3+1": không phải lỗi thuật toán chia hàng JS (đã đúng, luôn trả về 1 mảng `nearRow` duy nhất khi < 5 đối thủ), mà là chính CSS `flex-wrap: wrap` của hàng đó tự ngắt dòng khi không đủ chỗ.
+- **Sửa tận gốc theo đúng yêu cầu chủ dự án** ("tất cả người chơi khác trừ bản thân đều nằm trên 1 hàng ngang"): bỏ HẲN khái niệm chia hàng (`buildOpponentRows()`, ngưỡng `MIN_OPPONENTS_TO_SPLIT_ROWS`, thuật toán "gấp rắn") — `renderNetworkGame()` giờ LUÔN dựng ĐÚNG 1 `.opponent-row` chứa TẤT CẢ đối thủ, bất kể bao nhiêu người. CSS đổi `.opponent-row` từ `flex-wrap: wrap` sang `flex-wrap: nowrap; overflow-x: auto;` — hàng không bao giờ tự xuống dòng nữa, đông người hơn bề rộng màn hình thì CUỘN NGANG bên trong đúng hàng đó (không tràn ra ngoài trang — đã kiểm `document.body.scrollWidth` không đổi dù hàng bên trong rộng hơn nhiều).
+- **`justify-content: center` cũ đổi thành `safe center`** (CSS Box Alignment cấp 3) — phát hiện lúc rà lại: `center` thường + `overflow-x: auto` là 1 lỗi CSS quen thuộc (một số trình duyệt clip mất phần ĐẦU nội dung tràn, không cuộn tới được) khi nội dung được canh giữa mà rộng hơn khung chứa; `safe center` tự lùi về canh trái khi tràn, tránh đúng lỗi đó — đã kiểm `getComputedStyle().justifyContent` trả đúng `"safe center"` (Chrome trong môi trường test hỗ trợ tốt).
+- **Tính liền kề theo thứ tự lượt vẫn ĐÚNG mà không cần logic đảo/gấp gì** — `buildSeatOrder()` (không đổi) đã xoay mảng để bắt đầu từ người NGAY SAU bản thân, kết thúc ở người NGAY TRƯỚC bản thân; xếp thẳng theo đúng thứ tự đó vào 1 hàng thì 2 ĐẦU HÀNG (trái/phải) tự động luôn là 2 người liền kề bản thân trong vòng lượt — đúng yêu cầu "người nằm ngoài cùng ở cả 2 đầu đều gần mình nhất", không phụ thuộc số lượng đối thủ.
+- Không đụng gì `core/` — thuần bỏ bớt code JS (đơn giản hoá) + đổi 2 dòng CSS.
+- Đã tự kiểm: `npx tsc --noEmit` sạch, `npm run build` qua, 307 test vẫn pass.
+- Đã tự kiểm bằng `wrangler dev` cục bộ + 5 tab thật (P1-P5, đúng luồng lobby→chọn nhân vật→bàn chơi thật) — đo qua DOM ở P1: ĐÚNG 1 `.opponent-row` chứa CẢ 4 đối thủ (P5, P4, P3, P2) nằm cạnh nhau — người đang tới lượt (P5, liền kề ngay sau P1 trong vòng lượt) nằm Ở ĐẦU HÀNG, đúng thiết kế. Ép `document.body.style.maxWidth = '375px'` (mô phỏng điện thoại) — hàng đối thủ VẪN CHỈ 1 HÀNG (`rows: 1`, chiều cao không đổi), nội dung bên trong rộng hơn khung (944px > 343px) nhưng `document.body.scrollWidth === document.body.clientWidth` (375 = 375) — xác nhận cuộn ngang ĐÚNG BÊN TRONG hàng, trang KHÔNG tràn ngang. Không lỗi console.
+
+307 test đều pass.
+
 ## Chưa làm tới, đừng đụng vào
 
 Cả 3 biến thể số người chơi (2/3/8 người) đã HOÀN TẤT (xem 3 mục changelog "Biến thể số người chơi" ở trên) — không còn biến thể nào đang dang dở.

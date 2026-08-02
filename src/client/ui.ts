@@ -2140,7 +2140,7 @@ function networkRenderEquipmentSection(
 
 // Xoay view.players sao cho bắt đầu từ người NGAY SAU viewer, kết thúc bằng
 // CHÍNH viewer (luôn là phần tử CUỐI mảng trả về) — dùng làm "thứ tự lượt"
-// (turn order) cho buildOpponentRows() (chia hàng) VÀ thứ tự DOM.
+// (turn order) cho renderNetworkGame() (đặt vào 1 hàng đối thủ) VÀ thứ tự DOM.
 function buildSeatOrder(view: PlayerView): { player: PlayerHandView; originalIndex: number }[] {
   const n = view.players.length;
   const viewerIndex = view.players.findIndex((p) => p.id === view.viewerId);
@@ -2156,60 +2156,23 @@ type SeatEntry = { player: PlayerHandView; originalIndex: number };
 // Phản hồi thật — bỏ hẳn bàn tròn (`position: absolute`, từng gây tràn ngang
 // nhiều lần dù đã sửa công thức toạ độ mấy lần liền). Đối thủ (không tính
 // bản thân — luôn ở 1 hàng riêng dưới cùng, xem `.player--own-row`) giờ dàn
-// thành TỐI ĐA 2 hàng ngang bình thường (nằm trong luồng tài liệu — 2 hàng
-// liên tiếp trong luồng tài liệu KHÔNG THỂ đè lên nhau).
+// thành ĐÚNG 1 hàng ngang bình thường (nằm trong luồng tài liệu).
 //
-// Vẫn giữ tính liền kề theo THỨ TỰ LƯỢT — coi đối thủ + bản thân là 1 VÒNG
-// KHÉP KÍN (không vẽ ra hình tròn nữa, chỉ là khái niệm để tính toán): người
-// liền kề trong vòng (kề nhau trong thứ tự lượt) phải được xếp liền kề nhau
-// trên màn hình. Dùng kiểu "gấp rắn" (boustrophedon, đã chốt với chủ dự án
-// kèm ví dụ cụ thể): nửa ĐẦU thứ tự lượt → hàng XA (trên, trái→phải); nửa
-// SAU → hàng GẦN (dưới, sát hàng của bạn), NHƯNG ĐẢO NGƯỢC (phải→trái) để
-// đọc nối tiếp đúng khi đi từ hàng xa xuống hàng gần.
+// LỊCH SỬ (để hiểu vì sao đơn giản như hiện tại): từng thử "gấp rắn"
+// (boustrophedon) chia far/near/hàng-lẻ để mô phỏng vòng bàn, rồi thử ngưỡng
+// "ít đối thủ mới gộp 1 hàng, đông thì vẫn chia" — CẢ 2 ĐỀU BỊ BÁO LỖI THẬT
+// (ít đối thủ: 3 hàng-1-người nhìn như cột dọc; đủ ngưỡng vẫn chia: 5 người
+// chơi bị tách 3+1 thành 2 hàng, sai ý "tất cả đối thủ phải cùng 1 hàng").
+// Chốt lại: MỌI đối thủ, bất kể bao nhiêu, LUÔN đúng 1 `.opponent-row` duy
+// nhất — CSS đổi `flex-wrap: wrap` → `nowrap` + `overflow-x: auto` (xem
+// style.css) để hàng không bao giờ tự xuống dòng, chỉ cuộn ngang nếu màn quá
+// hẹp cho hết số đối thủ.
 //
-// Số đối thủ LẺ (xảy ra khi TỔNG số người CHẴN) → không chia đều 2 hàng
-// được — người ở GIỮA thứ tự lượt (xa bản thân nhất trong vòng khép kín,
-// giống vị trí 12 giờ ở bàn tròn cũ) tách riêng lên 1 hàng CĂN GIỮA ở trên
-// cùng; phần còn lại (giờ chẵn) mới chia đôi như bình thường.
-//
-// Ví dụ đã chốt (5 đối thủ, thứ tự lượt 1→2→3→4→5→về bạn):
-//        [3]        ← hàng lẻ (giữa thứ tự, xa bạn nhất)
-//   [1] [2]          ← hàng xa
-//   [5] [4]          ← hàng gần
-//   ---------
-//   [Bạn]
-// Bug đã sửa (báo lỗi thật từ chủ dự án — test 4 người, đối thủ bị xếp
-// thành 1 HÀNG DỌC thay vì đúng bố cục): công thức chia hàng ở dưới, áp
-// dụng KHÔNG ĐIỀU KIỆN với MỌI số đối thủ, tạo ra các hàng chỉ 1 người khi
-// số đối thủ ít (n=2 -> farRow 1 + nearRow 1; n=3 -> oddRow 1 + farRow 1 +
-// nearRow 1) — mỗi hàng lúc đó chỉ có ĐÚNG 1 người, mà `.opponent-row`
-// không có gì phân biệt hàng "xa"/"gần" ngoài khoảng cách margin, nên 3
-// hàng-1-người xếp liên tiếp NHÌN Y HỆT 1 cột dọc, đúng như đã báo. Chỉ
-// thật sự ĐÁNG chia 2 hàng khi đủ đông để mỗi hàng có ÍT NHẤT 2 người (từ 5
-// đối thủ trở lên, tức 6 người chơi trở lên) — ít hơn thì gộp chung ĐÚNG 1
-// hàng ngang duy nhất (đặt ở `nearRow`, ngay sát hàng của bản thân, giống
-// cách 1 hàng đối thủ bình thường quây quanh bàn).
-const MIN_OPPONENTS_TO_SPLIT_ROWS = 5;
-
-function buildOpponentRows(opponents: SeatEntry[]): { oddRow: SeatEntry[]; farRow: SeatEntry[]; nearRow: SeatEntry[] } {
-  const n = opponents.length;
-  if (n < MIN_OPPONENTS_TO_SPLIT_ROWS) {
-    return { oddRow: [], farRow: [], nearRow: opponents };
-  }
-  if (n % 2 === 0) {
-    return {
-      oddRow: [],
-      farRow: opponents.slice(0, n / 2),
-      nearRow: [...opponents.slice(n / 2)].reverse(),
-    };
-  }
-  const middleIndex = Math.floor(n / 2);
-  return {
-    oddRow: [opponents[middleIndex]],
-    farRow: opponents.slice(0, middleIndex),
-    nearRow: [...opponents.slice(middleIndex + 1)].reverse(),
-  };
-}
+// Tính liền kề theo THỨ TỰ LƯỢT vẫn ĐÚNG mà KHÔNG cần đảo/gấp gì — xem
+// `buildSeatOrder()`: mảng đã xoay để bắt đầu từ người NGAY SAU bản thân,
+// kết thúc ở người NGAY TRƯỚC bản thân — xếp thẳng theo đúng thứ tự đó vào 1
+// hàng, 2 ĐẦU HÀNG (trái/phải) LUÔN ĐÚNG LÀ 2 người liền kề bản thân trong
+// vòng lượt, không phụ thuộc bao nhiêu đối thủ.
 
 function networkRenderPlayer(
   view: PlayerView,
@@ -2218,7 +2181,7 @@ function networkRenderPlayer(
   // Đổi layout (bỏ bàn tròn): không còn góc/toạ độ gì để tính — chỉ cần biết
   // đây có phải "hàng riêng của mình" hay không (`.player--own-row`, full độ
   // rộng, luôn dưới cùng) hay là 1 trong các đối thủ nằm trong `.opponent-row`
-  // (xem buildOpponentRows()/renderNetworkGame()).
+  // (xem renderNetworkGame()).
   isOwnRow: boolean,
   options: NetworkGameOptions,
   handlers: NetworkGameHandlers
@@ -2641,32 +2604,36 @@ export function renderNetworkGame(
   networkRenderPendingPanel(container, view, handlers, view.pending.length > 0 ? options.deadline : null);
   networkRenderPhaseActions(container, view, options, handlers);
 
-  // Đổi layout theo phản hồi thật (bỏ bàn tròn `position: absolute`) — đối
-  // thủ (mọi người TRỪ mình) dàn thành TỐI ĐA 2 hàng ngang bình thường +
-  // 1 hàng riêng căn giữa khi số đối thủ lẻ (xem buildOpponentRows() —
-  // thuật toán "gấp rắn" giữ đúng tính liền kề theo thứ tự lượt). CẢ 3 hàng
-  // đều nằm trong LUỒNG TÀI LIỆU bình thường (không `position: absolute`)
-  // nên KHÔNG BAO GIỜ đè lên nhau. `seatOrder` (xoay để BẠN luôn ở cuối)
-  // vẫn dùng làm "thứ tự lượt" đưa vào buildOpponentRows().
+  // Bug đã sửa (báo lỗi thật từ chủ dự án — 5 người chơi, 4 đối thủ bị tách
+  // 3+1 thành 2 hàng): thuật toán "gấp rắn" chia far/near/odd trước đây CHỈ
+  // né được ca ÍT đối thủ (≤4, gộp sẵn 1 hàng — sửa ở đợt trước), nhưng với
+  // ≥5 đối thủ vẫn tự chia nhiều hàng — SAI Ý CHỦ DỰ ÁN: MỌI đối thủ (bất kể
+  // bao nhiêu), trừ bản thân, phải nằm ĐÚNG 1 HÀNG NGANG DUY NHẤT. Bỏ hẳn
+  // buildOpponentRows()/khái niệm "hàng xa/gần/lẻ" — chỉ còn ĐÚNG 1
+  // `.opponent-row`, CSS đổi `flex-wrap: wrap` → `nowrap` + `overflow-x:
+  // auto` (xem style.css) để hàng không bao giờ tự xuống dòng, chỉ cuộn
+  // ngang nếu màn quá hẹp — không còn "hàng trên/hàng dưới" gây hiểu nhầm.
+  //
+  // Tính liền kề vẫn ĐÚNG mà KHÔNG cần đảo/gấp gì cả: `buildSeatOrder()` đã
+  // xoay để mảng bắt đầu từ người NGAY SAU bản thân theo thứ tự lượt, kết
+  // thúc ở người NGAY TRƯỚC bản thân (opponents[0] và opponents[n-1]) — xếp
+  // thẳng theo đúng thứ tự đó vào 1 hàng, 2 ĐẦU HÀNG (trái/phải) LUÔN ĐÚNG
+  // LÀ 2 người liền kề bản thân trong vòng lượt, không phụ thuộc bao nhiêu
+  // đối thủ.
   const tableEl = document.createElement("div");
   tableEl.className = "table";
   const seatOrder = buildSeatOrder(view);
   const opponents = seatOrder.slice(0, -1);
   const ownEntry = seatOrder[seatOrder.length - 1] as SeatEntry | undefined;
-  const { oddRow, farRow, nearRow } = buildOpponentRows(opponents);
 
-  const appendOpponentRow = (entries: SeatEntry[], extraClass?: string) => {
-    if (entries.length === 0) return;
+  if (opponents.length > 0) {
     const rowEl = document.createElement("div");
-    rowEl.className = "players opponent-row" + (extraClass ? ` ${extraClass}` : "");
-    for (const { player, originalIndex } of entries) {
+    rowEl.className = "players opponent-row";
+    for (const { player, originalIndex } of opponents) {
       rowEl.appendChild(networkRenderPlayer(view, player, originalIndex, false, options, handlers));
     }
     tableEl.appendChild(rowEl);
-  };
-  appendOpponentRow(oddRow, "opponent-row--odd");
-  appendOpponentRow(farRow);
-  appendOpponentRow(nearRow);
+  }
   container.appendChild(tableEl);
 
   if (ownEntry) {
