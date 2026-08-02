@@ -638,6 +638,43 @@ function roomWebSocketUrl(code: string): string {
   return `${protocol}://${host}/room/${code}`;
 }
 
+// Bug đã sửa (báo lỗi thật từ chủ dự án): trước đây MỖI LẦN onJoinRoom() chạy
+// (dù đang mở LẠI đúng phòng, đúng tên, chỉ vì rớt mạng/bấm "Rời phòng" rồi
+// vào lại/đóng hẳn tab) đều sinh `myPlayerId` NGẪU NHIÊN MỚI — server không
+// nhận ra đây là người cũ, ghi nhận thành 1 người chơi khác hoàn toàn, mất
+// luôn nhân vật/bài đang chơi dở. RoomConnection (net.ts) tự nối lại được sau
+// khi mất mạng NGẮN vì nó giữ nguyên `playerId` trong bộ nhớ — nhưng chỉ đúng
+// khi KHÔNG gọi lại onJoinRoom() (vd trang chưa tải lại). Mọi ca "phải gõ lại
+// mã phòng" (đóng hẳn tab/app, bấm "Rời phòng" rồi vào lại...) đều đi qua
+// onJoinRoom() lần nữa nên cần lưu BỀN, sống sót qua việc đóng hẳn trang —
+// dùng `localStorage`, khoá theo ĐÚNG CẶP (mã phòng, tên) chứ không chỉ mã
+// phòng, để 1 trình duyệt dùng chung cho NHIỀU người (vd test nhiều tab bằng
+// tên khác nhau — An/Bình/Chi/Dũng) không vô tình "cướp" nhầm danh tính của
+// người gõ tên khác trong cùng phòng.
+function playerIdStorageKey(roomCode: string, name: string): string {
+  return `bang_player_id:${roomCode}:${name}`;
+}
+
+function randomPlayerId(): string {
+  return `p-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function getOrCreatePlayerId(roomCode: string, name: string): string {
+  const key = playerIdStorageKey(roomCode, name);
+  try {
+    const existing = localStorage.getItem(key);
+    if (existing) return existing;
+    const fresh = randomPlayerId();
+    localStorage.setItem(key, fresh);
+    return fresh;
+  } catch {
+    // localStorage bị chặn (vd chế độ ẩn danh nghiêm ngặt) -> vẫn chơi được
+    // bình thường, chỉ mất khả năng tự nhận lại đúng danh tính sau khi đóng
+    // hẳn tab — không phải lỗi cần báo cho người chơi, im lặng dùng ID tạm.
+    return randomPlayerId();
+  }
+}
+
 function onNetworkNameChange(value: string): void {
   networkName = value;
 }
@@ -668,7 +705,7 @@ function onJoinRoom(): void {
 
   networkError = null;
   networkCode = trimmedCode;
-  myPlayerId = `p-${Math.random().toString(36).slice(2, 10)}`;
+  myPlayerId = getOrCreatePlayerId(trimmedCode, trimmedName);
   lobbyPlayers = [];
   lobbyOwnerId = null;
   networkView = null;
