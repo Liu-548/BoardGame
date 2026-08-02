@@ -54,7 +54,12 @@ export type ClientMessage =
   // lobby trước khi bấm nút này — không broadcast lựa chọn đang gõ dở cho cả
   // phòng (giống `seed`, không ai khác cần biết trước khi ván thật sự bắt
   // đầu), chỉ gửi kèm 1 lần lúc bắt đầu ván thật.
-  | { type: "start_game"; seed: number; houseRules?: HouseRuleId[] }
+  // `force` (nút "Bắt đầu ván mới" trong dialog Cài đặt, chơi qua mạng): CHỈ
+  // chủ phòng mới gửi được field này — bỏ qua kiểm tra "đã có ván đang chơi
+  // dở" ở server, HUỶ NGANG ván cũ (chưa có `winner`) để tạo ván mới đè lên.
+  // Client tự hỏi xác nhận TRƯỚC khi gửi kèm `force: true` (xem main.ts) —
+  // server không tự hỏi gì, tin thẳng field này.
+  | { type: "start_game"; seed: number; houseRules?: HouseRuleId[]; force?: boolean }
   // Một hành động luật chơi (rút bài, đánh bài, trả lời...) — forward nguyên
   // si vào reduce(state, action) ở server.
   | { type: "action"; action: Action }

@@ -80,10 +80,11 @@ const REACTIVE_MS = 15_000; // người khác phải phản hồi (đỡ Missed!
 const DISCARD_PHASE_MS = 15_000; // bỏ bài thừa cuối lượt (chỉ khi hand > hp)
 // Giai đoạn 5, cơ chế chọn nhân vật — CHUNG cho CẢ BÀN (không phải từng
 // người riêng), tính từ lúc ván vừa được tạo (setupGame() với
-// dealCharacterCards:true) cho tới khi MỌI người đã chọn xong. Trước đó 30s
-// — chủ dự án CHỐT lại: cũng chỉ 15s như mọi hành động khác, không phải mốc
-// riêng.
-const CHARACTER_SELECTION_MS = 15_000;
+// dealCharacterCards:true) cho tới khi MỌI người đã chọn xong. Từng đổi qua
+// lại: 30s ban đầu -> 15s (chủ dự án chốt gộp về mốc chung 15s) -> QUAY LẠI
+// 30s (chủ dự án phản hồi thật: 15s hơi gấp để đọc kỹ mô tả 2 nhân vật rồi
+// chọn, khác các phản hồi 1 lựa chọn đơn giản khác).
+const CHARACTER_SELECTION_MS = 30_000;
 
 // Ai/việc gì đang cần tính giờ — dùng chung cho determineActiveDecision() và
 // DeadlineInfo (protocol.ts, trừ `expiresAt`). Tách riêng "character_selection"
@@ -136,7 +137,7 @@ export class Room {
         this.broadcastChat(ws, parsed.text, parsed.to);
         return;
       case "start_game":
-        await this.handleStartGame(ws, parsed.seed, parsed.houseRules);
+        await this.handleStartGame(ws, parsed.seed, parsed.houseRules, parsed.force);
         return;
       case "action":
         await this.handleAction(ws, parsed.action);
@@ -188,7 +189,12 @@ export class Room {
     return null;
   }
 
-  private async handleStartGame(ws: WebSocket, seed: number, houseRules?: HouseRuleId[]): Promise<void> {
+  private async handleStartGame(
+    ws: WebSocket,
+    seed: number,
+    houseRules?: HouseRuleId[],
+    force?: boolean
+  ): Promise<void> {
     const attachment = ws.deserializeAttachment() as SocketAttachment | null;
     const ownerId = await this.getOwnerId();
     if (!attachment?.playerId || attachment.playerId !== ownerId) {
@@ -197,7 +203,12 @@ export class Room {
     }
 
     const existing = await this.ctx.storage.get<GameState>(GAME_STATE_KEY);
-    if (existing && !existing.winner) {
+    // `force` (nút "Bắt đầu ván mới" giữa ván, xem protocol.ts) — CHỦ PHÒNG đã
+    // tự xác nhận huỷ ván cũ ở client, bỏ qua kiểm tra "đang có ván dở" bên
+    // dưới. Không cần tự dọn DEADLINE_KEY/PAUSED_PLAY_KEY/alarm thủ công ở
+    // đây — afterStateChange()'s scheduleDeadline() tự ghi đè đúng theo state
+    // MỚI (characterSelection khác null) ngay sau khi hàm này return.
+    if (existing && !existing.winner && !force) {
       this.sendError(ws, "Phòng này đã có ván đang chơi, không thể bắt đầu ván mới");
       return;
     }
