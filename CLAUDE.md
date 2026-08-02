@@ -732,6 +732,19 @@ Nguyên tắc chung:
 
 306 test đều pass.
 
+**Fix: Calamity Janet không đánh được Missed! làm Bang! (theo báo lỗi thật từ chủ dự án — kể cả trường hợp có Volcanic cho phép bắn nhiều lần/lượt):**
+
+- **Nguyên nhân gốc — BUG Ở CLIENT (`ui.ts`/`main.ts`), KHÔNG PHẢI `core/`**: `core/reduce.ts` (`actsAsBang()`/`actsAsMissed()`, xong từ việc 5.2 đợt 7) đã cho phép đúng — xác nhận qua test mới (xem dưới) core cho Janet đánh Bang! thật rồi đánh tiếp Missed! làm Bang! lần 2 khi có Volcanic, không lỗi gì. Bug NẰM Ở GIAO DIỆN: cả `renderHandSection()` (hotseat) lẫn `networkRenderHandSection()` (qua mạng) trong `ui.ts` có 2 chỗ so khớp TÊN LÁ THẬT một cách "mù" (không biết gì về Janet):
+  1. Điều kiện vẽ nút bấm khi đang tới lượt: `isCurrentTurnToPlay && name !== "missed"` — loại bỏ MỌI lá tên "missed" khỏi danh sách bấm được, kể cả của Janet — lá chỉ hiện dạng `cardChip()` (không có `onClick`), nên KHÔNG BẤM ĐƯỢC GÌ CẢ, không phải do core từ chối.
+  2. Điều kiện vẽ nút bấm khi đang phản hồi (đỡ Missed!/Duel/Indians!): `if (name === respondableName)` — so khớp CHUỖI trực tiếp, không biết Janet có thể dùng Bang! thay Missed! (hoặc Missed! thay Bang!) — cùng 1 lỗi kiến trúc, ảnh hưởng CẢ 2 CHIỀU (không chỉ chiều chủ động đánh Bang! chủ dự án báo, mà cả chiều đỡ đòn cũng bị chặn nhầm, phát hiện lúc rà lại toàn bộ chỗ so khớp tên lá liên quan Janet).
+- **Sửa**: thêm 2 hàm `cardActsAsBang()`/`cardActsAsMissed()` trong `ui.ts` — MIRROR chính xác `actsAsBang()`/`actsAsMissed()` của `core/reduce.ts` (2 hàm đó không export, nên phải chép lại logic ở lớp UI — chỉ dùng để quyết định vẽ nút, KHÔNG thay cho việc `reduce()` tự kiểm tra lại). Hàm `cardMatchesRespondable()` dùng 2 hàm trên thay vì so chuỗi trực tiếp — áp dụng cho CẢ 4 chỗ: 2 hàm render (hotseat + mạng) × 2 điều kiện (đang tới lượt + đang phản hồi).
+- `main.ts`: `NEEDS_TARGET` (tập lá cần chọn mục tiêu trước khi `PLAY_CARD`) không có "missed" (Missed! thường không đánh chủ động được nên không cần) — thêm hàm `cardNeedsTarget(cardId, characterId)` dùng `cardActsAsBang()` (export từ `ui.ts`) để nhận ra Missed! của Janet cũng cần hỏi mục tiêu như Bang! thật. Sửa cả `onHandCardClick()` (hotseat, lấy `characterId` từ `state.players[state.currentPlayerIndex]`) và `onNetworkHandCardClick()` (mạng, lấy từ `networkView.players.find(p => p.id === myPlayerId)`).
+- Test mới trong **`test/characters-basic.test.ts`** (+1 test, ở mức `core/` — xác nhận lại core KHÔNG có bug, đúng kịch bản chủ dự án báo): Janet có Volcanic, đánh Bang! thật thành công, đối phương chịu mất máu, rồi đánh TIẾP Missed! làm Bang! lần 2 trong CÙNG lượt — thành công, đúng `NEED_MISSED` mới được đẩy lên.
+- Đây là thay đổi UI thuần (`ui.ts`/`main.ts`), KHÔNG đụng `core/` — theo tiền lệ cả dự án; test mới thêm dù vậy vẫn ở mức `core/` (chỉ để xác nhận lại core đúng, không phải vì core bị sửa).
+- Đã tự kiểm: `npx tsc --noEmit` sạch, `npm run build` qua, 307 test đều pass (306 cũ + 1 test mới).
+
+307 test đều pass.
+
 ## Chưa làm tới, đừng đụng vào
 
 Cả 3 biến thể số người chơi (2/3/8 người) đã HOÀN TẤT (xem 3 mục changelog "Biến thể số người chơi" ở trên) — không còn biến thể nào đang dang dở.

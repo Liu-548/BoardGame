@@ -1012,6 +1012,28 @@ describe("Calamity Janet — Bang! và Missed! hoán đổi cho nhau", () => {
     expect(events).toContainEqual({ type: "CARD_PLAYED", playerId: "a", cardId: "missed_1", targetId: "b" });
   });
 
+  it("có Volcanic thì đánh Bang! thật rồi đánh tiếp Missed! làm Bang! lần 2 trong cùng lượt vẫn được (bug đã sửa: UI trước đây chặn nhầm)", () => {
+    const state = makeState({
+      players: [
+        makePlayer("a", { hand: ["bang_1", "missed_1"], characterId: "calamity_janet", equipment: ["volcanic_1"] }),
+        makePlayer("b"),
+        makePlayer("c"),
+      ],
+    });
+
+    const first = reduce(state, { type: "PLAY_CARD", playerId: "a", cardId: "bang_1", targetId: "b" });
+    const afterFirstResponse = reduce(first.state, { type: "RESPOND", playerId: "b" }); // chịu mất máu
+
+    const second = reduce(afterFirstResponse.state, {
+      type: "PLAY_CARD",
+      playerId: "a",
+      cardId: "missed_1",
+      targetId: "b",
+    });
+
+    expect(second.state.pending).toEqual([{ kind: "NEED_MISSED", player: "b", source: { card: "bang", from: "a" } }]);
+  });
+
   it("người KHÔNG phải Janet vẫn không được chủ động đánh Missed!", () => {
     const state = makeState({
       players: [makePlayer("a", { hand: ["missed_1"] }), makePlayer("b"), makePlayer("c")],

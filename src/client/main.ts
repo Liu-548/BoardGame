@@ -31,6 +31,7 @@ import { RoomConnection } from "./net";
 import type { DeadlineInfo, ServerMessage } from "../protocol";
 import {
   applyStoredSettings,
+  cardActsAsBang,
   describeEvent,
   renderApp,
   renderCardReferenceScreen,
@@ -53,6 +54,16 @@ applyStoredSettings();
 // Các lá cần chọn thêm mục tiêu khi đánh — lá còn lại (bia, saloon, súng máy
 // Gatling, tự trang bị...) đánh xong ngay, không cần bước chọn nào thêm.
 const NEEDS_TARGET = new Set<CardName>(["bang", "duel", "jail", "panic", "cat_balou"]);
+
+// Giai đoạn 5 (Calamity Janet) — lá Missed! của Janet ĐÓNG VAI Bang! nên cũng
+// cần chọn mục tiêu (NEEDS_TARGET không có "missed" vì Missed! thường không
+// đánh chủ động được, xem NEEDS_TARGET ở trên) — cardActsAsBang() (ui.ts,
+// mirror actsAsBang() ở core/reduce.ts) mới biết phân biệt được.
+function cardNeedsTarget(cardId: string, characterId: string | null): boolean {
+  const name = cardNameFromId(cardId);
+  if (name === "missed") return cardActsAsBang(cardId, characterId);
+  return NEEDS_TARGET.has(name);
+}
 
 const DEFAULT_PLAYER_NAMES = ["An", "Bình", "Chi", "Dũng"];
 
@@ -448,7 +459,7 @@ function onHandCardClick(cardId: string): void {
   }
 
   const name = cardNameFromId(cardId);
-  if (NEEDS_TARGET.has(name)) {
+  if (cardNeedsTarget(cardId, state.players[state.currentPlayerIndex].characterId)) {
     selection = { step: "picking-target", cardId, cardName: name };
     render();
   } else {
@@ -808,7 +819,8 @@ function onNetworkHandCardClick(cardId: string): void {
   }
 
   const name = cardNameFromId(cardId);
-  if (NEEDS_TARGET.has(name)) {
+  const myCharacterId = networkView.players.find((p) => p.id === myPlayerId)?.characterId ?? null;
+  if (cardNeedsTarget(cardId, myCharacterId)) {
     networkSelection = { step: "picking-target", cardId, cardName: name };
     render();
   } else {
