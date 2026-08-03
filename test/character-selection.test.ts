@@ -45,6 +45,8 @@ function makeState(characterSelection: CharacterChoice[], overrides: Partial<Gam
     characterSelection,
     houseRules: [],
     cardNamesPlayedThisTurn: [],
+    turnNumber: 0,
+    equipmentPlayedTurn: {},
     ...overrides,
   };
 }

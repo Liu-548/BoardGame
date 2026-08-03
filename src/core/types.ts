@@ -238,6 +238,14 @@ export type GameEvent =
   // CARDS_DISCARDED đã gắn nghĩa "bỏ bài thừa cuối lượt", tách riêng dễ hiểu
   // nhầm giống lý do của KIT_CARLSON_DISCARDED ở trên.
   | { type: "SID_KETCHUM_HEALED"; playerId: string; cardIds: [string, string]; amount: number }
+  // Mở rộng Dodge City, mục 1.1 — bỏ 1 lá trang bị "trì hoãn" ĐÃ BÀY SẴN từ
+  // lượt trước để kích hoạt hiệu ứng CHỦ ĐỘNG của nó (Canteen tự hồi máu, Pony
+  // Express rút 3 lá...). KHÔNG dùng cho nhóm CÓ ký hiệu Missed! (Bible/
+  // Sombrero/Ten Gallon Hat/Iron Plate) — nhóm đó dùng để PHẢN ỨNG, vẫn bắn
+  // MISSED_PLAYED như Missed! thường (xem respondToMissed() trong reduce.ts).
+  // Tách riêng khỏi CARD_PLAYED vì lá này không "đánh ra" từ tay — nó đã nằm
+  // trên sân từ trước, giờ mới bị bỏ đi để DÙNG.
+  | { type: "DELAYED_EQUIPMENT_ACTIVATED"; playerId: string; cardId: string }
   // Chọn nhân vật đầu ván (xem CharacterChoice/CHOOSE_CHARACTER/
   // FINALIZE_CHARACTER_SELECTION ở trên) — `characterId` CÔNG KHAI ngay khi
   // chọn xong (đặt lá ngửa lên bàn, đúng luật gốc), dù là người TỰ chọn hay
@@ -307,6 +315,27 @@ export interface GameState {
   // phải optional) để đúng quy tắc 3 (state JSON thuần, không có field tuỳ
   // ý xuất hiện/biến mất) — chỉ đơn giản không ai đọc tới nếu luật này tắt.
   cardNamesPlayedThisTurn: string[];
+  // Mở rộng Dodge City (Luat_Bang_Mo_Rong_DodgeCity.txt, mục 1.1 — "kiến trúc
+  // trang bị trì hoãn", xem LO-TRINH.md "Ghi chú cho 5.4" mục A) — đếm số
+  // LƯỢT đã trôi qua từ đầu ván, tăng +1 mỗi lần advanceTurn() (reduce.ts).
+  // Không tồn tại trước Dodge City vì chưa cần: mọi luật reset-mỗi-lượt trước
+  // đó (bangUsedThisTurn, cardNamesPlayedThisTurn) chỉ cần biết "lượt NÀY",
+  // không cần phân biệt lượt SỐ MẤY. Trang bị "trì hoãn" (delayKind =
+  // "delayed", xem cards.ts's isDelayedEquipmentCardName()) cần so sánh lượt
+  // ĐÃ chơi ra với lượt HIỆN TẠI để biết đã qua ít nhất 1 lượt hay chưa.
+  turnNumber: number;
+  // Mở rộng Dodge City, mục 1.1 — cardId (lá trang bị "trì hoãn" đang bày
+  // trước mặt 1 người) -> turnNumber lúc nó được chơi ra. CHỈ có entry cho lá
+  // "delayed" (Bible, Sombrero, Ten Gallon Hat, Iron Plate, Canteen, Pony
+  // Express...) — trang bị "instant" (xanh dương thường: súng, Barrel, Scope,
+  // Mustang) không cần gì ở đây, dùng được ngay. Xoá entry khi lá bị bỏ đi
+  // (dùng xong, hoặc bị Cat Balou/Panic!/Can Can... lấy/bỏ) — không lo rác
+  // tồn đọng vì mọi đường khiến lá rời equipment đều đi qua reduce.ts, nơi
+  // đã tự dọn field này (xem activateDelayedEquipment()/respondToMissed()).
+  // KHÔNG lưu delayKind ("instant"/"delayed") trong state — tra tĩnh theo TÊN
+  // LÁ ở cards.ts (giống cách WEAPON_RANGES tra theo tên), vì đây là thuộc
+  // tính cố định của LOẠI lá, không đổi theo từng lượt chơi.
+  equipmentPlayedTurn: Record<string, number>;
 }
 
 // Giai đoạn 5, việc 5.3 — danh sách id luật bổ sung đã cài (xem LO-TRINH.md
@@ -318,4 +347,9 @@ export type HouseRuleId =
   | "extra_distance" // khoảng cách vòng tròn mặc định +1 (distance.ts)
   | "require_weapon_for_bang" // phải có súng trang bị mới đánh Bang! được, bỏ súng ngầm định tầm 1 (playBang())
   | "no_duplicate_card_names" // cấm đánh 2 lá NÂU trùng tên trong 1 lượt (trừ lá trang bị, handlePlayCard())
-  | "beer_below_two"; // Bia vẫn có tác dụng dù chỉ còn 2 người sống, bỏ ngoại lệ luật gốc (playBeer()/eliminateIfDead())
+  | "beer_below_two" // Bia vẫn có tác dụng dù chỉ còn 2 người sống, bỏ ngoại lệ luật gốc (playBeer()/eliminateIfDead())
+  | "extra_cards"; // CHỈ LÀ CỜ, CHƯA CÓ HIỆU ỨNG: dự định thêm các lá bài đặc biệt (vd bộ mở rộng
+  // Dodge City, xem Luat_Bang_Mo_Rong_DodgeCity.txt) vào bộ bài khi bật. setupGame()
+  // (setup.ts) đã sẵn RuleOptions.cardCounts để buildDeck() cộng thêm bài — chỉ cần nối
+  // dây khi có dữ liệu bài thật, KHÔNG đổi gì reduce.ts. Bật cờ này lúc này không thay
+  // đổi hành vi ván (bộ bài vẫn y hệt luật gốc), chỉ để chuẩn bị sẵn UI cho việc sau.

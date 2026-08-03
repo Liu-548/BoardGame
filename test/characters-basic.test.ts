@@ -36,6 +36,8 @@ function makeState(overrides: Partial<GameState> = {}): GameState {
     winner: null,
     bangUsedThisTurn: false,
     characterSelection: null,
+    turnNumber: 0,
+    equipmentPlayedTurn: {},
     houseRules: [],
     cardNamesPlayedThisTurn: [],
     ...overrides,
@@ -404,7 +406,7 @@ describe("Slab the Killer — Bang!/Gatling của mình cần 2 Missed! mới n�
     expect(step2.state.players[1].hp).toBe(4); // đủ 2 lá -> né trọn vẹn
   });
 
-  it("chỉ có 1 Missed!: bỏ được 1 lá xong vẫn phải chịu mất đúng 1 máu như bình thường khi hết bài", () => {
+  it("chỉ có 1 Missed! (thiếu so với 2 cần): không được bỏ dở lá đó — luật 'if able', chịu mất máu nhưng GIỮ NGUYÊN lá trên tay", () => {
     const state = makeState({
       players: [
         makePlayer("a", { hand: ["bang_1"], characterId: "slab_the_killer" }),
@@ -414,14 +416,13 @@ describe("Slab the Killer — Bang!/Gatling của mình cần 2 Missed! mới n�
     });
 
     const played = reduce(state, { type: "PLAY_CARD", playerId: "a", cardId: "bang_1", targetId: "b" });
-    const step1 = reduce(played.state, { type: "RESPOND", playerId: "b", cardId: "missed_1" });
-    expect(step1.state.pending).toEqual([
-      { kind: "NEED_MISSED", player: "b", source: { card: "bang", from: "a" } },
-    ]);
+    // Tay chỉ có 1 Missed!, không đủ 2 -> core từ chối bỏ lá, không cho thử dở dang.
+    expect(() => reduce(played.state, { type: "RESPOND", playerId: "b", cardId: "missed_1" })).toThrow();
 
-    const step2 = reduce(step1.state, { type: "RESPOND", playerId: "b" }); // hết Missed!, chịu máu
-    expect(step2.state.pending).toEqual([]);
-    expect(step2.state.players[1].hp).toBe(3); // mất đúng 1 máu, không phạt thêm vì thiếu
+    const step = reduce(played.state, { type: "RESPOND", playerId: "b" }); // chịu mất máu ngay, không mất lá nào
+    expect(step.state.pending).toEqual([]);
+    expect(step.state.players[1].hp).toBe(3); // mất đúng 1 máu, không phạt thêm vì thiếu
+    expect(step.state.players[1].hand).toEqual(["missed_1"]); // lá Missed! vẫn còn nguyên, không bị mất oan
   });
 
   it("Barrel/Jourdonnais khớp Cơ chỉ tính là 1 trong 2 Missed! cần, KHÔNG tự né hết", () => {
@@ -446,6 +447,21 @@ describe("Slab the Killer — Bang!/Gatling của mình cần 2 Missed! mới n�
     const final = reduce(drawResolved.state, { type: "RESPOND", playerId: "b", cardId: "missed_1" });
     expect(final.state.pending).toEqual([]);
     expect(final.state.players[1].hp).toBe(4); // đủ 2 (1 Barrel + 1 Missed!) -> né trọn vẹn
+  });
+
+  it("không được vừa mất lá Missed! duy nhất vừa mất máu (bug đã sửa) — bỏ dở 1/2 lá phải bị từ chối", () => {
+    const state = makeState({
+      players: [
+        makePlayer("a", { hand: ["bang_1"], characterId: "slab_the_killer" }),
+        makePlayer("b", { hand: ["missed_1"] }),
+        makePlayer("c"),
+      ],
+    });
+
+    const played = reduce(state, { type: "PLAY_CARD", playerId: "a", cardId: "bang_1", targetId: "b" });
+    expect(() => reduce(played.state, { type: "RESPOND", playerId: "b", cardId: "missed_1" })).toThrow(
+      /Không đủ Missed/
+    );
   });
 
   it("áp dụng cả cho Gatling: mỗi mục tiêu đều cần 2 Missed!", () => {

@@ -220,4 +220,39 @@ describe("setupGame", () => {
       expect(a).toEqual(b);
     });
   });
+
+  // Mở rộng Dodge City (đợt 1) — house rule "extra_cards" (xem
+  // DODGE_CITY_CARD_COUNTS ở cards.ts) phải cộng thêm đúng số lá vàng vào bộ
+  // bài khi bật, KHÔNG đổi gì khi tắt (mặc định).
+  describe("house rule 'extra_cards' (Dodge City)", () => {
+    function totalCardsByName(state: ReturnType<typeof setupGame>, name: string): number {
+      const inDeck = state.deck.filter((id) => id.startsWith(`${name}_`)).length;
+      const inHands = state.players.reduce(
+        (sum, p) => sum + p.hand.filter((id) => id.startsWith(`${name}_`)).length,
+        0
+      );
+      return inDeck + inHands;
+    }
+
+    it("TẮT (mặc định): không có lá Dodge City nào trong bộ bài", () => {
+      const state = setupGame(ids(4), 1);
+      expect(totalCardsByName(state, "bible")).toBe(0);
+      expect(totalCardsByName(state, "iron_plate")).toBe(0);
+    });
+
+    it("BẬT: cộng đủ số lá vàng đợt 1 vào bộ bài (63 lá nâu + 17 lá xanh + 7 lá vàng = 87 lá tổng)", () => {
+      const state = setupGame(ids(4), 1, { houseRules: ["extra_cards"] });
+      expect(totalCardsByName(state, "bible")).toBe(1);
+      expect(totalCardsByName(state, "sombrero")).toBe(1);
+      expect(totalCardsByName(state, "ten_gallon_hat")).toBe(1);
+      expect(totalCardsByName(state, "iron_plate")).toBe(2);
+      expect(totalCardsByName(state, "canteen")).toBe(1);
+      expect(totalCardsByName(state, "pony_express")).toBe(1);
+
+      // Đếm cả equipment — Dynamite tự xuống sân ngay lúc chia (equipment.ts's
+      // giveCardToPlayer()), không nằm trong hand như bài thường.
+      const dealt = state.players.reduce((sum, p) => sum + p.hand.length + p.equipment.length, 0);
+      expect(state.deck.length + dealt).toBe(87);
+    });
+  });
 });

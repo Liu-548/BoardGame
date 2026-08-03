@@ -17,5 +17,25 @@
   "assets": {
     "directory": "./dist",
     "run_worker_first": ["/room/*"]
+  },
+  // Bản Beta song song — Worker RIÊNG (`bang-boardgame-beta`, ra URL riêng
+  // .../bang-boardgame-beta.<tài khoản>.workers.dev), deploy bằng `npm run
+  // deploy:beta` (package.json). Tên Worker khác `name` ở gốc file này nên
+  // Durable Object (dữ liệu phòng/ván) tách biệt HOÀN TOÀN với bản chính —
+  // migrations/durable_objects/assets kế thừa nguyên vẹn từ gốc, chỉ đổi tên.
+  // Script `deploy` gốc (bản chính, bạn bè đang chơi) không đụng gì, không tự
+  // động đổi theo môi trường này.
+  "env": {
+    "beta": {
+      "name": "bang-boardgame-beta",
+      // wrangler CẢNH BÁO "durable_objects" không tự kế thừa vào environment
+      // con (khác đa số field khác) — phải khai lại y hệt gốc, không phải lỗi
+      // đánh máy.
+      "durable_objects": {
+        "bindings": [
+          { "name": "ROOM", "class_name": "Room" }
+        ]
+      }
+    }
   }
 }

@@ -94,7 +94,7 @@
 | 5.1 | Hệ thống hook cho nhân vật | `onLoseLife`, `onLoseLifeFromCard`, `onDrawPhase`, `onDrawCheck`, `modifyDistance`, `onOutgoingBang`, `onHandEmpty`, `onAnyDeath`, `cardAlias`, `activatedAbility` (xem `NHAN-VAT-BANG-CO-BAN.txt`) — ✅ **xong khung**: 4/9 hook đã nối dây thật (`modifyDistance`/`onLoseLife`/`onLoseLifeFromCard`/`onAnyDeath`) + `core/characters.ts` (registry rỗng), 5 hook còn lại để dành cho 5.2. Xem chi tiết ở CLAUDE.md |
 | 5.2 | 16 nhân vật bản cơ bản | Mỗi nhân vật là dữ liệu + hook, **không** phải `if/else` — ✅ **HOÀN TẤT**: ĐỦ 16/16 nhân vật (7 đợt) + cơ chế "phát 2 lá chọn 1" (core + UI hotseat/qua mạng + đồng hồ 30 giây thật, tự chốt ngẫu nhiên khi hết giờ) **ĐÃ BẬT THẬT** ở `room.ts`/`main.ts` — chơi được qua giao diện thật hoàn chỉnh. Xem chi tiết ở CLAUDE.md |
 | 5.3 | Bật/tắt house rules | Cấu hình theo phòng — ✅ **4/6 ý tưởng nháp xong** (core + UI hotseat/qua mạng): tăng khoảng cách +1, bắt buộc súng mới đánh Bang!, cấm dùng 2 lá trùng tên/lượt, Bia vẫn có tác dụng khi còn 2 người. Còn lại "gộp 2 lá Beer hồi máu người khác" (cần cơ chế chọn mục tiêu mới) để dành đợt sau. Xem chi tiết ở CLAUDE.md |
-| 5.4 | Expansion | Chỉ là thêm file dữ liệu + hook nếu 5.1 làm đúng |
+| 5.4 | Expansion (Dodge City) | Ước lượng ban đầu "chỉ là thêm file dữ liệu + hook" **SAI** — thực tế cần ≥4 hook mới + 1 cơ chế uỷ quyền toàn hệ thống (Vera Custer). 🔶 **ĐANG LÀM** — đợt 1 xong (mục A: kiến trúc trang bị trì hoãn + 6/40 lá vàng không cần hook mới: Bible/Sombrero/Ten Gallon Hat/Iron Plate/Canteen/Pony Express, core + test, UI CHƯA xong). Xem "Ghi chú cho 5.4" bên dưới |
 | 5.5 | Board game thứ hai | Chung `server/`, khác `core/` |
 
 ### Ghi chú cho 5.3 — ý tưởng luật bổ sung (house rules)
@@ -113,28 +113,227 @@ Vài ý tưởng đã nghĩ ra (mỗi luật khi thiết kế thật sẽ nói r
 - ✅ Cho phép dùng Beer kể cả khi chỉ còn 2 người sống (bỏ ngoại lệ luật gốc) — `"beer_below_two"`
 - ⬜ Cho phép gộp 2 lá Beer để hồi máu cho 1 người chơi khác (thay vì chỉ hồi cho chính mình) — CHƯA làm, cần cơ chế chọn mục tiêu mới, để dành đợt sau
 
-### Ghi chú: bản Beta song song (dự tính, CHƯA làm — chủ dự án tạm hoãn để fix lỗi trước)
+### Ghi chú cho 5.4 — mở rộng Dodge City: ✅ ĐÃ CHỐT kiến trúc + toàn bộ luật mơ hồ, CHƯA VIẾT DÒNG CODE NÀO
+
+Đặc tả gốc: `Luat_Bang_Mo_Rong_DodgeCity.txt` (chủ dự án cung cấp, đọc kỹ TRỪ phần
+High Noon — mở rộng KHÁC trong cùng hộp vật lý, ngoài phạm vi). File đó đã tự liệt
+kê rất nhiều điểm `[CẦN KIỂM CHỨNG]`/`[CẦN HOOK MỚI]`/`[ĐỔI STATE]` — đã bàn hết với
+chủ dự án (đúng quy tắc CLAUDE.md "luật Bang! không rõ ràng → dừng lại và hỏi"), chốt
+lại dưới đây làm cơ sở khi bắt đầu code thật. Dòng "5.4 | Expansion | Chỉ là thêm
+file dữ liệu + hook nếu 5.1 làm đúng" ở bảng Giai đoạn 5 phía trên **ước lượng SAI**
+— thực tế cần thêm ít nhất 4 hook mới + 1 cơ chế uỷ quyền toàn hệ thống, không đơn
+giản như dự tính ban đầu.
+
+**A. Kiến trúc "trang bị trì hoãn" (màu vàng — đổi tên từ "green-bordered" gốc, xem
+ghi chú màu ở đầu file .txt, KHÔNG dùng `card-box--character` đã dành cho khung nhân
+vật):**
+- `PlayerState.equipment` **GIỮ NGUYÊN** `string[]` — không đổi kiểu phần tử (tránh rà
+  lại ~90 chỗ đang đọc `equipment` như mảng string thuần).
+- Thêm field MỚI `equipmentPlayedTurn: Record<string, number>` (cardId → lượt được
+  chơi ra) — CHỈ ghi entry cho lá "delayed", lá "instant" (xanh dương thường) không
+  cần gì.
+- `delayKind` ("instant"/"delayed") **không lưu trong state** — tra tĩnh theo TÊN LÁ
+  trong `cards.ts` (giống cách `WEAPON_RANGES` đã tra theo tên), vì đây là thuộc tính
+  cố định của từng loại lá, không đổi theo từng lượt chơi.
+
+**B. Nguyên văn lá bài — 9 lá ban đầu đánh dấu `[CẦN KIỂM CHỨNG]`, đã chốt hết:**
+- 7 lá đã có sẵn câu trả lời qua ghi chú "*dev" ngay trong file gốc (không cần hỏi
+  lại): Rag Time (Panic! không giới hạn khoảng cách, kèm bỏ 1 lá phụ), Conestoga
+  (Panic! bản "delayed", không giới hạn khoảng cách), Can Can (Cat Balou bản
+  "delayed"), Buffalo Rifle (Bang! bất kỳ ai, bỏ qua khoảng cách hoàn toàn), Knife
+  (Bang! khoảng cách 1, **không** kèm rút bài — khác Derringer), Howitzer (bắn TẤT CẢ
+  người chơi khác như Gatling), José Delgado (lá vàng "delayed" **không** tính là
+  "xanh dương" cho kỹ năng nhân vật này).
+- 2 lá còn lại mới chốt trong phiên bàn luật này:
+  - **Pepperbox**: Bang! dùng ĐÚNG TẦM SÚNG đang cầm (khác Buffalo Rifle bỏ qua tầm
+    hoàn toàn) — đây chính là điểm PHÂN BIỆT 2 lá súng "delayed" này với nhau, tránh
+    trùng công dụng.
+  - **Derringer**: LUÔN rút thêm 1 lá khi dùng, bất kể mục tiêu có đỡ được (Missed!)
+    hay không — rút bài là phần thưởng cho hành động DÙNG lá, không phụ thuộc kết quả
+    trúng/né.
+
+**C. 8 nhân vật cần hook mới — đã chốt cách tiếp cận cho từng người:**
+
+1. **Apache Kid** (miễn nhiễm chất Rô từ người khác đánh nhắm vào mình, trừ Duel):
+   thống nhất 1 cách xử lý cho MỌI trường hợp (đơn lẻ lẫn diện rộng) — lá vẫn được
+   đánh/rời tay/vào chồng bỏ BÌNH THƯỜNG, chỉ riêng HIỆU ỨNG không áp dụng lên Apache
+   Kid (người khác trong lá diện rộng như Gatling/Indians! vẫn bị ảnh hưởng đúng như
+   thường) — cần event riêng báo "miễn nhiễm" để khỏi hiểu nhầm là bug. **Trong Đấu
+   tay đôi (Duel): miễn nhiễm KHÔNG áp dụng** — thua thì mất máu bình thường như mọi
+   người, đúng nguyên văn file gốc. Hook mới: `isImmuneToCard` (tên gợi ý).
+
+2. **Belle Star** (trong lượt cô ta, trang bị người khác mất tác dụng): phạm vi
+   **RỘNG NHẤT có thể** — chủ dự án xác nhận KHÔNG chỉ 3 loại đã liệt kê ban đầu
+   (khoảng cách/Barrel/Missed! trì hoãn) mà **BẤT KỲ lá nào đang bày trước mặt người
+   khác đều bị vô hiệu hóa tạm thời**, không ngoại lệ. Kiến trúc đề xuất: 1 hàm trung
+   gian DUY NHẤT `getEffectiveEquipment(state, player)` — MỌI chỗ cần đọc trang bị của
+   1 người để tính hiệu ứng (khoảng cách, Barrel, tầm súng, lá vàng dùng như Missed!...)
+   gọi qua hàm này thay vì đọc thẳng `player.equipment`; hàm tự trả mảng rỗng nếu đang
+   là lượt Belle Star VÀ người đó không phải chính cô — giảm rủi ro bỏ sót so với rà
+   từng điểm đọc equipment riêng lẻ.
+
+3. **Elena Fuente** (dùng bất kỳ lá nào trên tay như Missed!): base giữ nguyên (mở
+   rộng khái niệm `cardAlias`/`coiNhuMissed` đã có cho Calamity Janet sang "mọi lá,
+   không riêng 1 cặp tên"). Bonus (*dev note của chủ dự án, đã hỏi lại và xác nhận):
+   **CŨNG được dùng lá đang bày trước mặt CHÍNH MÌNH (equipment) làm Missed!, kể cả
+   Jail đang giam chính mình** (dùng xong thì Jail mất, coi như "thoát giam sớm",
+   không cần đợi tới đầu lượt để draw! như bình thường) — **TRỪ Dynamite**.
+
+4. **Molly Stark** (rút thêm bài khi chủ động chơi/bỏ Missed!/Beer/Bang! ngoài lượt
+   mình): hook mới `onVoluntaryPlayOutOfTurn` (tên gợi ý) — bắt lúc CHÍNH CHỦ chủ
+   động chơi/bỏ 1 trong 3 loại lá này ngoài lượt mình, KHÔNG tính nếu bị ép bởi Cat
+   Balou/Brawl/Can Can (người khác chọn giúp).
+   - Missed! (đỡ Bang!/Gatling) → rút ngay 1 lá.
+   - Bang! bỏ ra tự vệ trước Indians! (chọn "bỏ Bang! hoặc chịu mất máu") → **tính là
+     chủ động**, rút ngay 1 lá — đã hỏi lại và chủ dự án xác nhận đây vẫn là LỰA CHỌN
+     của người chơi, không phải bị ép chọn đúng 1 lá cụ thể như Cat Balou.
+   - Bang! trong Duel → **KHÔNG rút ngay từng lần**, dồn lại, rút đủ số lần đã dùng
+     khi Duel THẬT SỰ kết thúc (mốc: khi 1 bên tại `NEED_DUEL_RESPONSE` không đưa
+     được `cardId`, thua và mất máu — xem `respondToDuel()` trong `reduce.ts`). Cần
+     1 field ĐẾM DỒN mới (vd `duelBangDrawPending` gắn với ván, không phải theo lượt —
+     vì Duel có thể kéo dài qua lại nhiều vòng trước khi 1 bên thua).
+   - Beer → **PHÁT HIỆN QUAN TRỌNG lúc rà code**: hiện tại `handlePlayCard()` LUÔN
+     bắt buộc đúng lượt mình (`assertCurrentPlayer()`, không có ngoại lệ nào cho
+     Beer) — "chơi Beer ngoài lượt" duy nhất có thể xảy ra trong engine hiện tại là
+     cơ chế **hồi sinh tự động** (máu về 0 tự bỏ Beer, KHÔNG đi qua action `PLAY_CARD`
+     thật). Đã hỏi lại và chủ dự án CHỐT: Molly Stark's "Beer" trigger CHỈ bắt đúng
+     lúc cơ chế hồi sinh tự động này kích hoạt — **KHÔNG nới lỏng luật Beer nói
+     chung** (giữ nguyên `assertCurrentPlayer()` cho `playBeer()` bình thường, không
+     ảnh hưởng gì tới cách chơi Beer hiện có của MỌI nhân vật khác).
+
+5. **Sean Mallory** (giữ tối đa 10 lá cuối lượt, không theo số máu): hook mới
+   `modifyHandLimit` — trả 10 nếu giới hạn mặc định (= `currentHp`) nhỏ hơn 10, ngược
+   lại giữ nguyên. Không có gì mơ hồ, không cần bàn thêm.
+
+6. **Tequila Joe** (Beer hồi 2 máu thay vì 1, các lá hồi máu khác vẫn 1): hook mới
+   `modifyHealAmount` — nhân đôi lượng hồi CHỈ khi `cardName === "beer"` (Saloon/
+   Tequila/Canteen vẫn hồi đúng 1 như bình thường). Ca hồi sinh tự động (máu về 0, tự
+   bỏ Beer): **GIỮ NGUYÊN** cơ chế kéo thẳng về 1 máu như hiện có (không phải "lượng
+   hồi" theo đúng nghĩa để nhân đôi) — Tequila Joe được cộng thêm RIÊNG +1 máu nữa
+   (không qua "lượng hồi" của lá, không cần nhân đôi công thức cũ) → tổng lên **2
+   máu** sau khi hồi sinh, đúng ý muốn nhưng không đụng gì cơ chế hồi sinh chung.
+
+7. **Doc Holyday** (bỏ 2 lá bất kỳ để bắn Bang! trong tầm súng, 1 lần/lượt, không
+   tính giới hạn 1 Bang!/lượt): dùng `activatedAbility` có sẵn (giống Sid Ketchum)
+   nhưng giới hạn 1 lần/lượt — cần biến đếm riêng theo lượt (kiểu
+   `docHolydayUsedThisTurn`, reset ở `advanceTurn()`, giống `bangUsedThisTurn`).
+   Phần "để bắn trúng Apache Kid cần ít nhất 1 trong 2 lá KHÔNG phải chất Rô" phụ
+   thuộc thiết kế Apache Kid ở mục C.1 — làm SAU khi Apache Kid đã có hook miễn nhiễm.
+
+8. **José Delgado** (bỏ 1 lá xanh dương từ tay để rút 2, tối đa 2 lần/lượt): dùng
+   `activatedAbility` có sẵn, cần biến đếm riêng theo lượt (giống Doc Holyday). Điều
+   kiện lá bỏ ra PHẢI là trang bị "instant" thật (đã chốt ở mục B — lá vàng "delayed"
+   KHÔNG tính là "xanh dương" cho kỹ năng này).
+
+9. **Vera Custer** (đầu lượt chọn 1 nhân vật khác còn sống, mượn khả năng đặc biệt
+   của họ tới lượt kế tiếp của chính mình) — **phức tạp nhất, cần bàn kỹ nhất**:
+   - Kiến trúc: 1 hàm trung tâm tính "characterId hiệu lực" (`effectiveCharacterId`)
+     — MỌI nơi đang tra `getCharacterHooks(player.characterId)` hoặc field tĩnh
+     (`bypassBangLimit`, `virtualBarrel`, `hasBangMissedAlias`...) đều đổi sang gọi
+     qua hàm này thay vì đọc thẳng `player.characterId`. Nhờ vậy MỌI hook/field tĩnh
+     tự động "mượn" đúng theo, không cần sửa từng điểm gọi hook riêng lẻ.
+   - **CHỈ mượn hiệu ứng/hook — KHÔNG mượn máu tối đa** (`bullets`/`maxHp` của Vera
+     giữ nguyên dù mượn ai có máu cao/thấp hơn) — đã hỏi lại và chốt rõ, tránh nhầm
+     "khả năng đặc biệt" với "chỉ số nhân vật".
+   - **Mượn được TẤT CẢ nhân vật, không có ngoại lệ nào bị chặn** (kể cả Apache
+     Kid/Belle Star nếu 2 nhân vật đó cũng đã cài xong) — chủ dự án CHỐT giữ đúng
+     luật gốc, không tự thêm giới hạn "quá mạnh/dễ lạm dụng".
+   - Cần **ĐỔI STATE**: 1 field mới theo dõi "đang mượn ai, hiệu lực tới lượt nào".
+
+**D. Luật theo số người chơi:**
+- **8 người**: đã **RÀ LẠI VÀ XÁC NHẬN — DỰ ÁN ĐÃ CÀI ĐÚNG SẴN**, không cần làm gì
+  thêm. `setup.ts`'s `ROLE_SETS[8]` hiện là
+  `["sheriff", "renegade", "renegade", "outlaw", "outlaw", "outlaw", "deputy",
+  "deputy"]` — đúng khớp 1 Sheriff/2 Deputy/3 Outlaw/2 Renegade theo luật Dodge
+  City (đã cài từ đợt "Biến thể số người chơi" trước đó, không liên quan gì tới lần
+  chuẩn bị Dodge City này).
+- **3 người** (vòng tròn săn đuổi): **PHÁT HIỆN LỖ HỔNG lúc rà code** — biến thể 3
+  người hiện có của dự án CHƯA có "thưởng 3 lá khi tự tay hạ bất kỳ ai" mà luật
+  Dodge City nói rõ (`eliminatePlayer()` hiện chỉ thưởng 3 lá khi `target.role ===
+  "outlaw"`, không áp dụng gì cho vai police/criminal/traitor của biến thể 3 người).
+  Đã hỏi lại và chủ dự án CHỐT: **THÊM** đúng luật Dodge City — hạ BẤT KỲ ai (bất kể
+  vai, kể cả sai vòng tròn săn đuổi) đều được thưởng ngay 3 lá rút, khác hẳn nguồn
+  thưởng "hạ đúng Outlaw" của 4-8 người — cần đảm bảo 2 nguồn thưởng không nhầm/cộng
+  dồn sai khi cùng đi qua `eliminatePlayer()` dùng chung.
+
+**E. Cơ chế nhỏ khác (không mơ hồ, chỉ ghi lại theo đúng khuôn mẫu sẵn có, không cần
+hỏi gì thêm):**
+- Brawl (bắt MỌI người khác bỏ 1 lá do mình chọn): đẩy pending riêng cho từng nạn
+  nhân theo thứ tự (giống cách Gatling đẩy nhiều `NEED_MISSED` liên tiếp).
+- Nhóm "bỏ kèm 1 lá phụ" (Brawl, Rag Time, Springfield, Tequila, Whisky): thêm field
+  mới `extraDiscardCardId` vào action `PLAY_CARD` — chi tiết triển khai, không phải
+  luật mơ hồ.
+
+**F. Phát hiện thêm ngoài phạm vi Dodge City (nhưng cần trước khi chơi thật với các
+nhân vật phụ thuộc chất bài):** UI hiện tại (`ui.ts`'s `cardLabel()`, dùng cho MỌI lá
+trên tay/trang bị) **KHÔNG hiển thị chất/số** — chỉ `cardFaceLabel()` (dùng riêng cho
+thông báo "vừa lật bài kiểm tra"/lá mặt trên chồng bỏ) mới có chất/số. Cần thiết cho
+Apache Kid (biết lá nào là Rô để tránh phí) và Doc Holyday (cần ít nhất 1 lá không
+phải Rô). **CHƯA làm** — chốt làm SAU khi chuẩn bị xong Dodge City, trước/trong lúc
+bắt đầu code thật phần nhân vật phụ thuộc chất bài.
+
+**Trạng thái**: mục A-F đã bàn kỹ và chốt xong hướng làm. Thứ tự code đã chốt:
+A (kiến trúc trang bị trì hoãn, ảnh hưởng nhiều lá nhất) → E (cơ chế đơn giản) → B
+(các lá bài, phần lớn dùng lại effect handler có sẵn) → D (luật số người chơi, nhỏ) →
+C (nhân vật, phức tạp nhất, Vera Custer nên làm SAU CÙNG vì phụ thuộc toàn bộ hook
+khác đã ổn định) → F (UI hiển thị chất bài, làm song song/trước phần C).
+
+**Đợt 1 (mục A + 6/40 lá vàng không cần hook mới) — XONG, xem CLAUDE.md để biết chi
+tiết đầy đủ:**
+- Mục A (kiến trúc trang bị trì hoãn): `GameState` thêm `turnNumber`
+  (đếm lượt, tăng ở `advanceTurn()`) + `equipmentPlayedTurn` (cardId -> lượt được
+  chơi ra, CHỈ có entry cho lá "delayed"). `delayKind` tra TĨNH theo tên lá
+  (`cards.ts`'s `isDelayedEquipmentCardName()`), không lưu trong state — đúng đề
+  xuất gốc, chỉ đổi tên field so với gợi ý ban đầu.
+- 6 lá vàng đợt 1 (nhóm KHÔNG cần hook nhân vật mới): Bible, Sombrero, Ten Gallon
+  Hat, Iron Plate (dùng NHƯ Missed! qua RESPOND) + Canteen, Pony Express (hiệu ứng
+  chủ động, kích hoạt qua PLAY_CARD nhưng nguồn bài là equipment thay vì tay).
+  House rule "extra_cards" (đã có checkbox từ trước, lúc đó chưa có tác dụng) giờ
+  THẬT SỰ cộng thêm 7 lá này vào bộ bài khi bật (`DODGE_CITY_CARD_COUNTS`,
+  cards.ts).
+- **UI CHƯA xong** — chưa có nút bấm kích hoạt lá đã bày sẵn, chưa có đường dây
+  đáp lại NEED_MISSED bằng trang bị (chỉ dùng được qua code/test, giống tiền lệ
+  16 nhân vật lúc mới cài core). **CHƯA deploy** — đợi UI xong hoặc ít nhất tới
+  khi có nhu cầu thử qua `wrangler dev`/beta, không đưa lên bản chính lúc này.
+- Còn lại đợt 1: 34/40 lá bài (mục B, phần lớn dùng lại effect handler có sẵn) +
+  15 nhân vật (mục C) + luật số người chơi Dodge City (mục D — thưởng 3 lá khi
+  tự tay hạ bất kỳ ai ở biến thể 3 người) + UI hiển thị chất bài (mục F).
+
+### Ghi chú: bản Beta song song — ✅ ĐÃ XONG (core/config, chỉ còn thiếu bước tự tay `npm run deploy:beta` lần đầu)
 
 Chủ dự án đang chơi bản chính (`https://bang-boardgame.nguyenngoctuan548.workers.dev`)
 thật với bạn bè, nhưng vẫn muốn tiếp tục phát triển mà không làm gián đoạn ván đang
-chơi. Đã bàn và CHỐT hướng làm (chưa code):
+chơi. Đã bàn và CHỐT hướng làm, đúng theo dự tính ban đầu, không đổi gì:
 
-- Thêm 1 "environment" mới tên `beta` trong `wrangler.jsonc` → Worker riêng tên
-  `bang-boardgame-beta`, ra URL riêng
-  (`https://bang-boardgame-beta.nguyenngoctuan548.workers.dev`). Tên Worker khác
-  nhau → Durable Object (dữ liệu phòng/ván) tách biệt hoàn toàn với bản chính.
+- `wrangler.jsonc` thêm `env.beta` → Worker riêng tên `bang-boardgame-beta`, ra URL
+  riêng (`https://bang-boardgame-beta.nguyenngoctuan548.workers.dev`). **Phát hiện
+  lúc code**: `durable_objects` KHÔNG tự kế thừa vào environment con (khác đa số
+  field khác như `assets`/`migrations`) — wrangler tự cảnh báo rõ ràng lúc
+  `--dry-run`, đã khai lại y hệt gốc trong `env.beta`. Tên Worker khác nhau → Durable
+  Object (dữ liệu phòng/ván) tách biệt hoàn toàn với bản chính.
 - `package.json` thêm script `deploy:beta` (= `vite build && wrangler deploy --env
-  beta`). Script `deploy` hiện tại **giữ nguyên y hệt** — bạn bè vẫn ở đúng URL cũ,
-  không đổi gì cho tới khi tự tay chạy `deploy:beta`.
-- Trong game: 1 nút "Bản Beta (thử nghiệm)" ở màn hình chính — chỉ là link mở sang
-  URL beta ở tab mới (không phải logic chuyển đổi runtime, không đụng `core/`). Bản
-  beta có link ngược lại "Về bản chính" để đối xứng.
-- Quy trình từ lúc làm xong: code/commit như bình thường, chỉ chạy `npm run
-  deploy:beta` cho tới khi tính năng mới ổn — lúc đó mới `npm run deploy` để "chốt"
-  vào bản chính.
+  beta`). Script `deploy` gốc **giữ nguyên hành vi y hệt** — bạn bè vẫn ở đúng URL
+  cũ — chỉ thêm `--env=""` tường minh (wrangler cảnh báo mơ hồ "environment nào"
+  ngay khi thấy có `env.beta` trong file, dù vẫn tự chọn đúng bản chính; thêm cờ này
+  chỉ để hết cảnh báo, không đổi Worker nào được deploy — đã tự kiểm bằng `--dry-run`
+  cả 2 script, xác nhận đúng bản chính/beta không lẫn nhau).
+- Trong game: nút "Bản Beta (thử nghiệm)" ở màn hình chính (`ui.ts`'s
+  `renderHomeScreen()`, thẻ `<a>` thật — không phải button+handler, chỉ mở URL khác ở
+  TAB MỚI) — `main.ts`'s `betaLinkInfo()` đọc `location.hostname` để tự đổi thành
+  "Về bản chính" khi đang ở domain beta, đối xứng đúng ý ban đầu mà không cần 2 nút
+  khác nhau tuỳ domain.
+- Quy trình từ giờ: code/commit như bình thường, chạy `npm run deploy:beta` cho tới
+  khi tính năng mới ổn — lúc đó mới `npm run deploy` để "chốt" vào bản chính.
 
-**Chưa chốt:** tên Worker/URL bản beta có thể đổi khác `bang-boardgame-beta` nếu
-chủ dự án muốn tên khác lúc bắt tay vào làm.
+Đã tự kiểm: `npx tsc --noEmit` sạch, `npm run build` qua, 308 test vẫn pass (thuần
+hạ tầng deploy + UI, không đụng `core/`). Đã tự kiểm bằng `wrangler dev` cục bộ +
+trình duyệt thật: nút "Bản Beta (thử nghiệm)" hiện đúng ở màn hình chính, `href` trỏ
+đúng URL beta, `target="_blank"` mở tab mới, không phá layout panel các nút khác.
+
+**Còn thiếu đúng 1 bước**: chưa từng chạy `npm run deploy:beta` thật — Worker
+`bang-boardgame-beta` CHƯA tồn tại trên Cloudflare, chỉ mới xác nhận qua
+`--dry-run`. Tự tay chạy lệnh đó (hoặc nhờ assistant chạy, có xác nhận trước — tạo 1
+Worker mới công khai trên tài khoản Cloudflare) khi sẵn sàng dùng bản beta lần đầu.
 
 ---
 

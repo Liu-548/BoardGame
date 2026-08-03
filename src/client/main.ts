@@ -43,7 +43,7 @@ import {
   renderNetworkLobbyForm,
   renderSetupScreen,
 } from "./ui";
-import type { DrawCheckNotice, LobbyPlayer, Selection } from "./ui";
+import type { BetaLinkInfo, DrawCheckNotice, LobbyPlayer, Selection } from "./ui";
 
 const root = document.getElementById("game-root") as HTMLDivElement;
 
@@ -164,10 +164,47 @@ let networkSelectedHouseRules: HouseRuleId[] = [];
 let networkDeadline: DeadlineInfo | null = null;
 let countdownTickId: ReturnType<typeof setInterval> | null = null;
 
+// render() dựng lại TOÀN BỘ cây DOM mỗi lần gọi (container.replaceChildren()
+// trong renderApp()/renderNetworkGame(), dialog cũng bị tạo MỚI mỗi lần —
+// xem renderDialog() ở ui.ts) — kể cả khi KHÔNG có gì thật sự đổi, vì
+// countdownTickId ở dưới gọi render() mỗi giây chỉ để cập nhật số giây còn
+// lại. Khung nào có thanh cuộn riêng (.opponent-row cuộn ngang, .log-list
+// cuộn dọc trong dialog Nhật ký) vì vậy bị tạo mới liên tục theo đúng nhịp
+// đó, khiến thanh cuộn tự nhảy về đầu dù người chơi không hề đụng vào. Lưu
+// lại vị trí cuộn TRƯỚC khi dựng lại, gắn lại đúng vị trí đó NGAY SAU khi
+// dựng xong — bù cho việc dự án không diff DOM (đúng lựa chọn "không dùng
+// framework" của CLAUDE.md).
+const SCROLLABLE_SELECTORS = [".opponent-row", ".log-list"];
+
+function captureScrollPositions(): Map<string, { left: number; top: number }> {
+  const positions = new Map<string, { left: number; top: number }>();
+  for (const selector of SCROLLABLE_SELECTORS) {
+    const el = root.querySelector(selector);
+    if (el) positions.set(selector, { left: el.scrollLeft, top: el.scrollTop });
+  }
+  return positions;
+}
+
+function restoreScrollPositions(positions: Map<string, { left: number; top: number }>): void {
+  for (const [selector, pos] of positions) {
+    const el = root.querySelector(selector);
+    if (el) {
+      el.scrollLeft = pos.left;
+      el.scrollTop = pos.top;
+    }
+  }
+}
+
 function render(): void {
+  const scrollPositions = captureScrollPositions();
+  renderScreen();
+  restoreScrollPositions(scrollPositions);
+}
+
+function renderScreen(): void {
   switch (screen) {
     case "home":
-      renderHomeScreen(root, { onPlayLocal, onPlayNetwork, onShowCardReference });
+      renderHomeScreen(root, betaLinkInfo(), { onPlayLocal, onPlayNetwork, onShowCardReference });
       return;
     case "card-reference":
       renderCardReferenceScreen(root, { onBack: onBackToHome });
@@ -701,6 +738,22 @@ function roomWebSocketUrl(code: string): string {
   return `${protocol}://${host}/room/${code}`;
 }
 
+// Bản Beta song song (LO-TRINH.md) — 2 domain deploy thật cố định, KHÔNG suy
+// ra từ location (khác roomWebSocketUrl() ở trên, chỗ đó cần theo ĐÚNG domain
+// đang chạy để WebSocket nối đúng server; ở đây ngược lại, luôn phải trỏ SANG
+// domain KIA). Đang ở bản beta thì hiện link "Về bản chính"; mọi domain khác
+// (bản chính, hay chạy cục bộ qua `vite dev`) đều hiện link "Bản Beta".
+const MAIN_SITE_URL = "https://bang-boardgame.nguyenngoctuan548.workers.dev/";
+const BETA_SITE_URL = "https://bang-boardgame-beta.nguyenngoctuan548.workers.dev/";
+const BETA_HOSTNAME = "bang-boardgame-beta.nguyenngoctuan548.workers.dev";
+
+function betaLinkInfo(): BetaLinkInfo {
+  if (location.hostname === BETA_HOSTNAME) {
+    return { label: "Về bản chính", href: MAIN_SITE_URL };
+  }
+  return { label: "Bản Beta (thử nghiệm)", href: BETA_SITE_URL };
+}
+
 // Bug đã sửa (báo lỗi thật từ chủ dự án): trước đây MỖI LẦN onJoinRoom() chạy
 // (dù đang mở LẠI đúng phòng, đúng tên, chỉ vì rớt mạng/bấm "Rời phòng" rồi
 // vào lại/đóng hẳn tab) đều sinh `myPlayerId` NGẪU NHIÊN MỚI — server không
@@ -820,6 +873,16 @@ function onNetworkMessage(message: ServerMessage): void {
       networkView = message.view;
       networkConnectedIds = message.connectedPlayerIds;
       networkAbandonedNotice = null; // ván mới đang chạy thật -> thông báo ván cũ bị huỷ hết ý nghĩa
+      // Bổ sung — dọn "đang cầm lên" (networkArmedCharacterId) nếu KHÔNG còn
+      // hợp lệ với ván HIỆN TẠI: hoặc không còn ở giai đoạn chọn nhân vật, hoặc
+      // lá đó không nằm trong 2 lá MỚI vừa được phát (vd bắt đầu ván mới sau
+      // khi ván trước kết thúc — 2 lá cũ không còn ý nghĩa gì). Không dọn thì
+      // nút "Xác nhận chọn <tên>" sẽ hiện lại đúng lá đã chọn Ở VÁN TRƯỚC dù
+      // người chơi chưa bấm gì ở ván mới.
+      const myCharacterChoice = networkView.characterSelection?.find((c) => c.playerId === myPlayerId);
+      if (!myCharacterChoice?.options?.includes(networkArmedCharacterId ?? "")) {
+        networkArmedCharacterId = null;
+      }
       const checkEvent = message.events.find((e) => e.type === "DRAW_CHECK_RESOLVED");
       networkLastDrawCheck = checkEvent
         ? {

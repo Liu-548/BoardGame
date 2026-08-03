@@ -36,6 +36,8 @@ function makeState(players: PlayerState[], houseRules: HouseRuleId[], overrides:
     winner: null,
     bangUsedThisTurn: false,
     characterSelection: null,
+    turnNumber: 0,
+    equipmentPlayedTurn: {},
     houseRules,
     cardNamesPlayedThisTurn: [],
     ...overrides,
@@ -252,5 +254,19 @@ describe("house rule — beer_below_two", () => {
     expect(next.players[1].alive).toBe(true);
     expect(next.players[1].hp).toBe(1);
     expect(events).toContainEqual({ type: "BEER_SAVED_FROM_DEATH", playerId: "b", cardId: "beer_1" });
+  });
+});
+
+describe("house rule — extra_cards (chỉ cờ, chưa có lá bài thật)", () => {
+  it("BẬT: chưa đổi gì hành vi ván — đánh Bang! bình thường như khi luật này TẮT", () => {
+    const state = makeState(
+      [makePlayer("a", { hand: ["bang_1"] }), makePlayer("b")],
+      ["extra_cards"]
+    );
+
+    const { state: next } = reduce(state, { type: "PLAY_CARD", playerId: "a", cardId: "bang_1", targetId: "b" });
+
+    expect(next.pending).toEqual([{ kind: "NEED_MISSED", player: "b", source: { card: "bang", from: "a" } }]);
+    expect(next.houseRules).toEqual(["extra_cards"]);
   });
 });
