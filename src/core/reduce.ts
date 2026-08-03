@@ -1,8 +1,15 @@
 // Xương sống của engine: reduce(state, action) => state mới.
 // THUẦN: không sửa state truyền vào, cùng đầu vào luôn cho cùng đầu ra.
 
-import type { CardName } from "./cards";
-import { cardNameFromId, cardSuitRankFromId, isSelfEquipBlueCardName, isWeaponCardName } from "./cards";
+import type { CardName, YellowCardName } from "./cards";
+import {
+  cardNameFromId,
+  cardSuitRankFromId,
+  isDelayedEquipmentCardName,
+  isSelfEquipBlueCardName,
+  isWeaponCardName,
+  yellowCardActsAsMissed,
+} from "./cards";
 import { computeStartingHp, getCharacterDefinition, getCharacterHooks, triggerHandEmptyHook } from "./characters";
 import { drawTopCard } from "./deck";
 import { computeDistance, getWeaponRange } from "./distance";
@@ -33,6 +40,28 @@ function actsAsMissed(cardId: string, player: PlayerState): boolean {
   const name = cardNameFromId(cardId);
   if (name === "missed") return true;
   return name === "bang" && getCharacterDefinition(player.characterId)?.hasBangMissedAlias === true;
+}
+
+// Mở rộng Dodge City (mục 1.1) — `cardId` này CÓ nằm trong equipment của
+// `player` VÀ dùng được NGAY để đỡ Missed! không? Phải là lá vàng nhóm
+// yellowCardActsAsMissed() (Bible/Sombrero/Ten Gallon Hat/Iron Plate) VÀ đã
+// qua ít nhất 1 lượt kể từ lúc được chơi ra (equipmentPlayedTurn khác lượt
+// hiện tại) — KHÔNG liên quan gì tới actsAsMissed()/alias Calamity Janet (đó
+// là khái niệm riêng cho lá TRÊN TAY, không áp dụng cho trang bị trên sân).
+function isUsableDelayedMissedEquipment(state: GameState, player: PlayerState, cardId: string): boolean {
+  if (!player.equipment.includes(cardId)) return false;
+  const name = cardNameFromId(cardId);
+  return yellowCardActsAsMissed(name) && state.equipmentPlayedTurn[cardId] !== state.turnNumber;
+}
+
+// Tổng số nguồn Missed! HIỆN DÙNG ĐƯỢC của `player` — bài trên tay (kể cả
+// alias Calamity Janet, actsAsMissed()) CỘNG trang bị vàng đã bày đủ 1 lượt.
+// Dùng để kiểm missesNeeded (Slab the Killer, Giai đoạn 5) — người chơi phải
+// có ĐỦ ngay từ đầu mới được bỏ dần, không được bỏ thiếu giữa chừng.
+function countEligibleMissedSources(state: GameState, player: PlayerState): number {
+  const fromHand = player.hand.filter((id) => actsAsMissed(id, player)).length;
+  const fromEquipment = player.equipment.filter((id) => isUsableDelayedMissedEquipment(state, player, id)).length;
+  return fromHand + fromEquipment;
 }
 
 export function reduce(state: GameState, action: Action): Result {
@@ -385,13 +414,19 @@ function handlePlayCard(state: GameState, action: Action & { type: "PLAY_CARD" }
 
   const next = cloneState(state);
   const player = next.players[next.currentPlayerIndex];
+  const cardName = cardNameFromId(action.cardId);
 
   const cardIndex = player.hand.indexOf(action.cardId);
   if (cardIndex === -1) {
+    // Không có trong tay — mở rộng Dodge City (mục 1.1): có thể đang KÍCH
+    // HOẠT 1 lá trang bị "trì hoãn" đã bày sẵn từ lượt trước (đứng ở
+    // equipment, không phải hand). Dùng ĐÚNG action PLAY_CARD, chỉ khác
+    // nguồn bài — xem activateDelayedEquipment().
+    if (isDelayedEquipmentCardName(cardName) && player.equipment.includes(action.cardId)) {
+      return activateDelayedEquipment(next, player, action.cardId, cardName);
+    }
     throw new Error(`Người chơi ${player.id} không có lá bài ${action.cardId} trong tay`);
   }
-
-  const cardName = cardNameFromId(action.cardId);
 
   // Rời tay trước, rồi mới rẽ theo tác dụng riêng của từng lá. Nếu rơi vào
   // "chưa hỗ trợ" bên dưới thì throw luôn — next chỉ là bản sao cục bộ, bị huỷ
@@ -403,10 +438,13 @@ function handlePlayCard(state: GameState, action: Action & { type: "PLAY_CARD" }
   // tay", không đợi tới cuối hàm mới kiểm tra (lúc đó có thể tay đã đầy lại).
   const handEmptyEvents = triggerHandEmptyHook(next, player);
 
-  // Lá xanh tự trang bị (súng, Barrel, Scope, Mustang) ở lại trên sân của
-  // chính người đánh, KHÔNG vào chồng bỏ như lá nâu.
+  // Lá xanh tự trang bị (súng, Barrel, Scope, Mustang) VÀ lá vàng "trì hoãn"
+  // (mở rộng Dodge City, mục 1.1 — Bible, Sombrero, Canteen...) đều ở lại
+  // trên sân của chính người đánh, KHÔNG vào chồng bỏ như lá nâu. Đây là lần
+  // ĐẦU TIÊN lá vàng được chơi ra (từ tay) — khác activateDelayedEquipment()
+  // ở trên (bỏ lá ĐÃ bày sẵn để dùng).
   let result: Result;
-  if (isSelfEquipBlueCardName(cardName)) {
+  if (isSelfEquipBlueCardName(cardName) || isDelayedEquipmentCardName(cardName)) {
     result = playEquipment(next, player, action.cardId, cardName);
   } else if (cardName === "jail") {
     // Jail gắn lên sân NGƯỜI KHÁC (không phải người đánh) — cũng không vào chồng bỏ.
@@ -723,6 +761,11 @@ function playPanic(
       throw new Error(`Mục tiêu không có trang bị "${action.targetCardId}" trên sân`);
     }
     target.equipment.splice(equipIndex, 1);
+    // Mở rộng Dodge City (mục 1.1) — lá vừa bị cướp rời equipment, vào TAY
+    // người cướp (giveCardToPlayer bên dưới) chứ không còn là trang bị "trì
+    // hoãn" đang bày nữa — dọn equipmentPlayedTurn, tự ghi lại đúng lượt nếu
+    // sau này họ chơi ra lại (xem playEquipment()).
+    delete next.equipmentPlayedTurn[action.targetCardId];
     stolenCardId = action.targetCardId;
   }
 
@@ -805,6 +848,71 @@ function playEquipment(
   }
 
   player.equipment.push(cardId);
+
+  // Mở rộng Dodge City (mục 1.1) — lá "trì hoãn" ghi nhớ lượt vừa được chơi
+  // ra, để chặn kích hoạt ngay trong CHÍNH lượt này (xem
+  // activateDelayedEquipment()/respondToMissed()). Lá "instant" (xanh dương
+  // thường) không cần gì ở đây — dùng được ngay.
+  if (isDelayedEquipmentCardName(cardName)) {
+    next.equipmentPlayedTurn[cardId] = next.turnNumber;
+  }
+
+  return { state: next, events };
+}
+
+// Mở rộng Dodge City (mục 1.1, nhóm KHÔNG có ký hiệu Missed!: Canteen, Pony
+// Express...) — bỏ 1 lá trang bị "trì hoãn" ĐÃ BÀY SẴN từ lượt trước để kích
+// hoạt hiệu ứng CHỦ ĐỘNG của nó. Nhóm CÓ ký hiệu Missed! (Bible/Sombrero/Ten
+// Gallon Hat/Iron Plate) KHÔNG đi qua đây — chúng chỉ dùng để PHẢN ỨNG qua
+// RESPOND (xem respondToMissed()), tự chặn ngay dưới nếu ai lỡ gọi PLAY_CARD.
+function activateDelayedEquipment(
+  next: GameState,
+  player: PlayerState,
+  cardId: string,
+  cardName: YellowCardName
+): Result {
+  if (yellowCardActsAsMissed(cardName)) {
+    throw new Error(`"${cardName}" chỉ dùng được để đỡ Bang!/Gatling (như Missed!), không thể tự đánh ra`);
+  }
+  if (next.equipmentPlayedTurn[cardId] === next.turnNumber) {
+    throw new Error(`Chưa thể dùng "${cardName}" — phải chờ ít nhất 1 lượt sau khi đánh ra mới được kích hoạt`);
+  }
+
+  const equipIndex = player.equipment.indexOf(cardId);
+  player.equipment.splice(equipIndex, 1);
+  delete next.equipmentPlayedTurn[cardId];
+  next.discardPile.push(cardId);
+
+  const events: GameEvent[] = [{ type: "DELAYED_EQUIPMENT_ACTIVATED", playerId: player.id, cardId }];
+
+  switch (cardName) {
+    case "canteen": {
+      const restored = Math.min(1, player.maxHp - player.hp);
+      if (restored > 0) {
+        player.hp += restored;
+        events.push({ type: "HP_RESTORED", playerId: player.id, amount: restored });
+      }
+      break;
+    }
+    case "pony_express": {
+      const drawnCount = drawCardsForPlayer(next, player, 3);
+      events.push({ type: "CARDS_DRAWN", playerId: player.id, count: drawnCount });
+      break;
+    }
+    case "bible":
+    case "sombrero":
+    case "ten_gallon_hat":
+    case "iron_plate": {
+      // Đã bị chặn ở kiểm tra yellowCardActsAsMissed() phía trên — nhánh này
+      // không bao giờ chạy tới, chỉ để switch xét đủ YellowCardName (TypeScript
+      // exhaustive check bên dưới sẽ báo lỗi biên dịch nếu quên xử lý lá mới).
+      throw new Error(`"${cardName}" không có hiệu ứng chủ động`);
+    }
+    default: {
+      const neverCardName: never = cardName;
+      throw new Error(`Chưa cài đặt kích hoạt cho lá trang bị trì hoãn: ${JSON.stringify(neverCardName)}`);
+    }
+  }
 
   return { state: next, events };
 }
@@ -926,14 +1034,7 @@ function drawCardsAsCardEffect(
   cardId: string,
   count: number
 ): Result {
-  let drawnCount = 0;
-  for (let i = 0; i < count; i++) {
-    const card = drawTopCard(next);
-    if (card) {
-      giveCardToPlayer(next.players, player, card);
-      drawnCount++;
-    }
-  }
+  const drawnCount = drawCardsForPlayer(next, player, count);
 
   return {
     state: next,
@@ -942,6 +1043,23 @@ function drawCardsAsCardEffect(
       { type: "CARDS_DRAWN", playerId: player.id, count: drawnCount },
     ],
   };
+}
+
+// Rút đúng `count` lá từ bộ bài cho `player` (tự xào chồng bỏ nếu cạn giữa
+// chừng, xem drawTopCard() ở core/deck.ts), trả về SỐ LÁ THẬT SỰ rút được
+// (có thể ít hơn count nếu deck+chồng bỏ CÙNG cạn — cực hiếm). Tách riêng
+// khỏi drawCardsAsCardEffect() để dùng lại cho Pony Express (mở rộng Dodge
+// City) — lá đó không "đánh ra" từ tay nên không cần bắn CARD_PLAYED.
+function drawCardsForPlayer(next: GameState, player: PlayerState, count: number): number {
+  let drawnCount = 0;
+  for (let i = 0; i < count; i++) {
+    const card = drawTopCard(next);
+    if (card) {
+      giveCardToPlayer(next.players, player, card);
+      drawnCount++;
+    }
+  }
+  return drawnCount;
 }
 
 // Giai đoạn 5 (Sid Ketchum, đợt 7) — kỹ năng CHỦ ĐỘNG, dùng được BẤT CỨ LÚC
@@ -1176,17 +1294,46 @@ function respondToMissed(
   const player = next.players.find((p) => p.id === action.playerId)!;
 
   if (action.cardId) {
-    const cardIndex = player.hand.indexOf(action.cardId);
-    if (cardIndex === -1) {
+    const cardName = cardNameFromId(action.cardId);
+    const inHand = player.hand.includes(action.cardId);
+    // Mở rộng Dodge City (mục 1.1) — CŨNG chấp nhận lá vàng "trì hoãn" ĐÃ BÀY
+    // SẴN trên sân (Bible/Sombrero/Ten Gallon Hat/Iron Plate), miễn đã qua ít
+    // nhất 1 lượt kể từ lúc chơi ra. Kiểm TRƯỚC actsAsMissed() (hàm đó chỉ
+    // biết về bài TRÊN TAY/alias Janet, không biết gì về trang bị).
+    const fromEquipment = !inHand && isUsableDelayedMissedEquipment(next, player, action.cardId);
+
+    // Giai đoạn 5 (Calamity Janet, đợt 7) — chấp nhận cả lá Bang! của Janet để đỡ.
+    if (!fromEquipment && (!inHand || !actsAsMissed(action.cardId, player))) {
+      if (inHand) {
+        throw new Error(`Lá "${cardName}" không hợp lệ cho việc đang chờ này`);
+      }
+      if (player.equipment.includes(action.cardId)) {
+        throw new Error(`"${cardName}" vừa được đánh ra lượt này — phải chờ ít nhất 1 lượt mới dùng được`);
+      }
       throw new Error(`Người chơi ${player.id} không có lá bài ${action.cardId} trong tay`);
     }
-    const cardName = cardNameFromId(action.cardId);
-    // Giai đoạn 5 (Calamity Janet, đợt 7) — chấp nhận cả lá Bang! của Janet để đỡ.
-    if (!actsAsMissed(action.cardId, player)) {
-      throw new Error(`Lá "${cardName}" không hợp lệ cho việc đang chờ này`);
+
+    // Slab the Killer (missesNeeded > 1) — luật gốc là "if able": chỉ được bỏ
+    // bài khi CÓ ĐỦ số Missed! cần NGAY TỪ ĐẦU (tay + trang bị vàng dùng
+    // được), không được bỏ dần từng lá rồi hết giữa chừng. Không đủ thì coi
+    // như không làm gì được — GIỮ NGUYÊN lá, chỉ còn cách chịu mất máu (action
+    // không kèm cardId, nhánh dưới).
+    const missesNeeded = top.missesNeeded ?? 1;
+    const eligibleCount = countEligibleMissedSources(next, player);
+    if (eligibleCount < missesNeeded) {
+      throw new Error(
+        `Không đủ Missed! để né (cần ${missesNeeded}, chỉ có ${eligibleCount}) — chỉ có thể chịu mất máu`
+      );
     }
 
-    player.hand.splice(cardIndex, 1);
+    if (fromEquipment) {
+      const equipIndex = player.equipment.indexOf(action.cardId);
+      player.equipment.splice(equipIndex, 1);
+      delete next.equipmentPlayedTurn[action.cardId];
+    } else {
+      const cardIndex = player.hand.indexOf(action.cardId);
+      player.hand.splice(cardIndex, 1);
+    }
     next.discardPile.push(action.cardId);
 
     const missesRemaining = (top.missesNeeded ?? 1) - 1;
@@ -1199,7 +1346,17 @@ function respondToMissed(
     }
 
     const events: GameEvent[] = [{ type: "MISSED_PLAYED", playerId: player.id }];
-    events.push(...triggerHandEmptyHook(next, player)); // Giai đoạn 5 (Suzy Lafayette)
+    // Mở rộng Dodge City — Bible kèm rút thêm 1 lá khi dùng để đỡ thành công
+    // (xem mục 2, nhóm VÀNG trong Luat_Bang_Mo_Rong_DodgeCity.txt).
+    if (cardName === "bible") {
+      const drawnCount = drawCardsForPlayer(next, player, 1);
+      if (drawnCount > 0) {
+        events.push({ type: "CARDS_DRAWN", playerId: player.id, count: drawnCount });
+      }
+    }
+    if (!fromEquipment) {
+      events.push(...triggerHandEmptyHook(next, player)); // Giai đoạn 5 (Suzy Lafayette)
+    }
     return { state: next, events };
   }
 
@@ -1305,6 +1462,10 @@ function respondToDiscardFromZone(
     throw new Error(`Lá "${action.cardId}" không nằm trong ${top.zone === "hand" ? "bài trên tay" : "trang bị trên sân"} của bạn`);
   }
   zoneArray.splice(cardIndex, 1);
+  // Mở rộng Dodge City (mục 1.1) — dọn equipmentPlayedTurn nếu Cat Balou vừa bắt
+  // bỏ 1 lá "delayed" đang bày trên sân (delete với key không tồn tại là no-op,
+  // an toàn gọi vô điều kiện dù zone là "hand").
+  delete next.equipmentPlayedTurn[action.cardId];
   next.discardPile.push(action.cardId);
 
   const events: GameEvent[] = [
@@ -1559,6 +1720,11 @@ function eliminatePlayer(next: GameState, target: PlayerState, killerId: string 
   }
 
   // Bỏ hết bài trên tay + trang bị trên sân vào chồng bỏ — người chết không giữ gì cả.
+  // Mở rộng Dodge City (mục 1.1) — dọn luôn equipmentPlayedTurn cho lá "delayed"
+  // còn lại trên sân (nếu có), tránh để rác key cũ tồn tại vĩnh viễn trong state
+  // (không gây bug — mọi chỗ đọc field này đều kiểm tra lá có ĐANG nằm trong
+  // equipment không trước, chỉ là dọn cho sạch, đúng quy tắc 3 CLAUDE.md).
+  for (const id of target.equipment) delete next.equipmentPlayedTurn[id];
   next.discardPile.push(...target.hand, ...target.equipment);
   target.hand = [];
   target.equipment = [];
@@ -1584,6 +1750,7 @@ function eliminatePlayer(next: GameState, target: PlayerState, killerId: string 
       // Phạt Cảnh sát trưởng giết nhầm Phó cảnh sát trưởng: bỏ hết bài của
       // CHÍNH killer (không phải của người vừa chết) tay lẫn sân.
       const killerHadCards = killer.hand.length > 0; // Giai đoạn 5 (Suzy Lafayette) — chỉ tính là "vừa rời tay" nếu THẬT SỰ có gì để mất
+      for (const id of killer.equipment) delete next.equipmentPlayedTurn[id]; // mở rộng Dodge City, mục 1.1 — dọn rác, xem ghi chú ở trên
       next.discardPile.push(...killer.hand, ...killer.equipment);
       killer.hand = [];
       killer.equipment = [];
@@ -1633,6 +1800,7 @@ function advanceTurn(next: GameState): void {
   next.turnPhase = "draw";
   next.bangUsedThisTurn = false;
   next.cardNamesPlayedThisTurn = []; // việc 5.3 (house rule "no_duplicate_card_names")
+  next.turnNumber += 1; // mở rộng Dodge City, mục 1.1 (xem GameState.turnNumber ở types.ts)
   applyTurnStartChecks(next);
 }
 
@@ -1690,5 +1858,17 @@ function cloneState(state: GameState): GameState {
     deck: [...state.deck],
     discardPile: [...state.discardPile],
     pending: [...state.pending],
+    // việc 5.3 (house rule "no_duplicate_card_names") — mảng này bị mutate
+    // TRỰC TIẾP bằng .push() ở handlePlayCard(), không phải gán lại — spread
+    // nông ở trên (`...state`) chỉ copy THAM CHIẾU, chưa đủ để "không sửa
+    // state gốc truyền vào" (quy tắc 3). Sửa cùng lúc với equipmentPlayedTurn
+    // bên dưới vì cùng 1 lớp lỗi (field không phải mảng/object con của
+    // players, dễ bị bỏ sót khỏi danh sách clone riêng ở trên).
+    cardNamesPlayedThisTurn: [...state.cardNamesPlayedThisTurn],
+    // Mở rộng Dodge City (mục 1.1) — equipmentPlayedTurn cũng bị mutate TRỰC
+    // TIẾP (gán/xoá key) ở playEquipment()/activateDelayedEquipment()/
+    // respondToMissed() — cùng lý do cần clone nông (Record phẳng, không có
+    // giá trị lồng nhau nào cần clone sâu hơn).
+    equipmentPlayedTurn: { ...state.equipmentPlayedTurn },
   };
 }

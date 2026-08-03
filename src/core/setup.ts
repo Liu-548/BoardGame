@@ -2,7 +2,7 @@
 // (biến thể riêng của dự án, xem LO-TRINH.md).
 
 import type { CardName } from "./cards";
-import { buildDeck } from "./cards";
+import { buildDeck, DODGE_CITY_CARD_COUNTS } from "./cards";
 import { CHARACTERS, computeStartingHp, getCharacterDefinition } from "./characters";
 import { giveCardToPlayer } from "./equipment";
 import { applyTurnStartChecks } from "./reduce";
@@ -87,7 +87,12 @@ export function setupGame(
   // nhau chỉ vì số nhánh gọi shuffle() không đều.
   const { result: shuffledRoles, nextState: stateAfterRoles } = shuffle(roleSet, seed);
 
-  const deck = buildDeck(options.cardCounts);
+  // Việc 5.3 (house rule "extra_cards") — bật thì cộng thêm số lượng bài Dodge
+  // City (DODGE_CITY_CARD_COUNTS, xem cards.ts) vào bộ bài. options.cardCounts
+  // (tuỳ chỉnh thủ công, hiếm dùng — hiện chỉ có test) được ƯU TIÊN hơn nếu
+  // trùng key, để không phá cách tuỳ biến thủ công đã có từ trước.
+  const extraCards = (options.houseRules ?? []).includes("extra_cards") ? DODGE_CITY_CARD_COUNTS : {};
+  const deck = buildDeck({ ...extraCards, ...options.cardCounts });
   const { result: shuffledDeck, nextState: stateAfterDeck } = shuffle(deck, stateAfterRoles);
 
   // dealCharacterCards CHỈ áp dụng khi KHÔNG có characterAssignments (2 cách
@@ -182,6 +187,8 @@ export function setupGame(
     characterSelection,
     houseRules: options.houseRules ?? [],
     cardNamesPlayedThisTurn: [],
+    turnNumber: 0,
+    equipmentPlayedTurn: {},
   };
 
   // Lượt đầu tiên cũng phải qua Bước 0 (mục 4): nếu Sheriff (hoặc ai đi lượt

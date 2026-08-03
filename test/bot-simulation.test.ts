@@ -8,7 +8,7 @@
 // làm fail test, không được coi là "chỉ là nước đi sai".
 
 import { describe, expect, it } from "vitest";
-import { cardNameFromId, isSelfEquipBlueCardName } from "../src/core/cards";
+import { cardNameFromId, isDelayedEquipmentCardName, isSelfEquipBlueCardName } from "../src/core/cards";
 import { reduce } from "../src/core/reduce";
 import { nextRandom } from "../src/core/rng";
 import { setupGame } from "../src/core/setup";
@@ -53,7 +53,12 @@ function playCardCandidates(state: GameState, player: PlayerState): Action[] {
   for (const cardId of player.hand) {
     const name = cardNameFromId(cardId);
 
-    if (isSelfEquipBlueCardName(name)) {
+    // Mở rộng Dodge City — lá vàng "trì hoãn" (bible/sombrero/canteen...) được
+    // CHƠI RA lần đầu y hệt trang bị xanh dương thường (không cần mục tiêu).
+    // Bot CHƯA sinh ứng viên "kích hoạt" lá đã bày sẵn trên sân (equipment) —
+    // mặc định house rule "extra_cards" tắt nên bot không bao giờ rút được lá
+    // này trong các test hiện có, chỉ cần qua compile an toàn.
+    if (isSelfEquipBlueCardName(name) || isDelayedEquipmentCardName(name)) {
       candidates.push({ type: "PLAY_CARD", playerId: player.id, cardId });
       continue;
     }

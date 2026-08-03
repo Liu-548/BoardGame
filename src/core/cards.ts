@@ -31,7 +31,42 @@ export type BlueCardName =
   | "jail"
   | "dynamite";
 
-export type CardName = BrownCardName | BlueCardName;
+// Mở rộng Dodge City (Luat_Bang_Mo_Rong_DodgeCity.txt, mục 1.1 + mục 2 nhóm
+// VÀNG — đổi tên từ "green-bordered" gốc, xem ghi chú màu ở đầu file .txt).
+// Là 1 BIẾN THỂ của trang bị (đứng yên trước mặt, chịu luật "không 2 lá cùng
+// tên" y hệt BlueCardName) — KHÁC BIỆT DUY NHẤT: không dùng được ngay trong
+// CHÍNH lượt vừa chơi ra, phải chờ ít nhất 1 lượt (xem
+// GameState.equipmentPlayedTurn + isDelayedEquipmentCardName() bên dưới).
+// ĐỢT 1 (6/40 lá Dodge City) — chỉ nhóm KHÔNG cần hook nhân vật/cơ chế mới:
+// Bible/Sombrero/Ten Gallon Hat/Iron Plate (dùng như Missed!) và
+// Canteen/Pony Express (hiệu ứng chủ động đơn giản). Các lá vàng còn lại
+// (Conestoga, Can Can, Buffalo Rifle, Knife, Pepperbox, Howitzer, Derringer)
+// để dành đợt sau — thêm vào union này khi cài.
+export type YellowCardName =
+  | "bible" | "sombrero" | "ten_gallon_hat" | "iron_plate"
+  | "canteen" | "pony_express";
+
+export type CardName = BrownCardName | BlueCardName | YellowCardName;
+
+const YELLOW_CARD_NAMES: readonly YellowCardName[] = [
+  "bible", "sombrero", "ten_gallon_hat", "iron_plate", "canteen", "pony_express",
+];
+
+export function isDelayedEquipmentCardName(name: CardName): name is YellowCardName {
+  return (YELLOW_CARD_NAMES as readonly CardName[]).includes(name);
+}
+
+// Nhóm lá vàng CÓ ký hiệu Missed! — dùng để đỡ Bang!/Gatling qua RESPOND,
+// giống hệt Missed! thường (xem respondToMissed() trong reduce.ts). Nhóm còn
+// lại (Canteen, Pony Express) là hiệu ứng CHỦ ĐỘNG, kích hoạt qua PLAY_CARD
+// (xem activateDelayedEquipment()).
+const YELLOW_MISSED_CARD_NAMES: readonly YellowCardName[] = [
+  "bible", "sombrero", "ten_gallon_hat", "iron_plate",
+];
+
+export function yellowCardActsAsMissed(name: CardName): boolean {
+  return (YELLOW_MISSED_CARD_NAMES as readonly CardName[]).includes(name);
+}
 
 // Lá xanh TỰ trang bị cho chính người đánh (súng, Barrel, Scope, Mustang).
 // KHÔNG gồm Jail (đánh lên sân người KHÁC) hay Dynamite (không đánh chủ động,
@@ -104,6 +139,29 @@ export const DEFAULT_CARD_COUNTS: Record<CardName, number> = {
   mustang: 2,
   jail: 3,
   dynamite: 1,
+  // Mở rộng Dodge City — KHÔNG thuộc bộ bài cơ bản, nên mặc định 0 (không
+  // xuất hiện trong ván bình thường). Chỉ được cộng vào khi house rule
+  // "extra_cards" bật (xem DODGE_CITY_CARD_COUNTS bên dưới + setup.ts).
+  bible: 0,
+  sombrero: 0,
+  ten_gallon_hat: 0,
+  iron_plate: 0,
+  canteen: 0,
+  pony_express: 0,
+};
+
+// Mở rộng Dodge City — số lượng bài THẬT khi house rule "extra_cards" bật
+// (xem HouseRuleId ở types.ts + setup.ts). ĐỢT 1: chỉ 6 lá vàng không cần
+// hook mới (xem YellowCardName ở trên) — các đợt sau thêm entry vào ĐÚNG
+// object này, không tạo hằng số song song mới, để setup.ts không cần sửa gì
+// thêm khi mở rộng dần.
+export const DODGE_CITY_CARD_COUNTS: Partial<Record<CardName, number>> = {
+  bible: 1,
+  sombrero: 1,
+  ten_gallon_hat: 1,
+  iron_plate: 2,
+  canteen: 1,
+  pony_express: 1,
 };
 
 // (suit, rank) IN THẬT trên từng lá của bộ bài cơ bản — tra từ danh sách bài
@@ -151,6 +209,19 @@ const CARD_SUIT_RANKS: Record<CardName, SuitRank[]> = {
   mustang: [["clubs", "8"], ["clubs", "9"]],
   jail: [["hearts", "4"], ["spades", "10"], ["spades", "J"]],
   dynamite: [["hearts", "2"]],
+  // Mở rộng Dodge City — tra từ danh sách bài chính thức dV Giochi
+  // (bang.dvgiochi.com/cardslist.php?id=3), đối chiếu suit bằng cách hiệu
+  // chỉnh mã icon Ý (i_p/i_f/i_c/i_q) qua 4 lá bộ cơ bản đã biết chắc chắn
+  // đúng (Volcanic 10♠/10♦, Scope A♠, Mustang 8♣/9♣, Indians! K♥/A♥) —
+  // KHÔNG suy diễn trực tiếp tên viết tắt tiếng Anh (dễ sai, xem lịch sử hỏi
+  // 2 nguồn khác đối chiếu ra kết quả khác nhau). Nếu có bộ bài thật Dodge
+  // City trong tay, nên đối chiếu lại cho chắc.
+  bible: [["clubs", "10"]],
+  sombrero: [["diamonds", "7"]],
+  ten_gallon_hat: [["hearts", "J"]],
+  iron_plate: [["hearts", "A"], ["spades", "Q"]],
+  canteen: [["clubs", "7"]],
+  pony_express: [["hearts", "Q"]],
 };
 
 // Dựng bộ bài từ bảng số lượng. Không truyền gì thì dùng số lượng mặc định

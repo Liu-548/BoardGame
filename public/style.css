@@ -72,6 +72,21 @@ button {
   cursor: pointer;
 }
 
+/* Link Bản Beta/Về bản chính (màn hình chính) — `<a>` trông giống button
+   nhưng KHÔNG PHẢI button (chỉ mở URL khác ở tab mới, không có handler JS gì
+   để bấm gọi). display:inline-block để padding/border ăn đúng như button. */
+.link-button {
+  display: inline-block;
+  font-size: 1rem;
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+  border: 1px solid var(--color-border);
+  border-radius: 0.25rem;
+  color: inherit;
+  text-decoration: none;
+  background: var(--color-bg-panel);
+}
+
 /* Input trần (chưa gắn class riêng) — dùng chung cho ô nhập tên/mã phòng ở
    màn hình chơi qua mạng. `.setup-list input` (hotseat) kế thừa từ đây, chỉ
    cần thêm layout riêng (xem bên dưới). */
@@ -412,6 +427,13 @@ button.card-box {
   border-color: #3f9142;
 }
 
+/* Mở rộng Dodge City — trang bị "trì hoãn" (đổi màu so với sách luật gốc,
+   xem ghi chú đầu Luat_Bang_Mo_Rong_DodgeCity.txt: xanh lá đã dành riêng cho
+   khung nhân vật ở trên, nên dùng vàng thay thế). */
+.card-box--yellow {
+  border-color: #c9a227;
+}
+
 .card-box--inert {
   opacity: 0.55;
 }
@@ -495,6 +517,35 @@ button.card-box {
 
 .card-box--danger-jail::after {
   content: "🔒";
+}
+
+/* Bổ sung: badge chất/số (vd "4♦") ở góc DƯỚI-PHẢI mỗi lá bài THẬT (tay/trang
+   bị) — đặt trong .card-box__image-wrap (đã position:relative sẵn từ đầu,
+   xem phía trên), KHÔNG phải outer .card-box như 2 badge góc TRÊN ở trên (✓/
+   Dynamite-Jail) — nằm trong vùng ẢNH, tách hẳn khỏi .card-box__name (khối
+   RIÊNG bên dưới ảnh) nên không bao giờ đè lên chữ tên lá. Nền SÁNG CỐ ĐỊNH
+   (không đổi theo theme sáng/tối trang) để chữ đỏ/đen luôn đọc được dù ảnh lá
+   bài (khi có) nền màu gì — giống góc thật của 1 lá bài vật lý luôn có nền
+   trắng quanh chỉ số, bất kể hình vẽ ở giữa lá là gì. */
+.card-box__suit-badge {
+  position: absolute;
+  bottom: 0.15rem;
+  right: 0.15rem;
+  padding: 0.05rem 0.25rem;
+  border-radius: 0.2rem;
+  background: rgba(255, 255, 255, 0.88);
+  font-size: 0.62rem;
+  font-weight: bold;
+  line-height: 1.15;
+  z-index: 2;
+}
+
+.card-box__suit-badge--red {
+  color: #c0392b;
+}
+
+.card-box__suit-badge--black {
+  color: #1a1a1a;
 }
 
 /* Nhấn giữ (thiết bị cảm ứng) hiện mô tả chức năng — xem attachDescriptionReveal()

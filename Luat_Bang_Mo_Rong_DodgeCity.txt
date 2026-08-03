@@ -1,0 +1,687 @@
+========================================================================
+BANG! DODGE CITY — ĐẶC TẢ MỞ RỘNG (input cho Claude Code khi cài đặt)
+========================================================================
+
+Mục đích: đặc tả bộ mở rộng Dodge City để dùng làm cơ sở cài đặt trong
+core/ (giống vai trò của LUAT-BANG-CO-BAN.txt và NHAN-VAT-BANG-CO-BAN.txt
+cho bản cơ bản). File CHƯA có gì được code — đây là spec đọc trước, không
+phải mô tả trạng thái hiện tại của repo.
+
+QUY ƯỚC ĐỌC FILE NÀY (áp dụng cho Claude Code):
+- Mỗi mục có 2 phần tách riêng: "Hiệu ứng" (luật thật, viết cho người đọc
+  hiểu) và "Cách cài đặt" (viết dưới dạng logic if/else, gọi thẳng tên
+  khái niệm đã dùng trong core/ — state, pending, draw!, view, GameEvent,
+  hook — để đọc là biết cần sửa ở đâu, không cần diễn giải lại luật).
+- Thuật ngữ khớp CLAUDE.md: "pending" = ngăn xếp việc đang chờ xử lý ở
+  đỉnh stack, "draw!" = lật bài kiểm tra (lật 1 lá, so poker suit/giá trị,
+  luôn bỏ vào chồng bài bỏ sau đó), "view" = state đã lọc gửi cho 1 người
+  chơi qua viewFor(), "hook" = các điểm cắm hiệu ứng nhân vật đã có sẵn
+  trong core/characters.ts (xem NHAN-VAT-BANG-CO-BAN.txt để biết danh
+  sách hook hiện có: onLoseLife, onLoseLifeFromCard, onDrawPhase,
+  onDrawCheck, modifyDistance, onOutgoingBang, onHandEmpty, onAnyDeath,
+  cardAlias, activatedAbility).
+- ĐỔI MÀU SO VỚI SÁCH LUẬT GỐC — QUAN TRỌNG, đọc trước khi cài UI/dữ
+  liệu bài: sách luật gốc gọi nhóm bài "chơi ra trước, lượt sau mới bỏ
+  ra dùng" là bài viền XANH LÁ CÂY (green-bordered). Trong DỰ ÁN NÀY,
+  màu xanh lá cây (class CSS card-box--character) ĐÃ được dùng riêng cho
+  khung LÁ NHÂN VẬT (xem GIAO-DIEN-UI-UX.txt, việc bổ sung sau 4.6 trong
+  CLAUDE.md). Để tránh trùng màu giữa 2 khái niệm khác hẳn nhau (nhân
+  vật vs. trang bị trì hoãn), toàn bộ tài liệu này gọi nhóm bài đó là
+  MÀU VÀNG thay vì xanh lá cây — CHỈ đổi tên gọi/màu hiển thị (vd sẽ cần
+  1 class CSS mới kiểu card-box--yellow hoặc biến thể của
+  card-box--blue, KHÔNG dùng card-box--character), KHÔNG đổi bất kỳ luật
+  chơi nào. Khi cài UI, nhớ tra lại đúng đoạn này thay vì suy đoán màu.
+- QUAN HỆ VỚI TRANG BỊ (equipment) — bài "màu vàng" vốn dùng để "trì
+  hoãn" thực chất VẪN LÀ TRANG BỊ (chơi ra trước mặt, đứng yên tới khi
+  bị bỏ/bị lấy, chịu luật "không 2 lá cùng tên trước mặt"...). Về mặt dữ
+  liệu, coi đây là 1 BIẾN THỂ (loại con) của trang bị viền xanh dương,
+  KHÔNG phải 1 loại bài hoàn toàn tách biệt. Vì quy tắc 3 CLAUDE.md cấm
+  class có method trong state (state phải là JSON thuần), "loại con" ở
+  đây KHÔNG được hiểu là 1 class TypeScript thật — mà là 1 discriminated
+  union / field phân loại thêm trên CÙNG một kiểu dữ liệu "trang bị"
+  hiện có (ví dụ 1 field kind: "equipment" | "equipment_delayed", hoặc
+  1 field boolean đi kèm turnPlayed — xem đề xuất cụ thể ở mục 1.1).
+  Nhờ vậy mọi hàm đang xử lý trang bị chung (đọc modifyDistance, chặn
+  trùng tên, bị Cat Balou/Panic! lấy đi...) CHẠY ĐƯỢC CHO CẢ 2 LOẠI mà
+  không cần viết lại, chỉ riêng "điều kiện được phép bỏ ra để dùng" là
+  khác nhau giữa 2 loại. [CẦN BÀN TRƯỚC KHI CHỐT — đây là đề xuất kiến
+  trúc, thuộc diện "đổi kiểu dữ liệu state" nên phải thống nhất với chủ
+  dự án trước khi viết code thật, đúng quy tắc CLAUDE.md.]
+- [CẦN KIỂM CHỨNG] = chưa xác nhận được 100% nguyên văn lá bài qua tra
+  cứu. Theo đúng quy tắc CLAUDE.md ("Luật Bang! không rõ ràng → dừng lại
+  và hỏi, không tự đoán rồi cài đặt"): KHÔNG tự suy diễn cách cài, phải
+  hỏi chủ dự án hoặc tra lại bằng bài vật lý trước khi viết code cho các
+  lá này.
+- [CẦN HOOK MỚI] = hiệu ứng không khớp với 9 loại hook đã có sẵn trong
+  characters.ts — nghĩa là phải thiết kế thêm 1 loại hook mới (bàn cách
+  tiếp cận TRƯỚC, đúng quy tắc "core/ — luật chơi: giải thích cách tiếp
+  cận TRƯỚC, chờ đồng ý, rồi mới viết" trong CLAUDE.md), KHÔNG tự thêm.
+- [ĐỔI STATE] = muốn cài đúng cần thêm/đổi field trong GameState hoặc
+  PlayerState — theo quy tắc CLAUDE.md phải HỎI TRƯỚC vì đây là đổi kiểu
+  dữ liệu state.
+- *dev Quan trọng: Trong file này 1 số dòng sẽ có đánh dấu "*dev" là dòng 
+  được bổ xung bởi chính chủ dự án. Ngoài ra 1 số hàm trong file này có 
+  thể không đúng tên với những gì đã setup trước đó, nên cần rà soát lại 
+  trước khi làm.
+
+Thành phần hộp (chỉ phần Dodge City, không tính High Noon — xem cuối
+file): 8 lá vai trò (đủ chơi 8 người), 15 lá nhân vật mới, 40 lá bài chơi
+mới, 1 lá tóm tắt luật, 1 bàn chơi, 4 viên đạn bổ sung.
+
+
+========================================================================
+1. CƠ CHẾ MỚI CỦA DODGE CITY
+========================================================================
+
+1.1. Bài viền VÀNG (đổi tên từ "green-bordered" gốc — xem ghi chú màu ở
+     đầu file) — "trang bị trì hoãn"
+--------------------------------------------------------------------
+- Hiệu ứng: chơi ra trước mặt như bài xanh dương (trang bị thường), NHƯNG
+  KHÔNG được bỏ ra để dùng hiệu ứng ngay trong lượt vừa chơi nó ra. Phải
+  chờ ít nhất tới lượt tiếp theo (của người kế tiếp, nếu lá có ký hiệu
+  Missed! và cần dùng để đỡ đòn) hoặc tới lượt sau của chính mình (nếu là
+  hiệu ứng chủ động) mới được bỏ nó đi để kích hoạt.
+- Cách cài đặt:
+  → Về mặt state: đây là 1 BIẾN THỂ của trang bị (xem ghi chú "QUAN HỆ
+    VỚI TRANG BỊ" ở đầu file) — KHÔNG tạo mảng/zone riêng, vẫn nằm CÙNG
+    danh sách "trang bị đang bày trước mặt" (equipment) như bài xanh
+    dương. Đề xuất kiểu dữ liệu cho từng phần tử equipment: thêm field
+    phân loại, ví dụ delayKind: "instant" | "delayed" (mặc định
+    "instant" cho mọi trang bị xanh dương hiện có, "delayed" cho nhóm
+    bài vàng), CỘNG field turnPlayed: number để biết nó được chơi ra ở
+    lượt nào. [ĐỔI STATE nếu equipment hiện tại chỉ là mảng string tên
+    lá, không có metadata theo từng lá — cần hỏi trước.]
+  → Điều kiện hợp lệ khi action "bỏ lá vàng để dùng": lá đó phải đang
+    nằm trong equipment CỦA CHÍNH người thực hiện, delayKind phải là
+    "delayed", VÀ turnPlayed phải KHÁC lượt hiện tại. Nếu không thỏa,
+    reduce() phải từ chối action này giống cách các action không hợp lệ
+    khác bị chặn. Trang bị "instant" (xanh dương thường) bỏ qua điều
+    kiện turnPlayed hoàn toàn — dùng được ngay.
+  → Nhóm CÓ ký hiệu Missed! (Sombrero, Ten Gallon Hat, Iron Plate,
+    Bible) đi qua ĐÚNG luồng NEED_MISSED / pending đã có sẵn cho Missed!
+    thường — chỉ khác nguồn: thay vì bỏ 1 lá từ tay, người chơi bỏ lá
+    đang bày trước mặt (miễn turnPlayed khác lượt hiện tại). Không cần
+    pending mới, chỉ cần RESPOND chấp nhận "bỏ 1 trong các lá đủ điều
+    kiện làm Missed!" trỏ tới cả bài trên tay LẪN trang bị delayKind =
+    "delayed" đang bày, không riêng gì bài trên tay.
+  → Nhóm KHÔNG có ký hiệu Missed! (Buffalo Rifle, Can Can, Canteen,
+    Conestoga, Derringer, Howitzer, Knife, Pepperbox, Pony Express) chỉ
+    dùng được TRONG lượt của chính chủ (không phải lượt vừa chơi ra) —
+    tương đương 1 action chủ động mới, không cần pending, xử lý giống
+    các action "PLAY_CARD" khác trong pha 2 nhưng nguồn bài là equipment
+    (delayKind = "delayed") thay vì tay.
+  → Bị lấy/bỏ bởi Cat Balou, Panic!, Can Can... giống hệt trang bị xanh
+    dương — không cần thêm nhánh riêng cho các hàm đó, vì cả 2 loại
+    cùng nằm trong 1 zone "equipment" chung (đây chính là lợi ích của
+    việc coi nó là biến thể của trang bị thay vì 1 loại bài tách biệt).
+  → Nếu 1 lá vàng bị LẤY VÀO TAY (qua Rag Time, Jesse Jones...), người
+    nhận KHÔNG được coi nó như đã "chơi ra" — họ phải tự PLAY_CARD nó ra
+    trước mặt mình (gán lại turnPlayed = lượt hiện tại của họ), rồi mới
+    tới lượt sau đó mới bỏ được để dùng. KHÔNG có đường tắt "lấy vào tay
+    rồi dùng luôn".
+  → Về CSS/UI (nếu làm sau này): KHÔNG dùng class card-box--character
+    (đã dành riêng cho khung nhân vật) cho nhóm bài này — cần 1 class
+    mới (vd card-box--yellow) hoặc biến thể của card-box--blue kèm dấu
+    hiệu phụ báo "đang chờ, chưa dùng được" (giống cách card-box--danger
+    đã thêm badge góc cho Dynamite/Jail ở đợt UI/UX số 4).
+
+1.2. Ký hiệu "bỏ thêm 1 lá khác" (discard another card)
+--------------------------------------------------------------------
+- Hiệu ứng: một số lá brown (Brawl, Rag Time, Springfield, Tequila,
+  Whisky) yêu cầu bỏ CÙNG LÚC 1 lá phụ bất kỳ từ tay, kèm theo lá chính,
+  mới có hiệu ứng.
+- Cách cài đặt:
+  → Action PLAY_CARD cho các lá này cần thêm 1 field bắt buộc kiểu
+    "extraDiscardCardId" (tên tuỳ core/protocol hiện có) — reduce() từ
+    chối nếu thiếu, hoặc nếu id đó không thật sự nằm trong tay người
+    chơi, hoặc trùng chính lá đang đánh.
+  → Cả 2 lá (lá chính + lá phụ) đều vào chồng bài bỏ, theo đúng thứ tự
+    lá chính trước hay sau không quan trọng về luật, chỉ cần cả 2 rời
+    tay TRƯỚC KHI áp hiệu ứng (quan trọng với Suzy Lafayette — hook
+    onHandEmpty phải chạy đúng lúc SAU khi CẢ 2 lá đã rời tay, không
+    kiểm tra sớm giữa chừng).
+  → Không cần pending mới — xử lý gọn trong 1 lần reduce() của chính
+    action PLAY_CARD, giống cách Whisky tự hồi máu ngay không cần hỏi
+    thêm bước nào.
+
+1.3. Các lá "trùng" bài gốc và lá kết hợp ký hiệu
+--------------------------------------------------------------------
+- Hiệu ứng: một số lá Dodge City giống hệt bài bộ cơ bản (thêm vào để
+  cân bằng tỉ lệ trong chồng rút — vd thêm Bang!, Beer, Missed!, Cat
+  Balou, General Store, Indians!, Panic!).
+- Cách cài đặt: KHÔNG cần logic mới — chỉ cần thêm entry vào bảng dữ
+  liệu bài (cards.ts) với cùng effect handler đã có cho lá gốc cùng
+  tên. Không đụng reduce.ts.
+
+1.4. Nhắc lại áp dụng riêng cho Dodge City
+--------------------------------------------------------------------
+- Các lá có ký hiệu Bang! MỚI trong Dodge City (Punch, Springfield,
+  Buffalo Rifle, Derringer, Knife, Pepperbox, Howitzer) đều KHÔNG tính
+  vào giới hạn "1 Bang!/lượt" của lá Bang! gốc — cách cài: hàm kiểm tra
+  giới hạn 1-Bang!/lượt (bangUsedThisTurn, xem CLAUDE.md/5.1) chỉ áp
+  cho đúng tên lá "bang", KHÔNG áp cho các tên lá kể trên — đã đúng bản
+  chất nếu mỗi lá là 1 effect handler riêng, chỉ cần đảm bảo KHÔNG lỡ
+  gọi chung 1 nhánh kiểm tra giới hạn cho mọi lá có ký hiệu Bang!.
+- Mọi lá có ký hiệu Bang! (kể cả 7 lá mới) đều bị chặn được bởi bất kỳ
+  lá nào có ký hiệu Missed! — cách cài: nhánh push NEED_MISSED nên dùng
+  chung 1 hàm helper (giống pushMissedReaction() đã có), truyền vào chỉ
+  khác nhau ở "ai bắn, khoảng cách áp dụng, sát thương" — không viết
+  lại logic Missed! riêng cho từng lá.
+
+
+========================================================================
+2. DANH SÁCH 40 LÁ BÀI MỚI
+========================================================================
+(Số lượng & giá trị bài lấy từ danh sách chính thức nhà xuất bản — xem
+mục "Nguồn tham khảo" cuối file. Nhóm theo MÀU vì màu quyết định luôn
+cách lưu state: xanh dương/vàng = equipment [zone "play"], nâu = đánh
+1 lần rồi bỏ [zone "discard" ngay]. Nhắc lại: "vàng" ở đây tương ứng
+"green-bordered" trong sách luật gốc — xem ghi chú đổi màu ở đầu file.)
+
+--- XANH DƯƠNG (equipment "instant", hiệu lực ngay khi bày ra) ---
+
+Barrel — x1
+  - Hiệu ứng: khi bị 1 lá có ký hiệu Bang! nhắm tới, được draw! — ra
+    Cơ thì coi như vừa đỡ bằng Missed!.
+  - Cách cài đặt: đúng luồng draw! + NEED_DRAW_CHECK đã có cho Barrel
+    bản gốc — Dodge City chỉ thêm 1 lá vật lý thứ 2 vào bộ bài, KHÔNG
+    có luật mới. Không action.
+
+Binocular — x1
+  - Hiệu ứng: hoạt động như Kính ngắm (Scope) — mình nhìn người khác
+    gần hơn 1 khoảng cách.
+  - Cách cài đặt: dùng CHUNG công thức modifyDistance đã áp cho Scope
+    (đừng viết case "Binocular" riêng) — chỉ là bản sao vật lý thứ 2
+    của cùng hiệu ứng, để 1 người có thể có cả Scope lẫn Binocular
+    cùng lúc (2 lá KHÁC tên nên không vi phạm luật "không 2 lá cùng
+    tên trước mặt"), cộng dồn -2 tổng.
+
+Dynamite — x1
+  - Hiệu ứng: giống hệt bản gốc (chơi trước mặt, đầu lượt sau draw!,
+    ra Bích 2–9 thì nổ mất 3 máu, không thì chuyền người kế tiếp).
+  - Cách cài đặt: không có gì mới, chỉ thêm 1 lá vật lý.
+
+Hideout — x1
+  - Hiệu ứng: hoạt động như Ngựa Mustang — người khác nhìn mình xa hơn
+    1 khoảng cách.
+  - Cách cài đặt: dùng CHUNG công thức modifyDistance đã áp cho Mustang
+    — bản sao vật lý thứ 2, cộng dồn +2 tổng nếu có cả 2 (khác tên nên
+    hợp lệ cùng lúc).
+
+Remington — x1
+  - Hiệu ứng: súng tầm bắn 3, thay Colt .45.
+  - Cách cài đặt: thêm entry vào WEAPON_RANGES (core/cards.ts, cùng
+    bảng Volcanic/Schofield/Winchester...) với range = 3. Không đụng
+    reduce.ts / distance.ts.
+
+Rev. Carabine — x1
+  - Hiệu ứng: súng tầm bắn 4, thay Colt .45.
+  - Cách cài đặt: thêm entry vào WEAPON_RANGES, range = 4.
+
+--- NÂU (đánh 1 lần → bỏ ngay) ---
+
+Bang! (x4), Beer (x2), Missed! (x1), Cat Balou (x1), General Store (x1),
+Indians! (x1), Panic! (x1)
+  - Hiệu ứng & cách cài đặt: giống hệt bản gốc — chỉ thêm số lượng bài
+    vật lý, không đổi effect handler.
+
+Brawl — x1
+  - Hiệu ứng: bỏ kèm 1 lá phụ (mục 1.2) ⇒ TẤT CẢ người chơi khác phải
+    bỏ 1 lá do người đánh chọn (từ tay hoặc từ equipment của họ, chọn
+    khác nhau được cho từng người).
+  - Cách cài đặt: lặp qua danh sách "mọi người còn sống trừ người đánh"
+    — với MỖI người, cần 1 lượt chọn "bỏ lá nào của họ" do người đánh
+    quyết định. Vì phải chọn LẦN LƯỢT cho từng nạn nhân (khác Indians!
+    — nạn nhân tự quyết cho chính họ), cân nhắc đẩy 1 pending riêng cho
+    mỗi nạn nhân theo thứ tự (giống cách Gatling đẩy nhiều NEED_MISSED
+    liên tiếp lên stack) thay vì gộp chung 1 pending nhận nhiều lựa
+    chọn cùng lúc.
+
+Dodge — x2
+  - Hiệu ứng: ngoài lượt, hủy 1 lá Bang! nhắm vào mình (giống Missed!),
+    SAU ĐÓ rút thêm 1 lá từ bộ bài.
+  - Cách cài đặt: đi qua đúng luồng NEED_MISSED/RESPOND đã có cho
+    Missed! — chỉ khác: khi resolve xong (pop NEED_MISSED thành công),
+    NẾU lá dùng để đỡ là "dodge" thì rút thêm 1 lá cho người vừa đỡ
+    trước khi kết thúc. Không cần pending mới.
+
+Punch — x1
+  - Hiệu ứng: có hiệu ứng như Bang! nhắm người ở khoảng cách 1, bất kể
+    súng đang cầm; không tính vào giới hạn 1 Bang!/lượt.
+  - Cách cài đặt: effect handler riêng, gọi lại đúng hàm áp sát thương
+    dùng chung cho Bang! (applyDamage/pushMissedReaction) nhưng override
+    khoảng cách hợp lệ = luôn 1 (bỏ qua tầm súng thật đang cầm).
+
+*dev - Cần bàn rõ hơn về cơ chế của 1 số bài yêu cầu tự bỏ thêm 1 lá 
+(vd: Rag Time + 1 lá bất kỳ từ tay để kích hoạt (có thể nghiên cứu 
+cho phép chọn cả bài từ sân)). Lưu ý thêm: 1 số lá có chức năng giống 
+hệt 1 lá khác cần đảm bảo tránh gọi nhầm vì các lá giống nhau không 
+bị cấm dùng nhiều lần nếu khác tên (Trừ súng và house rule) -> Cần bàn thêm
+
+Rag Time — x1 [CẦN KIỂM CHỨNG nguyên văn — xem ghi chú độ tin cậy đầu
+  mục 3]
+  - Hiệu ứng (theo hiểu biết phổ biến nhất, CHƯA xác nhận 100%): bỏ
+    kèm 1 lá phụ (mục 1.2), chọn 1 người bất kỳ (không giới hạn khoảng
+    cách): rút ngẫu nhiên 1 lá từ tay họ, HOẶC lấy 1 lá đang bày trước
+    mặt họ.
+  - Cách cài đặt: NẾU chốt đúng hiệu ứng trên, đây là biến thể "không
+    giới hạn khoảng cách" của Panic! (Panic! bản gốc giới hạn khoảng
+    cách 1) — dùng lại đúng effect handler của Panic!, chỉ bỏ điều
+    kiện kiểm tra khoảng cách. KHÔNG code trước khi hỏi lại/tra chắc
+    nguyên văn — nguy cơ sai vì có ít nhất 1 nguồn ghi nhận văn bản lá
+    này từng đổi giữa các lần tái bản.
+  - *dev: Cứ áp dụng y nguyên logic của lá Panic! nhưng không bị giới 
+    hạn khoảng cách và yêu cầu người dùng khi kích hoạt Rag Time phải 
+    bỏ thêm 1 lá khác mới được dùng. 
+
+Springfield — x1
+  - Hiệu ứng: bỏ kèm 1 lá phụ (mục 1.2) ⇒ hiệu ứng Bang! nhắm 1 người
+    bất kỳ, bất kể khoảng cách/tầm súng; không tính vào giới hạn 1
+    Bang!/lượt.
+  - Cách cài đặt: effect handler riêng, gọi applyDamage/pushMissedReaction
+    với khoảng cách hợp lệ = bỏ qua kiểm tra tầm hoàn toàn (khác Punch
+    — Punch cố định = 1, Springfield = vô hạn).
+
+Tequila — x1
+  - Hiệu ứng: bỏ kèm 1 lá phụ (mục 1.2), chọn 1 người bất kỳ (kể cả
+    chính mình) để hồi ngay 1 máu (không vượt máu tối đa).
+  - Cách cài đặt: effect handler riêng, tương tự Saloon nhưng chỉ đúng
+    1 người được chọn thay vì áp cho tất cả.
+
+Whisky — x1
+  - Hiệu ứng: bỏ kèm 1 lá phụ (mục 1.2) để TỰ hồi 2 máu; chỉ chơi được
+    trong lượt của chính mình (không dùng ngoài lượt).
+  - Cách cài đặt: effect handler riêng, y hệt Beer về công thức hồi
+    máu (không vượt trần) nhưng amount = 2 và validate "đúng lượt
+    người chơi" trước khi cho qua (Beer bản gốc còn được chơi ngoài
+    lượt lúc sắp chết — Whisky KHÔNG có ngoại lệ đó).
+
+--- VÀNG (trang bị "delayed" — subclass của xanh dương, xem mục 1.1) ---
+
+Bible — x1
+  - Hiệu ứng: bỏ ra dùng như Missed!, kèm rút thêm 1 lá từ bộ bài.
+  - Cách cài đặt: giống Dodge (mục nâu ở trên) về phần "rút thêm 1 lá
+    sau khi đỡ thành công" — chỉ khác nguồn bài là equipment
+    (delayKind = "delayed") thay vì tay, đi qua luồng của mục 1.1
+    (nhóm CÓ ký hiệu Missed!).
+
+Sombrero — x1, Ten Gallon Hat — x1, Iron Plate — x2
+  - Hiệu ứng: bỏ ra dùng như Missed! (không kèm rút thêm bài).
+  - Cách cài đặt: đi qua luồng của mục 1.1 (nhóm CÓ ký hiệu Missed!),
+    không cần rút bù. Iron Plate: dù có 2 lá vật lý trong bộ bài, luật
+    "không 2 lá CÙNG TÊN trước mặt" (đã có sẵn cho mọi equipment, áp
+    dụng chung cho cả delayKind "instant" lẫn "delayed") tự động chặn
+    1 người giữ 2 Iron Plate cùng lúc — không cần thêm kiểm tra riêng.
+
+Canteen — x1
+  - Hiệu ứng: bỏ ra để TỰ hồi 1 máu.
+  - Cách cài đặt: effect handler riêng trong nhóm KHÔNG có Missed! (mục
+    1.1) — công thức hồi máu giống Beer, amount = 1, chỉ dùng được
+    trong lượt chính mình.
+
+Pony Express — x1
+  - Hiệu ứng: bỏ ra để rút 3 lá từ bộ bài.
+  - Cách cài đặt: effect handler riêng trong nhóm KHÔNG có Missed! —
+    gọi lại đúng hàm drawTopCard() 3 lần (core/deck.ts), giống cách
+    Wells Fargo bản gốc rút 3, chỉ khác nguồn kích hoạt là equipment
+    "delayed" thay vì tay.
+
+Derringer — x1
+  - Hiệu ứng: bỏ ra để có hiệu ứng Bang! ở khoảng cách 1, kèm rút thêm
+    1 lá từ bộ bài.
+  - Cách cài đặt: effect handler riêng trong nhóm KHÔNG có Missed! —
+    y hệt Punch về phần "Bang! cố định khoảng cách 1", cộng thêm 1 lần
+    drawTopCard() sau khi resolve (kể cả khi bị đỡ Missed! hay không —
+    [CẦN KIỂM CHỨNG] xem có rút được lá ngay cả khi bị đỡ hay chỉ khi
+    bắn trúng; ví dụ chính thức trong sách luật KHÔNG nói rõ trường
+    hợp bị đỡ, nên hỏi trước khi cài).
+
+Conestoga — x1 [CẦN KIỂM CHỨNG nguyên văn]
+  - Hiệu ứng (theo hiểu biết phổ biến, CHƯA xác nhận 100%): bỏ ra,
+    chọn 1 người bất kỳ, rút ngẫu nhiên 1 lá từ tay người đó.
+  - Cách cài đặt: NẾU chốt đúng hiệu ứng trên, đây là biến thể
+    "delayed" của Panic! (không giới hạn khoảng cách theo suy đoán phổ
+    biến, nhưng CHƯA CHẮC) — không code trước khi xác nhận, vì nếu
+    khoảng cách thật sự bị giới hạn thì cách cài khác hẳn (cần đọc
+    lại distance.ts để tính khoảng cách hợp lệ tại THỜI ĐIỂM bỏ lá,
+    không phải lúc chơi ra).
+  - *dev: là lá Panic! nhưng cần đặt ra trước mặt 1 lượt rồi mới được
+    dùng, và không bị giới hạn khoảng cách.
+
+Can Can — x1 [CẦN KIỂM CHỨNG nguyên văn]
+  - Hiệu ứng (theo hiểu biết phổ biến, CHƯA xác nhận 100%): bỏ ra,
+    chọn 1 người bất kỳ, buộc họ bỏ 1 lá do người dùng chọn (từ tay
+    hoặc equipment của họ) — tương tự Cat Balou nhưng ở dạng "delayed".
+  - Cách cài đặt: NẾU đúng, dùng lại effect handler của Cat Balou,
+    trong nhóm KHÔNG có Missed! của mục 1.1. Không code trước khi hỏi.
+  - *dev: là lá Cat Balou nhưng cần đặt ra trước mặt 1 lượt rồi mới được
+    dùng.
+
+Buffalo Rifle — x1 [CẦN KIỂM CHỨNG nguyên văn]
+  - Hiệu ứng (theo hiểu biết phổ biến, CHƯA xác nhận 100%): bỏ ra để
+    có hiệu ứng Bang! nhắm 1 người bất kỳ, bất kể khoảng cách.
+  - Cách cài đặt: NẾU đúng, giống Springfield về phần "bỏ qua tầm bắn
+    hoàn toàn", chỉ khác zone kích hoạt (equipment "delayed", nhóm
+    KHÔNG có Missed!). Không code trước khi hỏi.
+  - *dev: Đã đúng.
+
+Knife — x1 [CẦN KIỂM CHỨNG nguyên văn]
+  - Hiệu ứng (theo hiểu biết phổ biến, CHƯA xác nhận 100%): bỏ ra để
+    có hiệu ứng Bang! ở khoảng cách 1.
+  - Cách cài đặt: NẾU đúng, giống Punch/Derringer về phần "khoảng cách
+    cố định = 1", khác zone kích hoạt (nhóm KHÔNG có Missed!). Không
+    code trước khi hỏi — cần xác nhận Knife có kèm rút bài như Derringer
+    hay không (khả năng KHÔNG kèm, vì đây là điểm phân biệt 2 lá).
+  - *dev: Đã đúng nhưng không có khả năng rút bài mà chỉ có gây sát thương.
+
+Pepperbox — x1 [CẦN KIỂM CHỨNG nguyên văn]
+  - Hiệu ứng (theo hiểu biết phổ biến, CHƯA xác nhận 100%): bỏ ra để
+    có hiệu ứng Bang! nhắm 1 người bất kỳ, bất kể khoảng cách.
+  - Cách cài đặt: NẾU đúng, cùng khuôn với Buffalo Rifle — cân nhắc
+    xem 2 lá này có thật sự giống hệt nhau về luật (chỉ khác hình vẽ)
+    hay có khác biệt nào đó (vd giới hạn số lần/ván) — đây chính là lý
+    do cần tra lại thay vì đoán, vì đoán sai sẽ làm 2 lá thành thừa.
+  - *dev: bỏ ra để có hiệu ứng Bang! nhắm 1 người bất kỳ, trong tầm bắn.
+
+Howitzer — x1 [CẦN KIỂM CHỨNG nguyên văn]
+  - Hiệu ứng (theo hiểu biết phổ biến, CHƯA xác nhận 100%): bỏ ra để
+    bắn hiệu ứng Bang! vào TẤT CẢ người chơi khác cùng lúc, bất kể
+    khoảng cách — giống bản "delayed" của Gatling.
+  - Cách cài đặt: NẾU đúng, dùng lại effect handler của Gatling (đẩy
+    nhiều NEED_MISSED liên tiếp lên pending, mỗi người 1 cái), trong
+    nhóm KHÔNG có Missed! của mục 1.1. Không code trước khi hỏi — nếu
+    hiệu ứng thật ra chỉ nhắm 1 người (giống Buffalo Rifle/Pepperbox)
+    thì 3 lá súng "any distance" sẽ trùng lặp hiệu ứng, khả năng cao
+    Howitzer THẬT SỰ khác biệt ở chỗ bắn TẤT CẢ mọi người — cần xác
+    nhận trước khi code để không code nhầm thành bản sao của Springfield.
+  - *dev: Đã đúng.
+
+- *dev: lưu ý quan trọng tất cả lá có khả năng gây sát thương (giống bang!) đều có thể né bằng missed!.
+
+
+========================================================================
+3. 15 NHÂN VẬT MỚI CỦA DODGE CITY
+========================================================================
+(Hiệu ứng dịch sát nguyên văn từ luật chính thức — độ tin cậy cao, xem
+Nguồn tham khảo cuối file. Số trong ngoặc = máu khởi điểm/bullets, cùng
+field đã dùng cho 16 nhân vật bản gốc trong CharacterDefinition.)
+
+Apache Kid (3 máu)
+  - Hiệu ứng: miễn nhiễm với các lá chất RÔ (Diamonds) do người khác
+    đánh nhắm vào mình. Trong Duel, khả năng này KHÔNG có tác dụng.
+  - Cách cài đặt: [CẦN HOOK MỚI] — 9 hook hiện có không có chỗ nào
+    kiểm tra "chất của lá đang nhắm vào 1 người trước khi áp hiệu ứng".
+    Cần 1 hook dạng isImmuneToCard(next, self, card, fromPlayer) trả
+    về true/false, gọi TẠI ĐÚNG các điểm áp hiệu ứng của mọi lá có
+    target 1 người (Bang! và tương đương, Cat Balou/Panic! khi nhắm
+    Apache Kid, draw!-effect nếu có nhắm...). Vì phải sửa NHIỀU điểm
+    gọi khác nhau trong reduce.ts, đây là thay đổi lớn — bàn cách tiếp
+    cận trước khi code, đúng quy tắc CLAUDE.md.
+
+Belle Star (4 máu)
+  - Hiệu ứng: trong lượt của cô ta, MỌI lá đang bày trước mặt người
+    KHÁC (cả xanh dương lẫn vàng) mất tác dụng.
+  - Cách cài đặt: [CẦN HOOK MỚI] — cần 1 cách "tắt tạm thời" hiệu lực
+    của toàn bộ equipment người khác trong 1 lượt cụ thể (bất kể
+    delayKind "instant" hay "delayed"). Có thể cài bằng cách: mọi hàm
+    ĐỌC equipment người khác để tính hiệu ứng (tầm bắn/khoảng
+    cách/Barrel/Jail-tự động/Missed! trì hoãn...) phải kiểm tra thêm
+    "có phải đang là lượt của Belle Star không" trước khi tính — rủi
+    ro cao bỏ sót 1 chỗ đọc equipment nào đó. Bàn kỹ cách tiếp cận
+    (danh sách đủ các điểm cần chặn) trước khi code.
+
+Bill Noface (4 máu)
+  - Hiệu ứng: ở pha rút bài, rút 1 lá + thêm 1 lá cho mỗi điểm máu đã
+    mất (đủ máu → rút 1; mất 1 → rút 2; mất 2 → rút 3;...).
+  - Cách cài đặt: Hook: onDrawPhase. Công thức: soLaRut = 1 + (maxHp -
+    currentHp). Thay thế hoàn toàn pha rút 2 lá mặc định, giống cách
+    Black Jack/Pat Brennan/Jesse Jones/Kit Carlson/Pedro Ramirez đã
+    override onDrawPhase.
+
+Chuck Wengam (4 máu)
+  - Hiệu ứng: trong lượt mình, có thể chọn mất 1 máu để rút 2 lá — lặp
+    lại được nhiều lần, nhưng KHÔNG được chọn mất điểm máu CUỐI CÙNG
+    theo cách này.
+  - Hook: activatedAbility (giống Sid Ketchum) — nhưng chỉ dùng được
+    TRONG lượt của chính mình (khác Sid Ketchum dùng được cả ngoài
+    lượt). Điều kiện hợp lệ mỗi lần dùng: currentHp > 1 (không được
+    dùng khi chỉ còn đúng 1 máu).
+
+Doc Holyday (4 máu)
+  - Hiệu ứng: mỗi lượt 1 lần, bỏ 2 lá bất kỳ từ tay để có hiệu ứng
+    Bang! nhắm người trong tầm súng đang cầm; KHÔNG tính vào giới hạn
+    1 Bang!/lượt. Để bắn trúng Apache Kid theo cách này, ít nhất 1
+    trong 2 lá bỏ ra phải KHÔNG phải chất Rô.
+  - Hook: activatedAbility, giới hạn 1 lần/lượt (khác Sid Ketchum
+    không giới hạn số lần và dùng được ngoài lượt). Cần biến đếm riêng
+    theo lượt (giống bangUsedThisTurn nhưng cho riêng Doc Holyday, ví
+    dụ docHolydayUsedThisTurn), reset ở advanceTurn(). Phần "miễn trừ
+    Apache Kid" phụ thuộc hook mới của Apache Kid ở trên — cài sau khi
+    Apache Kid đã có hook isImmuneToCard.
+
+Elena Fuente (3 máu)
+  - Hiệu ứng: có thể dùng BẤT KỲ lá nào trên tay như 1 lá Missed!.
+  - *dev: bonus cần bàn thêm nhân vật được phép dùng cả những lá trên sân nếu muốn kể cả jail (trừ lá dynamite)
+  - Cách cài đặt: mở rộng khái niệm cardAlias đã dùng cho Calamity
+    Janet (Bang!↔Missed! qua lại giữa đúng 2 tên lá cụ thể) sang dạng
+    tổng quát hơn: "MỌI lá trên tay đều coi như có thêm vai trò
+    Missed!". Nếu hàm helper coiNhuMissed(card, player) đã tồn tại
+    (xem NHAN-VAT-BANG-CO-BAN.txt, nhóm Calamity Janet), Elena Fuente
+    chỉ cần override hàm đó để LUÔN trả true bất kể tên lá — không cần
+    hook mới, chỉ cần hàm helper đủ tổng quát để nhân vật này override
+    được theo kiểu "mọi lá" thay vì "đúng 1 cặp tên".
+
+Greg Digger (4 máu)
+  - Hiệu ứng: mỗi khi có NGƯỜI KHÁC bị loại, hồi ngay 2 máu (không vượt
+    máu tối đa).
+  - Hook: onAnyDeath(next, self, deadPlayer) → nếu deadPlayer !== self
+    thì heal(self, 2, cap = maxHp).
+
+Herb Hunter (4 máu)
+  - Hiệu ứng: mỗi khi có người khác bị loại, rút thêm 2 lá từ bộ bài
+    (tự tay hạ 1 Outlaw → tổng 5 lá vì cộng thêm 3 lá thưởng giết
+    Outlaw đã có sẵn trong luật gốc).
+  - Hook: onAnyDeath(next, self, deadPlayer) → draw(self, 2). Không
+    đụng logic thưởng-giết-Outlaw sẵn có — 2 nguồn cộng dồn tự nhiên
+    vì đều đi qua đường "rút thêm bài", không loại trừ nhau.
+
+José Delgado (4 máu)
+  - Hiệu ứng: trong lượt mình, bỏ 1 lá xanh dương từ tay để rút 2 lá;
+    dùng được tối đa 2 lần/lượt.
+  - Hook: activatedAbility, điều kiện: lá bỏ ra phải thuộc nhóm
+    "equipment-type" (weapon/Mustang/Scope/Barrel/Jail/Dynamite... —
+    dùng lại đúng bảng phân loại màu lá đã có trong cards.ts, KHÔNG tự
+    liệt kê lại danh sách tên). [CẦN KIỂM CHỨNG] lá vàng (delayKind =
+    "delayed") có tính là "xanh dương" cho mục đích lá này hay không —
+    về màu hiển thị chúng khác nhau (mục "ĐỔI MÀU" đầu file), nhưng về
+    BẢN CHẤT dữ liệu (đều là equipment) có thể tính chung; cần chốt
+    trước khi code. Cần biến đếm riêng theo lượt (giống Doc Holyday),
+    reset ở advanceTurn(), giới hạn tối đa 2.
+  - *dev: QUAN TRỌNG lá xanh dương ở đây không phải lá vàng.
+
+Molly Stark (4 máu)
+  - Hiệu ứng: mỗi khi CHỦ ĐỘNG chơi/bỏ 1 lá Missed!, Beer, hoặc Bang!
+    LÚC KHÔNG PHẢI lượt mình, rút thêm 1 lá. Nếu bỏ Bang! trong Duel,
+    KHÔNG rút ngay từng lần — dồn lại, rút đủ số lần đã dùng Bang! khi
+    Duel kết thúc. Lá bị ép bỏ (do Cat Balou/Brawl/Can Can...) KHÔNG
+    tính là "chủ động".
+  - Cách cài đặt: [CẦN HOOK MỚI] — chưa có hook nào bắt đúng thời điểm
+    "1 lá cụ thể (Missed!/Beer/Bang!) vừa được CHÍNH CHỦ chọn chơi ra,
+    ngoài lượt của họ". Gợi ý tên: onVoluntaryPlayOutOfTurn(next, self,
+    cardName). Riêng nhánh Duel cần đếm dồn (giống cách Vulture Sam
+    gom nhiều lá cùng lúc) rồi mới rút khi Duel thật sự kết thúc — bàn
+    kỹ luồng Duel hiện có (respondToDuel trong reduce.ts) trước khi
+    cài, vì phải biết chính xác thời điểm nào coi là "Duel kết thúc".
+
+Pat Brennan (4 máu)
+  - Hiệu ứng: ở pha rút bài, chọn rút 2 lá như thường HOẶC lấy đúng 1
+    lá bất kỳ đang bày trước mặt người chơi khác (equipment, kể cả
+    loại "delayed"/vàng) vào tay mình.
+  - Hook: onDrawPhase (có bước chờ chọn — cùng khuôn với Jesse
+    Jones/Kit Carlson/Pedro Ramirez: đẩy 1 pending hỏi "rút bộ bài hay
+    lấy 1 lá equipment của ai", timeout thì mặc định rút bộ bài như
+    thường).
+
+Pixie Pete (3 máu)
+  - Hiệu ứng: ở pha rút bài, rút 3 lá thay vì 2.
+  - Hook: onDrawPhase, đơn giản nhất trong nhóm này — không cần bước
+    chờ chọn.
+
+Sean Mallory (3 máu)
+  - Hiệu ứng: ở pha bỏ bài cuối lượt, được giữ tối đa 10 lá trong tay
+    (không phải giới hạn = số máu như bình thường).
+  - Cách cài đặt: [CẦN HOOK MỚI] — chưa có hook nào can thiệp vào công
+    thức "giới hạn số lá cuối lượt = currentHp". Gợi ý: hook
+    modifyHandLimit(next, self, defaultLimit) → trả 10 nếu defaultLimit
+    < 10, ngược lại giữ nguyên (đúng câu luật "không cần bỏ nếu ít hơn
+    11, dù đang nhiều hơn số máu").
+
+Tequila Joe (4 máu)
+  - Hiệu ứng: mỗi khi chơi 1 lá Beer, hồi 2 máu thay vì 1. Các lá hồi
+    máu khác (Saloon, Tequila, Canteen) vẫn chỉ hồi đúng 1 như bình
+    thường.
+  - Cách cài đặt: [CẦN HOOK MỚI] — chưa có hook nào can thiệp vào SỐ
+    LƯỢNG máu hồi theo TÊN LÁ cụ thể. Gợi ý: hook modifyHealAmount(next,
+    self, cardName, defaultAmount) → trả defaultAmount*2 nếu cardName
+    === "beer", ngược lại giữ nguyên. Áp dụng tại đúng nơi Beer thật sự
+    hồi máu (playBeer() trong reduce.ts), gọi qua hook thay vì cộng
+    cứng +1.
+
+Vera Custer (3 máu)
+  - Hiệu ứng: đầu lượt (trước khi rút bài), chọn 1 nhân vật khác còn
+    sống — có được khả năng ĐẶC BIỆT của người đó cho tới lượt kế tiếp
+    của chính mình.
+  - Cách cài đặt: [CẦN HOOK MỚI — phức tạp nhất trong 15 người] không
+    phải 1 hook đơn lẻ mà là 1 CƠ CHẾ ỦY QUYỀN: mọi lời gọi hook cho
+    Vera Custer (modifyDistance, onLoseLife, onDrawPhase...) trong
+    khoảng thời gian hiệu lực phải được CHUYỂN HƯỚNG sang tra cứu hook
+    của nhân vật đang mượn, thay vì tra characterId thật của cô. Cần
+    thêm field theo dõi "đang mượn khả năng của ai, hiệu lực tới lượt
+    nào" (ĐỔI STATE — hỏi trước). Vì đây là cơ chế ảnh hưởng TOÀN BỘ hệ
+    thống hook, không phải 1 chỗ, bắt buộc bàn kỹ kiến trúc trước khi
+    code, không tự suy đoán cách nối dây.
+
+
+========================================================================
+4. LUẬT CHO 8 NGƯỜI CHƠI (đi kèm hộp Dodge City)
+========================================================================
+- Hiệu ứng: 8 lá vai trò thay 6 lá gốc — 1 Sheriff, 2 Deputy, 3 Outlaw,
+  2 Renegade. MỖI Renegade trong 2 người tự chơi RIÊNG LẺ, chỉ thắng
+  nếu là người sống sót CUỐI CÙNG. Ví dụ: cuối ván Sheriff đối đầu 2
+  Renegade, Sheriff chết trước → phe Outlaw thắng dù cả 2 Renegade còn
+  sống.
+- Cách cài đặt: điều kiện thắng theo phe (checkWinCondition trong
+  win.ts) đã xử lý đúng trường hợp "nhiều Renegade" nếu code coi mỗi
+  Renegade là 1 đơn vị riêng biệt phải tự sống sót, KHÔNG coi Renegade
+  là 1 "phe nhiều người thắng cùng nhau" như Outlaw. Chỉ cần thêm bảng
+  vai trò cho N=8 vào cấu hình chia vai (giống bảng cho 4–7 người),
+  không cần đổi logic thắng thua nếu đã thiết kế đúng từ đầu theo
+  hướng "Renegade luôn là cá nhân, không phải phe".
+
+
+========================================================================
+5. LUẬT RIÊNG CHO 3 NGƯỜI CHƠI (đi kèm sách luật Dodge City)
+========================================================================
+- Hiệu ứng: dùng đúng 3 lá vai trò Deputy/Outlaw/Renegade, chia ngẫu
+  nhiên nhưng đặt NGỬA công khai — ai cũng biết vai trò cả 3 người.
+  Mục tiêu tạo vòng tròn săn đuổi: Deputy phải giết Renegade, Renegade
+  phải giết Outlaw, Outlaw phải giết Deputy. Người đi trước = Deputy.
+  Thắng NGAY nếu chính tay hạ đúng mục tiêu của vai mình. Nếu người
+  khác hạ hộ mục tiêu, thì 2 người còn sống chuyển mục tiêu thành "sống
+  sót cuối cùng" giữa 2 người đó. Bất kể vai trò, hễ TỰ TAY hạ 1 người
+  khác thì được thưởng ngay 3 lá rút. Không có Sheriff nên Jail chơi
+  được lên bất kỳ ai. Beer vẫn vô tác dụng khi chỉ còn 2 người sống.
+- Cách cài đặt: đây CHÍNH LÀ cơ sở luật gốc cho cơ chế "vòng tròn săn
+  đuổi" — nếu core/win.ts đã có khái niệm kiểu HUNT_CIRCLE ánh xạ
+  vai→vai-mục-tiêu-kế-tiếp và kiểm tra "người vừa giết có phải chính
+  chủ mục tiêu không" trước khi công bố thắng, thì mục này coi như đã
+  được cài đặt đúng tinh thần luật gốc (chỉ khác tên vai trò hiển thị,
+  không đổi bản chất luật) — không cần sửa gì thêm, chỉ đối chiếu lại
+  cho chắc. Thưởng "3 lá khi tự tay hạ ai đó bất kể vai" là ĐIỂM RIÊNG
+  của biến thể 3 người — khác thưởng "3 lá khi hạ đúng Outlaw" của
+  luật 4–8 người, cần đảm bảo 2 nguồn thưởng không bị nhầm/cộng dồn sai
+  khi cùng chạy qua 1 hàm eliminatePlayer() dùng chung.
+
+
+========================================================================
+PHẦN KHÔNG THUỘC DODGE CITY (đi kèm chung hộp nhưng là mở rộng riêng)
+========================================================================
+
+BANG! HIGH NOON — bản mở rộng THỨ HAI trong cùng hộp, KHÔNG phải Dodge
+City. Ghi lại đây chỉ vì cùng nằm trong 1 hộp vật lý, không nằm trong
+phạm vi đặc tả này.
+
+- Thành phần: 13 lá sự kiện đặc biệt.
+- Cơ chế: Sheriff xáo riêng 13 lá này (tách khỏi bộ bài thường), đặt
+  lá "High Noon" lên trên cùng, để cả chồng NGỬA gần chỗ ngồi. Từ lượt
+  THỨ HAI của Sheriff trở đi, TRƯỚC khi Sheriff bắt đầu lượt, rút lá
+  trên cùng chồng sự kiện, đọc to, đặt vào giữa bàn tạo "chồng High
+  Noon". Lá trên cùng chồng High Noon luôn có hiệu lực cho tới khi bị
+  lá mới đè lên. Hiệu lực kéo dài hết ván, không tắt giữa chừng.
+- Nội dung chi tiết 13 lá sự kiện KHÔNG nằm trong tài liệu này — cần
+  làm riêng 1 file đặc tả khác nếu/khi quyết định cài High Noon.
+
+
+========================================================================
+NGUỒN THAM KHẢO
+========================================================================
+- BANG! Dodge City — Rules (PDF chính thức tiếng Anh):
+  https://www.dvgiochi.com/giochi/dodgecity/download/bang_dodge_city-rules.pdf
+- Bản mirror chính thức song song (bang.cz):
+  https://www.bang.cz/en/bang/dodge-city
+- Danh sách bài chính thức (số lượng, giá trị từng lá):
+  https://bang.dvgiochi.com/cardslist.php?id=3&lang=en
+- How to play BANG! Dodge City Expansion — UltraBoardGames:
+  https://www.ultraboardgames.com/bang/dodge-city.php
+- The BANG! Card Game Blog — Card Explanations (Defensive Cards, Life
+  Point Modifiers, Draw Cards):
+  http://bangcardgame.blogspot.com/2011/07/card-explanations-defensive-cards.html
+  https://bangcardgame.blogspot.com/2011/06/card-explanations-life-point-modifiers.html
+  http://bangcardgame.blogspot.com/2011/06/card-explanations-draw-cards.html
+- Bang! (card game) — Wikipedia:
+  https://en.wikipedia.org/wiki/Bang!_(card_game)
+- Bang! cardgame Wiki (Fandom) — List Of Cards:
+  https://bang-cardgame.fandom.com/wiki/List_Of_Cards
+
+
+========================================================================
+CẦN TRA / XÁC NHẬN TRƯỚC KHI CODE
+========================================================================
+(Tổng hợp lại mọi chỗ [CẦN KIỂM CHỨNG]/[CẦN BÀN] ở trên, để không phải
+dò lại cả file — theo đúng khuôn "CẦN TRA / XÁC NHẬN TRƯỚC KHI CODE" đã
+dùng ở NHAN-VAT-BANG-CO-BAN.txt.)
+
+  ☐ Kiến trúc dữ liệu cho trang bị "delayed" (màu vàng) — field
+    delayKind/turnPlayed đề xuất ở mục 1.1 chỉ là GỢI Ý, cần chủ dự án
+    xác nhận trước khi đổi kiểu dữ liệu equipment thật trong state.
+  ☐ Tên/class CSS cho màu vàng khi làm UI (card-box--yellow hay biến
+    thể khác của card-box--blue) — chưa chốt, chỉ chắc chắn KHÔNG dùng
+    card-box--character.
+  ☐ Rag Time — nguyên văn chính xác (Panic! không giới hạn khoảng cách?
+    hay cơ chế khác hẳn — có nguồn ghi nhận văn bản từng đổi giữa các
+    lần tái bản).
+  ☐ Conestoga — nguyên văn chính xác + có giới hạn khoảng cách hay
+    không.
+  ☐ Can Can — nguyên văn chính xác (giả thuyết: bản "delayed" của Cat
+    Balou).
+  ☐ Buffalo Rifle — nguyên văn chính xác + có thật sự giống Pepperbox
+    hay khác biệt ở điểm nào.
+  ☐ Knife — nguyên văn chính xác + có kèm rút bài như Derringer không.
+  ☐ Pepperbox — nguyên văn chính xác + phân biệt với Buffalo Rifle.
+  ☐ Howitzer — nguyên văn chính xác + xác nhận có bắn TẤT CẢ người
+    chơi khác (như Gatling) hay chỉ 1 người bất kỳ (như Springfield).
+  ☐ Derringer — rút thêm bài có xảy ra cả khi bị đỡ Missed! hay chỉ
+    khi bắn trúng.
+  ☐ José Delgado — lá "delayed" (vàng) có tính là "xanh dương" cho
+    mục đích khả năng của nhân vật này hay không.
+
+Chưa có mục nào trong phần "8 nhân vật cần [CẦN HOOK MỚI]" (Apache Kid,
+Belle Star, Doc Holyday, Elena Fuente, Molly Stark, Sean Mallory,
+Tequila Joe, Vera Custer) được coi là "đã chốt" — mỗi mục đó đều cần
+BÀN CÁCH TIẾP CẬN với chủ dự án trước khi viết code thật, đúng quy tắc
+CLAUDE.md về sửa core/.
+
+
+========================================================================
+HẾT FILE
+========================================================================

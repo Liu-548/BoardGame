@@ -1,0 +1,21 @@
+I. Nhân vật
+	- Elena Noir 3 máu: khi nhân vật này bị người chơi gây 
+	sát thương khi còn 1 máu cô sẽ vào trạng thái "dạt ra 
+	cho mẹ bắn" miễn tử trong 2 lượt chơi tới khi kết thúc 
+	2 lượt chắc chắn sẽ chết, 2 lượt miễn tử này thay vì 
+	rút 2 lá cô ta sẽ rút đc 3 ( không thể nhốt tù nhân 
+	vật này khi cô ta trong trạng thái " dạt ra cho mẹ bắn ") 
+	bom sẽ không kích hoạt hiệu ứng "dạt ra cho mẹ bắn"
+
+	- Marcel Marcelo 4 máu: khi nhân vật này bị nhốt tù nó 
+	thể lập tức chỉ định 1 người chơi khác để cùng vào tù 
+	với anh ta , nếu nhân vật này nhốt tù người khác thì 
+	người ở lượt tiếp theo của người bị nhốt cũng sẽ bị 
+	nhốt theo ( nhân vật này có thể check tù 2 lần )
+
+	- Mary Rose 3 máu: là 1 sát thủ luôn biết cách linh 
+	hoạt trong các cuộc đấu súng khi cô ta bị người chơi 
+	khác bang và mất máu cô ta sẽ lập tức bang lại người 
+	chơi đó ( 2 miss mới né được lượt bang này của cô ta ) 
+	bù lại nhân vật này phải dùng đến 2 lá bang để có thể 
+	bang người chơi khác ở 1 lượt bang bình thường

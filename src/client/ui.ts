@@ -6,7 +6,7 @@
 import { cardNameFromId, cardSuitRankFromId, WEAPON_RANGES } from "../core/cards";
 import type { CardName } from "../core/cards";
 import { CHARACTERS, getCharacterDefinition } from "../core/characters";
-import type { CharacterChoice, GameEvent, GameState, HouseRuleId, PendingAction, PlayerState, Role, Suit, Winner } from "../core/types";
+import type { CharacterChoice, GameEvent, GameState, HouseRuleId, PendingAction, PlayerState, Rank, Role, Suit, Winner } from "../core/types";
 import type { CharacterChoiceView, PendingActionView, PlayerHandView, PlayerView } from "../core/view";
 import type { DeadlineInfo } from "../protocol";
 
@@ -38,6 +38,13 @@ const CARD_LABELS: Record<CardName, string> = {
   mustang: "Ngựa Mustang (+1)",
   jail: "Nhà tù",
   dynamite: "Thuốc nổ",
+  // Mở rộng Dodge City (đợt 1/40 lá — xem Luat_Bang_Mo_Rong_DodgeCity.txt).
+  bible: "Kinh Thánh",
+  sombrero: "Mũ Sombrero",
+  ten_gallon_hat: "Mũ 10 Gallon",
+  iron_plate: "Áo giáp sắt",
+  canteen: "Bi đông nước",
+  pony_express: "Trạm ngựa Pony Express",
 };
 
 // Việc 4.6: mô tả ngắn chức năng từng lá — soạn theo ĐÚNG luật đã cài trong
@@ -73,6 +80,14 @@ const CARD_DESCRIPTIONS: Record<CardName, string> = {
   jail: "Gắn lên sân người khác (trừ Cảnh sát trưởng) — đầu lượt họ lật 1 lá: ra Cơ thì thoát, chơi bình thường; không thì mất luôn cả lượt.",
   dynamite:
     "Ai đang cầm, đầu lượt phải lật 1 lá: ra Bích 2-9 thì nổ mất 3 máu rồi bỏ đi; không thì tự chuyển sang người kế tiếp.",
+  // Mở rộng Dodge City (đợt 1/40 lá) — trang bị "trì hoãn": bày ra trước mặt
+  // như trang bị thường, nhưng phải chờ ít nhất 1 lượt mới được bỏ ra dùng.
+  bible: "Trang bị trì hoãn — chờ 1 lượt rồi bỏ ra dùng NHƯ Missed!, kèm rút thêm 1 lá nếu đỡ thành công.",
+  sombrero: "Trang bị trì hoãn — chờ 1 lượt rồi bỏ ra dùng NHƯ Missed! để đỡ Bang!/Gatling.",
+  ten_gallon_hat: "Trang bị trì hoãn — chờ 1 lượt rồi bỏ ra dùng NHƯ Missed! để đỡ Bang!/Gatling.",
+  iron_plate: "Trang bị trì hoãn — chờ 1 lượt rồi bỏ ra dùng NHƯ Missed! để đỡ Bang!/Gatling.",
+  canteen: "Trang bị trì hoãn — chờ tới lượt sau của chính mình mới bỏ ra dùng, tự hồi 1 máu.",
+  pony_express: "Trang bị trì hoãn — chờ tới lượt sau của chính mình mới bỏ ra dùng, rút thêm 3 lá từ bộ bài.",
 };
 
 // Nhóm lá nâu/xanh CHỈ để trình bày (viền màu + màn hình Thư viện bài) — chép lại
@@ -87,10 +102,19 @@ const BLUE_CARD_NAMES: readonly CardName[] = [
   "volcanic", "schofield", "remington", "rev_carabine", "winchester",
   "barrel", "scope", "mustang", "jail", "dynamite",
 ];
+// Mở rộng Dodge City — trang bị "trì hoãn" (xem cards.ts's YellowCardName).
+// ĐỔI MÀU so với sách luật gốc (gọi là "green-bordered") — xem ghi chú màu ở
+// đầu Luat_Bang_Mo_Rong_DodgeCity.txt: xanh lá ĐÃ dành riêng cho khung nhân
+// vật trong dự án này, nên nhóm bài này dùng màu vàng thay thế.
+const YELLOW_CARD_NAMES: readonly CardName[] = [
+  "bible", "sombrero", "ten_gallon_hat", "iron_plate", "canteen", "pony_express",
+];
 
 // Việc bổ sung sau 4.6: viền màu phân biệt loại lá — nâu (đánh từ tay), xanh
-// dương (trang bị), xanh lá (nhân vật — xem CHARACTER_PREVIEW bên dưới).
+// dương (trang bị), vàng (trang bị trì hoãn, Dodge City), xanh lá (nhân vật —
+// xem CHARACTER_PREVIEW bên dưới).
 function cardTypeModifierClass(name: CardName): string {
+  if (YELLOW_CARD_NAMES.includes(name)) return "card-box--yellow";
   return BLUE_CARD_NAMES.includes(name) ? "card-box--blue" : "card-box--brown";
 }
 
@@ -178,7 +202,16 @@ function attachDescriptionReveal(el: HTMLElement, description: string | undefine
 // được) lẫn <span>/<div> (chỉ để xem). `description` bỏ trống thì không gắn
 // tooltip/nhấn-giữ gì cả (dùng ở màn hình Thư viện bài, nơi mô tả đã hiện thành
 // chữ riêng ngay bên dưới, gắn thêm sẽ thừa).
-function appendCardVisual(el: HTMLElement, imageUrl: string, label: string, description?: string): void {
+// `suitRank`: CHỈ truyền cho lá bài THẬT (có chất/số) — lá nhân vật (không có
+// khái niệm chất) gọi hàm này KHÔNG kèm tham số này, tự động bỏ qua badge,
+// đúng yêu cầu "lá không có chất thì bỏ qua phần này".
+function appendCardVisual(
+  el: HTMLElement,
+  imageUrl: string,
+  label: string,
+  description?: string,
+  suitRank?: { suit: Suit; rank: Rank }
+): void {
   const imageWrap = document.createElement("span");
   imageWrap.className = "card-box__image-wrap";
   const img = document.createElement("img");
@@ -189,6 +222,14 @@ function appendCardVisual(el: HTMLElement, imageUrl: string, label: string, desc
     img.style.display = "none"; // thiếu ảnh -> ẩn đi, chỉ còn nền xám + tên chữ
   });
   imageWrap.appendChild(img);
+
+  if (suitRank) {
+    const badge = document.createElement("span");
+    badge.className = "card-box__suit-badge " + (isRedSuit(suitRank.suit) ? "card-box__suit-badge--red" : "card-box__suit-badge--black");
+    badge.textContent = `${suitRank.rank}${SUIT_ICONS[suitRank.suit]}`;
+    imageWrap.appendChild(badge);
+  }
+
   el.appendChild(imageWrap);
 
   const nameEl = document.createElement("span");
@@ -207,7 +248,7 @@ function cardButton(cardId: string, onClick: () => void, modifierClass?: string)
   const el = document.createElement("button");
   el.type = "button";
   el.className = ["card-box", cardTypeModifierClass(name), modifierClass].filter(Boolean).join(" ");
-  appendCardVisual(el, cardImageUrl(name), cardLabel(cardId), CARD_DESCRIPTIONS[name]);
+  appendCardVisual(el, cardImageUrl(name), cardLabel(cardId), CARD_DESCRIPTIONS[name], cardSuitRankFromId(cardId));
   el.addEventListener("click", onClick);
   return el;
 }
@@ -219,7 +260,7 @@ function cardChip(cardId: string, modifierClass?: string): HTMLSpanElement {
   const name = cardNameFromId(cardId);
   const el = document.createElement("span");
   el.className = ["card-box", "card-box--inert", cardTypeModifierClass(name), modifierClass].filter(Boolean).join(" ");
-  appendCardVisual(el, cardImageUrl(name), cardLabel(cardId), CARD_DESCRIPTIONS[name]);
+  appendCardVisual(el, cardImageUrl(name), cardLabel(cardId), CARD_DESCRIPTIONS[name], cardSuitRankFromId(cardId));
   return el;
 }
 
@@ -411,6 +452,23 @@ const SUIT_LABELS: Record<Suit, string> = {
   clubs: "Chuồn",
 };
 
+// Badge chất/số ở góc dưới-phải mỗi lá bài THẬT (tay/trang bị) — icon Unicode
+// sẵn có của trình duyệt, không cần ảnh riêng, luôn hiển thị đúng dù chưa có
+// sprite thật. Đỏ/đen theo đúng quy ước bài Tây thật — dùng 2 biến CSS RIÊNG
+// (--color-suit-red/--color-suit-black), KHÔNG tái dùng --color-danger (đã
+// mang nghĩa "nguy hiểm/khẩn cấp" ở Dynamite/Jail/đồng hồ sắp hết giờ, dùng lại
+// ở đây dễ hiểu lầm ý nghĩa).
+const SUIT_ICONS: Record<Suit, string> = {
+  spades: "♠",
+  hearts: "♥",
+  diamonds: "♦",
+  clubs: "♣",
+};
+
+function isRedSuit(suit: Suit): boolean {
+  return suit === "hearts" || suit === "diamonds";
+}
+
 const ROLE_LABELS: Record<Role, string> = {
   sheriff: "Cảnh sát trưởng",
   deputy: "Phó cảnh sát trưởng",
@@ -447,18 +505,23 @@ const HOUSE_RULE_LABELS: Record<HouseRuleId, string> = {
   require_weapon_for_bang: "Bắt buộc có súng mới đánh Bang!",
   no_duplicate_card_names: "Cấm dùng 2 lá trùng tên/lượt",
   beer_below_two: "Bia vẫn có tác dụng dù chỉ còn 2 người sống",
+  extra_cards: "Dùng thêm lá bài đặc biệt (mở rộng)",
 };
 const HOUSE_RULE_DESCRIPTIONS: Record<HouseRuleId, string> = {
   extra_distance: "Mọi khoảng cách vòng tròn (tầm bắn Bang!, khoảng cách 1 của Panic!...) đều +1 so với luật gốc.",
   require_weapon_for_bang: "Bỏ 'súng ngầm định tầm 1' — phải trang bị 1 lá súng thật mới đánh Bang! được.",
   no_duplicate_card_names: "Không được đánh chủ động 2 lá NÂU trùng tên trong cùng 1 lượt (lá trang bị không tính).",
   beer_below_two: "Bỏ ngoại lệ luật gốc — Bia vẫn hồi máu/cứu mạng bình thường kể cả khi chỉ còn 2 người sống.",
+  extra_cards:
+    "Thêm bài Dodge City vào bộ (đợt 1/40 lá: Bible, Sombrero, Ten Gallon Hat, Iron Plate x2, Canteen, Pony Express). " +
+    "Luật đã cài đủ, NHƯNG giao diện CHƯA có nút bấm để kích hoạt/dùng làm Missed! — chỉ nên bật để thử qua mã nguồn/test, CHƯA nên bật khi chơi thật với bạn bè.",
 };
 const HOUSE_RULE_IDS: HouseRuleId[] = [
   "extra_distance",
   "require_weapon_for_bang",
   "no_duplicate_card_names",
   "beer_below_two",
+  "extra_cards",
 ];
 
 function renderHouseRuleCheckboxes(
@@ -610,6 +673,8 @@ export function describeEvent(event: GameEvent, nameOf: (id: string) => string):
       return `${nameOf(event.playerId)} giết nhầm Phó cảnh sát trưởng, bị phạt mất hết bài`;
     case "GAME_ENDED":
       return `VÁN KẾT THÚC — thắng: ${describeWinner(event.winner, nameOf)}`;
+    case "DELAYED_EQUIPMENT_ACTIVATED":
+      return `${nameOf(event.playerId)} dùng ${cardLabel(event.cardId)} (trang bị trì hoãn)`;
   }
 }
 
@@ -992,6 +1057,19 @@ function button(label: string, onClick: () => void): HTMLButtonElement {
   return el;
 }
 
+// Bản Beta song song (LO-TRINH.md) — chỉ mở URL khác ở TAB MỚI, không có
+// logic chuyển đổi runtime nào cả, nên là 1 thẻ `<a>` thường (trông giống
+// button qua class `.link-button`, xem style.css), không phải button+handler.
+function linkButton(label: string, href: string): HTMLAnchorElement {
+  const el = document.createElement("a");
+  el.textContent = label;
+  el.href = href;
+  el.target = "_blank";
+  el.rel = "noopener noreferrer";
+  el.className = "link-button";
+  return el;
+}
+
 // Giai đoạn 5 (Calamity Janet) — lá `cardId` có ĐÓNG VAI Bang!/Missed! được
 // không, mirror ĐÚNG logic actsAsBang()/actsAsMissed() (core/reduce.ts, không
 // export) — chỉ để UI biết vẽ nút bấm được ở đâu, KHÔNG thay cho việc reduce()
@@ -1032,6 +1110,22 @@ function respondableCardName(pendingKind: string): CardName | null {
     default:
       return null;
   }
+}
+
+// Slab the Killer (missesNeeded > 1, xem reduce.ts's respondToMissed) — luật
+// gốc "if able": chỉ được bỏ Missed! khi tay ĐANG CÓ ĐỦ số lá cần ngay từ đầu,
+// không được bỏ dở dang rồi hết giữa chừng (mất lá mà vẫn không né được). Tay
+// không đủ thì ẨN nút bấm Missed! (chỉ còn "Chịu mất máu" khả dụng) — core
+// (respondToMissed) cũng tự chặn lại, đây chỉ để khỏi bấm vào rồi mới báo lỗi.
+function hasEnoughMissedToRespond(
+  top: { kind: string; missesNeeded?: number },
+  hand: readonly string[],
+  characterId: string | null
+): boolean {
+  if (top.kind !== "NEED_MISSED") return true;
+  const needed = top.missesNeeded ?? 1;
+  const eligible = hand.filter((id) => cardActsAsMissed(id, characterId)).length;
+  return eligible >= needed;
 }
 
 function renderHandSection(
@@ -1078,7 +1172,10 @@ function renderHandSection(
     }
 
     if (respondableName !== null) {
-      if (cardMatchesRespondable(cardId, player.characterId, respondableName)) {
+      if (
+        cardMatchesRespondable(cardId, player.characterId, respondableName) &&
+        hasEnoughMissedToRespond(top, player.hand, player.characterId)
+      ) {
         wrapper.appendChild(cardButton(cardId, () => handlers.onHandCardClick(cardId)));
       } else {
         wrapper.appendChild(cardChip(cardId));
@@ -1690,7 +1787,15 @@ export interface HomeHandlers {
   onShowCardReference(): void;
 }
 
-export function renderHomeScreen(container: HTMLElement, handlers: HomeHandlers): void {
+// Bản Beta song song (LO-TRINH.md) — label + href tính sẵn ở main.ts (đọc
+// `location.hostname` để biết đang ở bản chính hay bản beta), KHÔNG PHẢI
+// handler vì chỉ mở tab mới, không dispatch action nào cả.
+export interface BetaLinkInfo {
+  label: string;
+  href: string;
+}
+
+export function renderHomeScreen(container: HTMLElement, betaLink: BetaLinkInfo, handlers: HomeHandlers): void {
   container.replaceChildren();
 
   const heading = document.createElement("h2");
@@ -1702,6 +1807,7 @@ export function renderHomeScreen(container: HTMLElement, handlers: HomeHandlers)
   panel.appendChild(button("Chơi chung 1 máy (hotseat)", () => handlers.onPlayLocal()));
   panel.appendChild(button("Chơi qua mạng", () => handlers.onPlayNetwork()));
   panel.appendChild(button("Thư viện bài", () => handlers.onShowCardReference()));
+  panel.appendChild(linkButton(betaLink.label, betaLink.href));
   container.appendChild(panel);
 }
 
@@ -2080,7 +2186,10 @@ function networkRenderHandSection(
     }
 
     if (respondableName !== null) {
-      if (cardMatchesRespondable(cardId, player.characterId, respondableName)) {
+      if (
+        cardMatchesRespondable(cardId, player.characterId, respondableName) &&
+        hasEnoughMissedToRespond(top, player.hand, player.characterId)
+      ) {
         wrapper.appendChild(cardButton(cardId, () => handlers.onHandCardClick(cardId)));
       } else {
         wrapper.appendChild(cardChip(cardId));
