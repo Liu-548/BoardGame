@@ -747,3 +747,6 @@
   - Mở "Nhật ký ván đấu" — hiện đúng nội dung, không lỗi console.
   - Mô phỏng đúng chuỗi sự kiện `touchstart`/`touchmove`/`touchend` thật (dùng `Touch`/`TouchEvent` dựng tay, không phải mô phỏng chuột) trên 1 lá bài thật trong tay: giữ hết 500ms + rung nhẹ 3.6px → popup **VẪN CÒN** (trước đây sẽ mất ngay); giữ hết 500ms + trượt thật 30px → popup **mất ngay** (đúng hành vi mong muốn, không đổi); giữ hết 500ms rồi **KHÔNG BAO GIỜ gửi `touchend`** (mô phỏng đúng ca `el` bị gỡ khỏi DOM giữa chừng) → popup **tự biến mất đúng sau ~4 giây** nhờ hẹn giờ an toàn, không kẹt vĩnh viễn.
 - **Chưa tự kiểm riêng qua mạng (`wrangler dev`)** — cơ chế sửa dùng CHUNG 100% code (`renderDialog()`/`attachDescriptionReveal()`) giữa hotseat và qua mạng, không có nhánh riêng nào, nên rủi ro thấp; nhưng đáng chú ý là bug ban đầu "liên tục" rõ nhất khi có đồng hồ đếm ngược (`countdownTickId`, chỉ chạy qua mạng) — nên tự chơi thử qua mạng khi có dịp để xác nhận nốt cảm giác thực tế.
+- Đã deploy live (`npm run deploy`) lên **https://bang-boardgame.nguyenngoctuan548.workers.dev** — kèm cả fix "đã đầy máu vẫn đánh Bia thành công" (đợt trước, đã commit nhưng chưa deploy) trong cùng lần này.
+
+358 test đều pass.
