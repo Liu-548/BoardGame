@@ -69,6 +69,12 @@ export function computeDistance(
   let distance = seatDistance(players, fromId, toId) + extraBaseDistance;
   if (hasEquipment(attacker, "scope")) distance -= 1;
   if (hasEquipment(target, "mustang")) distance += 1;
+  // Mở rộng Dodge City — Binocular (bản sao vật lý thứ 2 của Scope) và Hideout
+  // (bản sao vật lý thứ 2 của Mustang). Cộng dồn ĐỘC LẬP với Scope/Mustang thật
+  // (khác tên nên hợp lệ trang bị cùng lúc) — vd có cả Scope lẫn Binocular thì
+  // trừ tổng 2, không phải "chỉ tính 1 trong 2".
+  if (hasEquipment(attacker, "binocular")) distance -= 1;
+  if (hasEquipment(target, "hideout")) distance += 1;
 
   // Giai đoạn 5 (Paul Regret/Rose Doolan, xem core/characters.ts) — cộng dồn
   // SAU Ống nhắm/Ngựa Mustang thật, đúng công thức chung, không tách riêng.

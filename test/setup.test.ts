@@ -221,9 +221,9 @@ describe("setupGame", () => {
     });
   });
 
-  // Mở rộng Dodge City (đợt 1) — house rule "extra_cards" (xem
-  // DODGE_CITY_CARD_COUNTS ở cards.ts) phải cộng thêm đúng số lá vàng vào bộ
-  // bài khi bật, KHÔNG đổi gì khi tắt (mặc định).
+  // Mở rộng Dodge City — house rule "extra_cards" (xem DODGE_CITY_CARD_COUNTS
+  // ở cards.ts) phải cộng thêm đúng số lá Dodge City vào bộ bài khi bật,
+  // KHÔNG đổi gì khi tắt (mặc định).
   describe("house rule 'extra_cards' (Dodge City)", () => {
     function totalCardsByName(state: ReturnType<typeof setupGame>, name: string): number {
       const inDeck = state.deck.filter((id) => id.startsWith(`${name}_`)).length;
@@ -240,19 +240,51 @@ describe("setupGame", () => {
       expect(totalCardsByName(state, "iron_plate")).toBe(0);
     });
 
-    it("BẬT: cộng đủ số lá vàng đợt 1 vào bộ bài (63 lá nâu + 17 lá xanh + 7 lá vàng = 87 lá tổng)", () => {
+    it("BẬT: cộng đủ 40/40 lá Dodge City (đợt 1 + đợt 2) vào bộ bài — 80 lá gốc + 39 lá cộng thêm = 119 lá tổng", () => {
       const state = setupGame(ids(4), 1, { houseRules: ["extra_cards"] });
+      // Đợt 1.
       expect(totalCardsByName(state, "bible")).toBe(1);
       expect(totalCardsByName(state, "sombrero")).toBe(1);
       expect(totalCardsByName(state, "ten_gallon_hat")).toBe(1);
       expect(totalCardsByName(state, "iron_plate")).toBe(2);
       expect(totalCardsByName(state, "canteen")).toBe(1);
       expect(totalCardsByName(state, "pony_express")).toBe(1);
+      // Đợt 2 — lá xanh thêm bản sao thứ 2 + 2 tên hoàn toàn mới.
+      expect(totalCardsByName(state, "barrel")).toBe(3);
+      expect(totalCardsByName(state, "dynamite")).toBe(2);
+      expect(totalCardsByName(state, "remington")).toBe(2);
+      expect(totalCardsByName(state, "rev_carabine")).toBe(2);
+      expect(totalCardsByName(state, "binocular")).toBe(1);
+      expect(totalCardsByName(state, "hideout")).toBe(1);
+      // Đợt 2 — lá nâu trùng bộ cơ bản thêm số lượng Dodge City.
+      expect(totalCardsByName(state, "bang")).toBe(29);
+      expect(totalCardsByName(state, "beer")).toBe(8);
+      expect(totalCardsByName(state, "missed")).toBe(13);
+      expect(totalCardsByName(state, "cat_balou")).toBe(5);
+      expect(totalCardsByName(state, "general_store")).toBe(3);
+      expect(totalCardsByName(state, "indians")).toBe(3);
+      expect(totalCardsByName(state, "panic")).toBe(5);
+      // Đợt 2 — lá nâu hoàn toàn mới.
+      expect(totalCardsByName(state, "brawl")).toBe(1);
+      expect(totalCardsByName(state, "dodge")).toBe(2);
+      expect(totalCardsByName(state, "punch")).toBe(1);
+      expect(totalCardsByName(state, "rag_time")).toBe(1);
+      expect(totalCardsByName(state, "springfield")).toBe(1);
+      expect(totalCardsByName(state, "tequila")).toBe(1);
+      expect(totalCardsByName(state, "whisky")).toBe(1);
+      // Đợt 2 — 7 lá vàng còn lại.
+      expect(totalCardsByName(state, "derringer")).toBe(1);
+      expect(totalCardsByName(state, "conestoga")).toBe(1);
+      expect(totalCardsByName(state, "can_can")).toBe(1);
+      expect(totalCardsByName(state, "buffalo_rifle")).toBe(1);
+      expect(totalCardsByName(state, "knife")).toBe(1);
+      expect(totalCardsByName(state, "pepperbox")).toBe(1);
+      expect(totalCardsByName(state, "howitzer")).toBe(1);
 
       // Đếm cả equipment — Dynamite tự xuống sân ngay lúc chia (equipment.ts's
       // giveCardToPlayer()), không nằm trong hand như bài thường.
       const dealt = state.players.reduce((sum, p) => sum + p.hand.length + p.equipment.length, 0);
-      expect(state.deck.length + dealt).toBe(87);
+      expect(state.deck.length + dealt).toBe(119);
     });
   });
 });

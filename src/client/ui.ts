@@ -45,6 +45,23 @@ const CARD_LABELS: Record<CardName, string> = {
   iron_plate: "Áo giáp sắt",
   canteen: "Bi đông nước",
   pony_express: "Trạm ngựa Pony Express",
+  // Mở rộng Dodge City đợt 2 (34/40 lá còn lại).
+  binocular: "Ống nhòm (-1)",
+  hideout: "Hầm trú ẩn (+1)",
+  brawl: "Ẩu đả",
+  dodge: "Né đòn",
+  punch: "Đấm",
+  rag_time: "Rag Time",
+  springfield: "Súng Springfield",
+  tequila: "Rượu Tequila",
+  whisky: "Rượu Whisky",
+  derringer: "Súng Derringer",
+  conestoga: "Xe Conestoga",
+  can_can: "Can Can",
+  buffalo_rifle: "Súng trường Buffalo",
+  knife: "Dao găm",
+  pepperbox: "Súng Pepperbox",
+  howitzer: "Đại bác Howitzer",
 };
 
 // Việc 4.6: mô tả ngắn chức năng từng lá — soạn theo ĐÚNG luật đã cài trong
@@ -88,6 +105,24 @@ const CARD_DESCRIPTIONS: Record<CardName, string> = {
   iron_plate: "Trang bị trì hoãn — chờ 1 lượt rồi bỏ ra dùng NHƯ Missed! để đỡ Bang!/Gatling.",
   canteen: "Trang bị trì hoãn — chờ tới lượt sau của chính mình mới bỏ ra dùng, tự hồi 1 máu.",
   pony_express: "Trang bị trì hoãn — chờ tới lượt sau của chính mình mới bỏ ra dùng, rút thêm 3 lá từ bộ bài.",
+  // Mở rộng Dodge City đợt 2 (34/40 lá còn lại) — mô tả theo ĐÚNG luật đã cài
+  // trong reduce.ts (xem Luat_Bang_Mo_Rong_DodgeCity.txt).
+  binocular: "Nhìn người khác gần hơn 1 khi mình đánh Bang! — cộng dồn được với Ống nhắm.",
+  hideout: "Người khác nhìn mình xa hơn 1 — cộng dồn được với Ngựa Mustang.",
+  brawl: "Bỏ kèm 1 lá phụ để bắt TẤT CẢ người khác bỏ 1 lá — tự chọn tay hay sân cho từng người.",
+  dodge: "Không tự đánh được — chỉ dùng để đỡ khi bị Bang!/Gatling, đỡ thành công thì rút thêm 1 lá.",
+  punch: "Có hiệu ứng như Bang! nhắm người ở khoảng cách 1, bất kể súng đang cầm.",
+  rag_time: "Bỏ kèm 1 lá phụ để cướp 1 lá của người bất kỳ, không giới hạn khoảng cách.",
+  springfield: "Bỏ kèm 1 lá phụ để có hiệu ứng Bang! nhắm người bất kỳ, bất kể khoảng cách/tầm súng.",
+  tequila: "Bỏ kèm 1 lá phụ để hồi 1 máu cho người bất kỳ (kể cả chính mình).",
+  whisky: "Bỏ kèm 1 lá phụ để tự hồi 2 máu — chỉ dùng được trong lượt của chính mình.",
+  derringer: "Trang bị trì hoãn — chờ 1 lượt rồi bỏ ra để có hiệu ứng Bang! khoảng cách 1, luôn rút thêm 1 lá.",
+  conestoga: "Trang bị trì hoãn — chờ 1 lượt rồi bỏ ra để cướp 1 lá của người bất kỳ, không giới hạn khoảng cách.",
+  can_can: "Trang bị trì hoãn — chờ 1 lượt rồi bỏ ra để bắt 1 người bất kỳ bỏ 1 lá (tay hoặc sân).",
+  buffalo_rifle: "Trang bị trì hoãn — chờ 1 lượt rồi bỏ ra để có hiệu ứng Bang! nhắm người bất kỳ, bất kể khoảng cách.",
+  knife: "Trang bị trì hoãn — chờ 1 lượt rồi bỏ ra để có hiệu ứng Bang! ở khoảng cách 1.",
+  pepperbox: "Trang bị trì hoãn — chờ 1 lượt rồi bỏ ra để có hiệu ứng Bang! đúng tầm súng đang cầm.",
+  howitzer: "Trang bị trì hoãn — chờ 1 lượt rồi bỏ ra để bắn TẤT CẢ người khác cùng lúc, bất kể khoảng cách.",
 };
 
 // Nhóm lá nâu/xanh CHỈ để trình bày (viền màu + màn hình Thư viện bài) — chép lại
@@ -97,10 +132,14 @@ const CARD_DESCRIPTIONS: Record<CardName, string> = {
 const BROWN_CARD_NAMES: readonly CardName[] = [
   "bang", "missed", "beer", "saloon", "stagecoach", "wells_fargo",
   "panic", "cat_balou", "general_store", "indians", "duel", "gatling",
+  // Mở rộng Dodge City đợt 2.
+  "brawl", "dodge", "punch", "rag_time", "springfield", "tequila", "whisky",
 ];
 const BLUE_CARD_NAMES: readonly CardName[] = [
   "volcanic", "schofield", "remington", "rev_carabine", "winchester",
   "barrel", "scope", "mustang", "jail", "dynamite",
+  // Mở rộng Dodge City đợt 2.
+  "binocular", "hideout",
 ];
 // Mở rộng Dodge City — trang bị "trì hoãn" (xem cards.ts's YellowCardName).
 // ĐỔI MÀU so với sách luật gốc (gọi là "green-bordered") — xem ghi chú màu ở
@@ -108,6 +147,8 @@ const BLUE_CARD_NAMES: readonly CardName[] = [
 // vật trong dự án này, nên nhóm bài này dùng màu vàng thay thế.
 const YELLOW_CARD_NAMES: readonly CardName[] = [
   "bible", "sombrero", "ten_gallon_hat", "iron_plate", "canteen", "pony_express",
+  // Đợt 2.
+  "derringer", "conestoga", "can_can", "buffalo_rifle", "knife", "pepperbox", "howitzer",
 ];
 
 // Việc bổ sung sau 4.6: viền màu phân biệt loại lá — nâu (đánh từ tay), xanh
@@ -513,8 +554,13 @@ const HOUSE_RULE_DESCRIPTIONS: Record<HouseRuleId, string> = {
   no_duplicate_card_names: "Không được đánh chủ động 2 lá NÂU trùng tên trong cùng 1 lượt (lá trang bị không tính).",
   beer_below_two: "Bỏ ngoại lệ luật gốc — Bia vẫn hồi máu/cứu mạng bình thường kể cả khi chỉ còn 2 người sống.",
   extra_cards:
-    "Thêm bài Dodge City vào bộ (đợt 1/40 lá: Bible, Sombrero, Ten Gallon Hat, Iron Plate x2, Canteen, Pony Express). " +
-    "Luật đã cài đủ, NHƯNG giao diện CHƯA có nút bấm để kích hoạt/dùng làm Missed! — chỉ nên bật để thử qua mã nguồn/test, CHƯA nên bật khi chơi thật với bạn bè.",
+    "Thêm ĐỦ 40/40 lá Dodge City vào bộ (súng/Barrel/Dynamite thêm bản sao thứ 2, Bang!/Beer/Missed!/Cat Balou/" +
+    "General Store/Indians!/Panic! thêm số lượng, cộng 16 lá hoàn toàn mới: Binocular, Hideout, Brawl, Dodge, Punch, " +
+    "Rag Time, Springfield, Tequila, Whisky, Bible, Sombrero, Ten Gallon Hat, Iron Plate x2, Canteen, Pony Express, " +
+    "Derringer, Conestoga, Can Can, Buffalo Rifle, Knife, Pepperbox, Howitzer). " +
+    "Luật đã cài đủ core, NHƯNG giao diện CHƯA có nút bấm cho lá vàng 'trì hoãn' (kích hoạt lá đã bày sẵn/đỡ Missed! " +
+    "bằng trang bị) hay lá nâu cần bỏ kèm 1 lá phụ (Brawl/Rag Time/Springfield/Tequila/Whisky) — chỉ nên bật để thử " +
+    "qua mã nguồn/test, CHƯA nên bật khi chơi thật với bạn bè.",
 };
 const HOUSE_RULE_IDS: HouseRuleId[] = [
   "extra_distance",
