@@ -165,21 +165,29 @@ let networkDeadline: DeadlineInfo | null = null;
 let countdownTickId: ReturnType<typeof setInterval> | null = null;
 
 // render() dựng lại TOÀN BỘ cây DOM mỗi lần gọi (container.replaceChildren()
-// trong renderApp()/renderNetworkGame(), dialog cũng bị tạo MỚI mỗi lần —
-// xem renderDialog() ở ui.ts) — kể cả khi KHÔNG có gì thật sự đổi, vì
-// countdownTickId ở dưới gọi render() mỗi giây chỉ để cập nhật số giây còn
+// trong renderApp()/renderNetworkGame()) — kể cả khi KHÔNG có gì thật sự đổi,
+// vì countdownTickId ở dưới gọi render() mỗi giây chỉ để cập nhật số giây còn
 // lại. Khung nào có thanh cuộn riêng (.opponent-row cuộn ngang, .log-list
 // cuộn dọc trong dialog Nhật ký) vì vậy bị tạo mới liên tục theo đúng nhịp
 // đó, khiến thanh cuộn tự nhảy về đầu dù người chơi không hề đụng vào. Lưu
 // lại vị trí cuộn TRƯỚC khi dựng lại, gắn lại đúng vị trí đó NGAY SAU khi
 // dựng xong — bù cho việc dự án không diff DOM (đúng lựa chọn "không dùng
 // framework" của CLAUDE.md).
+// Fix lỗi thật (báo từ chủ dự án): bản thân thẻ `<dialog>` (Nhật ký/Thư viện
+// bài/Cài đặt) giờ SỐNG ngoài `container` — gắn thẳng vào `document.body`,
+// KHÔNG còn bị `container.replaceChildren()` xoá/tạo lại mỗi giây nữa (xem
+// renderDialog() ở ui.ts) — nhưng `.log-list` (danh sách nhật ký BÊN TRONG
+// dialog đó) vẫn bị vẽ lại mỗi lần nội dung dialog cập nhật (có dòng log mới),
+// nên vẫn cần cơ chế lưu/gắn lại vị trí cuộn này. Vì dialog không còn nằm
+// trong `root` nữa, phải dò từ `document` (bao quát cả trong lẫn ngoài
+// `root`) thay vì chỉ `root.querySelector()` như trước — nếu không, `.log-list`
+// nằm trong dialog sẽ không bao giờ được tìm thấy.
 const SCROLLABLE_SELECTORS = [".opponent-row", ".log-list"];
 
 function captureScrollPositions(): Map<string, { left: number; top: number }> {
   const positions = new Map<string, { left: number; top: number }>();
   for (const selector of SCROLLABLE_SELECTORS) {
-    const el = root.querySelector(selector);
+    const el = document.querySelector(selector);
     if (el) positions.set(selector, { left: el.scrollLeft, top: el.scrollTop });
   }
   return positions;
@@ -187,7 +195,7 @@ function captureScrollPositions(): Map<string, { left: number; top: number }> {
 
 function restoreScrollPositions(positions: Map<string, { left: number; top: number }>): void {
   for (const [selector, pos] of positions) {
-    const el = root.querySelector(selector);
+    const el = document.querySelector(selector);
     if (el) {
       el.scrollLeft = pos.left;
       el.scrollTop = pos.top;

@@ -177,14 +177,38 @@ function cardImageUrl(name: CardName): string {
 //   ra sau đó — không chặn thì nhả tay sau khi xem xong sẽ vô tình bấm luôn lá
 //   (đánh bài/tick chọn bỏ...), không phải điều người dùng muốn.
 const LONG_PRESS_MS = 500;
+// Fix lỗi thật #1 (báo từ chủ dự án): popup "đôi khi biến mất ngay lập tức dù
+// vẫn đang giữ tay" — trước đây CHỈ CẦN 1 sự kiện "touchmove" (bất kể di
+// chuyển bao xa) là huỷ/ẩn popup ngay. Ngón tay người thật KHÔNG BAO GIỜ đứng
+// yên tuyệt đối lúc giữ — luôn có rung nhẹ vài pixel, nên gần như lần giữ nào
+// cũng dính "touchmove" ngay cả khi người dùng không hề có ý định trượt tay.
+// Sửa: chỉ coi là "trượt tay thật" (huỷ popup) khi di chuyển QUÁ 1 ngưỡng nhỏ
+// tính từ điểm chạm ban đầu — dưới ngưỡng đó coi là rung tay bình thường,
+// KHÔNG huỷ.
+const MOVE_CANCEL_THRESHOLD_PX = 10;
+// Fix lỗi thật #2: popup "hiện vĩnh viễn, không biến mất kể cả khi đã bỏ tay
+// ra". Nguyên nhân: `render()` (main.ts) vẽ lại TOÀN BỘ cây DOM mỗi ~1 giây —
+// nếu đúng lúc đó xảy ra NGAY GIỮA 1 lần đang giữ (đã qua LONG_PRESS_MS, popup
+// đang hiện), phần tử `el` đang gắn các listener touchmove/touchend NÀY bị gỡ
+// khỏi trang và thay bằng phần tử MỚI (có closure/state RIÊNG, không biết gì
+// về popup cũ) — sự kiện `touchend` thật của ngón tay khi bỏ ra sẽ không còn
+// nơi nào để bắt nữa (el cũ đã biến mất khỏi DOM), popup (gắn thẳng vào
+// `document.body`, không bị `replaceChildren()` đụng tới) bị "mồ côi" mãi
+// mãi. Sửa: cứ hiện popup lên là tự đặt hẹn giờ TỰ ẩn sau
+// AUTO_HIDE_MS — không phụ thuộc gì vào việc có bắt được touchend hay không,
+// đảm bảo popup KHÔNG BAO GIỜ bị kẹt vĩnh viễn dù mất dấu sự kiện thật.
+const AUTO_HIDE_MS = 4000;
 
 function attachDescriptionReveal(el: HTMLElement, description: string | undefined): void {
   if (!description) return;
   el.title = description;
 
   let timer: ReturnType<typeof setTimeout> | null = null;
+  let autoHideTimer: ReturnType<typeof setTimeout> | null = null;
   let popup: HTMLElement | null = null;
   let triggered = false;
+  let startX = 0;
+  let startY = 0;
 
   const clearTimer = () => {
     if (timer !== null) {
@@ -193,6 +217,10 @@ function attachDescriptionReveal(el: HTMLElement, description: string | undefine
     }
   };
   const hidePopup = () => {
+    if (autoHideTimer !== null) {
+      clearTimeout(autoHideTimer);
+      autoHideTimer = null;
+    }
     popup?.remove();
     popup = null;
   };
@@ -205,20 +233,28 @@ function attachDescriptionReveal(el: HTMLElement, description: string | undefine
     const rect = el.getBoundingClientRect();
     popup.style.left = `${rect.left}px`;
     popup.style.top = `${rect.bottom + 4}px`;
+    autoHideTimer = setTimeout(hidePopup, AUTO_HIDE_MS);
   };
 
   el.addEventListener(
     "touchstart",
-    () => {
+    (event) => {
       triggered = false;
       clearTimer();
+      const touch = event.touches[0];
+      startX = touch.clientX;
+      startY = touch.clientY;
       timer = setTimeout(showPopup, LONG_PRESS_MS);
     },
     { passive: true }
   );
-  el.addEventListener("touchmove", () => {
-    clearTimer();
-    hidePopup();
+  el.addEventListener("touchmove", (event) => {
+    const touch = event.touches[0];
+    const movedPx = Math.hypot(touch.clientX - startX, touch.clientY - startY);
+    if (movedPx > MOVE_CANCEL_THRESHOLD_PX) {
+      clearTimer();
+      hidePopup();
+    }
   });
   el.addEventListener(
     "touchend",
@@ -750,7 +786,47 @@ function renderOrientationLockOverlay(container: HTMLElement): void {
   container.appendChild(overlay);
 }
 
-function renderDialog(container: HTMLElement, title: string, onClose: () => void, buildBody: (body: HTMLElement) => void): void {
+// Fix lỗi thật (báo từ chủ dự án): thanh cuộn của dialog (Nhật ký/Cài đặt bị
+// kéo về TRÊN CÙNG, Thư viện bài bị kéo xuống DƯỚI CÙNG) liên tục, dù người
+// chơi không đụng vào. Nguyên nhân: render() (main.ts) vẽ lại TOÀN BỘ cây DOM
+// mỗi ~1 giây (đồng hồ đếm ngược) — trước đây renderDialog() TẠO MỚI hẳn thẻ
+// `<dialog>` + gọi lại `showModal()` mỗi lần, dù dialog đang mở, đang y hệt
+// nội dung. Mỗi lần showModal() lại, trình duyệt tự focus phần tử BẤM ĐƯỢC
+// đầu tiên trong dialog để hỗ trợ bàn phím — Nhật ký/Thư viện bài không có gì
+// bấm được TRONG THÂN dialog (chỉ toàn chữ/ảnh xem), nên phần tử đó luôn là
+// nút "Đóng" nằm CUỐI dialog → trình duyệt tự cuộn nó vào tầm nhìn, tức cuộn
+// xuống ĐÁY — đúng triệu chứng Thư viện bài. Cài đặt có vài nút Sáng/Tối nằm
+// GẦN ĐẦU nên focus lại kéo lên ĐẦU thay vì đáy — đúng triệu chứng còn lại.
+// Sửa tận gốc: GIỮ NGUYÊN đúng 1 thẻ `<dialog>` sống xuyên suốt trong lúc còn
+// mở (biến module-level `openDialog` bên dưới) — mỗi lần render() gọi lại chỉ
+// vẽ lại NỘI DUNG bên trong (`body.replaceChildren()` rồi `buildBody()` lại),
+// KHÔNG tạo thẻ `<dialog>` mới, KHÔNG gọi lại `showModal()` — nên trình duyệt
+// không có lý do gì để tự focus/cuộn lại nữa. `title` dùng làm khoá nhận diện
+// "cùng 1 dialog hay khác" (mỗi loại dialog có tiêu đề cố định, không trùng
+// nhau — Nhật ký ván đấu/Thư viện bài/Cài đặt/Mã phòng/Mời).
+//
+// Gắn thẳng vào `document.body` (không phải `container` như trước) vì
+// `container` (khung `#game-root`) bị `replaceChildren()` xoá sạch mỗi lần
+// render() — nếu dialog vẫn là con của nó thì dù có "giữ nguyên biến JS"
+// cũng bị dọn khỏi DOM theo. `<dialog>` dùng `showModal()` vốn hiện ở lớp
+// riêng (top layer) của trình duyệt nên vị trí trong cây DOM không ảnh hưởng
+// gì tới việc nó có che đúng màn hình hay không.
+let openDialog: { title: string; element: HTMLDialogElement; body: HTMLElement } | null = null;
+
+function renderDialog(title: string, onClose: () => void, buildBody: (body: HTMLElement) => void): void {
+  if (openDialog && openDialog.title === title) {
+    // Cùng dialog đang mở sẵn — chỉ vẽ lại nội dung, không đụng gì tới
+    // <dialog>/focus/cuộn đã có.
+    openDialog.body.replaceChildren();
+    buildBody(openDialog.body);
+    return;
+  }
+
+  // Đang mở dialog KHÁC (hiếm khi xảy ra — toolbar chỉ mở được 1 dialog/lần) —
+  // dọn nó đi TRƯỚC, không gọi lại onClose() của dialog cũ (trạng thái "đang
+  // mở" phía state đã đổi từ nơi khác rồi, gọi lại dễ set sai state).
+  closeOpenDialog();
+
   const dialog = document.createElement("dialog");
   dialog.className = "app-dialog";
 
@@ -768,10 +844,46 @@ function renderDialog(container: HTMLElement, title: string, onClose: () => void
       onClose();
     })
   );
-  dialog.addEventListener("close", onClose);
+  dialog.addEventListener("close", () => {
+    onClose();
+    if (openDialog?.element === dialog) openDialog = null;
+  });
 
-  container.appendChild(dialog);
+  document.body.appendChild(dialog);
   dialog.showModal();
+  // showModal() VỪA XONG đã tự focus phần tử bấm được đầu tiên (thường là nút
+  // "Đóng" vì thân dialog không có gì bấm được) rồi tự cuộn nó vào tầm nhìn —
+  // đã THẬT SỰ xảy ra rồi, `dialogScrollTop` lúc này đã bị đẩy xuống đáy. Chỉ
+  // gọi `dialog.focus({ preventScroll: true })` (đổi focus sang chính thẻ
+  // `<dialog>`) KHÔNG đủ — cờ `preventScroll` chỉ chặn cuộn PHÁT SINH TỪ chính
+  // lần gọi `.focus()` này, không lùi lại cuộn đã xảy ra TRƯỚC ĐÓ (tự kiểm
+  // bằng trình duyệt thật phát hiện ra — dialogScrollTop vẫn ở gần cuối dù
+  // activeElement đã đúng là `<dialog>`). Phải TỰ TAY đặt lại `scrollTop = 0`
+  // luôn mới hết hẳn — chỉ cần làm 1 lần lúc mới mở, không phải mỗi render()
+  // nữa (đó chính là điểm đã sửa ở trên).
+  dialog.focus({ preventScroll: true });
+  dialog.scrollTop = 0;
+
+  openDialog = { title, element: dialog, body };
+}
+
+function closeOpenDialog(): void {
+  if (openDialog) {
+    openDialog.element.remove();
+    openDialog = null;
+  }
+}
+
+// Gọi ở CUỐI renderApp()/renderNetworkGame() — nếu dialog đang mở (biến
+// module-level ở trên) không còn nằm trong danh sách "lẽ ra phải mở" của lần
+// render() này (vd người chơi vừa bấm Đóng, state đã cập nhật), dọn nó đi.
+// Trường hợp bình thường (đóng qua nút "Đóng"/phím Esc) đã tự dọn qua sự kiện
+// "close" ở trên rồi — hàm này chỉ là lưới an toàn cho các đường khác (vd
+// server tự đổi trạng thái, chuyển hẳn màn hình...).
+function reconcileOpenDialog(desiredTitles: readonly string[]): void {
+  if (openDialog && !desiredTitles.includes(openDialog.title)) {
+    closeOpenDialog();
+  }
 }
 
 // Đợt 3 UI/UX (mục 9) — "Sẵn ở góc, không chiếm chỗ bàn": hàng nút cố định
@@ -1734,13 +1846,13 @@ export function renderApp(
   container.appendChild(playersEl);
 
   if (options.logDialogOpen) {
-    renderDialog(container, "Nhật ký ván đấu", handlers.onCloseLogDialog, (body) => renderLogDialogBody(body, options.log));
+    renderDialog("Nhật ký ván đấu", handlers.onCloseLogDialog, (body) => renderLogDialogBody(body, options.log));
   }
   if (options.cardReferenceDialogOpen) {
-    renderDialog(container, "Thư viện bài", handlers.onCloseCardReferenceDialog, (body) => renderCardReferenceBody(body));
+    renderDialog("Thư viện bài", handlers.onCloseCardReferenceDialog, (body) => renderCardReferenceBody(body));
   }
   if (options.settingsDialogOpen) {
-    renderDialog(container, "Cài đặt", handlers.onCloseSettingsDialog, (body) =>
+    renderDialog("Cài đặt", handlers.onCloseSettingsDialog, (body) =>
       renderSettingsDialogBody(body, "Về màn hình chính", handlers.onLeaveGame, {
         visible: true,
         confirmingNewGame: options.confirmingNewGame,
@@ -1750,6 +1862,13 @@ export function renderApp(
       })
     );
   }
+  reconcileOpenDialog(
+    [
+      options.logDialogOpen && "Nhật ký ván đấu",
+      options.cardReferenceDialogOpen && "Thư viện bài",
+      options.settingsDialogOpen && "Cài đặt",
+    ].filter((v): v is string => v !== false)
+  );
 }
 
 // ----- Việc 2.5: màn hình thiết lập ván mới (chế độ hotseat — 2-8 người
@@ -2796,13 +2915,13 @@ export function renderNetworkGame(
   }
 
   if (options.logDialogOpen) {
-    renderDialog(container, "Nhật ký ván đấu", handlers.onCloseLogDialog, (body) => renderLogDialogBody(body, options.log));
+    renderDialog("Nhật ký ván đấu", handlers.onCloseLogDialog, (body) => renderLogDialogBody(body, options.log));
   }
   if (options.cardReferenceDialogOpen) {
-    renderDialog(container, "Thư viện bài", handlers.onCloseCardReferenceDialog, (body) => renderCardReferenceBody(body));
+    renderDialog("Thư viện bài", handlers.onCloseCardReferenceDialog, (body) => renderCardReferenceBody(body));
   }
   if (options.settingsDialogOpen) {
-    renderDialog(container, "Cài đặt", handlers.onCloseSettingsDialog, (body) =>
+    renderDialog("Cài đặt", handlers.onCloseSettingsDialog, (body) =>
       renderSettingsDialogBody(body, "Rời phòng", handlers.onLeaveGame, {
         visible: options.isRoomOwner,
         confirmingNewGame: options.confirmingNewGame,
@@ -2813,8 +2932,16 @@ export function renderNetworkGame(
     );
   }
   if (options.roomCodeDialogOpen) {
-    renderDialog(container, "Mã phòng / Mời", handlers.onCloseRoomCodeDialog, (body) =>
+    renderDialog("Mã phòng / Mời", handlers.onCloseRoomCodeDialog, (body) =>
       renderRoomCodeDialogBody(body, options.roomCode, options.roomCodeCopyStatus, handlers.onCopyRoomCode)
     );
   }
+  reconcileOpenDialog(
+    [
+      options.logDialogOpen && "Nhật ký ván đấu",
+      options.cardReferenceDialogOpen && "Thư viện bài",
+      options.settingsDialogOpen && "Cài đặt",
+      options.roomCodeDialogOpen && "Mã phòng / Mời",
+    ].filter((v): v is string => v !== false)
+  );
 }
