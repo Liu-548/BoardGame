@@ -1276,11 +1276,29 @@ function otherAlivePlayersInOrder(state: GameState, attackerId: string): PlayerS
   return result;
 }
 
+// Đã đầy máu thì Bia KHÔNG THỂ có tác dụng gì trong MỌI trường hợp (không như
+// ngoại lệ "chỉ còn 2 người sống" — cái đó vẫn có thể TẮT qua house rule
+// "beer_below_two", còn "đã đầy máu" thì không có điều kiện đặc biệt nào bù
+// lại được) — từ chối luôn action này (throw, giống cách playBang() từ chối
+// đánh Bang! thứ 2/lượt), KHÔNG cho đánh ra rồi lãng phí trong im lặng như
+// trước. CHỈ chặn đúng việc TỰ ĐÁNH Bia để hồi máu (hàm này) — KHÔNG ảnh
+// hưởng gì tới việc dùng lá Bia làm "lá phụ" bỏ kèm cho Brawl/Rag Time/
+// Springfield/Tequila/Whisky (mở rộng Dodge City, mục 1.2) hay bất kỳ chỗ nào
+// khác chỉ cần bỏ 1 lá bất kỳ khỏi tay (Cat Balou, Sid Ketchum...) — những chỗ
+// đó không đi qua hàm này, không quan tâm lá bị bỏ là gì.
+function assertBeerCanHeal(player: PlayerState): void {
+  if (player.hp >= player.maxHp) {
+    throw new Error("Đã đầy máu — không thể đánh Bia (không còn tác dụng gì để hồi)");
+  }
+}
+
 // Bia vô tác dụng khi chỉ còn 2 người sống (luật gốc — ép ván 1-chọi-1 phải
 // có kết quả, không ai tự hồi máu vô hạn). Lá vẫn bị bỏ vào chồng bỏ như bình
 // thường (đã làm ở handlePlayCard() TRƯỚC KHI gọi hàm này) — chỉ riêng hiệu
 // ứng hồi máu là không xảy ra, không phải "không đánh được lá này".
 function playBeer(next: GameState, player: PlayerState, cardId: string): Result {
+  assertBeerCanHeal(player);
+
   const events: GameEvent[] = [{ type: "CARD_PLAYED", playerId: player.id, cardId }];
 
   const aliveCount = next.players.filter((p) => p.alive).length;
