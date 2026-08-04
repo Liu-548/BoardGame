@@ -305,6 +305,19 @@ describe("Dodge City đợt 2 — Whisky (tự hồi 2 máu, bỏ kèm 1 lá ph�
       reduce(state, { type: "PLAY_CARD", playerId: "b", cardId: "whisky_1", extraDiscardCardId: "beer_1" })
     ).toThrow(/Không phải lượt/);
   });
+
+  // Đã đầy máu thì KHÔNG được TỰ ĐÁNH Bia để hồi máu (test/brown-cards.test.ts)
+  // — NHƯNG dùng Bia làm lá PHỤ bỏ kèm (extraDiscardCardId, mục 1.2) là 1 việc
+  // HOÀN TOÀN KHÁC (không đi qua playBeer(), không quan tâm lá bị bỏ là gì) —
+  // vẫn phải hoạt động bình thường dù người bỏ đang đầy máu.
+  it("dùng Bia làm lá phụ bỏ kèm (extraDiscardCardId) vẫn được dù người đánh đang đầy máu", () => {
+    const state = makeState([makePlayer("a", { hand: ["whisky_1", "beer_1"], hp: 4, maxHp: 4 }), makePlayer("b")]);
+    const { state: next } = reduce(state, {
+      type: "PLAY_CARD", playerId: "a", cardId: "whisky_1", extraDiscardCardId: "beer_1",
+    });
+    expect(next.players[0].hp).toBe(4); // đã đầy, Whisky tự hồi 0 (không throw, khác Bia)
+    expect(next.discardPile).toEqual(["whisky_1", "beer_1"]);
+  });
 });
 
 describe("Dodge City đợt 2 — lá vàng còn lại (delayed, KHÔNG có ký hiệu Missed!)", () => {

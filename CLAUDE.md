@@ -856,6 +856,17 @@ Nguyên tắc chung:
 
 357 test đều pass. **ĐỦ 40/40 LÁ BÀI DODGE CITY trong `core/`** (mục A + mục B + mục E của "Ghi chú cho 5.4" coi như xong) — còn lại mục C (15 nhân vật mới) + mục D (luật riêng biến thể 3 người) + mục F (UI hiển thị chất bài) + UI thật cho toàn bộ 40 lá.
 
+**Fix: đã đầy máu vẫn đánh Bia thành công (theo báo lỗi thật từ chủ dự án trên bản chính thức — không liên quan Dodge City):**
+
+- Trước đây `playBeer()` (`reduce.ts`) cho phép đánh Bia ngay cả khi đã đầy máu — action thành công, lá vẫn bị bỏ vào chồng bỏ, chỉ ÂM THẦM không hồi máu gì (không có event nào báo, khác hẳn ca "chỉ còn 2 người sống" đã có `BEER_INEFFECTIVE`). Chủ dự án xác nhận: đã đầy máu thì về lý thuyết Bia KHÔNG THỂ có tác dụng gì trong MỌI trường hợp — khác ngoại lệ "chỉ còn 2 người sống" (có thể TẮT qua house rule `beer_below_two`), "đã đầy máu" không có điều kiện đặc biệt nào bù lại được.
+- **Đã hỏi lại cách sửa** (theo đúng quy tắc CLAUDE.md): chốt **từ chối hẳn action** (throw lỗi rõ ràng, giống cách `playBang()` từ chối đánh Bang! thứ 2/lượt) thay vì chỉ thêm event thông báo — không cho đánh ra rồi lãng phí trong im lặng nữa.
+- **Lưu ý quan trọng chủ dự án nhắc**: mở rộng Dodge City (`extraDiscardCardId`, mục 1.2) đôi khi cần bỏ Bia làm **lá phụ** cho Brawl/Rag Time/Springfield/Tequila/Whisky — KHÔNG được khoá luôn việc bỏ Bia trong MỌI ngữ cảnh. Đã kiểm tra kiến trúc sẵn có: 2 đường này tách biệt hoàn toàn — `discardExtraCard()` (lá phụ) chỉ `splice`+`push` thẳng vào chồng bỏ, không gọi `playBeer()` — nên chỉ cần thêm điều kiện NGAY ĐẦU `playBeer()` (hàm mới `assertBeerCanHeal()`, throw nếu `player.hp >= player.maxHp`) là đủ, không đụng gì tới `discardExtraCard()`/Cat Balou/Sid Ketchum hay bất kỳ chỗ nào khác chỉ cần bỏ 1 lá bất kỳ khỏi tay.
+- **Không cần sửa UI** — đúng tiền lệ giới hạn "1 Bang!/lượt" (`bangUsedThisTurn`) cũng KHÔNG có logic disable nút riêng trong `ui.ts`/`main.ts`, chỉ dựa vào cơ chế báo lỗi chung sẵn có (hotseat: try/catch quanh `dispatch()`; qua mạng: `{type:"action_error"}`) — Bia giờ theo đúng khuôn đó, nhất quán với cách dự án đã xử lý mọi luật từ chối khác.
+- Sửa 1 test cũ trong `test/brown-cards.test.ts` (test "đã đầy máu thì không hồi thêm" — đổi kỳ vọng từ "thành công, không có `HP_RESTORED`" sang "reduce() từ chối, không đổi state gốc"). Test mới trong `test/dodge-city-batch2.test.ts` (+1 test): dùng Bia làm lá phụ bỏ kèm cho Whisky vẫn hoạt động bình thường dù người đánh đang đầy máu — xác nhận đúng phạm vi fix, không lan sang cơ chế Dodge City.
+- Đã tự kiểm: `npx tsc --noEmit` sạch, `npm run build` qua, 358 test đều pass (357 cũ + 1 test mới, 1 test cũ sửa lại).
+
+358 test đều pass.
+
 ## Chưa làm tới, đừng đụng vào
 
 Cả 3 biến thể số người chơi (2/3/8 người) đã HOÀN TẤT (xem 3 mục changelog "Biến thể số người chơi" ở trên) — không còn biến thể nào đang dang dở.

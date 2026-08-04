@@ -43,17 +43,17 @@ describe("reduce — PLAY_CARD (Beer)", () => {
     ]);
   });
 
-  it("đã đầy máu thì không hồi thêm, không bắn event HP_RESTORED", () => {
+  it("đã đầy máu thì KHÔNG được đánh Bia — reduce() từ chối, không mất lá, không đổi state gốc", () => {
     const state = makeState({
       players: [
         { id: "a", name: "a", role: "sheriff", hp: 5, maxHp: 5, hand: ["beer_1"], equipment: [], alive: true, characterId: null },
         ...makeState().players.slice(1),
       ],
     });
-    const { state: next, events } = reduce(state, { type: "PLAY_CARD", playerId: "a", cardId: "beer_1" });
+    const snapshot = JSON.parse(JSON.stringify(state));
 
-    expect(next.players[0].hp).toBe(5);
-    expect(events).toEqual([{ type: "CARD_PLAYED", playerId: "a", cardId: "beer_1" }]);
+    expect(() => reduce(state, { type: "PLAY_CARD", playerId: "a", cardId: "beer_1" })).toThrow(/Đã đầy máu/);
+    expect(state).toEqual(snapshot); // reduce() thuần — throw giữa chừng không được để lại dấu vết trên state gốc
   });
 
   it("chỉ còn 2 người sống: Bia vô tác dụng — lá vẫn bị bỏ, nhưng không hồi máu", () => {
