@@ -38,7 +38,10 @@ function actsAsBang(cardId: string, player: PlayerState): boolean {
 // thật, HOẶC là Bang! nhưng thuộc về Janet. Dùng để đỡ Bang!/Gatling.
 function actsAsMissed(cardId: string, player: PlayerState): boolean {
   const name = cardNameFromId(cardId);
-  if (name === "missed") return true;
+  // Mở rộng Dodge City — Dodge hoạt động y hệt Missed! (đỡ Bang!/Gatling), chỉ
+  // khác tên và có rút thêm 1 lá khi đỡ thành công (xem respondToMissed()) —
+  // KHÔNG cần gắn với nhân vật nào (khác alias Calamity Janet bên dưới).
+  if (name === "missed" || name === "dodge") return true;
   return name === "bang" && getCharacterDefinition(player.characterId)?.hasBangMissedAlias === true;
 }
 
@@ -423,7 +426,7 @@ function handlePlayCard(state: GameState, action: Action & { type: "PLAY_CARD" }
     // equipment, không phải hand). Dùng ĐÚNG action PLAY_CARD, chỉ khác
     // nguồn bài — xem activateDelayedEquipment().
     if (isDelayedEquipmentCardName(cardName) && player.equipment.includes(action.cardId)) {
-      return activateDelayedEquipment(next, player, action.cardId, cardName);
+      return activateDelayedEquipment(next, player, action, cardName);
     }
     throw new Error(`Người chơi ${player.id} không có lá bài ${action.cardId} trong tay`);
   }
@@ -518,6 +521,29 @@ function handlePlayCard(state: GameState, action: Action & { type: "PLAY_CARD" }
         // sân ngay khi vào tay (xem giveCardToPlayer() trong equipment.ts). Nhánh
         // này chỉ có thể chạy tới nếu có bug ở nơi khác làm lọt Dynamite vào tay.
         throw new Error("Dynamite không được đánh chủ động — tự động xuống sân ngay khi vào tay");
+      // Mở rộng Dodge City đợt 2 (mục 2, nhóm NÂU) — xem Luat_Bang_Mo_Rong_DodgeCity.txt.
+      case "dodge":
+        // Y hệt "missed" ở trên: không tự đánh ra lúc tới lượt mình, chỉ dùng để
+        // PHẢN ỨNG (đi qua RESPOND, xem actsAsMissed()/respondToMissed()).
+        throw new Error("Không thể chủ động đánh Dodge — chỉ dùng để phản ứng khi bị Bang!/Gatling (giống Missed!)");
+      case "brawl":
+        result = playBrawl(next, player, action);
+        break;
+      case "punch":
+        result = playPunch(next, player, action);
+        break;
+      case "rag_time":
+        result = playRagTime(next, player, action);
+        break;
+      case "springfield":
+        result = playSpringfield(next, player, action);
+        break;
+      case "tequila":
+        result = playTequila(next, player, action);
+        break;
+      case "whisky":
+        result = playWhisky(next, player, action);
+        break;
       default: {
         // isSelfEquipBlueCardName() và nhánh "jail" ở trên đã xử lý hết lá xanh
         // rồi, switch cũng đã liệt kê đủ toàn bộ bài nâu (kể cả "missed" và
@@ -731,11 +757,30 @@ function playPanic(
     throw new Error(`Panic! chỉ dùng được ở khoảng cách 1 (khoảng cách hiện tại: ${distance})`);
   }
 
+  const stealEvents = applyPanicEffect(next, player, target, action.targetCardId);
+  return {
+    state: next,
+    events: [{ type: "CARD_PLAYED", playerId: player.id, cardId: action.cardId, targetId: target.id }, ...stealEvents],
+  };
+}
+
+// Thân hiệu ứng thật của Panic! (cướp 1 lá của `target` về tay `player`) —
+// tách khỏi playPanic() để dùng lại cho Rag Time (mục 2 file luật Dodge City:
+// y hệt Panic! nhưng KHÔNG giới hạn khoảng cách, bỏ kèm 1 lá phụ) và Conestoga
+// (bản "delayed" của Panic!, cũng không giới hạn khoảng cách — xem
+// activateDelayedEquipment()). Ưu tiên bài trên tay — úp, chọn NGẪU NHIÊN; tay
+// hết bài mới cướp được trên sân, phải chỉ định đúng targetCardId.
+function applyPanicEffect(
+  next: GameState,
+  player: PlayerState,
+  target: PlayerState,
+  targetCardId: string | undefined
+): GameEvent[] {
   let stolenCardId: string;
   let stolenFromHand = false;
 
   if (target.hand.length > 0) {
-    if (action.targetCardId) {
+    if (targetCardId) {
       throw new Error("Tay mục tiêu còn bài úp, không được chỉ định lá cụ thể — phải cướp ngẫu nhiên");
     }
     const { value, nextState } = nextRandom(next.rngState);
@@ -750,37 +795,34 @@ function playPanic(
     if (stealableEquipment.length === 0) {
       throw new Error("Mục tiêu không còn bài nào để cướp (Dynamite trên sân, nếu có, miễn nhiễm Panic!)");
     }
-    if (!action.targetCardId) {
+    if (!targetCardId) {
       throw new Error("Tay mục tiêu đã hết bài, phải chỉ định lá trang bị cụ thể muốn cướp trên sân");
     }
-    if (cardNameFromId(action.targetCardId) === "dynamite") {
+    if (cardNameFromId(targetCardId) === "dynamite") {
       throw new Error("Dynamite miễn nhiễm với Panic!, không thể cướp");
     }
-    const equipIndex = target.equipment.indexOf(action.targetCardId);
+    const equipIndex = target.equipment.indexOf(targetCardId);
     if (equipIndex === -1) {
-      throw new Error(`Mục tiêu không có trang bị "${action.targetCardId}" trên sân`);
+      throw new Error(`Mục tiêu không có trang bị "${targetCardId}" trên sân`);
     }
     target.equipment.splice(equipIndex, 1);
     // Mở rộng Dodge City (mục 1.1) — lá vừa bị cướp rời equipment, vào TAY
     // người cướp (giveCardToPlayer bên dưới) chứ không còn là trang bị "trì
     // hoãn" đang bày nữa — dọn equipmentPlayedTurn, tự ghi lại đúng lượt nếu
     // sau này họ chơi ra lại (xem playEquipment()).
-    delete next.equipmentPlayedTurn[action.targetCardId];
-    stolenCardId = action.targetCardId;
+    delete next.equipmentPlayedTurn[targetCardId];
+    stolenCardId = targetCardId;
   }
 
   // Lá cướp được không bao giờ là Dynamite (miễn nhiễm, chặn ở trên) — nhưng vẫn
   // đi qua giveCardToPlayer() cho nhất quán với mọi nơi khác đưa bài vào tay.
   giveCardToPlayer(next.players, player, stolenCardId);
 
-  const events: GameEvent[] = [
-    { type: "CARD_PLAYED", playerId: player.id, cardId: action.cardId, targetId: target.id },
-    { type: "CARD_STOLEN", playerId: player.id, fromPlayerId: target.id, cardId: stolenCardId },
-  ];
+  const events: GameEvent[] = [{ type: "CARD_STOLEN", playerId: player.id, fromPlayerId: target.id, cardId: stolenCardId }];
   if (stolenFromHand) {
     events.push(...triggerHandEmptyHook(next, target)); // Giai đoạn 5 (Suzy Lafayette)
   }
-  return { state: next, events };
+  return events;
 }
 
 // Cat Balou: người đánh chỉ chọn VÙNG (tay hay sân) bắt mục tiêu bỏ bài, không
@@ -796,31 +838,214 @@ function playCatBalou(
     throw new Error("Đánh Cat Balou cần chọn bắt mục tiêu bỏ bài từ tay hay từ sân");
   }
 
-  // Dynamite miễn nhiễm Cat Balou (mục 8 file luật) — không tính là "có bài trên
-  // sân để bỏ".
-  const discardableCount =
-    action.targetZone === "hand"
-      ? target.hand.length
-      : target.equipment.filter((id) => cardNameFromId(id) !== "dynamite").length;
-  if (discardableCount === 0) {
-    throw new Error(
-      action.targetZone === "hand"
-        ? "Tay mục tiêu không còn bài để bỏ"
-        : "Mục tiêu không có trang bị nào trên sân để bỏ (Dynamite, nếu có, miễn nhiễm Cat Balou)"
-    );
-  }
-
-  next.pending.push({
-    kind: "NEED_DISCARD_FROM_ZONE",
-    player: target.id,
-    zone: action.targetZone,
-    source: { card: "cat_balou", from: player.id },
-  });
+  pushDiscardFromZoneReaction(next, target, action.targetZone, { card: "cat_balou", from: player.id });
 
   return {
     state: next,
     events: [{ type: "CARD_PLAYED", playerId: player.id, cardId: action.cardId, targetId: target.id }],
   };
+}
+
+// Đẩy NEED_DISCARD_FROM_ZONE cho `target` — tách khỏi playCatBalou() để dùng
+// lại cho Brawl (mỗi nạn nhân 1 lần, đẩy theo thứ tự như Gatling) và Can Can
+// (mở rộng Dodge City — bản "delayed" của Cat Balou, xem
+// activateDelayedEquipment()). Dynamite miễn nhiễm (mục 8 file luật) — không
+// tính là "có bài trên sân để bỏ".
+function pushDiscardFromZoneReaction(
+  next: GameState,
+  target: PlayerState,
+  zone: "hand" | "equipment",
+  source: { card: string; from: string }
+): void {
+  const discardableCount =
+    zone === "hand" ? target.hand.length : target.equipment.filter((id) => cardNameFromId(id) !== "dynamite").length;
+  if (discardableCount === 0) {
+    throw new Error(
+      zone === "hand"
+        ? `Người chơi ${target.id} không còn bài trên tay để bỏ`
+        : `Người chơi ${target.id} không có trang bị nào trên sân để bỏ (Dynamite, nếu có, miễn nhiễm)`
+    );
+  }
+
+  next.pending.push({ kind: "NEED_DISCARD_FROM_ZONE", player: target.id, zone, source });
+}
+
+// Mở rộng Dodge City, mục 1.2 — bỏ CÙNG LÚC 1 lá phụ bất kỳ từ tay `player`,
+// bắt buộc để có hiệu ứng của Brawl/Rag Time/Springfield/Tequila/Whisky. Lá
+// CHÍNH đã rời tay + vào chồng bỏ TRƯỚC KHI gọi hàm này (handlePlayCard()) —
+// gọi hàm này SỚM trong từng playXxx() để cả 2 lá rời tay TRƯỚC KHI áp hiệu
+// ứng (quan trọng với Suzy Lafayette — chỉ kiểm tra tay rỗng SAU lần rời tay
+// này, không phải giữa chừng). Trả về event "tay vừa về 0" của CHÍNH lần rời
+// tay này — lần rời tay của lá CHÍNH đã được handlePlayCard() kiểm riêng rồi,
+// không trùng lặp (hand chỉ thật sự về 0 sau lần bỏ THỨ HAI này, nếu có).
+function discardExtraCard(
+  next: GameState,
+  player: PlayerState,
+  cardDisplayName: string,
+  extraDiscardCardId: string | undefined
+): GameEvent[] {
+  if (!extraDiscardCardId) {
+    throw new Error(`Đánh "${cardDisplayName}" cần bỏ kèm 1 lá phụ bất kỳ khác từ tay`);
+  }
+  const index = player.hand.indexOf(extraDiscardCardId);
+  if (index === -1) {
+    throw new Error(`Lá phụ "${extraDiscardCardId}" không nằm trong tay của bạn`);
+  }
+  player.hand.splice(index, 1);
+  next.discardPile.push(extraDiscardCardId);
+  return triggerHandEmptyHook(next, player); // Giai đoạn 5 (Suzy Lafayette)
+}
+
+// Brawl (mở rộng Dodge City) — bỏ kèm 1 lá phụ (mục 1.2), TẤT CẢ người chơi
+// khác còn sống phải bỏ 1 lá do NGƯỜI ĐÁNH chỉ định VÙNG (tay/sân — action
+// .brawlZones, khoá theo playerId nạn nhân, có thể khác nhau cho từng người),
+// lá cụ thể trong vùng đó do chính nạn nhân chọn (RESPOND, y hệt Cat Balou).
+// Đẩy pending riêng cho TỪNG nạn nhân theo thứ tự, giống cách Gatling đẩy
+// nhiều NEED_MISSED liên tiếp — người kế tiếp (gần nhất theo lượt) nằm trên
+// đỉnh stack, được xử lý trước.
+function playBrawl(
+  next: GameState,
+  player: PlayerState,
+  action: Action & { type: "PLAY_CARD" }
+): Result {
+  const extraEvents = discardExtraCard(next, player, "brawl", action.extraDiscardCardId);
+
+  const targets = otherAlivePlayersInOrder(next, player.id);
+  const zones = action.brawlZones ?? {};
+  for (let i = targets.length - 1; i >= 0; i--) {
+    const target = targets[i];
+    const zone = zones[target.id];
+    if (!zone) {
+      throw new Error(`Đánh Brawl cần chọn vùng bỏ bài (tay/sân) cho người chơi ${target.id}`);
+    }
+    pushDiscardFromZoneReaction(next, target, zone, { card: "brawl", from: player.id });
+  }
+
+  return {
+    state: next,
+    events: [{ type: "CARD_PLAYED", playerId: player.id, cardId: action.cardId }, ...extraEvents],
+  };
+}
+
+// Punch (mở rộng Dodge City) — hiệu ứng như Bang! nhắm người ở khoảng cách 1,
+// BẤT KỂ súng đang cầm (bỏ qua getWeaponRange() hoàn toàn); KHÔNG tính vào
+// giới hạn 1 Bang!/lượt (mục 1.4 — không đụng next.bangUsedThisTurn).
+function playPunch(
+  next: GameState,
+  player: PlayerState,
+  action: Action & { type: "PLAY_CARD" }
+): Result {
+  const target = findLivingTarget(next, player, action.targetId, "Đánh Punch cần chọn mục tiêu", "Không thể tự đánh Punch vào chính mình");
+
+  const extraDistance = next.houseRules.includes("extra_distance") ? 1 : 0;
+  const distance = computeDistance(next.players, player.id, target.id, extraDistance);
+  if (distance > 1) {
+    throw new Error(`Punch chỉ dùng được ở khoảng cách 1 (khoảng cách hiện tại: ${distance})`);
+  }
+
+  pushMissedReaction(next, target, { card: "punch", from: player.id });
+
+  return {
+    state: next,
+    events: [{ type: "CARD_PLAYED", playerId: player.id, cardId: action.cardId, targetId: target.id }],
+  };
+}
+
+// Rag Time (mở rộng Dodge City) — bỏ kèm 1 lá phụ (mục 1.2), hiệu ứng y hệt
+// Panic! (applyPanicEffect()) nhưng KHÔNG giới hạn khoảng cách (*dev note của
+// chủ dự án trong Luat_Bang_Mo_Rong_DodgeCity.txt, mục 2).
+function playRagTime(
+  next: GameState,
+  player: PlayerState,
+  action: Action & { type: "PLAY_CARD" }
+): Result {
+  const target = findLivingTarget(next, player, action.targetId, "Đánh Rag Time cần chọn mục tiêu", "Không thể tự cướp bài của chính mình");
+  const extraEvents = discardExtraCard(next, player, "rag_time", action.extraDiscardCardId);
+  const stealEvents = applyPanicEffect(next, player, target, action.targetCardId);
+
+  return {
+    state: next,
+    events: [
+      { type: "CARD_PLAYED", playerId: player.id, cardId: action.cardId, targetId: target.id },
+      ...extraEvents,
+      ...stealEvents,
+    ],
+  };
+}
+
+// Springfield (mở rộng Dodge City) — bỏ kèm 1 lá phụ (mục 1.2), hiệu ứng Bang!
+// nhắm 1 người BẤT KỲ, bất kể khoảng cách/tầm súng (KHÔNG kiểm tra khoảng cách
+// gì cả — khác Punch, cố định khoảng cách 1); không tính vào giới hạn 1
+// Bang!/lượt.
+function playSpringfield(
+  next: GameState,
+  player: PlayerState,
+  action: Action & { type: "PLAY_CARD" }
+): Result {
+  const target = findLivingTarget(next, player, action.targetId, "Đánh Springfield cần chọn mục tiêu", "Không thể tự đánh Springfield vào chính mình");
+  const extraEvents = discardExtraCard(next, player, "springfield", action.extraDiscardCardId);
+
+  pushMissedReaction(next, target, { card: "springfield", from: player.id });
+
+  return {
+    state: next,
+    events: [
+      { type: "CARD_PLAYED", playerId: player.id, cardId: action.cardId, targetId: target.id },
+      ...extraEvents,
+    ],
+  };
+}
+
+// Tequila (mở rộng Dodge City) — bỏ kèm 1 lá phụ (mục 1.2), chọn 1 người BẤT
+// KỲ (kể cả chính mình) để hồi ngay 1 máu (không vượt máu tối đa). KHÁC
+// findLivingTarget() ở chỗ CHO PHÉP tự chọn chính mình.
+function playTequila(
+  next: GameState,
+  player: PlayerState,
+  action: Action & { type: "PLAY_CARD" }
+): Result {
+  if (!action.targetId) {
+    throw new Error("Đánh Tequila cần chọn người được hồi máu");
+  }
+  const target = next.players.find((p) => p.id === action.targetId);
+  if (!target || !target.alive) {
+    throw new Error("Mục tiêu không hợp lệ");
+  }
+
+  const extraEvents = discardExtraCard(next, player, "tequila", action.extraDiscardCardId);
+
+  const events: GameEvent[] = [
+    { type: "CARD_PLAYED", playerId: player.id, cardId: action.cardId, targetId: target.id },
+    ...extraEvents,
+  ];
+  const restored = Math.min(1, target.maxHp - target.hp);
+  if (restored > 0) {
+    target.hp += restored;
+    events.push({ type: "HP_RESTORED", playerId: target.id, amount: restored });
+  }
+
+  return { state: next, events };
+}
+
+// Whisky (mở rộng Dodge City) — bỏ kèm 1 lá phụ (mục 1.2) để TỰ hồi 2 máu.
+// Chỉ chơi được trong lượt của chính mình — KHÔNG có ngoại lệ "dùng ngoài lượt
+// lúc sắp chết" như Beer (đã tự động đúng: handlePlayCard() luôn bắt buộc
+// assertCurrentPlayer(), không có đường nào gọi playWhisky() ngoài lượt).
+function playWhisky(
+  next: GameState,
+  player: PlayerState,
+  action: Action & { type: "PLAY_CARD" }
+): Result {
+  const extraEvents = discardExtraCard(next, player, "whisky", action.extraDiscardCardId);
+
+  const events: GameEvent[] = [{ type: "CARD_PLAYED", playerId: player.id, cardId: action.cardId }, ...extraEvents];
+  const restored = Math.min(2, player.maxHp - player.hp);
+  if (restored > 0) {
+    player.hp += restored;
+    events.push({ type: "HP_RESTORED", playerId: player.id, amount: restored });
+  }
+
+  return { state: next, events };
 }
 
 // Đánh lá xanh: nằm lại trên sân (equipment) chứ không vào chồng bỏ.
@@ -861,16 +1086,20 @@ function playEquipment(
 }
 
 // Mở rộng Dodge City (mục 1.1, nhóm KHÔNG có ký hiệu Missed!: Canteen, Pony
-// Express...) — bỏ 1 lá trang bị "trì hoãn" ĐÃ BÀY SẴN từ lượt trước để kích
+// Express, Derringer, Conestoga, Can Can, Buffalo Rifle, Knife, Pepperbox,
+// Howitzer) — bỏ 1 lá trang bị "trì hoãn" ĐÃ BÀY SẴN từ lượt trước để kích
 // hoạt hiệu ứng CHỦ ĐỘNG của nó. Nhóm CÓ ký hiệu Missed! (Bible/Sombrero/Ten
 // Gallon Hat/Iron Plate) KHÔNG đi qua đây — chúng chỉ dùng để PHẢN ỨNG qua
 // RESPOND (xem respondToMissed()), tự chặn ngay dưới nếu ai lỡ gọi PLAY_CARD.
+// Nhận cả `action` (không chỉ cardId) vì các lá đợt 2 cần targetId/
+// targetCardId/targetZone — cùng khuôn field đã có sẵn trên PLAY_CARD.
 function activateDelayedEquipment(
   next: GameState,
   player: PlayerState,
-  cardId: string,
+  action: Action & { type: "PLAY_CARD" },
   cardName: YellowCardName
 ): Result {
+  const cardId = action.cardId;
   if (yellowCardActsAsMissed(cardName)) {
     throw new Error(`"${cardName}" chỉ dùng được để đỡ Bang!/Gatling (như Missed!), không thể tự đánh ra`);
   }
@@ -884,6 +1113,7 @@ function activateDelayedEquipment(
   next.discardPile.push(cardId);
 
   const events: GameEvent[] = [{ type: "DELAYED_EQUIPMENT_ACTIVATED", playerId: player.id, cardId }];
+  const extraDistance = next.houseRules.includes("extra_distance") ? 1 : 0;
 
   switch (cardName) {
     case "canteen": {
@@ -897,6 +1127,73 @@ function activateDelayedEquipment(
     case "pony_express": {
       const drawnCount = drawCardsForPlayer(next, player, 3);
       events.push({ type: "CARDS_DRAWN", playerId: player.id, count: drawnCount });
+      break;
+    }
+    // Đợt 2 — Derringer/Knife/Pepperbox/Buffalo Rifle/Howitzer: hiệu ứng Bang!
+    // KHÔNG có ký hiệu Missed!, KHÔNG tính vào giới hạn 1 Bang!/lượt (mục 1.4).
+    case "derringer": {
+      const target = findLivingTarget(next, player, action.targetId, "Kích hoạt Derringer cần chọn mục tiêu", "Không thể tự đánh Derringer vào chính mình");
+      const distance = computeDistance(next.players, player.id, target.id, extraDistance);
+      if (distance > 1) {
+        throw new Error(`Derringer chỉ dùng được ở khoảng cách 1 (khoảng cách hiện tại: ${distance})`);
+      }
+      // Luôn rút thêm 1 lá khi dùng, BẤT KỂ mục tiêu có đỡ được hay không (đã
+      // chốt với chủ dự án — rút là phần thưởng cho hành động DÙNG lá, không
+      // phụ thuộc kết quả trúng/né, nên rút NGAY ở đây, không đợi resolve xong
+      // NEED_MISSED bên dưới).
+      const drawnCount = drawCardsForPlayer(next, player, 1);
+      if (drawnCount > 0) events.push({ type: "CARDS_DRAWN", playerId: player.id, count: drawnCount });
+      pushMissedReaction(next, target, { card: "derringer", from: player.id });
+      break;
+    }
+    case "knife": {
+      const target = findLivingTarget(next, player, action.targetId, "Kích hoạt Knife cần chọn mục tiêu", "Không thể tự đánh Knife vào chính mình");
+      const distance = computeDistance(next.players, player.id, target.id, extraDistance);
+      if (distance > 1) {
+        throw new Error(`Knife chỉ dùng được ở khoảng cách 1 (khoảng cách hiện tại: ${distance})`);
+      }
+      pushMissedReaction(next, target, { card: "knife", from: player.id });
+      break;
+    }
+    case "pepperbox": {
+      // Đúng TẦM SÚNG đang cầm (khác Buffalo Rifle — bỏ qua tầm hoàn toàn) —
+      // đây là điểm phân biệt 2 lá súng "delayed" này (đã chốt với chủ dự án).
+      const target = findLivingTarget(next, player, action.targetId, "Kích hoạt Pepperbox cần chọn mục tiêu", "Không thể tự đánh Pepperbox vào chính mình");
+      const range = getWeaponRange(player);
+      const distance = computeDistance(next.players, player.id, target.id, extraDistance);
+      if (distance > range) {
+        throw new Error(`Mục tiêu ngoài tầm bắn của Pepperbox (khoảng cách ${distance}, tầm súng ${range})`);
+      }
+      pushMissedReaction(next, target, { card: "pepperbox", from: player.id });
+      break;
+    }
+    case "buffalo_rifle": {
+      const target = findLivingTarget(next, player, action.targetId, "Kích hoạt Buffalo Rifle cần chọn mục tiêu", "Không thể tự đánh Buffalo Rifle vào chính mình");
+      pushMissedReaction(next, target, { card: "buffalo_rifle", from: player.id });
+      break;
+    }
+    case "howitzer": {
+      // Bắn TẤT CẢ người khác cùng lúc, bất kể khoảng cách — bản "delayed" của
+      // Gatling (đã chốt với chủ dự án).
+      const targets = otherAlivePlayersInOrder(next, player.id);
+      for (let i = targets.length - 1; i >= 0; i--) {
+        pushMissedReaction(next, targets[i], { card: "howitzer", from: player.id });
+      }
+      break;
+    }
+    // Đợt 2 — Conestoga/Can Can: bản "delayed" của Panic!/Cat Balou, KHÔNG
+    // giới hạn khoảng cách (đã chốt với chủ dự án).
+    case "conestoga": {
+      const target = findLivingTarget(next, player, action.targetId, "Kích hoạt Conestoga cần chọn mục tiêu", "Không thể tự cướp bài của chính mình bằng Conestoga");
+      events.push(...applyPanicEffect(next, player, target, action.targetCardId));
+      break;
+    }
+    case "can_can": {
+      const target = findLivingTarget(next, player, action.targetId, "Kích hoạt Can Can cần chọn mục tiêu", "Không thể tự bắt chính mình bỏ bài bằng Can Can");
+      if (!action.targetZone) {
+        throw new Error("Kích hoạt Can Can cần chọn bắt mục tiêu bỏ bài từ tay hay từ sân");
+      }
+      pushDiscardFromZoneReaction(next, target, action.targetZone, { card: "can_can", from: player.id });
       break;
     }
     case "bible":
@@ -1346,9 +1643,9 @@ function respondToMissed(
     }
 
     const events: GameEvent[] = [{ type: "MISSED_PLAYED", playerId: player.id }];
-    // Mở rộng Dodge City — Bible kèm rút thêm 1 lá khi dùng để đỡ thành công
-    // (xem mục 2, nhóm VÀNG trong Luat_Bang_Mo_Rong_DodgeCity.txt).
-    if (cardName === "bible") {
+    // Mở rộng Dodge City — Bible (nhóm VÀNG) và Dodge (nhóm NÂU) đều kèm rút
+    // thêm 1 lá khi dùng để đỡ thành công (xem mục 2, Luat_Bang_Mo_Rong_DodgeCity.txt).
+    if (cardName === "bible" || cardName === "dodge") {
       const drawnCount = drawCardsForPlayer(next, player, 1);
       if (drawnCount > 0) {
         events.push({ type: "CARDS_DRAWN", playerId: player.id, count: drawnCount });

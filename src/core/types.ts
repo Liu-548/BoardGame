@@ -148,9 +148,20 @@ export type Action =
       // Panic!: chỉ dùng khi tay mục tiêu đã hết bài — chỉ định đúng lá trang bị
       // cụ thể muốn cướp trên sân (trang bị để ngửa, nhìn thấy tên nên chọn được).
       targetCardId?: string;
-      // Cat Balou: người đánh chọn VÙNG bắt mục tiêu bỏ bài (tay hay sân) — lá cụ
-      // thể trong vùng đó do chính mục tiêu chọn, trả lời qua RESPOND.
+      // Cat Balou (VÀ Can Can — bản "delayed" của nó, mở rộng Dodge City): người
+      // đánh chọn VÙNG bắt mục tiêu bỏ bài (tay hay sân) — lá cụ thể trong vùng
+      // đó do chính mục tiêu chọn, trả lời qua RESPOND.
       targetZone?: "hand" | "equipment";
+      // Mở rộng Dodge City, mục 1.2 (Brawl/Rag Time/Springfield/Tequila/Whisky)
+      // — id 1 lá phụ BẤT KỲ khác từ tay, bỏ CÙNG LÚC với lá chính (bắt buộc,
+      // reduce() từ chối nếu thiếu/không hợp lệ — xem discardExtraCard() trong
+      // reduce.ts).
+      extraDiscardCardId?: string;
+      // Mở rộng Dodge City (Brawl) — TẤT CẢ người chơi khác phải bỏ 1 lá, người
+      // đánh chọn VÙNG (tay/sân) riêng cho TỪNG nạn nhân (khoá bằng playerId của
+      // nạn nhân) — lá cụ thể trong vùng đó do chính nạn nhân chọn, trả lời qua
+      // RESPOND y hệt Cat Balou (xem playBrawl() trong reduce.ts).
+      brawlZones?: Record<string, "hand" | "equipment">;
     }
   | {
       type: "RESPOND";

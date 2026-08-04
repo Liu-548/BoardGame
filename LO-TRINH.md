@@ -94,7 +94,7 @@
 | 5.1 | Hệ thống hook cho nhân vật | `onLoseLife`, `onLoseLifeFromCard`, `onDrawPhase`, `onDrawCheck`, `modifyDistance`, `onOutgoingBang`, `onHandEmpty`, `onAnyDeath`, `cardAlias`, `activatedAbility` (xem `NHAN-VAT-BANG-CO-BAN.txt`) — ✅ **xong khung**: 4/9 hook đã nối dây thật (`modifyDistance`/`onLoseLife`/`onLoseLifeFromCard`/`onAnyDeath`) + `core/characters.ts` (registry rỗng), 5 hook còn lại để dành cho 5.2. Xem chi tiết ở CLAUDE.md |
 | 5.2 | 16 nhân vật bản cơ bản | Mỗi nhân vật là dữ liệu + hook, **không** phải `if/else` — ✅ **HOÀN TẤT**: ĐỦ 16/16 nhân vật (7 đợt) + cơ chế "phát 2 lá chọn 1" (core + UI hotseat/qua mạng + đồng hồ 30 giây thật, tự chốt ngẫu nhiên khi hết giờ) **ĐÃ BẬT THẬT** ở `room.ts`/`main.ts` — chơi được qua giao diện thật hoàn chỉnh. Xem chi tiết ở CLAUDE.md |
 | 5.3 | Bật/tắt house rules | Cấu hình theo phòng — ✅ **4/6 ý tưởng nháp xong** (core + UI hotseat/qua mạng): tăng khoảng cách +1, bắt buộc súng mới đánh Bang!, cấm dùng 2 lá trùng tên/lượt, Bia vẫn có tác dụng khi còn 2 người. Còn lại "gộp 2 lá Beer hồi máu người khác" (cần cơ chế chọn mục tiêu mới) để dành đợt sau. Xem chi tiết ở CLAUDE.md |
-| 5.4 | Expansion (Dodge City) | Ước lượng ban đầu "chỉ là thêm file dữ liệu + hook" **SAI** — thực tế cần ≥4 hook mới + 1 cơ chế uỷ quyền toàn hệ thống (Vera Custer). 🔶 **ĐANG LÀM** — đợt 1 xong (mục A: kiến trúc trang bị trì hoãn + 6/40 lá vàng không cần hook mới: Bible/Sombrero/Ten Gallon Hat/Iron Plate/Canteen/Pony Express, core + test, UI CHƯA xong). Xem "Ghi chú cho 5.4" bên dưới |
+| 5.4 | Expansion (Dodge City) | Ước lượng ban đầu "chỉ là thêm file dữ liệu + hook" **SAI** — thực tế cần ≥4 hook mới + 1 cơ chế uỷ quyền toàn hệ thống (Vera Custer). 🔶 **ĐANG LÀM** — mục A (kiến trúc trang bị trì hoãn) + mục B (ĐỦ 40/40 lá bài) + mục E (cơ chế "bỏ kèm 1 lá phụ"/Brawl) đã XONG (core + test, UI CHƯA xong). Còn mục C (15 nhân vật), mục D (luật 3 người), mục F (UI chất bài). Xem "Ghi chú cho 5.4" bên dưới |
 | 5.5 | Board game thứ hai | Chung `server/`, khác `core/` |
 
 ### Ghi chú cho 5.3 — ý tưởng luật bổ sung (house rules)
@@ -298,6 +298,28 @@ tiết đầy đủ:**
 - Còn lại đợt 1: 34/40 lá bài (mục B, phần lớn dùng lại effect handler có sẵn) +
   15 nhân vật (mục C) + luật số người chơi Dodge City (mục D — thưởng 3 lá khi
   tự tay hạ bất kỳ ai ở biến thể 3 người) + UI hiển thị chất bài (mục F).
+
+**Đợt 2 (mục E + nốt 34/40 lá bài — ĐỦ 40/40 LÁ) — XONG, xem CLAUDE.md để biết
+chi tiết đầy đủ:**
+- Mục E (cơ chế đơn giản, làm trước vì nhiều lá mục B cần tới): `PLAY_CARD` thêm
+  `extraDiscardCardId`/`brawlZones`. Không cần `PendingAction`/`GameEvent` mới nào
+  — tái dùng hoàn toàn `NEED_MISSED`/`pushMissedReaction()` (Punch/Springfield/
+  Buffalo Rifle/Derringer/Knife/Pepperbox/Howitzer) và `NEED_DISCARD_FROM_ZONE`
+  (Brawl/Can Can) — nên KHÔNG cần sửa `room.ts`/`protocol.ts` (khác mọi đợt nhân
+  vật trước).
+- Mục B nốt 34/40 lá: 6 lá xanh (Barrel/Dynamite/Remington/Rev. Carabine thêm
+  bản sao thứ 2, Binocular/Hideout mới — dùng chung công thức `modifyDistance`
+  của Scope/Mustang), 14 lá nâu (7 tên trùng bộ cơ bản + Brawl/Dodge/Punch/Rag
+  Time/Springfield/Tequila/Whisky), 7 lá vàng còn lại (Derringer/Conestoga/Can
+  Can/Buffalo Rifle/Knife/Pepperbox/Howitzer). Dodge hoạt động y hệt Missed!
+  (rút thêm 1 lá khi đỡ thành công, giống Bible).
+- Tra suit/rank thật cho 34 lá bằng đúng phương pháp hiệu chỉnh icon đã dùng ở
+  đợt 1 (`WebFetch` trực tiếp `bang.dvgiochi.com/cardslist.php`, đối chiếu lại
+  qua 4 lá bộ cơ bản đã biết chắc suit trước khi tin).
+- **UI vẫn CHƯA xong** — chỉ sửa đủ để qua compile (nhãn/mô tả), CHƯA có nút bấm
+  thật. **CHƯA deploy**, giống đợt 1.
+- Còn lại: 15 nhân vật (mục C) + luật số người chơi (mục D) + UI hiển thị chất
+  bài (mục F) + UI thật cho toàn bộ 40 lá.
 
 ### Ghi chú: bản Beta song song — ✅ ĐÃ XONG (core/config, chỉ còn thiếu bước tự tay `npm run deploy:beta` lần đầu)
 

@@ -114,7 +114,53 @@ function playCardCandidates(state: GameState, player: PlayerState): Action[] {
         break;
       case "missed":
       case "dynamite":
+      case "dodge":
         break; // không bao giờ đánh chủ động được, khỏi tạo ứng viên
+      // Mở rộng Dodge City đợt 2 — mặc định house rule "extra_cards" tắt nên
+      // bot không bao giờ thực sự rút được các lá này trong test hiện có, chỉ
+      // cần ứng viên "có lý" để qua compile an toàn (giống ghi chú ở trên).
+      case "punch":
+        for (const target of others) {
+          candidates.push({ type: "PLAY_CARD", playerId: player.id, cardId, targetId: target.id });
+        }
+        break;
+      case "rag_time":
+      case "springfield": {
+        const extra = player.hand.find((id) => id !== cardId);
+        if (extra) {
+          for (const target of others) {
+            candidates.push({ type: "PLAY_CARD", playerId: player.id, cardId, targetId: target.id, extraDiscardCardId: extra });
+          }
+        }
+        break;
+      }
+      case "tequila": {
+        const extra = player.hand.find((id) => id !== cardId);
+        if (extra) {
+          for (const target of [player, ...others]) {
+            candidates.push({ type: "PLAY_CARD", playerId: player.id, cardId, targetId: target.id, extraDiscardCardId: extra });
+          }
+        }
+        break;
+      }
+      case "whisky": {
+        const extra = player.hand.find((id) => id !== cardId);
+        if (extra) {
+          candidates.push({ type: "PLAY_CARD", playerId: player.id, cardId, extraDiscardCardId: extra });
+        }
+        break;
+      }
+      case "brawl": {
+        const extra = player.hand.find((id) => id !== cardId);
+        if (extra) {
+          const brawlZones: Record<string, "hand" | "equipment"> = {};
+          for (const target of others) {
+            brawlZones[target.id] = target.hand.length > 0 ? "hand" : "equipment";
+          }
+          candidates.push({ type: "PLAY_CARD", playerId: player.id, cardId, extraDiscardCardId: extra, brawlZones });
+        }
+        break;
+      }
       default: {
         const neverName: never = name;
         throw new Error(`Bot chưa biết cách đánh lá: ${JSON.stringify(neverName)}`);
