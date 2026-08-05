@@ -3,7 +3,7 @@
 // hotseat). Nhãn tiếng Việt (tên bài, tên vai) chỉ để HIỂN THỊ nên đặt ở đây,
 // không đặt trong core/ — core/ không quan tâm chuyện trình bày.
 
-import { cardNameFromId, cardSuitRankFromId, isDelayedEquipmentCardName, yellowCardActsAsMissed, WEAPON_RANGES } from "../core/cards";
+import { cardNameFromId, cardSuitRankFromId, isDelayedEquipmentCardName, isSelfEquipBlueCardName, yellowCardActsAsMissed, WEAPON_RANGES } from "../core/cards";
 import type { CardName } from "../core/cards";
 import { CHARACTERS, computeStartingHp, getCharacterDefinition } from "../core/characters";
 import type { CharacterChoice, ExpansionId, GameEvent, GameState, HouseRuleId, PendingAction, PlayerState, Rank, Role, Suit, Winner } from "../core/types";
@@ -375,6 +375,29 @@ const CHARACTER_DESCRIPTIONS: Record<string, string> = {
   kit_carlson: "Đầu lượt xem riêng 3 lá trên cùng bộ bài, chọn giữ 2 bỏ 1 (lá bỏ vào chồng bài bỏ).",
   calamity_janet: "Lá Bang! và Missed! trên tay dùng thay thế cho nhau được (tự chọn lúc cần).",
   sid_ketchum: "Bất cứ lúc nào, bỏ 2 lá trên tay để hồi 1 máu — dùng được nhiều lần.",
+  // Mở rộng Dodge City, mục C — soạn theo ĐÚNG hook đã cài trong
+  // core/characters.ts (đọc lại trước khi viết, giống ghi chú ở trên).
+  pixie_pete: "Đầu lượt rút 3 lá thay vì 2.",
+  bill_noface: "Đầu lượt rút 1 lá, cộng thêm đúng số máu đang thiếu (máu tối đa trừ máu hiện tại).",
+  greg_digger: "Mỗi khi có người bị loại (kể cả không phải do mình), tự hồi tối đa 2 máu.",
+  herb_hunter: "Mỗi khi có người bị loại (kể cả không phải do mình), rút thêm 2 lá.",
+  pat_brennan:
+    "Đầu lượt được chọn: rút bài như thường, hoặc lấy 1 lá trang bị bất kỳ (kể cả trì hoãn) của 1 người khác vào tay mình.",
+  chuck_wengam:
+    "Trong lượt của mình, bất cứ lúc nào cũng có thể mất 1 máu để rút 2 lá — dùng được nhiều lần, không tự sát được bằng cách này.",
+  jose_delgado: "Trong lượt của mình, bỏ 1 lá trang bị xanh dương từ tay để rút 2 lá — tối đa 2 lần/lượt.",
+  sean_mallory: "Giới hạn số lá giữ lại cuối lượt luôn ít nhất 10, dù máu ít hơn.",
+  tequila_joe: "Uống Bia hồi 2 máu thay vì 1 (kể cả lúc hồi sinh tự động khi máu về 0).",
+  elena_fuente:
+    "Bất kỳ lá nào trên tay cũng dùng được như Missed!; trang bị của chính mình (trừ Thuốc nổ) dùng được như Missed! ngay lập tức, không cần chờ 1 lượt.",
+  apache_kid:
+    "Miễn nhiễm với lá chất Rô người khác đánh nhắm thẳng vào mình (Bang!, Cat Balou, Buffalo Rifle...) — KHÔNG áp dụng cho Đấu tay đôi/Indians!.",
+  doc_holyday: "Trong lượt của mình, bỏ 2 lá bất kỳ để có hiệu ứng Bang! trong tầm súng đang cầm — tối đa 1 lần/lượt.",
+  molly_stark:
+    "Mỗi lần chủ động dùng Missed!/Bia/Bang! ngoài lượt của mình (đỡ Bang!/Indians!, hoặc trong Đấu tay đôi), rút thêm 1 lá.",
+  belle_star: "Trong lượt của mình, trang bị của TẤT CẢ người khác tạm mất tác dụng (khoảng cách, Thùng rượu, súng...).",
+  vera_custer:
+    "Đầu lượt bắt buộc chọn 1 người chơi khác còn sống để mượn khả năng nhân vật của họ tới hết lượt sau — không mượn số máu.",
 };
 
 function characterImageUrl(characterId: string): string {
@@ -1228,11 +1251,56 @@ function renderCountdown(
 // GameState) — vd đã bấm 1 lá Bang!, đang chờ bấm chọn mục tiêu. main.ts giữ
 // biến này, ui.ts chỉ đọc để biết vẽ gì.
 
+// Mở rộng Dodge City, mục 1.2 — 3 tên nhân vật dùng chung action USE_ABILITY
+// VÀ cần bước "chọn lá trên tay" ở client trước khi gửi đi (Chuck Wengam
+// không cần lá nào — cardIds: [] — nên KHÔNG cần bước chọn, gửi thẳng).
+export type UseAbilityCharacter = "sid_ketchum" | "jose_delgado" | "doc_holyday";
+
 export type Selection =
   | { step: "idle" }
   | { step: "picking-target"; cardId: string; cardName: CardName }
   | { step: "picking-panic-equipment"; cardId: string; targetId: string }
-  | { step: "picking-cat-balou-zone"; cardId: string; targetId: string };
+  | { step: "picking-cat-balou-zone"; cardId: string; targetId: string }
+  // Mở rộng Dodge City, mục 1.2 (Brawl) — người đánh chọn VÙNG bỏ bài riêng
+  // cho TỪNG người khác còn sống trước khi gửi đi (khác Cat Balou — nạn nhân
+  // tự chọn SAU, đây là người đánh chọn TRƯỚC).
+  | { step: "picking-brawl-zones"; cardId: string; zones: Record<string, "hand" | "equipment"> }
+  // Mở rộng Dodge City, mục 1.2 (Brawl/Rag Time/Springfield/Tequila/Whisky) —
+  // bước CUỐI CÙNG trước khi gửi PLAY_CARD: chọn 1 lá phụ bất kỳ khác từ tay
+  // để bỏ kèm. Đã gom đủ mọi field khác (targetId/targetCardId/brawlZones) từ
+  // các bước trước đó, chỉ còn thiếu extraDiscardCardId.
+  | {
+      step: "picking-extra-discard";
+      cardId: string;
+      targetId?: string;
+      targetCardId?: string;
+      brawlZones?: Record<string, "hand" | "equipment">;
+    }
+  // Mở rộng Dodge City, mục 1.2 — USE_ABILITY (Sid Ketchum/José Delgado/Doc
+  // Holyday) cần chọn ĐỦ `needed` lá trên tay TRƯỚC khi gửi đi. `playerId`:
+  // chủ nhân kỹ năng — KHÔNG chắc là người đang tới lượt (Sid Ketchum dùng
+  // được bất cứ lúc nào, kể cả không phải lượt/phản ứng của chính mình).
+  | { step: "picking-ability-cards"; playerId: string; ability: UseAbilityCharacter; needed: number; selectedCardIds: string[] }
+  // Mở rộng Dodge City, mục C nhóm C (Doc Holyday) — đã chọn đủ 2 lá, giờ chọn
+  // mục tiêu để bắn.
+  | { step: "picking-ability-target"; playerId: string; cardIds: string[] };
+
+// Dòng gợi ý trong băng "Đang chọn... Huỷ" — trước đây LUÔN là "mục tiêu" (chỉ
+// có 1 loại bước chọn), giờ có thêm bước chọn lá/vùng nên cần đúng chữ hơn.
+function selectionHintText(selection: Selection): string {
+  switch (selection.step) {
+    case "picking-brawl-zones":
+      return "Đang chọn vùng bỏ bài cho từng người...";
+    case "picking-extra-discard":
+      return "Đang chọn lá phụ để bỏ kèm...";
+    case "picking-ability-cards":
+      return "Đang chọn lá để dùng kỹ năng...";
+    case "picking-ability-target":
+      return "Đang chọn mục tiêu cho kỹ năng...";
+    default:
+      return "Đang chọn mục tiêu...";
+  }
+}
 
 export interface UiHandlers {
   onDrawCards(): void;
@@ -1247,12 +1315,33 @@ export interface UiHandlers {
   onRespondTakeConsequence(): void;
   onCancelSelection(): void;
   onPlayAgain(): void;
+  // Mở rộng Dodge City, mục 1.2 — bấm 1 lá đang ở bước "picking-brawl-zones"
+  // (Brawl) hoặc "picking-extra-discard" (Brawl/Rag Time/Springfield/Tequila/
+  // Whisky) đều KHÔNG dùng hàm này — xem onBrawlZonePick()/onExtraDiscardCardClick()
+  // riêng bên dưới, vì 2 bước đó cần thêm dữ liệu ngoài cardId.
+  onBrawlZonePick(targetId: string, zone: "hand" | "equipment"): void;
+  onBrawlZonesConfirmed(): void;
+  onExtraDiscardCardClick(cardId: string): void;
+  // Mở rộng Dodge City, mục 1.2 — USE_ABILITY. `onArmAbility`: bấm nút "Dùng
+  // kỹ năng" của Sid Ketchum/José Delgado/Doc Holyday (Chuck Wengam không cần
+  // chọn lá gì nên dùng thẳng `onUseChuckWengamAbility`, gửi đi ngay).
+  onArmAbility(playerId: string, ability: UseAbilityCharacter): void;
+  onUseChuckWengamAbility(playerId: string): void;
+  onToggleAbilityCard(cardId: string): void;
+  onConfirmAbilityCards(): void;
+  onAbilityTargetClick(targetId: string): void;
   // Giai đoạn 5, việc bổ sung — 3 nhân vật (Pedro Ramirez/Jesse Jones/Kit
   // Carlson) cần lựa chọn riêng ngoài các handler ở trên. "Không chọn"/mặc
   // định của cả 3 đều tái dùng onRespondTakeConsequence có sẵn.
   onPickDrawSource(cardId: string): void;
   onPickDrawTarget(targetId: string, letTargetChoose: boolean): void;
   onPickKeptCard(cardId: string): void;
+  // Mở rộng Dodge City, mục C nhóm A (Pat Brennan) — chọn lấy đúng 1 lá trang
+  // bị `cardId` của người chơi `targetId` vào tay mình, thay vì rút bài.
+  onPickEquipmentFromPlayer(targetId: string, cardId: string): void;
+  // Mở rộng Dodge City, mục C nhóm C (Vera Custer) — chọn mượn khả năng của
+  // người chơi `targetId` (bắt buộc chọn, không có lựa chọn "không mượn ai").
+  onPickBorrowedCharacter(targetId: string): void;
   // Đợt 2 UI/UX (mục 4) — bấm "nở"/"thu gọn" khu trang bị của 1 seat khi bàn
   // >6 người. Client-only, không phải hành động ván đấu, không gửi lên server.
   onToggleSeatExpanded(playerId: string): void;
@@ -1427,6 +1516,15 @@ function renderHandSection(
   // Jesse Jones (đợt 5) — nạn nhân tự chọn 1 lá BẤT KỲ của mình để đưa, không
   // giới hạn tên lá như respondableCardName (chỉ dùng cho Missed!/Bang!).
   const isGivingCardToJesse = isResponding && top.kind === "NEED_GIVE_CARD_TO_PLAYER";
+  // Mở rộng Dodge City, mục 1.2 — bước cuối của Brawl/Rag Time/Springfield/
+  // Tequila/Whisky: chọn 1 lá phụ bất kỳ KHÁC lá chính đang đánh (lá đó vẫn
+  // còn TRONG tay lúc này — chưa dispatch — nên phải tự loại trừ ở đây).
+  const isPickingExtraDiscard =
+    selection.step === "picking-extra-discard" && player.id === state.players[state.currentPlayerIndex].id;
+  // Mở rộng Dodge City, mục C — USE_ABILITY (Sid Ketchum/José Delgado/Doc
+  // Holyday) chọn ĐỦ số lá cần trước khi gửi đi. José Delgado CHỈ được chọn
+  // lá xanh dương (equipment "instant") — lá khác hiện dạng chip, không bấm được.
+  const isPickingAbilityCards = selection.step === "picking-ability-cards" && selection.playerId === player.id;
 
   for (const cardId of player.hand) {
     const name = cardNameFromId(cardId);
@@ -1436,6 +1534,27 @@ function renderHandSection(
       wrapper.appendChild(
         cardButton(cardId, () => handlers.onToggleDiscardCard(cardId), selected ? "card-box--checked" : undefined)
       );
+      continue;
+    }
+
+    if (isPickingExtraDiscard) {
+      if (cardId === selection.cardId) {
+        wrapper.appendChild(cardChip(cardId));
+      } else {
+        wrapper.appendChild(cardButton(cardId, () => handlers.onExtraDiscardCardClick(cardId)));
+      }
+      continue;
+    }
+
+    if (isPickingAbilityCards) {
+      if (selection.ability === "jose_delgado" && !isSelfEquipBlueCardName(name)) {
+        wrapper.appendChild(cardChip(cardId));
+      } else {
+        const checked = selection.selectedCardIds.includes(cardId);
+        wrapper.appendChild(
+          cardButton(cardId, () => handlers.onToggleAbilityCard(cardId), checked ? "card-box--checked" : undefined)
+        );
+      }
       continue;
     }
 
@@ -1619,6 +1738,7 @@ function renderPlayer(
   handLabel.textContent = `Bài trên tay (${player.hand.length}):`;
   el.appendChild(handLabel);
   renderHandSection(el, state, player, options, handlers);
+  renderAbilitySection(el, state, player, selection, handlers);
 
   // Đợt 2 UI/UX (mục 4) — đang có hành động THẬT SỰ cần bấm vào khu trang bị
   // của người này (Cat Balou bắt bỏ / Panic! chọn mục tiêu / mở rộng Dodge
@@ -1643,12 +1763,20 @@ function renderPlayer(
   );
 
   // Chọn mục tiêu: chỉ hiện nút này cho người KHÁC người đang cầm bài, và chỉ
-  // khi đang ở bước "picking-target".
+  // khi đang ở bước "picking-target". NGOẠI LỆ: Tequila (mở rộng Dodge City)
+  // cho phép tự chọn CHÍNH MÌNH làm mục tiêu (tự hồi máu) — khác mọi lá khác
+  // dùng bước này.
   if (selection.step === "picking-target" && player.alive) {
     const acting = state.players[state.currentPlayerIndex];
-    if (player.id !== acting.id) {
+    if (player.id !== acting.id || selection.cardName === "tequila") {
       el.appendChild(button("Chọn làm mục tiêu", () => handlers.onPlayerClick(player.id)));
     }
+  }
+
+  // Mở rộng Dodge City, mục C nhóm C (Doc Holyday) — đã chọn đủ 2 lá bỏ, giờ
+  // chọn mục tiêu để bắn (không cho tự chọn chính mình, xem useDocHolydayShot()).
+  if (selection.step === "picking-ability-target" && player.alive && player.id !== selection.playerId) {
+    el.appendChild(button("Chọn làm mục tiêu", () => handlers.onAbilityTargetClick(player.id)));
   }
 
   // Cat Balou: sau khi chọn xong mục tiêu, hỏi bỏ tay hay bỏ sân — chỉ hỏi
@@ -1665,7 +1793,86 @@ function renderPlayer(
     el.appendChild(zoneWrapper);
   }
 
+  // Brawl (mở rộng Dodge City) — người đánh chọn VÙNG bỏ bài riêng cho TỪNG
+  // người khác còn sống (khác Cat Balou ở trên: đây là người ĐÁNH chọn
+  // TRƯỚC, không phải nạn nhân tự chọn SAU) — hiện cho MỌI người khác, không
+  // chỉ 1 người, đánh dấu ✓ vào vùng đã chọn để biết đã bấm hay chưa.
+  if (selection.step === "picking-brawl-zones" && player.alive && player.id !== state.players[state.currentPlayerIndex].id) {
+    const chosenZone = selection.zones[player.id];
+    const zoneWrapper = document.createElement("div");
+    zoneWrapper.className = "cards";
+    zoneWrapper.appendChild(
+      button(chosenZone === "hand" ? "✓ Bỏ kèm: tay" : "Bỏ kèm: tay", () => handlers.onBrawlZonePick(player.id, "hand"))
+    );
+    zoneWrapper.appendChild(
+      button(chosenZone === "equipment" ? "✓ Bỏ kèm: sân" : "Bỏ kèm: sân", () =>
+        handlers.onBrawlZonePick(player.id, "equipment")
+      )
+    );
+    el.appendChild(zoneWrapper);
+  }
+
   return el;
+}
+
+// Mở rộng Dodge City, mục 1.2 + mục C — nút "Dùng kỹ năng" cho 4 nhân vật
+// dùng chung USE_ABILITY (Sid Ketchum/Chuck Wengam/José Delgado/Doc Holyday).
+// Gọi cho MỌI seat (không chỉ người đang tới lượt) — Sid Ketchum dùng được
+// BẤT CỨ LÚC NÀO, kể cả không phải lượt/phản ứng của chính mình.
+function renderAbilitySection(
+  container: HTMLElement,
+  state: GameState,
+  player: PlayerState,
+  selection: Selection,
+  handlers: UiHandlers
+): void {
+  if (!player.alive || !player.characterId) return;
+  const def = getCharacterDefinition(player.characterId);
+  if (!def) return;
+
+  const isMyTurnNoPending =
+    state.pending.length === 0 &&
+    state.turnPhase === "play" &&
+    state.players[state.currentPlayerIndex].id === player.id;
+
+  if (selection.step === "idle") {
+    if (def.canSelfHeal && player.hand.length >= 2) {
+      container.appendChild(
+        button("Dùng kỹ năng: bỏ 2 lá hồi 1 máu", () => handlers.onArmAbility(player.id, "sid_ketchum"))
+      );
+    } else if (def.canPayLifeToDraw && isMyTurnNoPending && player.hp > 1) {
+      container.appendChild(
+        button("Dùng kỹ năng: mất 1 máu rút 2 lá", () => handlers.onUseChuckWengamAbility(player.id))
+      );
+    } else if (
+      def.canDiscardEquipmentToDraw &&
+      isMyTurnNoPending &&
+      state.joseDelgadoUsesThisTurn < 2 &&
+      player.hand.some((id) => isSelfEquipBlueCardName(cardNameFromId(id)))
+    ) {
+      container.appendChild(
+        button("Dùng kỹ năng: bỏ 1 lá xanh dương rút 2 lá", () => handlers.onArmAbility(player.id, "jose_delgado"))
+      );
+    } else if (
+      def.canDiscardTwoForBang &&
+      isMyTurnNoPending &&
+      !state.docHolydayUsedThisTurn &&
+      player.hand.length >= 2
+    ) {
+      container.appendChild(
+        button("Dùng kỹ năng: bỏ 2 lá bắn Bang!", () => handlers.onArmAbility(player.id, "doc_holyday"))
+      );
+    }
+  }
+
+  if (selection.step === "picking-ability-cards" && selection.playerId === player.id) {
+    const info = document.createElement("p");
+    info.textContent = `Đã chọn ${selection.selectedCardIds.length}/${selection.needed} lá cho kỹ năng`;
+    container.appendChild(info);
+    const confirmBtn = button("Xác nhận", () => handlers.onConfirmAbilityCards());
+    confirmBtn.disabled = selection.selectedCardIds.length !== selection.needed;
+    container.appendChild(confirmBtn);
+  }
 }
 
 // Mô tả ngắn gọn 1 mục pending BẤT KỲ trong stack (không chỉ đỉnh) — dùng để
@@ -1785,6 +1992,29 @@ function renderPendingPanel(container: HTMLElement, state: GameState, handlers: 
     }
     panel.appendChild(wrapper);
     panel.appendChild(button("Giữ 2 lá đầu (bỏ lá thứ 3)", () => handlers.onRespondTakeConsequence()));
+  } else if (top.kind === "NEED_PICK_DRAW_OR_EQUIPMENT") {
+    panel.appendChild(button("Rút bộ bài", () => handlers.onRespondTakeConsequence()));
+    for (const p of state.players) {
+      if (!p.alive || p.id === top.player || p.equipment.length === 0) continue;
+      const label = document.createElement("p");
+      label.textContent = `Lấy trang bị của ${p.name}:`;
+      panel.appendChild(label);
+      const wrapper = document.createElement("div");
+      wrapper.className = "cards";
+      for (const cardId of p.equipment) {
+        wrapper.appendChild(cardButton(cardId, () => handlers.onPickEquipmentFromPlayer(p.id, cardId)));
+      }
+      panel.appendChild(wrapper);
+    }
+  } else if (top.kind === "NEED_PICK_BORROWED_CHARACTER") {
+    for (const p of state.players) {
+      if (!p.alive || p.id === top.player || !p.characterId) continue;
+      panel.appendChild(
+        button(`Mượn khả năng của ${p.name} (${characterLabel(p.characterId)})`, () =>
+          handlers.onPickBorrowedCharacter(p.id)
+        )
+      );
+    }
   }
 
   container.appendChild(panel);
@@ -1976,7 +2206,16 @@ export function renderApp(
   if (options.selection.step !== "idle") {
     const hint = document.createElement("div");
     hint.className = "panel";
-    hint.appendChild(document.createTextNode("Đang chọn mục tiêu... "));
+    hint.appendChild(document.createTextNode(selectionHintText(options.selection) + " "));
+    // Brawl (mở rộng Dodge City) — chỉ hiện nút "Tiếp tục" khi ĐÃ chọn đủ vùng
+    // cho MỌI người khác còn sống (khác chính người đánh).
+    if (options.selection.step === "picking-brawl-zones") {
+      const sel = options.selection;
+      const others = state.players.filter((p) => p.alive && p.id !== state.players[state.currentPlayerIndex].id);
+      if (others.length > 0 && others.every((p) => sel.zones[p.id] !== undefined)) {
+        hint.appendChild(button("Tiếp tục — chọn lá phụ", () => handlers.onBrawlZonesConfirmed()));
+      }
+    }
     hint.appendChild(button("Huỷ", () => handlers.onCancelSelection()));
     container.appendChild(hint);
   }
@@ -2404,6 +2643,17 @@ export interface NetworkGameHandlers {
   onPickDrawSource(cardId: string): void;
   onPickDrawTarget(targetId: string, letTargetChoose: boolean): void;
   onPickKeptCard(cardId: string): void;
+  // Mở rộng Dodge City — giống hệt UiHandlers (hotseat), xem ghi chú ở đó.
+  onPickEquipmentFromPlayer(targetId: string, cardId: string): void;
+  onPickBorrowedCharacter(targetId: string): void;
+  onBrawlZonePick(targetId: string, zone: "hand" | "equipment"): void;
+  onBrawlZonesConfirmed(): void;
+  onExtraDiscardCardClick(cardId: string): void;
+  onArmAbility(playerId: string, ability: UseAbilityCharacter): void;
+  onUseChuckWengamAbility(playerId: string): void;
+  onToggleAbilityCard(cardId: string): void;
+  onConfirmAbilityCards(): void;
+  onAbilityTargetClick(targetId: string): void;
   // Đợt 2 UI/UX (mục 4) — giống hệt UiHandlers (hotseat), xem ghi chú ở đó.
   onToggleSeatExpanded(playerId: string): void;
   // Đợt 3 UI/UX (mục 9) — giống UiHandlers (hotseat), cộng thêm dialog Mã
@@ -2486,6 +2736,10 @@ function networkRenderHandSection(
   // Jesse Jones (đợt 5) — nạn nhân tự chọn 1 lá BẤT KỲ của mình để đưa, không
   // giới hạn tên lá như respondableCardName (chỉ dùng cho Missed!/Bang!).
   const isGivingCardToJesse = isResponding && top.kind === "NEED_GIVE_CARD_TO_PLAYER";
+  // Mở rộng Dodge City — xem ghi chú y hệt ở renderHandSection() (hotseat).
+  const isPickingExtraDiscard =
+    selection.step === "picking-extra-discard" && player.id === view.players[view.currentPlayerIndex]?.id;
+  const isPickingAbilityCards = selection.step === "picking-ability-cards" && selection.playerId === player.id;
 
   for (const cardId of player.hand) {
     const name = cardNameFromId(cardId);
@@ -2495,6 +2749,27 @@ function networkRenderHandSection(
       wrapper.appendChild(
         cardButton(cardId, () => handlers.onToggleDiscardCard(cardId), selected ? "card-box--checked" : undefined)
       );
+      continue;
+    }
+
+    if (isPickingExtraDiscard) {
+      if (cardId === selection.cardId) {
+        wrapper.appendChild(cardChip(cardId));
+      } else {
+        wrapper.appendChild(cardButton(cardId, () => handlers.onExtraDiscardCardClick(cardId)));
+      }
+      continue;
+    }
+
+    if (isPickingAbilityCards) {
+      if (selection.ability === "jose_delgado" && !isSelfEquipBlueCardName(name)) {
+        wrapper.appendChild(cardChip(cardId));
+      } else {
+        const checked = selection.selectedCardIds.includes(cardId);
+        wrapper.appendChild(
+          cardButton(cardId, () => handlers.onToggleAbilityCard(cardId), checked ? "card-box--checked" : undefined)
+        );
+      }
       continue;
     }
 
@@ -2689,6 +2964,7 @@ function networkRenderPlayer(
   handLabel.textContent = "Bài trên tay:";
   el.appendChild(handLabel);
   networkRenderHandSection(el, view, player, options, handlers);
+  networkRenderAbilitySection(el, view, player, selection, handlers);
 
   // Đợt 2 UI/UX (mục 4) — seat của BẠN LUÔN đầy đủ ("Seat của BẠN (đáy): luôn
   // hiện đầy đủ", khác quy tắc >6 người thu gọn áp cho người khác) — vế đầu
@@ -2708,9 +2984,20 @@ function networkRenderPlayer(
   );
 
   // Chọn mục tiêu: chỉ hiện nút này khi CHÍNH MÌNH đang chọn mục tiêu, cho
-  // người KHÁC mình (không tự nhắm vào bản thân).
-  if (selection.step === "picking-target" && player.alive && player.id !== view.viewerId) {
+  // người KHÁC mình. NGOẠI LỆ: Tequila (mở rộng Dodge City) cho tự chọn
+  // chính mình — xem ghi chú y hệt ở renderPlayer() (hotseat).
+  if (
+    selection.step === "picking-target" &&
+    player.alive &&
+    (player.id !== view.viewerId || selection.cardName === "tequila")
+  ) {
     el.appendChild(button("Chọn làm mục tiêu", () => handlers.onPlayerClick(player.id)));
+  }
+
+  // Mở rộng Dodge City, mục C nhóm C (Doc Holyday) — xem ghi chú y hệt ở
+  // renderPlayer() (hotseat).
+  if (selection.step === "picking-ability-target" && player.alive && player.id !== selection.playerId) {
+    el.appendChild(button("Chọn làm mục tiêu", () => handlers.onAbilityTargetClick(player.id)));
   }
 
   // Cat Balou: sau khi chọn xong mục tiêu, hỏi bỏ tay hay bỏ sân — chỉ hỏi
@@ -2728,7 +3015,85 @@ function networkRenderPlayer(
     el.appendChild(zoneWrapper);
   }
 
+  // Brawl (mở rộng Dodge City) — xem ghi chú y hệt ở renderPlayer() (hotseat).
+  if (
+    selection.step === "picking-brawl-zones" &&
+    player.alive &&
+    player.id !== view.players[view.currentPlayerIndex]?.id
+  ) {
+    const chosenZone = selection.zones[player.id];
+    const zoneWrapper = document.createElement("div");
+    zoneWrapper.className = "cards";
+    zoneWrapper.appendChild(
+      button(chosenZone === "hand" ? "✓ Bỏ kèm: tay" : "Bỏ kèm: tay", () => handlers.onBrawlZonePick(player.id, "hand"))
+    );
+    zoneWrapper.appendChild(
+      button(chosenZone === "equipment" ? "✓ Bỏ kèm: sân" : "Bỏ kèm: sân", () =>
+        handlers.onBrawlZonePick(player.id, "equipment")
+      )
+    );
+    el.appendChild(zoneWrapper);
+  }
+
   return el;
+}
+
+// Mở rộng Dodge City — xem ghi chú y hệt ở renderAbilitySection() (hotseat).
+// CHỈ hiện cho CHÍNH MÌNH (player.id === view.viewerId) — người khác không
+// bấm hộ được (và cũng không cần biết chi tiết, USE_ABILITY của người khác
+// tự thấy qua nhật ký sự kiện).
+function networkRenderAbilitySection(
+  container: HTMLElement,
+  view: PlayerView,
+  player: PlayerHandView,
+  selection: Selection,
+  handlers: NetworkGameHandlers
+): void {
+  if (!player.alive || !player.characterId || player.id !== view.viewerId || player.hand === null) return;
+  const def = getCharacterDefinition(player.characterId);
+  if (!def) return;
+
+  const isMyTurnNoPending =
+    view.pending.length === 0 && view.turnPhase === "play" && view.players[view.currentPlayerIndex]?.id === player.id;
+
+  if (selection.step === "idle") {
+    if (def.canSelfHeal && player.hand.length >= 2) {
+      container.appendChild(
+        button("Dùng kỹ năng: bỏ 2 lá hồi 1 máu", () => handlers.onArmAbility(player.id, "sid_ketchum"))
+      );
+    } else if (def.canPayLifeToDraw && isMyTurnNoPending && player.hp > 1) {
+      container.appendChild(
+        button("Dùng kỹ năng: mất 1 máu rút 2 lá", () => handlers.onUseChuckWengamAbility(player.id))
+      );
+    } else if (
+      def.canDiscardEquipmentToDraw &&
+      isMyTurnNoPending &&
+      view.joseDelgadoUsesThisTurn < 2 &&
+      player.hand.some((id) => isSelfEquipBlueCardName(cardNameFromId(id)))
+    ) {
+      container.appendChild(
+        button("Dùng kỹ năng: bỏ 1 lá xanh dương rút 2 lá", () => handlers.onArmAbility(player.id, "jose_delgado"))
+      );
+    } else if (
+      def.canDiscardTwoForBang &&
+      isMyTurnNoPending &&
+      !view.docHolydayUsedThisTurn &&
+      player.hand.length >= 2
+    ) {
+      container.appendChild(
+        button("Dùng kỹ năng: bỏ 2 lá bắn Bang!", () => handlers.onArmAbility(player.id, "doc_holyday"))
+      );
+    }
+  }
+
+  if (selection.step === "picking-ability-cards" && selection.playerId === player.id) {
+    const info = document.createElement("p");
+    info.textContent = `Đã chọn ${selection.selectedCardIds.length}/${selection.needed} lá cho kỹ năng`;
+    container.appendChild(info);
+    const confirmBtn = button("Xác nhận", () => handlers.onConfirmAbilityCards());
+    confirmBtn.disabled = selection.selectedCardIds.length !== selection.needed;
+    container.appendChild(confirmBtn);
+  }
 }
 
 // Mục 8 UI/UX — "băng thông báo đầu bàn". `deadline` CHỈ truyền vào khi kind
@@ -2871,6 +3236,29 @@ function networkRenderPendingPanel(
         panel.appendChild(wrapper);
       }
       panel.appendChild(button("Giữ 2 lá đầu (bỏ lá thứ 3)", () => handlers.onRespondTakeConsequence()));
+    } else if (top.kind === "NEED_PICK_DRAW_OR_EQUIPMENT") {
+      panel.appendChild(button("Rút bộ bài", () => handlers.onRespondTakeConsequence()));
+      for (const p of view.players) {
+        if (!p.alive || p.id === top.player || p.equipment.length === 0) continue;
+        const label = document.createElement("p");
+        label.textContent = `Lấy trang bị của ${p.name}:`;
+        panel.appendChild(label);
+        const wrapper = document.createElement("div");
+        wrapper.className = "cards";
+        for (const cardId of p.equipment) {
+          wrapper.appendChild(cardButton(cardId, () => handlers.onPickEquipmentFromPlayer(p.id, cardId)));
+        }
+        panel.appendChild(wrapper);
+      }
+    } else if (top.kind === "NEED_PICK_BORROWED_CHARACTER") {
+      for (const p of view.players) {
+        if (!p.alive || p.id === top.player || !p.characterId) continue;
+        panel.appendChild(
+          button(`Mượn khả năng của ${p.name} (${characterLabel(p.characterId)})`, () =>
+            handlers.onPickBorrowedCharacter(p.id)
+          )
+        );
+      }
     }
   }
 
@@ -3051,7 +3439,14 @@ export function renderNetworkGame(
   if (options.selection.step !== "idle") {
     const hint = document.createElement("div");
     hint.className = "panel";
-    hint.appendChild(document.createTextNode("Đang chọn mục tiêu... "));
+    hint.appendChild(document.createTextNode(selectionHintText(options.selection) + " "));
+    if (options.selection.step === "picking-brawl-zones") {
+      const sel = options.selection;
+      const others = view.players.filter((p) => p.alive && p.id !== view.players[view.currentPlayerIndex]?.id);
+      if (others.length > 0 && others.every((p) => sel.zones[p.id] !== undefined)) {
+        hint.appendChild(button("Tiếp tục — chọn lá phụ", () => handlers.onBrawlZonesConfirmed()));
+      }
+    }
     hint.appendChild(button("Huỷ", () => handlers.onCancelSelection()));
     container.appendChild(hint);
   }

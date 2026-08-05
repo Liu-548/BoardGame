@@ -193,10 +193,10 @@ bản sao chất Rô nào trong bộ bài hiện tại, nên nhánh miễn nhi�
 thật (không dựng được cardId hợp lệ có chất Rô cho các lá này) — vẫn giữ code
 vì đúng chính sách đã chốt, phòng khi bộ bài đổi sau này.
 
-**Việc bổ sung do chủ dự án yêu cầu (2026-08-05), CHƯA làm, để dành đợt sau**:
-màn hình "chọn nhân vật" (phát 2 lá, chọn giữ 1) nên hiện thêm LƯỢNG MÁU
-(bullets) của mỗi nhân vật, không chỉ tên + mô tả kỹ năng như hiện tại — giúp
-người chơi cân nhắc rõ hơn lúc chọn.
+**Việc bổ sung do chủ dự án yêu cầu (2026-08-05) — ✅ ĐÃ XONG**: màn hình "chọn
+nhân vật" (phát 2 lá, chọn giữ 1) giờ hiện thêm LƯỢNG MÁU (bullets) của mỗi
+nhân vật cạnh tên + mô tả kỹ năng (tính đúng cả +1 nếu là Cảnh sát trưởng) —
+đã tự kiểm bằng trình duyệt thật.
 
 **Nhóm C — ✅ XONG** (core + test, UI CHƯA có — xem changelog "Dodge City nhóm
 C" trong CHANGELOG.md): Molly Stark (hook mới `onVoluntaryPlayOutOfTurn`, 2
@@ -219,25 +219,17 @@ hoá" bình thường, chỉ HIỆU ỨNG tắt chứ lá không biến mất) h
 chỉ tự đọc equipment của chính người đang hành động (luôn miễn nhiễm với
 chính mình).
 
-**LƯU Ý (ĐÃ SỬA, xem CLAUDE.md)**: đoạn dưới đây mô tả rủi ro CŨ — `dealCharacterCards: true`
-hardcode bật thật trong `room.ts` khiến 14 nhân vật (nhóm A+B+C) CÓ THỂ bị phát
-ngẫu nhiên cho người chơi THẬT ngay khi deploy dù chưa có UI. Rủi ro này đã hết:
-bổ sung theo yêu cầu chủ dự án (2026-08-05), 15 nhân vật Dodge City giờ CHỈ vào
-bộ bốc khi chủ phòng chủ động tick bộ mở rộng "dodge_city" (checkbox riêng, xem
-`ExpansionId` ở `types.ts` + lọc ở `setup.ts`) — ván thật KHÔNG tick thì không
-bao giờ phát nhầm nhân vật Dodge City nào nữa. Giữ nguyên đoạn mô tả cũ bên dưới
-để biết CHÍNH XÁC nhân vật nào còn thiếu UI (Pat Brennan/Chuck Wengam/José
-Delgado/Doc Holyday — dùng chung `USE_ABILITY`, hiện **CHƯA CÓ NÚT BẤM NÀO cho
-action này, kể cả Sid Ketchum** — phát hiện lúc rà UI mảng lá vàng, xem CLAUDE.md).
-
-Đa số hoạt động ĐÚNG hoàn toàn dù chưa có UI riêng (hiệu ứng
-tự động hoặc chỉ cần nút RESPOND/PLAY_CARD sẵn có — Pixie Pete/Bill Noface/
-Greg Digger/Herb Hunter/Sean Mallory/Tequila Joe/Elena Fuente/Apache Kid/Molly
-Stark/Belle Star) — nhưng Pat Brennan/Chuck Wengam/José Delgado/Doc Holyday sẽ
-bị "vô hiệu" tạm thời (không có nút để dùng kỹ năng đặc biệt — Pat Brennan tự
-hết giờ về rút bài thường sau 10 giây, không bị treo; 3 người còn lại chỉ đơn
-giản không dùng được kỹ năng, chơi như nhân vật bình thường) cho tới khi có
-UI. Đúng tiền lệ "core trước, UI sau" của 16 nhân vật bản gốc.
+**LƯU Ý (ĐÃ SỬA HẾT, xem CLAUDE.md mục 5.4)**: đoạn dưới đây mô tả rủi ro/thiếu sót
+CŨ, nay không còn nữa. `dealCharacterCards: true` hardcode bật thật trong
+`room.ts`, nhưng 15 nhân vật Dodge City CHỈ vào bộ bốc khi chủ phòng chủ động
+tick bộ mở rộng "dodge_city" (checkbox riêng, xem `ExpansionId` ở `types.ts` +
+lọc ở `setup.ts`) — ván thật KHÔNG tick thì không bao giờ phát nhầm nhân vật
+Dodge City nào. VÀ UI cho `USE_ABILITY` (Pat Brennan/Chuck Wengam/José Delgado/
+Doc Holyday, kể cả Sid Ketchum — có giai đoạn ngắn 0 nút bấm nào dùng action
+này, phát hiện lúc rà UI mảng lá vàng 2026-08-06) đã xong đầy đủ, đã tự kiểm
+bằng trình duyệt thật cho Sid Ketchum — không còn nhân vật nào "vô hiệu" kỹ
+năng đặc biệt nữa. Đúng tiền lệ "core trước, UI sau" của 16 nhân vật bản gốc,
+nay UI đã bắt kịp core.
 
 **Vera Custer — ✅ XONG (nhân vật CUỐI CÙNG, 15/15) — xem changelog "Dodge City
 Vera Custer" trong CHANGELOG.md để biết chi tiết đầy đủ.** Tóm tắt kiến trúc:
