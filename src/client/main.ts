@@ -21,7 +21,7 @@
 // nghĩa ở client (không phải trong GameState) — vd "đã bấm lá Bang!, đang chờ
 // bấm chọn mục tiêu". Reset về "idle" sau mỗi lần reduce() thành công.
 
-import { cardNameFromId } from "../core/cards";
+import { cardNameFromId, isDelayedEquipmentCardName, yellowCardActsAsMissed } from "../core/cards";
 import type { CardName } from "../core/cards";
 import { reduce } from "../core/reduce";
 import { setupGame } from "../core/setup";
@@ -64,6 +64,14 @@ function cardNeedsTarget(cardId: string, characterId: string | null): boolean {
   if (name === "missed") return cardActsAsBang(cardId, characterId);
   return NEEDS_TARGET.has(name);
 }
+
+// Mở rộng Dodge City, mục 1.1 — lá vàng "trì hoãn" KÍCH HOẠT được KHÔNG cần
+// mục tiêu (Canteen tự hồi máu, Pony Express tự rút bài, Howitzer bắn hết mọi
+// người). Nhóm còn lại cần mục tiêu (Derringer/Knife/Pepperbox/Buffalo Rifle —
+// đi thẳng picking-target như Bang!; Conestoga/Can Can — đi picking-target rồi
+// rẽ tiếp sang picking-panic-equipment/picking-cat-balou-zone như Panic!/Cat
+// Balou, xem onPlayerClick() bên dưới) — quyết định ở onEquipmentClick().
+const NO_TARGET_YELLOW_ACTIVATIONS = new Set<CardName>(["canteen", "pony_express", "howitzer"]);
 
 const DEFAULT_PLAYER_NAMES = ["An", "Bình", "Chi", "Dũng"];
 
@@ -560,9 +568,13 @@ function onHandCardClick(cardId: string): void {
   }
 }
 
-// Bấm 1 lá trang bị trên sân ai đó — chỉ có 2 tình huống dùng tới: Cat Balou
-// bắt bỏ 1 lá cụ thể trên sân (RESPOND), hoặc Panic! cướp lá trang bị cụ thể
-// khi tay mục tiêu đã hết bài (bước 2 của PLAY_CARD panic).
+// Bấm 1 lá trang bị trên sân ai đó — 4 tình huống dùng tới: Cat Balou/Can Can
+// bắt bỏ 1 lá cụ thể trên sân (RESPOND), Panic!/Conestoga cướp lá trang bị cụ
+// thể khi tay mục tiêu đã hết bài (bước 2 của PLAY_CARD), mở rộng Dodge City
+// mục 1.1 — dùng lá vàng "trì hoãn" TRÊN SÂN MÌNH đỡ Bang!/Gatling (RESPOND,
+// giống hệt lá trên tay), hoặc KÍCH HOẠT lá vàng đã bày sẵn từ lượt trước
+// (PLAY_CARD — reduce() tự nhận ra đây là kích hoạt vì cardId không còn trong
+// tay, xem activateDelayedEquipment() trong reduce.ts).
 function onEquipmentClick(ownerId: string, cardId: string): void {
   if (selection.step === "picking-panic-equipment") {
     dispatch({
@@ -578,16 +590,37 @@ function onEquipmentClick(ownerId: string, cardId: string): void {
   const top = state.pending[state.pending.length - 1];
   if (top && top.kind === "NEED_DISCARD_FROM_ZONE" && top.player === ownerId) {
     dispatch({ type: "RESPOND", playerId: top.player, cardId });
+    return;
+  }
+
+  if (top && top.kind === "NEED_MISSED" && top.player === ownerId) {
+    dispatch({ type: "RESPOND", playerId: top.player, cardId });
+    return;
+  }
+
+  if (!top && selection.step === "idle" && ownerId === currentPlayerId()) {
+    const name = cardNameFromId(cardId);
+    if (isDelayedEquipmentCardName(name) && !yellowCardActsAsMissed(name)) {
+      if (NO_TARGET_YELLOW_ACTIVATIONS.has(name)) {
+        dispatch({ type: "PLAY_CARD", playerId: currentPlayerId(), cardId });
+      } else {
+        selection = { step: "picking-target", cardId, cardName: name };
+        render();
+      }
+    }
   }
 }
 
 // Bấm chọn 1 người làm mục tiêu — chỉ có ý nghĩa khi đang ở bước
-// "picking-target" (đã cầm sẵn 1 lá cần mục tiêu ở tay).
+// "picking-target" (đã cầm sẵn 1 lá cần mục tiêu, từ tay hoặc từ sân — mở
+// rộng Dodge City mục 1.1).
 function onPlayerClick(targetId: string): void {
   if (selection.step !== "picking-target") return;
   const { cardId, cardName } = selection;
 
-  if (cardName === "panic") {
+  // Conestoga (mở rộng Dodge City) — bản "delayed" của Panic!, cùng luồng bắt
+  // chọn LÁ TRANG BỊ cụ thể khi tay mục tiêu đã hết bài.
+  if (cardName === "panic" || cardName === "conestoga") {
     const target = state.players.find((p) => p.id === targetId)!;
     if (target.hand.length > 0) {
       dispatch({ type: "PLAY_CARD", playerId: currentPlayerId(), cardId, targetId });
@@ -598,7 +631,9 @@ function onPlayerClick(targetId: string): void {
     return;
   }
 
-  if (cardName === "cat_balou") {
+  // Can Can (mở rộng Dodge City) — bản "delayed" của Cat Balou, cùng luồng
+  // hỏi bắt bỏ tay hay sân.
+  if (cardName === "cat_balou" || cardName === "can_can") {
     selection = { step: "picking-cat-balou-zone", cardId, targetId };
     render();
     return;
@@ -1036,6 +1071,7 @@ function onNetworkHandCardClick(cardId: string): void {
   }
 }
 
+// Mở rộng Dodge City, mục 1.1 — xem ghi chú y hệt ở onEquipmentClick() (hotseat).
 function onNetworkEquipmentClick(ownerId: string, cardId: string): void {
   if (networkSelection.step === "picking-panic-equipment") {
     networkDispatch({
@@ -1052,6 +1088,24 @@ function onNetworkEquipmentClick(ownerId: string, cardId: string): void {
   const top = networkView.pending[networkView.pending.length - 1];
   if (top && top.kind === "NEED_DISCARD_FROM_ZONE" && top.player === ownerId) {
     networkDispatch({ type: "RESPOND", playerId: top.player, cardId });
+    return;
+  }
+
+  if (top && top.kind === "NEED_MISSED" && top.player === ownerId) {
+    networkDispatch({ type: "RESPOND", playerId: top.player, cardId });
+    return;
+  }
+
+  if (!top && networkSelection.step === "idle" && ownerId === myPlayerId) {
+    const name = cardNameFromId(cardId);
+    if (isDelayedEquipmentCardName(name) && !yellowCardActsAsMissed(name)) {
+      if (NO_TARGET_YELLOW_ACTIVATIONS.has(name)) {
+        networkDispatch({ type: "PLAY_CARD", playerId: myPlayerId, cardId });
+      } else {
+        networkSelection = { step: "picking-target", cardId, cardName: name };
+        render();
+      }
+    }
   }
 }
 
@@ -1062,7 +1116,8 @@ function onNetworkPlayerClick(targetId: string): void {
   if (networkSelection.step !== "picking-target" || !networkView) return;
   const { cardId, cardName } = networkSelection;
 
-  if (cardName === "panic") {
+  // Conestoga (mở rộng Dodge City) — xem ghi chú y hệt ở onPlayerClick() (hotseat).
+  if (cardName === "panic" || cardName === "conestoga") {
     const target = networkView.players.find((p) => p.id === targetId)!;
     if (target.handCount > 0) {
       networkDispatch({ type: "PLAY_CARD", playerId: myPlayerId, cardId, targetId });
@@ -1073,7 +1128,8 @@ function onNetworkPlayerClick(targetId: string): void {
     return;
   }
 
-  if (cardName === "cat_balou") {
+  // Can Can (mở rộng Dodge City) — xem ghi chú y hệt ở onPlayerClick() (hotseat).
+  if (cardName === "cat_balou" || cardName === "can_can") {
     networkSelection = { step: "picking-cat-balou-zone", cardId, targetId };
     render();
     return;

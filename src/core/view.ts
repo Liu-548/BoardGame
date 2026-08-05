@@ -75,6 +75,13 @@ export interface PlayerView {
   houseRules: HouseRuleId[];
   // Mở rộng Dodge City — cùng lý do KHÔNG bí mật như houseRules ở trên.
   expansions: ExpansionId[];
+  // Mở rộng Dodge City, mục 1.1 — client cần biết đúng như core để tự vẽ nút
+  // "kích hoạt"/"dùng làm Missed!" cho lá vàng trên sân (xem
+  // isDelayedEquipmentCardName() ở cards.ts) đúng lúc, không sớm hơn. KHÔNG bí
+  // mật gì (lá đã bày ngửa công khai, ai cũng nhìn thấy) — chỉ đơn giản trước
+  // đây chưa cần lộ ra vì chưa có nút bấm nào phụ thuộc 2 field này.
+  equipmentPlayedTurn: GameState["equipmentPlayedTurn"];
+  turnNumber: number;
 }
 
 function viewRole(player: PlayerState, viewerId: string): Role | null {
@@ -135,5 +142,7 @@ export function viewFor(state: GameState, viewerId: string): PlayerView {
       : null,
     houseRules: state.houseRules,
     expansions: state.expansions,
+    equipmentPlayedTurn: state.equipmentPlayedTurn,
+    turnNumber: state.turnNumber,
   };
 }

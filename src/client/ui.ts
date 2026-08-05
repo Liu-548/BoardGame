@@ -3,7 +3,7 @@
 // hotseat). Nhãn tiếng Việt (tên bài, tên vai) chỉ để HIỂN THỊ nên đặt ở đây,
 // không đặt trong core/ — core/ không quan tâm chuyện trình bày.
 
-import { cardNameFromId, cardSuitRankFromId, WEAPON_RANGES } from "../core/cards";
+import { cardNameFromId, cardSuitRankFromId, isDelayedEquipmentCardName, yellowCardActsAsMissed, WEAPON_RANGES } from "../core/cards";
 import type { CardName } from "../core/cards";
 import { CHARACTERS, computeStartingHp, getCharacterDefinition } from "../core/characters";
 import type { CharacterChoice, ExpansionId, GameEvent, GameState, HouseRuleId, PendingAction, PlayerState, Rank, Role, Suit, Winner } from "../core/types";
@@ -1342,20 +1342,63 @@ function respondableCardName(pendingKind: string): CardName | null {
   }
 }
 
+// Mở rộng Dodge City, mục 1.1 — lá vàng "trì hoãn" `cardId` ĐANG BÀY trên sân
+// dùng được NGAY để đỡ Missed! không — mirror isEquipmentUsableAsMissed()
+// (core/reduce.ts, không export). 2 đường: (1) nhóm yellowCardActsAsMissed()
+// (Bible/Sombrero/Ten Gallon Hat/Iron Plate) VÀ đã qua ít nhất 1 lượt kể từ
+// lúc chơi ra; (2) Elena Fuente (canUseOwnEquipmentAsMissed) — BẤT KỲ lá nào
+// trên sân, không cần chờ, TRỪ Dynamite. CHỈ để quyết định vẽ nút bấm ở đâu —
+// KHÔNG mô phỏng ảnh hưởng Belle Star (disablesOthersEquipment, hiếm gặp,
+// core vẫn tự chặn lại nếu bấm nhầm lúc đó).
+function equipmentActsAsMissed(
+  cardId: string,
+  characterId: string | null,
+  equipmentPlayedTurn: Record<string, number>,
+  turnNumber: number
+): boolean {
+  const name = cardNameFromId(cardId);
+  if (getCharacterDefinition(characterId)?.canUseOwnEquipmentAsMissed === true) {
+    return name !== "dynamite";
+  }
+  return yellowCardActsAsMissed(name) && equipmentPlayedTurn[cardId] !== turnNumber;
+}
+
+// Mở rộng Dodge City, mục 1.1 — lá vàng "trì hoãn" `cardId` ĐANG BÀY trên sân
+// kích hoạt được NGAY không (activateDelayedEquipment() ở core/reduce.ts) —
+// mọi lá vàng TRỪ nhóm chỉ dùng để đỡ Missed! (Bible/Sombrero/Ten Gallon Hat/
+// Iron Plate — core từ chối tự đánh ra nhóm này), và phải đã qua ít nhất 1
+// lượt kể từ lúc chơi ra.
+function canActivateDelayedEquipment(
+  cardId: string,
+  equipmentPlayedTurn: Record<string, number>,
+  turnNumber: number
+): boolean {
+  const name = cardNameFromId(cardId);
+  if (!isDelayedEquipmentCardName(name) || yellowCardActsAsMissed(name)) return false;
+  return equipmentPlayedTurn[cardId] !== turnNumber;
+}
+
 // Slab the Killer (missesNeeded > 1, xem reduce.ts's respondToMissed) — luật
-// gốc "if able": chỉ được bỏ Missed! khi tay ĐANG CÓ ĐỦ số lá cần ngay từ đầu,
-// không được bỏ dở dang rồi hết giữa chừng (mất lá mà vẫn không né được). Tay
-// không đủ thì ẨN nút bấm Missed! (chỉ còn "Chịu mất máu" khả dụng) — core
-// (respondToMissed) cũng tự chặn lại, đây chỉ để khỏi bấm vào rồi mới báo lỗi.
+// gốc "if able": chỉ được bỏ Missed! khi ĐANG CÓ ĐỦ số lá cần ngay từ đầu
+// (tay CỘNG lá vàng trên sân đã dùng được, mở rộng Dodge City), không được bỏ
+// dở dang rồi hết giữa chừng (mất lá mà vẫn không né được). Không đủ thì ẨN
+// nút bấm Missed! (chỉ còn "Chịu mất máu" khả dụng) — core (respondToMissed)
+// cũng tự chặn lại, đây chỉ để khỏi bấm vào rồi mới báo lỗi.
 function hasEnoughMissedToRespond(
   top: { kind: string; missesNeeded?: number },
   hand: readonly string[],
-  characterId: string | null
+  equipment: readonly string[],
+  characterId: string | null,
+  equipmentPlayedTurn: Record<string, number>,
+  turnNumber: number
 ): boolean {
   if (top.kind !== "NEED_MISSED") return true;
   const needed = top.missesNeeded ?? 1;
-  const eligible = hand.filter((id) => cardActsAsMissed(id, characterId)).length;
-  return eligible >= needed;
+  const eligibleFromHand = hand.filter((id) => cardActsAsMissed(id, characterId)).length;
+  const eligibleFromEquipment = equipment.filter((id) =>
+    equipmentActsAsMissed(id, characterId, equipmentPlayedTurn, turnNumber)
+  ).length;
+  return eligibleFromHand + eligibleFromEquipment >= needed;
 }
 
 function renderHandSection(
@@ -1404,7 +1447,7 @@ function renderHandSection(
     if (respondableName !== null) {
       if (
         cardMatchesRespondable(cardId, player.characterId, respondableName) &&
-        hasEnoughMissedToRespond(top, player.hand, player.characterId)
+        hasEnoughMissedToRespond(top, player.hand, player.equipment, player.characterId, state.equipmentPlayedTurn, state.turnNumber)
       ) {
         wrapper.appendChild(cardButton(cardId, () => handlers.onHandCardClick(cardId)));
       } else {
@@ -1442,6 +1485,18 @@ function renderEquipmentSection(
   const isDiscardFromEquipment =
     top !== undefined && top.player === player.id && top.kind === "NEED_DISCARD_FROM_ZONE" && top.zone === "equipment";
   const isPickingPanicTarget = selection.step === "picking-panic-equipment" && selection.targetId === player.id;
+  // Mở rộng Dodge City, mục 1.1 — đang chờ ĐÚNG người này đỡ Bang!/Gatling
+  // (NEED_MISSED): lá vàng trên sân dùng được như Missed! bấm được luôn, y
+  // hệt lá trên tay (xem respondableCardName()/hasEnoughMissedToRespond() ở trên).
+  const isRespondingWithMissed = top !== undefined && top.player === player.id && top.kind === "NEED_MISSED";
+  // Mở rộng Dodge City, mục 1.1 — đang chính lượt CHƠI của người này, không có
+  // pending/selection nào khác đang dở dang -> lá vàng "trì hoãn" đã qua đủ 1
+  // lượt bấm được để KÍCH HOẠT (activateDelayedEquipment() ở reduce.ts).
+  const isMyTurnToActivate =
+    state.pending.length === 0 &&
+    state.turnPhase === "play" &&
+    state.players[state.currentPlayerIndex].id === player.id &&
+    selection.step === "idle";
 
   for (const cardId of player.equipment) {
     const name = cardNameFromId(cardId);
@@ -1449,6 +1504,19 @@ function renderEquipmentSection(
     const dangerClass = equipmentDangerClass(name);
 
     if (!isDynamite && (isDiscardFromEquipment || isPickingPanicTarget)) {
+      wrapper.appendChild(cardButton(cardId, () => handlers.onEquipmentClick(player.id, cardId), dangerClass));
+      continue;
+    }
+
+    if (
+      isRespondingWithMissed &&
+      equipmentActsAsMissed(cardId, player.characterId, state.equipmentPlayedTurn, state.turnNumber)
+    ) {
+      wrapper.appendChild(cardButton(cardId, () => handlers.onEquipmentClick(player.id, cardId), dangerClass));
+      continue;
+    }
+
+    if (isMyTurnToActivate && canActivateDelayedEquipment(cardId, state.equipmentPlayedTurn, state.turnNumber)) {
       wrapper.appendChild(cardButton(cardId, () => handlers.onEquipmentClick(player.id, cardId), dangerClass));
       continue;
     }
@@ -1553,14 +1621,15 @@ function renderPlayer(
   renderHandSection(el, state, player, options, handlers);
 
   // Đợt 2 UI/UX (mục 4) — đang có hành động THẬT SỰ cần bấm vào khu trang bị
-  // của người này (Cat Balou bắt bỏ / Panic! chọn mục tiêu) → LUÔN hiện đầy
-  // đủ, bất kể đang thu gọn — cùng điều kiện renderEquipmentSection() tự
-  // kiểm tra bên trong nó, viết lại ở đây chỉ để QUYẾT ĐỊNH thu/nở.
+  // của người này (Cat Balou bắt bỏ / Panic! chọn mục tiêu / mở rộng Dodge
+  // City: đỡ Bang! bằng lá vàng) → LUÔN hiện đầy đủ, bất kể đang thu gọn —
+  // cùng điều kiện renderEquipmentSection() tự kiểm tra bên trong nó, viết lại
+  // ở đây chỉ để QUYẾT ĐỊNH thu/nở.
   const forceShowEquipment =
     (topPending !== undefined &&
       topPending.player === player.id &&
-      topPending.kind === "NEED_DISCARD_FROM_ZONE" &&
-      topPending.zone === "equipment") ||
+      ((topPending.kind === "NEED_DISCARD_FROM_ZONE" && topPending.zone === "equipment") ||
+        topPending.kind === "NEED_MISSED")) ||
     (selection.step === "picking-panic-equipment" && selection.targetId === player.id);
   renderPlayerEquipmentArea(
     el,
@@ -2437,7 +2506,7 @@ function networkRenderHandSection(
     if (respondableName !== null) {
       if (
         cardMatchesRespondable(cardId, player.characterId, respondableName) &&
-        hasEnoughMissedToRespond(top, player.hand, player.characterId)
+        hasEnoughMissedToRespond(top, player.hand, player.equipment, player.characterId, view.equipmentPlayedTurn, view.turnNumber)
       ) {
         wrapper.appendChild(cardButton(cardId, () => handlers.onHandCardClick(cardId)));
       } else {
@@ -2479,6 +2548,16 @@ function networkRenderEquipmentSection(
     top.kind === "NEED_DISCARD_FROM_ZONE" &&
     top.zone === "equipment";
   const isPickingPanicTarget = selection.step === "picking-panic-equipment" && selection.targetId === player.id;
+  // Mở rộng Dodge City, mục 1.1 — xem ghi chú y hệt ở renderEquipmentSection()
+  // (hotseat). player.id === view.viewerId: chỉ CHÍNH nạn nhân mới bấm được.
+  const isRespondingWithMissed =
+    top !== undefined && top.player === player.id && player.id === view.viewerId && top.kind === "NEED_MISSED";
+  const isMyTurnToActivate =
+    player.id === view.viewerId &&
+    view.pending.length === 0 &&
+    view.turnPhase === "play" &&
+    view.players[view.currentPlayerIndex]?.id === player.id &&
+    selection.step === "idle";
 
   for (const cardId of player.equipment) {
     const name = cardNameFromId(cardId);
@@ -2486,6 +2565,19 @@ function networkRenderEquipmentSection(
     const dangerClass = equipmentDangerClass(name);
 
     if (!isDynamite && (isDiscardFromEquipment || isPickingPanicTarget)) {
+      wrapper.appendChild(cardButton(cardId, () => handlers.onEquipmentClick(player.id, cardId), dangerClass));
+      continue;
+    }
+
+    if (
+      isRespondingWithMissed &&
+      equipmentActsAsMissed(cardId, player.characterId, view.equipmentPlayedTurn, view.turnNumber)
+    ) {
+      wrapper.appendChild(cardButton(cardId, () => handlers.onEquipmentClick(player.id, cardId), dangerClass));
+      continue;
+    }
+
+    if (isMyTurnToActivate && canActivateDelayedEquipment(cardId, view.equipmentPlayedTurn, view.turnNumber)) {
       wrapper.appendChild(cardButton(cardId, () => handlers.onEquipmentClick(player.id, cardId), dangerClass));
       continue;
     }
