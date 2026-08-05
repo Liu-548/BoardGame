@@ -5,8 +5,8 @@
 
 import { cardNameFromId, cardSuitRankFromId, WEAPON_RANGES } from "../core/cards";
 import type { CardName } from "../core/cards";
-import { CHARACTERS, getCharacterDefinition } from "../core/characters";
-import type { CharacterChoice, GameEvent, GameState, HouseRuleId, PendingAction, PlayerState, Rank, Role, Suit, Winner } from "../core/types";
+import { CHARACTERS, computeStartingHp, getCharacterDefinition } from "../core/characters";
+import type { CharacterChoice, ExpansionId, GameEvent, GameState, HouseRuleId, PendingAction, PlayerState, Rank, Role, Suit, Winner } from "../core/types";
 import type { CharacterChoiceView, PendingActionView, PlayerHandView, PlayerView } from "../core/view";
 import type { DeadlineInfo } from "../protocol";
 
@@ -404,10 +404,20 @@ function characterButton(characterId: string, onClick: () => void, armed: boolea
 // trong appendCardVisual() không đổi gì). Lý do: quyết định chọn nhân vật chỉ
 // có ĐÚNG 1 LẦN, không tiện phải hover/nhấn giữ từng lá một để so sánh, và
 // hover gần như vô dụng trên điện thoại.
-function characterOptionCard(characterId: string, armed: boolean, onClick: () => void): HTMLElement {
+//
+// Bổ sung theo yêu cầu chủ dự án (LO-TRINH.md, 2026-08-05) — hiện thêm LƯỢNG
+// MÁU (bullets) của nhân vật ngay tại đây, để cân nhắc lúc chọn (trước đó chỉ
+// có tên + mô tả kỹ năng). `role` là vai THẬT của người đang chọn — cần để
+// tính đúng máu (computeStartingHp() cộng thêm 1 nếu là Sheriff, xem
+// characters.ts) khớp với máu họ sẽ CÓ THẬT nếu chọn lá này, không phải máu
+// gốc của nhân vật (`bullets`) một mình.
+function characterOptionCard(characterId: string, role: Role | null, armed: boolean, onClick: () => void): HTMLElement {
   const wrapper = document.createElement("div");
   wrapper.className = "character-option";
   wrapper.appendChild(characterButton(characterId, onClick, armed));
+
+  const hp = computeStartingHp(role, characterId);
+  wrapper.appendChild(renderHpTrack(hp, hp));
 
   const desc = document.createElement("p");
   desc.className = "character-option__description";
@@ -582,29 +592,40 @@ const HOUSE_RULE_LABELS: Record<HouseRuleId, string> = {
   require_weapon_for_bang: "Bắt buộc có súng mới đánh Bang!",
   no_duplicate_card_names: "Cấm dùng 2 lá trùng tên/lượt",
   beer_below_two: "Bia vẫn có tác dụng dù chỉ còn 2 người sống",
-  extra_cards: "Dùng thêm lá bài đặc biệt (mở rộng)",
 };
 const HOUSE_RULE_DESCRIPTIONS: Record<HouseRuleId, string> = {
   extra_distance: "Mọi khoảng cách vòng tròn (tầm bắn Bang!, khoảng cách 1 của Panic!...) đều +1 so với luật gốc.",
   require_weapon_for_bang: "Bỏ 'súng ngầm định tầm 1' — phải trang bị 1 lá súng thật mới đánh Bang! được.",
   no_duplicate_card_names: "Không được đánh chủ động 2 lá NÂU trùng tên trong cùng 1 lượt (lá trang bị không tính).",
   beer_below_two: "Bỏ ngoại lệ luật gốc — Bia vẫn hồi máu/cứu mạng bình thường kể cả khi chỉ còn 2 người sống.",
-  extra_cards:
-    "Thêm ĐỦ 40/40 lá Dodge City vào bộ (súng/Barrel/Dynamite thêm bản sao thứ 2, Bang!/Beer/Missed!/Cat Balou/" +
-    "General Store/Indians!/Panic! thêm số lượng, cộng 16 lá hoàn toàn mới: Binocular, Hideout, Brawl, Dodge, Punch, " +
-    "Rag Time, Springfield, Tequila, Whisky, Bible, Sombrero, Ten Gallon Hat, Iron Plate x2, Canteen, Pony Express, " +
-    "Derringer, Conestoga, Can Can, Buffalo Rifle, Knife, Pepperbox, Howitzer). " +
-    "Luật đã cài đủ core, NHƯNG giao diện CHƯA có nút bấm cho lá vàng 'trì hoãn' (kích hoạt lá đã bày sẵn/đỡ Missed! " +
-    "bằng trang bị) hay lá nâu cần bỏ kèm 1 lá phụ (Brawl/Rag Time/Springfield/Tequila/Whisky) — chỉ nên bật để thử " +
-    "qua mã nguồn/test, CHƯA nên bật khi chơi thật với bạn bè.",
 };
 const HOUSE_RULE_IDS: HouseRuleId[] = [
   "extra_distance",
   "require_weapon_for_bang",
   "no_duplicate_card_names",
   "beer_below_two",
-  "extra_cards",
 ];
+
+// Mở rộng Dodge City — TÁCH RIÊNG khỏi house rules ở trên (xem ExpansionId ở
+// types.ts): đây là "thêm nội dung" (lá bài + nhân vật), không phải "chỉnh
+// luật chơi". Có thể tick NHIỀU bộ mở rộng cùng lúc (chơi kết hợp) — hiện chỉ
+// có 1 bộ (Dodge City), nhưng danh sách này đã sẵn chỗ để thêm bộ khác sau
+// này mà không lẫn vào khối "Luật bổ sung".
+const EXPANSION_LABELS: Record<ExpansionId, string> = {
+  dodge_city: "Dodge City (mở rộng)",
+};
+const EXPANSION_DESCRIPTIONS: Record<ExpansionId, string> = {
+  dodge_city:
+    "Thêm ĐỦ 40/40 lá Dodge City vào bộ (súng/Barrel/Dynamite thêm bản sao thứ 2, Bang!/Beer/Missed!/Cat Balou/" +
+    "General Store/Indians!/Panic! thêm số lượng, cộng 16 lá hoàn toàn mới: Binocular, Hideout, Brawl, Dodge, Punch, " +
+    "Rag Time, Springfield, Tequila, Whisky, Bible, Sombrero, Ten Gallon Hat, Iron Plate x2, Canteen, Pony Express, " +
+    "Derringer, Conestoga, Can Can, Buffalo Rifle, Knife, Pepperbox, Howitzer) VÀ 15 nhân vật Dodge City vào bộ nhân " +
+    "vật (chỉ phát khi bật cơ chế chọn nhân vật). " +
+    "Luật đã cài đủ core, NHƯNG giao diện CHƯA có nút bấm cho lá vàng 'trì hoãn' (kích hoạt lá đã bày sẵn/đỡ Missed! " +
+    "bằng trang bị) hay lá nâu cần bỏ kèm 1 lá phụ (Brawl/Rag Time/Springfield/Tequila/Whisky) — chỉ nên bật để thử " +
+    "qua mã nguồn/test, CHƯA nên bật khi chơi thật với bạn bè.",
+};
+const EXPANSION_IDS: ExpansionId[] = ["dodge_city"];
 
 function renderHouseRuleCheckboxes(
   container: HTMLElement,
@@ -642,6 +663,45 @@ function renderActiveHouseRules(container: HTMLElement, houseRules: HouseRuleId[
   const el = document.createElement("p");
   el.className = "summary";
   el.textContent = "Luật bổ sung đang bật: " + houseRules.map((id) => HOUSE_RULE_LABELS[id]).join(", ");
+  container.appendChild(el);
+}
+
+// Cùng khuôn với renderHouseRuleCheckboxes() ở trên, nhưng cho bộ mở rộng —
+// khối riêng trên màn hình thiết lập ván để không lẫn với "Luật bổ sung".
+function renderExpansionCheckboxes(
+  container: HTMLElement,
+  selected: ExpansionId[],
+  onToggle: (id: ExpansionId) => void
+): void {
+  const wrapper = document.createElement("div");
+  wrapper.className = "panel";
+
+  const heading = document.createElement("p");
+  heading.textContent = "Bộ mở rộng (tuỳ chọn, có thể chọn nhiều bộ cùng lúc):";
+  wrapper.appendChild(heading);
+
+  for (const id of EXPANSION_IDS) {
+    const label = document.createElement("label");
+    label.title = EXPANSION_DESCRIPTIONS[id];
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.checked = selected.includes(id);
+    checkbox.addEventListener("change", () => onToggle(id));
+    label.appendChild(checkbox);
+    label.append(" " + EXPANSION_LABELS[id]);
+    wrapper.appendChild(label);
+    wrapper.appendChild(document.createElement("br"));
+  }
+
+  container.appendChild(wrapper);
+}
+
+// Cùng khuôn với renderActiveHouseRules() ở trên, nhưng cho bộ mở rộng.
+function renderActiveExpansions(container: HTMLElement, expansions: ExpansionId[]): void {
+  if (expansions.length === 0) return;
+  const el = document.createElement("p");
+  el.className = "summary";
+  el.textContent = "Bộ mở rộng đang bật: " + expansions.map((id) => EXPANSION_LABELS[id]).join(", ");
   container.appendChild(el);
 }
 
@@ -742,7 +802,7 @@ export function describeEvent(event: GameEvent, nameOf: (id: string) => string):
     case "CHARACTER_CHOSEN":
       return `${nameOf(event.playerId)} chọn nhân vật`;
     case "BEER_SAVED_FROM_DEATH":
-      return `${nameOf(event.playerId)} tự động bỏ Bia để hồi sinh, còn 1 máu`;
+      return `${nameOf(event.playerId)} tự động bỏ Bia để hồi sinh, còn ${event.hp} máu`;
     case "BEER_INEFFECTIVE":
       return `Bia của ${nameOf(event.playerId)} không có tác dụng — chỉ còn 2 người sống`;
     case "PLAYER_ELIMINATED":
@@ -751,12 +811,24 @@ export function describeEvent(event: GameEvent, nameOf: (id: string) => string):
         : `${nameOf(event.playerId)} đã chết`;
     case "OUTLAW_BOUNTY_DRAWN":
       return `${nameOf(event.playerId)} được thưởng vì kết liễu Tội phạm, rút ${event.count} lá`;
+    case "HUNT_KILL_BOUNTY_DRAWN":
+      return `${nameOf(event.playerId)} được thưởng vì hạ gục đối thủ, rút ${event.count} lá`;
     case "SHERIFF_KILLED_DEPUTY_PENALTY":
       return `${nameOf(event.playerId)} giết nhầm Phó cảnh sát trưởng, bị phạt mất hết bài`;
     case "GAME_ENDED":
       return `VÁN KẾT THÚC — thắng: ${describeWinner(event.winner, nameOf)}`;
     case "DELAYED_EQUIPMENT_ACTIVATED":
       return `${nameOf(event.playerId)} dùng ${cardLabel(event.cardId)} (trang bị trì hoãn)`;
+    case "CHUCK_WENGAM_TRADED_LIFE":
+      return `${nameOf(event.playerId)} (Chuck Wengam) mất 1 máu để rút ${event.count} lá`;
+    case "JOSE_DELGADO_TRADED_EQUIPMENT":
+      return `${nameOf(event.playerId)} (José Delgado) bỏ ${cardLabel(event.cardId)} để rút ${event.count} lá`;
+    case "APACHE_KID_IMMUNE":
+      return `${nameOf(event.playerId)} (Apache Kid) miễn nhiễm với ${cardLabel(event.cardId)} chất Rô của ${nameOf(event.fromPlayerId)}`;
+    case "DOC_HOLYDAY_SHOT":
+      return `${nameOf(event.playerId)} (Doc Holyday) bỏ 2 lá để bắn ${nameOf(event.targetId)}`;
+    case "VERA_CUSTER_BORROWED":
+      return `${nameOf(event.playerId)} (Vera Custer) mượn khả năng của ${nameOf(event.borrowedFromPlayerId)}`;
   }
 }
 
@@ -1554,6 +1626,10 @@ function pendingDescription(state: GameState, item: PendingAction): string {
       return `${player} chọn 1 lá của mình để đưa`;
     case "NEED_PICK_KEPT_CARDS":
       return `${player} xem 3 lá đầu bộ bài, chọn giữ 2 bỏ 1`;
+    case "NEED_PICK_DRAW_OR_EQUIPMENT":
+      return `${player} chọn rút bộ bài hay lấy 1 lá trang bị của người khác`;
+    case "NEED_PICK_BORROWED_CHARACTER":
+      return `${player} chọn mượn khả năng của 1 người chơi khác`;
     default: {
       const neverKind: never = item;
       throw new Error(`Chưa biết mô tả cho pending: ${JSON.stringify(neverKind)}`);
@@ -1743,7 +1819,7 @@ export function renderCharacterSelectionScreen(
       nameEl.textContent = `${playerName} — chọn 1 trong 2 lá`;
       for (const characterId of choice.options) {
         cardsEl.appendChild(
-          characterOptionCard(characterId, characterId === armedId, () =>
+          characterOptionCard(characterId, player?.role ?? null, characterId === armedId, () =>
             handlers.onArmCharacterChoice(choice.playerId, characterId)
           )
         );
@@ -1817,6 +1893,7 @@ export function renderApp(
   container.appendChild(renderTableCenter(state.deck.length, state.discardPile));
 
   renderActiveHouseRules(container, state.houseRules);
+  renderActiveExpansions(container, state.expansions);
 
   renderDrawCheckNotice(container, options.lastDrawCheck);
 
@@ -1883,6 +1960,7 @@ export interface SetupHandlers {
   onAddPlayer(): void;
   onRemovePlayer(): void;
   onToggleHouseRule(id: HouseRuleId): void;
+  onToggleExpansion(id: ExpansionId): void;
   onStartGame(): void;
 }
 
@@ -1894,6 +1972,7 @@ export function renderSetupScreen(
   names: string[],
   error: string | null,
   selectedHouseRules: HouseRuleId[],
+  selectedExpansions: ExpansionId[],
   handlers: SetupHandlers
 ): void {
   container.replaceChildren();
@@ -1938,6 +2017,7 @@ export function renderSetupScreen(
   container.appendChild(controls);
 
   renderHouseRuleCheckboxes(container, selectedHouseRules, handlers.onToggleHouseRule);
+  renderExpansionCheckboxes(container, selectedExpansions, handlers.onToggleExpansion);
 
   container.appendChild(button("Bắt đầu ván", () => handlers.onStartGame()));
 }
@@ -2143,6 +2223,7 @@ export interface LobbyPlayer {
 
 export interface NetworkLobbyHandlers {
   onToggleHouseRule(id: HouseRuleId): void;
+  onToggleExpansion(id: ExpansionId): void;
   onStartGame(): void;
 }
 
@@ -2163,6 +2244,8 @@ export function renderNetworkLobby(
   // gõ dở cho cả phòng), gửi kèm 1 lần lúc bấm "Bắt đầu ván". Người khác
   // không thấy checkbox này, chỉ thấy dòng chờ như trước.
   selectedHouseRules: HouseRuleId[],
+  // Mở rộng Dodge City — cùng quy tắc hiển thị/gửi như selectedHouseRules ở trên.
+  selectedExpansions: ExpansionId[],
   handlers: NetworkLobbyHandlers
 ): void {
   container.replaceChildren();
@@ -2207,6 +2290,7 @@ export function renderNetworkLobby(
   // nút ẩn ở đây chỉ để đỡ bấm nhầm, không phải chốt chặn duy nhất.
   if (viewerId === ownerId) {
     renderHouseRuleCheckboxes(container, selectedHouseRules, handlers.onToggleHouseRule);
+    renderExpansionCheckboxes(container, selectedExpansions, handlers.onToggleExpansion);
 
     const startBtn = button("Bắt đầu ván", () => handlers.onStartGame());
     startBtn.disabled = players.length < MIN_NETWORK_PLAYERS;
@@ -2592,6 +2676,10 @@ function networkRenderPendingPanel(
         return `${name} chọn 1 lá của mình để đưa`;
       case "NEED_PICK_KEPT_CARDS":
         return `${name} xem 3 lá đầu bộ bài, chọn giữ 2 bỏ 1`;
+      case "NEED_PICK_DRAW_OR_EQUIPMENT":
+        return `${name} chọn rút bộ bài hay lấy 1 lá trang bị của người khác`;
+      case "NEED_PICK_BORROWED_CHARACTER":
+        return `${name} chọn mượn khả năng của 1 người chơi khác`;
       default: {
         const neverKind: never = item;
         throw new Error(`Chưa biết mô tả cho pending: ${JSON.stringify(neverKind)}`);
@@ -2798,7 +2886,7 @@ export function renderNetworkCharacterSelectionScreen(
       nameEl.textContent = `${playerName} (bạn) — chọn 1 trong 2 lá`;
       for (const characterId of choice.options) {
         cardsEl.appendChild(
-          characterOptionCard(characterId, characterId === armedCharacterId, () =>
+          characterOptionCard(characterId, player?.role ?? null, characterId === armedCharacterId, () =>
             handlers.onArmCharacterChoice(characterId)
           )
         );
@@ -2856,6 +2944,7 @@ export function renderNetworkGame(
   container.appendChild(renderTableCenter(view.deckCount, view.discardPile));
 
   renderActiveHouseRules(container, view.houseRules);
+  renderActiveExpansions(container, view.expansions);
 
   // Mục 8 UI/UX: khi có việc đang chờ phản hồi (pending không rỗng), đồng hồ
   // (nếu có) LUÔN thuộc kind "reactive" của ĐÚNG việc đó (xem room.ts) — gộp

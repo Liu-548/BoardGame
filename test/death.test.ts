@@ -32,7 +32,12 @@ function makeState(players: PlayerState[], overrides: Partial<GameState> = {}): 
     characterSelection: null,
     turnNumber: 0,
     equipmentPlayedTurn: {},
+    joseDelgadoUsesThisTurn: 0,
+    docHolydayUsedThisTurn: false,
+    duelBangDrawPending: null,
+    veraCusterBorrowedCharacterId: null,
     houseRules: [],
+    expansions: [],
     cardNamesPlayedThisTurn: [],
     ...overrides,
   };
@@ -299,11 +304,14 @@ describe("reduce — chết + thưởng/phạt", () => {
   });
 
   it("Biến thể 3 người qua reduce() thật: giết ĐÚNG mục tiêu bằng Bang! thì thắng ngay, không thưởng/phạt gì", () => {
-    const state = makeState([
-      makePlayer("a", { role: "police", hand: ["bang_1"] }),
-      makePlayer("b", { role: "criminal", hp: 1 }),
-      makePlayer("c", { role: "traitor" }),
-    ]);
+    const state = makeState(
+      [
+        makePlayer("a", { role: "police", hand: ["bang_1"] }),
+        makePlayer("b", { role: "criminal", hp: 1 }),
+        makePlayer("c", { role: "traitor" }),
+      ],
+      { deck: ["c3", "c2", "c1"] } // đỉnh deck (rút trước) = c1
+    );
 
     const { state: afterPlay } = reduce(state, {
       type: "PLAY_CARD", playerId: "a", cardId: "bang_1", targetId: "b",
@@ -315,18 +323,25 @@ describe("reduce — chết + thưởng/phạt", () => {
     expect(events).toEqual([
       { type: "DAMAGE_DEALT", playerId: "b", amount: 1 },
       { type: "PLAYER_ELIMINATED", playerId: "b", killedBy: "a" },
+      { type: "HUNT_KILL_BOUNTY_DRAWN", playerId: "a", count: 3 },
       { type: "GAME_ENDED", winner: { kind: "player", playerId: "a" } },
     ]);
     // Không có OUTLAW_BOUNTY_DRAWN/SHERIFF_KILLED_DEPUTY_PENALTY nào — vai
-    // "police"/"criminal"/"traitor" KHÔNG kế thừa luật phụ của Sheriff/Outlaw.
+    // "police"/"criminal"/"traitor" KHÔNG kế thừa luật phụ của Sheriff/Outlaw,
+    // nhưng VẪN có HUNT_KILL_BOUNTY_DRAWN riêng (mục D, hạ BẤT KỲ ai đều thưởng),
+    // kể cả khi thắng ngay lập tức (thưởng vẫn được cộng trước khi ván kết thúc).
+    expect(next.players[0].hand).toEqual(["c1", "c2", "c3"]); // a rút 3 lá thưởng
   });
 
-  it("Biến thể 3 người qua reduce() thật: giết SAI mục tiêu thì ván tiếp tục (chưa ai thắng)", () => {
-    const state = makeState([
-      makePlayer("a", { role: "police", hand: ["bang_1"] }),
-      makePlayer("b", { role: "criminal" }),
-      makePlayer("c", { role: "traitor", hp: 1 }),
-    ]);
+  it("Biến thể 3 người qua reduce() thật: giết SAI mục tiêu vẫn được thưởng 3 lá, nhưng ván tiếp tục (chưa ai thắng)", () => {
+    const state = makeState(
+      [
+        makePlayer("a", { role: "police", hand: ["bang_1"] }),
+        makePlayer("b", { role: "criminal" }),
+        makePlayer("c", { role: "traitor", hp: 1 }),
+      ],
+      { deck: ["c3", "c2", "c1"] } // đỉnh deck (rút trước) = c1
+    );
 
     const { state: afterPlay } = reduce(state, {
       type: "PLAY_CARD", playerId: "a", cardId: "bang_1", targetId: "c",
@@ -338,7 +353,9 @@ describe("reduce — chết + thưởng/phạt", () => {
     expect(events).toEqual([
       { type: "DAMAGE_DEALT", playerId: "c", amount: 1 },
       { type: "PLAYER_ELIMINATED", playerId: "c", killedBy: "a" },
-    ]); // không có GAME_ENDED
+      { type: "HUNT_KILL_BOUNTY_DRAWN", playerId: "a", count: 3 },
+    ]); // không có GAME_ENDED, nhưng vẫn thưởng 3 lá vì hạ BẤT KỲ ai đều được tính
+    expect(next.players[0].hand).toEqual(["c1", "c2", "c3"]); // a rút 3 lá thưởng dù giết sai mục tiêu
   });
 
   it("tự nổ Dynamite: không ai được thưởng, không ai bị phạt", () => {
@@ -389,7 +406,7 @@ describe("reduce — chết + thưởng/phạt", () => {
     expect(next.winner).toBeNull(); // ván chưa kết thúc — không ai chết thật
     expect(events).toEqual([
       { type: "DAMAGE_DEALT", playerId: "b", amount: 1 },
-      { type: "BEER_SAVED_FROM_DEATH", playerId: "b", cardId: "beer_1" },
+      { type: "BEER_SAVED_FROM_DEATH", playerId: "b", cardId: "beer_1", hp: 1 },
     ]);
   });
 
@@ -442,7 +459,7 @@ describe("reduce — chết + thưởng/phạt", () => {
     expect(next.players[1].alive).toBe(true);
     expect(next.players[1].hp).toBe(1);
     expect(next.players[1].hand).toEqual([]);
-    expect(events).toContainEqual({ type: "BEER_SAVED_FROM_DEATH", playerId: "b", cardId: "beer_1" });
+    expect(events).toContainEqual({ type: "BEER_SAVED_FROM_DEATH", playerId: "b", cardId: "beer_1", hp: 1 });
     expect(events.some((e) => e.type === "PLAYER_ELIMINATED")).toBe(false);
   });
 

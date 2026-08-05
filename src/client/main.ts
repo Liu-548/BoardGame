@@ -25,7 +25,7 @@ import { cardNameFromId } from "../core/cards";
 import type { CardName } from "../core/cards";
 import { reduce } from "../core/reduce";
 import { setupGame } from "../core/setup";
-import type { Action, GameState, HouseRuleId } from "../core/types";
+import type { Action, ExpansionId, GameState, HouseRuleId } from "../core/types";
 import type { PlayerView } from "../core/view";
 import { RoomConnection } from "./net";
 import type { DeadlineInfo, ServerMessage } from "../protocol";
@@ -87,6 +87,8 @@ let setupError: string | null = null;
 // tên cũ) nhưng khác ở đây vì luật bổ sung PHẢI chọn lại mỗi ván, tránh quên
 // đang bật gì từ ván trước.
 let selectedHouseRules: HouseRuleId[] = [];
+// Mở rộng Dodge City — cùng quy tắc reset như selectedHouseRules ở trên.
+let selectedExpansions: ExpansionId[] = [];
 let state: GameState; // chỉ tồn tại sau khi bấm "Bắt đầu ván"
 // Việc bổ sung sau Giai đoạn 5 — màn hình chọn nhân vật: playerId -> lá đang
 // "cầm lên" chờ bấm "Xác nhận" mới thật sự gửi CHOOSE_CHARACTER (tránh bấm
@@ -157,6 +159,9 @@ let networkAbandonedNotice: string | null = null;
 // Việc 5.3 — giống selectedHouseRules ở hotseat, nhưng CHỈ chủ phòng dùng tới
 // (renderNetworkLobby() không hiện checkbox này với người khác).
 let networkSelectedHouseRules: HouseRuleId[] = [];
+// Mở rộng Dodge City — giống selectedExpansions ở hotseat, cùng lý do CHỈ chủ
+// phòng dùng tới như networkSelectedHouseRules ở trên.
+let networkSelectedExpansions: ExpansionId[] = [];
 // Việc 4.1: đồng hồ đếm ngược lượt (server tự tính, xem room.ts) — client chỉ
 // đọc `expiresAt` rồi TỰ đếm lùi mỗi giây bằng setInterval CỦA RIÊNG CLIENT
 // (không phải Durable Object — quy tắc 8 CLAUDE.md chỉ cấm setInterval TRONG
@@ -218,11 +223,12 @@ function renderScreen(): void {
       renderCardReferenceScreen(root, { onBack: onBackToHome });
       return;
     case "local-setup":
-      renderSetupScreen(root, playerNames, setupError, selectedHouseRules, {
+      renderSetupScreen(root, playerNames, setupError, selectedHouseRules, selectedExpansions, {
         onNameChange,
         onAddPlayer,
         onRemovePlayer,
         onToggleHouseRule,
+        onToggleExpansion,
         onStartGame,
       });
       return;
@@ -299,8 +305,10 @@ function renderScreen(): void {
         networkError,
         networkAbandonedNotice,
         networkSelectedHouseRules,
+        networkSelectedExpansions,
         {
           onToggleHouseRule: onNetworkToggleHouseRule,
+          onToggleExpansion: onNetworkToggleExpansion,
           onStartGame: onNetworkStartGame,
         }
       );
@@ -427,6 +435,13 @@ function onToggleHouseRule(id: HouseRuleId): void {
   render();
 }
 
+function onToggleExpansion(id: ExpansionId): void {
+  selectedExpansions = selectedExpansions.includes(id)
+    ? selectedExpansions.filter((existing) => existing !== id)
+    : [...selectedExpansions, id];
+  render();
+}
+
 function onStartGame(): void {
   const trimmedNames = playerNames.map((name) => name.trim());
   if (trimmedNames.some((name) => name.length === 0)) {
@@ -437,7 +452,11 @@ function onStartGame(): void {
 
   setupError = null;
   const ids = trimmedNames.map((_, index) => `p${index}`);
-  state = setupGame(ids, Date.now(), { dealCharacterCards: true, houseRules: selectedHouseRules });
+  state = setupGame(ids, Date.now(), {
+    dealCharacterCards: true,
+    houseRules: selectedHouseRules,
+    expansions: selectedExpansions,
+  });
   // setupGame() tạm dùng id làm tên hiển thị (xem ghi chú trong setup.ts) —
   // gán lại tên thật người chơi vừa gõ.
   state.players.forEach((player, index) => {
@@ -461,6 +480,7 @@ function onStartGame(): void {
 function onPlayAgain(): void {
   screen = "local-setup";
   selectedHouseRules = []; // luật bổ sung chỉ áp dụng cho 1 ván — chọn lại từ đầu mỗi ván mới
+  selectedExpansions = []; // bộ mở rộng cũng vậy — chọn lại từ đầu mỗi ván mới
   confirmingNewGame = false;
   render();
 }
@@ -835,6 +855,7 @@ function onJoinRoom(): void {
   networkView = null;
   networkGameLog = [];
   networkSelectedHouseRules = [];
+  networkSelectedExpansions = [];
   networkArmedCharacterId = null;
   networkExpandedSeatIds = [];
   networkLogDialogOpen = false;
@@ -947,8 +968,20 @@ function onNetworkToggleHouseRule(id: HouseRuleId): void {
   render();
 }
 
+function onNetworkToggleExpansion(id: ExpansionId): void {
+  networkSelectedExpansions = networkSelectedExpansions.includes(id)
+    ? networkSelectedExpansions.filter((existing) => existing !== id)
+    : [...networkSelectedExpansions, id];
+  render();
+}
+
 function onNetworkStartGame(): void {
-  netConnection?.send({ type: "start_game", seed: Date.now(), houseRules: networkSelectedHouseRules });
+  netConnection?.send({
+    type: "start_game",
+    seed: Date.now(),
+    houseRules: networkSelectedHouseRules,
+    expansions: networkSelectedExpansions,
+  });
 }
 
 // Gửi action qua mạng — KHÔNG biết ngay kết quả (khác dispatch() cục bộ của
@@ -1153,7 +1186,12 @@ function onNetworkCloseCardReferenceDialog(): void {
 function onNetworkRequestNewGame(): void {
   if (!networkView) return;
   if (networkView.winner) {
-    netConnection?.send({ type: "start_game", seed: Date.now(), houseRules: networkSelectedHouseRules });
+    netConnection?.send({
+      type: "start_game",
+      seed: Date.now(),
+      houseRules: networkSelectedHouseRules,
+      expansions: networkSelectedExpansions,
+    });
     return;
   }
   networkConfirmingNewGame = true;
@@ -1161,7 +1199,13 @@ function onNetworkRequestNewGame(): void {
 }
 
 function onNetworkConfirmNewGame(): void {
-  netConnection?.send({ type: "start_game", seed: Date.now(), houseRules: networkSelectedHouseRules, force: true });
+  netConnection?.send({
+    type: "start_game",
+    seed: Date.now(),
+    houseRules: networkSelectedHouseRules,
+    expansions: networkSelectedExpansions,
+    force: true,
+  });
   networkConfirmingNewGame = false;
 }
 

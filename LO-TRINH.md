@@ -94,7 +94,7 @@
 | 5.1 | Hệ thống hook cho nhân vật | `onLoseLife`, `onLoseLifeFromCard`, `onDrawPhase`, `onDrawCheck`, `modifyDistance`, `onOutgoingBang`, `onHandEmpty`, `onAnyDeath`, `cardAlias`, `activatedAbility` (xem `NHAN-VAT-BANG-CO-BAN.txt`) — ✅ **xong khung**: 4/9 hook đã nối dây thật (`modifyDistance`/`onLoseLife`/`onLoseLifeFromCard`/`onAnyDeath`) + `core/characters.ts` (registry rỗng), 5 hook còn lại để dành cho 5.2. Xem chi tiết ở CLAUDE.md |
 | 5.2 | 16 nhân vật bản cơ bản | Mỗi nhân vật là dữ liệu + hook, **không** phải `if/else` — ✅ **HOÀN TẤT**: ĐỦ 16/16 nhân vật (7 đợt) + cơ chế "phát 2 lá chọn 1" (core + UI hotseat/qua mạng + đồng hồ 30 giây thật, tự chốt ngẫu nhiên khi hết giờ) **ĐÃ BẬT THẬT** ở `room.ts`/`main.ts` — chơi được qua giao diện thật hoàn chỉnh. Xem chi tiết ở CLAUDE.md |
 | 5.3 | Bật/tắt house rules | Cấu hình theo phòng — ✅ **4/6 ý tưởng nháp xong** (core + UI hotseat/qua mạng): tăng khoảng cách +1, bắt buộc súng mới đánh Bang!, cấm dùng 2 lá trùng tên/lượt, Bia vẫn có tác dụng khi còn 2 người. Còn lại "gộp 2 lá Beer hồi máu người khác" (cần cơ chế chọn mục tiêu mới) để dành đợt sau. Xem chi tiết ở CLAUDE.md |
-| 5.4 | Expansion (Dodge City) | Ước lượng ban đầu "chỉ là thêm file dữ liệu + hook" **SAI** — thực tế cần ≥4 hook mới + 1 cơ chế uỷ quyền toàn hệ thống (Vera Custer). 🔶 **ĐANG LÀM** — mục A (kiến trúc trang bị trì hoãn) + mục B (ĐỦ 40/40 lá bài) + mục E (cơ chế "bỏ kèm 1 lá phụ"/Brawl) đã XONG (core + test, UI CHƯA xong). Còn mục C (15 nhân vật), mục D (luật 3 người), mục F (UI chất bài). Xem "Ghi chú cho 5.4" bên dưới |
+| 5.4 | Expansion (Dodge City) | Ước lượng ban đầu "chỉ là thêm file dữ liệu + hook" **SAI** — thực tế cần ≥4 hook mới + 1 cơ chế uỷ quyền toàn hệ thống (Vera Custer). 🔶 **CORE HOÀN TẤT (A-F đều XONG, kể cả 15/15 nhân vật mục C) — CHỈ CÒN UI**. Mục A/B/D/E/F + mục C (15/15 nhân vật, Vera Custer là người cuối cùng) đều đã XONG. Còn ĐÚNG UI thật cho toàn bộ Dodge City (40 lá/trang bị trì hoãn/mục D/15 nhân vật). Xem "Ghi chú cho 5.4" bên dưới |
 | 5.5 | Board game thứ hai | Chung `server/`, khác `core/` |
 
 ### Ghi chú cho 5.3 — ý tưởng luật bổ sung (house rules)
@@ -152,7 +152,112 @@ vật):**
     hay không — rút bài là phần thưởng cho hành động DÙNG lá, không phụ thuộc kết quả
     trúng/né.
 
-**C. 8 nhân vật cần hook mới — đã chốt cách tiếp cận cho từng người:**
+**C. 15 nhân vật mới — chia 4 nhóm theo độ khó (bàn với chủ dự án 2026-08-05):**
+Nhóm A (7 người, dùng lại cơ chế có sẵn) → Nhóm B (4 người, hook mới nhưng độc
+lập) → Nhóm C (3 người, phụ thuộc nhân vật khác) → Vera Custer (làm sau cùng).
+
+**Nhóm A — ✅ XONG** (core + test, UI CHƯA có — xem changelog "Dodge City nhóm
+A" trong CHANGELOG.md để biết chi tiết đầy đủ): Pixie Pete/Bill Noface
+(`onDrawPhase`), Greg Digger/Herb Hunter (`onAnyDeath`), Pat Brennan (hook mới
+`canTakeEquipmentInsteadOfDraw` + PendingAction mới `NEED_PICK_DRAW_OR_EQUIPMENT`,
+cùng khuôn Pedro Ramirez/Jesse Jones), Chuck Wengam (`canPayLifeToDraw`) + José
+Delgado (`canDiscardEquipmentToDraw`, cần thêm `GameState.joseDelgadoUsesThisTurn`)
+— cả 2 dùng CHUNG action `USE_ABILITY` với Sid Ketchum nhưng CHỈ trong lượt
+chính mình.
+
+**Nhóm B — ✅ XONG** (core + test, UI CHƯA có — xem changelog "Dodge City nhóm
+B" trong CHANGELOG.md): Sean Mallory (hook mới `modifyHandLimit`, đọc qua hàm
+`getHandLimit()` MỚI export ở `characters.ts` — dùng CHUNG cho `reduce.ts` LẪN
+`room.ts`, vì cả 2 nơi đều có công thức "giới hạn cuối lượt = số máu"); Tequila
+Joe (hook mới `modifyHealAmount`, CHỈ áp dụng ở `playBeer()` — Saloon/Tequila/
+Canteen/Whisky không đụng gì, + field tĩnh `doubleRevivalHp` RIÊNG cho cơ chế
+hồi sinh tự động, không qua `modifyHealAmount`); Elena Fuente (field tĩnh
+`hasAnyCardMissedAlias` mở rộng `actsAsMissed()` sang MỌI lá trên tay, + field
+tĩnh `canUseOwnEquipmentAsMissed` cho phép dùng CẢ trang bị của chính mình —
+kể cả Jail đang giam chính mình — làm Missed! ngay lập tức, TRỪ Dynamite; hàm
+`isUsableDelayedMissedEquipment()` đổi tên thành `isEquipmentUsableAsMissed()`
+cho đúng nghĩa mới); Apache Kid (hook mới `isImmuneToCard`, CHỈ tra chất lá —
+gọi tại 3 điểm `pushMissedReaction()`/`applyPanicEffect()`/
+`pushDiscardFromZoneReaction()` (đều đã CENTRALIZED sẵn từ Dodge City đợt 2,
+nên KHÔNG "nhiều điểm gọi" như lo ngại ban đầu trong file đặc tả) + 1 điểm
+riêng ở `playJail()` — chặn HẲN việc gắn Jail chất Rô lên Apache Kid, khác 3
+điểm kia (lá vẫn "dùng" được nhưng vô hiệu). **2 điểm đã hỏi lại và CHỐT**:
+Indians! KHÔNG tính là "tương đương Bang!" (cấu trúc khác hẳn Missed!, Apache
+Kid vẫn phải bỏ Bang!/mất máu bình thường); Duel KHÔNG áp dụng miễn nhiễm (tự
+động đúng vì `playDuel()` không đi qua 3 hàm trên). **Phát hiện lúc viết
+test**: trong dữ liệu bài THẬT của dự án, chỉ 4 loại lá có bản sao chất Rô
+(Bang!, Cat Balou, Can Can, Buffalo Rifle) — Panic!/Rag Time/Conestoga/Gatling/
+Howitzer/Punch/Springfield/Derringer/Knife/Pepperbox/Brawl/Jail đều KHÔNG có
+bản sao chất Rô nào trong bộ bài hiện tại, nên nhánh miễn nhiễm cho các lá đó
+(và nhánh chặn Jail ở `playJail()`) tồn tại đúng nhưng KHÔNG THỂ kiểm bằng test
+thật (không dựng được cardId hợp lệ có chất Rô cho các lá này) — vẫn giữ code
+vì đúng chính sách đã chốt, phòng khi bộ bài đổi sau này.
+
+**Việc bổ sung do chủ dự án yêu cầu (2026-08-05), CHƯA làm, để dành đợt sau**:
+màn hình "chọn nhân vật" (phát 2 lá, chọn giữ 1) nên hiện thêm LƯỢNG MÁU
+(bullets) của mỗi nhân vật, không chỉ tên + mô tả kỹ năng như hiện tại — giúp
+người chơi cân nhắc rõ hơn lúc chọn.
+
+**Nhóm C — ✅ XONG** (core + test, UI CHƯA có — xem changelog "Dodge City nhóm
+C" trong CHANGELOG.md): Molly Stark (hook mới `onVoluntaryPlayOutOfTurn`, 2
+ngữ cảnh "immediate"/"duel" — bắt đúng 4 điểm: dùng Missed!, bỏ Bang! đỡ
+Indians!, bỏ Bang! trong Duel — dồn qua `GameState.duelBangDrawPending`, chỉ
+rút khi Duel THẬT SỰ kết thúc — và hồi sinh tự động bỏ Beer); Doc Holyday
+(field tĩnh `canDiscardTwoForBang`, dùng CHUNG action `USE_ABILITY` — biến thể
+thứ 3 sau Sid Ketchum/Chuck Wengam/José Delgado — cần thêm `targetId?` vào
+action, `GameState.docHolydayUsedThisTurn` giới hạn 1 lần/lượt; miễn nhiễm
+Apache Kid CHỈ khi CẢ 2 lá bỏ ra đều chất Rô, khác luật chung "1 lá Rô là đủ"
+— tách `pushMissedReaction()` thành phần kiểm miễn nhiễm + phần đẩy pending
+không điều kiện `pushMissedReactionUnconditional()` để tái dùng đúng cách);
+Belle Star (field tĩnh `disablesOthersEquipment`, hàm trung tâm MỚI
+`getEffectiveEquipment()` ở `characters.ts` — CHỈ 3 điểm đọc equipment thật sự
+cần đổi trong toàn bộ `core/`: Mustang/Hideout của MỤC TIÊU trong
+`computeDistance()`, Barrel thật của mục tiêu trong `pushMissedReaction()`,
+trang bị của người ĐANG PHẢN ỨNG trong `isEquipmentUsableAsMissed()` — KHÔNG
+áp dụng cho cướp/bắt bỏ bài (Panic!/Cat Balou vẫn lấy được equipment "vô hiệu
+hoá" bình thường, chỉ HIỆU ỨNG tắt chứ lá không biến mất) hay bất kỳ chỗ nào
+chỉ tự đọc equipment của chính người đang hành động (luôn miễn nhiễm với
+chính mình).
+
+**LƯU Ý QUAN TRỌNG (áp dụng cho CẢ 3 nhóm A/B/C)**: `dealCharacterCards: true`
+đã HARDCODE bật thật trong `room.ts` — nghĩa là ngay khi code này được DEPLOY
+(kể cả bản beta), cả 14 nhân vật (nhóm A+B+C) có thể bị phát ngẫu nhiên cho
+người chơi THẬT. Đa số hoạt động ĐÚNG hoàn toàn dù chưa có UI riêng (hiệu ứng
+tự động hoặc chỉ cần nút RESPOND/PLAY_CARD sẵn có — Pixie Pete/Bill Noface/
+Greg Digger/Herb Hunter/Sean Mallory/Tequila Joe/Elena Fuente/Apache Kid/Molly
+Stark/Belle Star) — nhưng Pat Brennan/Chuck Wengam/José Delgado/Doc Holyday sẽ
+bị "vô hiệu" tạm thời (không có nút để dùng kỹ năng đặc biệt — Pat Brennan tự
+hết giờ về rút bài thường sau 10 giây, không bị treo; 3 người còn lại chỉ đơn
+giản không dùng được kỹ năng, chơi như nhân vật bình thường) cho tới khi có
+UI. Đúng tiền lệ "core trước, UI sau" của 16 nhân vật bản gốc — **vẫn CHƯA
+deploy, kể cả bản beta**, cho tới khi có UI.
+
+**Vera Custer — ✅ XONG (nhân vật CUỐI CÙNG, 15/15) — xem changelog "Dodge City
+Vera Custer" trong CHANGELOG.md để biết chi tiết đầy đủ.** Tóm tắt kiến trúc:
+field tĩnh mới `canBorrowCharacterAbilities` (chỉ cô có) + 3 hàm TRUNG TÂM mới
+ở `characters.ts` — `getEffectiveCharacterId(state, player)` /
+`getEffectiveCharacterHooks(state, player)` / `getEffectiveCharacterDefinition(state, player)`
+— MỌI lời gọi `getCharacterHooks()`/`getCharacterDefinition()` rải rác trong
+`reduce.ts`/`distance.ts`/`characters.ts` (rà soát trước khi code, đúng quy
+tắc CLAUDE.md, đếm được ~30 điểm) đều đổi sang tra qua 3 hàm này thay vì đọc
+thẳng `characterId`. Kéo theo đổi chữ ký 1 loạt hàm để nhận `state`/`next`
+thay vì slice rời rạc: `getHandLimit(state, player)`,
+`getEffectiveEquipment(state, player)`, `computeDistance(state, fromId, toId, extraBaseDistance?)`,
+`actsAsBang(state, cardId, player)`, `actsAsMissed(state, cardId, player)`.
+Field mới `GameState.veraCusterBorrowedCharacterId` (characterId đang mượn,
+hiệu lực tới lượt kế tiếp của chính cô, KHÔNG tự hết hạn giữa chừng). Cơ chế
+"chọn mượn đầu lượt" — `PendingAction` mới `NEED_PICK_BORROWED_CHARACTER`, đẩy
+Ở BƯỚC ĐẦU TIÊN của lượt cô ta, **TRƯỚC CẢ draw!-check Dynamite/Jail** (đã hỏi
+lại và chốt — ảnh hưởng tới chính draw!-check đó, vd mượn Lucky Duke) —
+`applyTurnStartChecks()` tách thành 2: kiểm Vera Custer trước, rồi mới gọi
+`applyDynamiteAndJailChecks()` (đổi tên từ `applyTurnStartChecks()` cũ). Hết
+giờ (15 giây, đúng `REACTIVE_MS` sẵn có) tự chọn NGẪU NHIÊN 1 người còn sống
+có nhân vật (bắt buộc chọn, không có lựa chọn "không mượn ai"). Mượn được TẤT
+CẢ nhân vật, không ngoại lệ (kể cả Apache Kid/Belle Star) — CHỈ mượn hook/
+field tĩnh, KHÔNG mượn bullets/maxHp (`computeStartingHp()` luôn dùng
+characterId THẬT).
+
+_(Ghi chú cũ, để tham khảo lịch sử — mục 9 theo file đặc tả gốc)_:
 
 1. **Apache Kid** (miễn nhiễm chất Rô từ người khác đánh nhắm vào mình, trừ Duel):
    thống nhất 1 cách xử lý cho MỌI trường hợp (đơn lẻ lẫn diện rộng) — lá vẫn được
@@ -240,21 +345,22 @@ vật):**
      luật gốc, không tự thêm giới hạn "quá mạnh/dễ lạm dụng".
    - Cần **ĐỔI STATE**: 1 field mới theo dõi "đang mượn ai, hiệu lực tới lượt nào".
 
-**D. Luật theo số người chơi:**
+**D. Luật theo số người chơi — ✅ XONG:**
 - **8 người**: đã **RÀ LẠI VÀ XÁC NHẬN — DỰ ÁN ĐÃ CÀI ĐÚNG SẴN**, không cần làm gì
   thêm. `setup.ts`'s `ROLE_SETS[8]` hiện là
   `["sheriff", "renegade", "renegade", "outlaw", "outlaw", "outlaw", "deputy",
   "deputy"]` — đúng khớp 1 Sheriff/2 Deputy/3 Outlaw/2 Renegade theo luật Dodge
   City (đã cài từ đợt "Biến thể số người chơi" trước đó, không liên quan gì tới lần
   chuẩn bị Dodge City này).
-- **3 người** (vòng tròn săn đuổi): **PHÁT HIỆN LỖ HỔNG lúc rà code** — biến thể 3
-  người hiện có của dự án CHƯA có "thưởng 3 lá khi tự tay hạ bất kỳ ai" mà luật
-  Dodge City nói rõ (`eliminatePlayer()` hiện chỉ thưởng 3 lá khi `target.role ===
-  "outlaw"`, không áp dụng gì cho vai police/criminal/traitor của biến thể 3 người).
-  Đã hỏi lại và chủ dự án CHỐT: **THÊM** đúng luật Dodge City — hạ BẤT KỲ ai (bất kể
-  vai, kể cả sai vòng tròn săn đuổi) đều được thưởng ngay 3 lá rút, khác hẳn nguồn
-  thưởng "hạ đúng Outlaw" của 4-8 người — cần đảm bảo 2 nguồn thưởng không nhầm/cộng
-  dồn sai khi cùng đi qua `eliminatePlayer()` dùng chung.
+- **3 người** (vòng tròn săn đuổi) — ✅ **ĐÃ THÊM**: `eliminatePlayer()`
+  (`reduce.ts`) giờ có nhánh riêng cho `target.role` là `police`/`criminal`/
+  `traitor` — hạ BẤT KỲ ai (bất kể vai, kể cả sai vòng tròn săn đuổi) đều được
+  thưởng ngay rút 3 lá, bắn event `HUNT_KILL_BOUNTY_DRAWN` mới (`types.ts`),
+  tách biệt hoàn toàn với `OUTLAW_BOUNTY_DRAWN` (2 nguồn không đụng nhau vì
+  role của biến thể 3 người không trùng `"outlaw"`). Có log riêng ở `ui.ts`.
+  Test: `test/death.test.ts` (2 test cũ cập nhật lại kỳ vọng + không có test mới
+  thêm ngoài việc sửa 2 test đó). `tsc --noEmit`/`vitest run` (358 test)/`vite
+  build` đều sạch.
 
 **E. Cơ chế nhỏ khác (không mơ hồ, chỉ ghi lại theo đúng khuôn mẫu sẵn có, không cần
 hỏi gì thêm):**
@@ -265,18 +371,29 @@ hỏi gì thêm):**
   luật mơ hồ.
 
 **F. Phát hiện thêm ngoài phạm vi Dodge City (nhưng cần trước khi chơi thật với các
-nhân vật phụ thuộc chất bài):** UI hiện tại (`ui.ts`'s `cardLabel()`, dùng cho MỌI lá
-trên tay/trang bị) **KHÔNG hiển thị chất/số** — chỉ `cardFaceLabel()` (dùng riêng cho
-thông báo "vừa lật bài kiểm tra"/lá mặt trên chồng bỏ) mới có chất/số. Cần thiết cho
-Apache Kid (biết lá nào là Rô để tránh phí) và Doc Holyday (cần ít nhất 1 lá không
-phải Rô). **CHƯA làm** — chốt làm SAU khi chuẩn bị xong Dodge City, trước/trong lúc
-bắt đầu code thật phần nhân vật phụ thuộc chất bài.
+nhân vật phụ thuộc chất bài) — ✅ HOÁ RA ĐÃ XONG TỪ TRƯỚC, chỉ là ghi chú này bị lỗi
+thời:** rà lại code trước khi bắt tay code mới (2026-08-05) phát hiện `ui.ts`'s
+`cardButton()`/`cardChip()` (2 hàm dựng MỌI ô lá bài thật trên tay/trang bị/chồng bỏ,
+dùng chung cho cả hotseat lẫn qua mạng) **ĐÃ gọi `appendCardVisual(..., cardSuitRankFromId(cardId))`
+từ chính đợt "Dodge City đợt 1"** (`4c1d83c`) — hiện 1 badge góc ảnh lá bài dạng
+"8♥"/"K♦" (đỏ cho Cơ/Rô, đen cho Bích/Chuồn, CSS `.card-box__suit-badge`). Đợt đó
+chỉ ghi nhận trong changelog dưới góc độ khác ("kien truc trang bi tri hoan"),
+KHÔNG đối chiếu lại với ghi chú mục F này nên bị bỏ sót, để "CHƯA làm" tồn tại sai
+suốt từ đó. Đã tự kiểm lại bằng `vite dev` + trình duyệt thật (hotseat 4 người,
+`localhost:5173`): mọi lá trên tay MỌI người chơi đều hiện đúng chất/số kèm màu
+(vd "8♥"/"K♦" đỏ, "J♣" đen), kể cả lá trang bị ("Ngựa Mustang (+1)" hiện kèm "9♦").
+Không cần code gì thêm cho mục F — Apache Kid (biết lá Rô) và Doc Holyday (cần lá
+không phải Rô) đã có đủ thông tin hiển thị để người chơi tự quyết định ngay khi
+cài xong hook nhân vật (mục C).
 
 **Trạng thái**: mục A-F đã bàn kỹ và chốt xong hướng làm. Thứ tự code đã chốt:
 A (kiến trúc trang bị trì hoãn, ảnh hưởng nhiều lá nhất) → E (cơ chế đơn giản) → B
 (các lá bài, phần lớn dùng lại effect handler có sẵn) → D (luật số người chơi, nhỏ) →
 C (nhân vật, phức tạp nhất, Vera Custer nên làm SAU CÙNG vì phụ thuộc toàn bộ hook
 khác đã ổn định) → F (UI hiển thị chất bài, làm song song/trước phần C).
+**TẤT CẢ A-F đã XONG — mục C (15/15 nhân vật) HOÀN TẤT**, kể cả Vera Custer (nhân
+vật cuối cùng, phức tạp nhất — cơ chế uỷ quyền toàn hệ thống hook). Chỉ còn UI thật
+cho toàn bộ Dodge City (40 lá/trang bị trì hoãn/mục D/15 nhân vật).
 
 **Đợt 1 (mục A + 6/40 lá vàng không cần hook mới) — XONG, xem CLAUDE.md để biết chi
 tiết đầy đủ:**
@@ -320,6 +437,24 @@ chi tiết đầy đủ:**
   thật. **CHƯA deploy**, giống đợt 1.
 - Còn lại: 15 nhân vật (mục C) + luật số người chơi (mục D) + UI hiển thị chất
   bài (mục F) + UI thật cho toàn bộ 40 lá.
+
+**Đợt 3 (mục D — luật riêng biến thể 3 người) — XONG, thuần `core/`, không đụng UI:**
+- `eliminatePlayer()` (`reduce.ts`) thêm nhánh `else if` cho `target.role` là
+  `police`/`criminal`/`traitor` (biến thể 3 người) — thưởng ngay 3 lá rút cho
+  killer, bất kể có đúng vòng tròn săn đuổi hay không, kể cả khi ván kết thúc
+  ngay lượt đó (thưởng vẫn cộng trước khi trả `GAME_ENDED`). Event mới
+  `HUNT_KILL_BOUNTY_DRAWN` (`types.ts`) — tách hẳn khỏi `OUTLAW_BOUNTY_DRAWN`,
+  2 nguồn không đụng nhau vì `role` biến thể 3 người không trùng `"outlaw"`.
+  Có log riêng ở `ui.ts`'s `describeEvent()`.
+- Test: sửa lại 2 test cũ trong `test/death.test.ts` (trước đó khẳng định
+  "không có thưởng gì" cho biến thể 3 người — nay đổi kỳ vọng sang có
+  `HUNT_KILL_BOUNTY_DRAWN`, cả ca giết đúng lẫn giết sai mục tiêu).
+  `tsc --noEmit`/`vitest run` (358 test)/`vite build` đều sạch.
+- **Không có gì để deploy riêng** (chỉ core + 1 dòng log UI) — vẫn nằm chung
+  batch "CHƯA deploy" với A/B/E, đợi tới khi mục C+F xong và có UI thật cho
+  Dodge City mới deploy đồng loạt lên beta.
+- Còn lại: 15 nhân vật (mục C) + UI hiển thị chất bài (mục F) + UI thật cho
+  toàn bộ 40 lá + trang bị trì hoãn.
 
 ### Ghi chú: bản Beta song song — ✅ ĐÃ XONG (core/config, chỉ còn thiếu bước tự tay `npm run deploy:beta` lần đầu)
 

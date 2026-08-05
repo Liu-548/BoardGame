@@ -44,9 +44,14 @@ function makeState(characterSelection: CharacterChoice[], overrides: Partial<Gam
     bangUsedThisTurn: false,
     characterSelection,
     houseRules: [],
+    expansions: [],
     cardNamesPlayedThisTurn: [],
     turnNumber: 0,
     equipmentPlayedTurn: {},
+    joseDelgadoUsesThisTurn: 0,
+    docHolydayUsedThisTurn: false,
+    duelBangDrawPending: null,
+    veraCusterBorrowedCharacterId: null,
     ...overrides,
   };
 }

@@ -38,7 +38,12 @@ function makeState(overrides: Partial<GameState> = {}): GameState {
     characterSelection: null,
     turnNumber: 0,
     equipmentPlayedTurn: {},
+    joseDelgadoUsesThisTurn: 0,
+    docHolydayUsedThisTurn: false,
+    duelBangDrawPending: null,
+    veraCusterBorrowedCharacterId: null,
     houseRules: [],
+    expansions: [],
     cardNamesPlayedThisTurn: [],
     ...overrides,
   };
@@ -180,21 +185,21 @@ describe("Paul Regret / Rose Doolan — hiệu ứng khoảng cách như trang b
     const players = ["a", "b", "c", "d", "e"].map((id) => makePlayer(id));
     players[1] = makePlayer("b", { characterId: "paul_regret" });
 
-    expect(computeDistance(players, "a", "b")).toBe(2); // gốc 1, +1 Mustang ảo
+    expect(computeDistance(makeState({ players }), "a", "b")).toBe(2); // gốc 1, +1 Mustang ảo
   });
 
   it("Rose Doolan: mình luôn nhìn người khác gần hơn 1, như có sẵn Ống nhắm", () => {
     const players = ["a", "b", "c", "d", "e"].map((id) => makePlayer(id));
     players[0] = makePlayer("a", { characterId: "rose_doolan" });
 
-    expect(computeDistance(players, "a", "c")).toBe(1); // gốc 2, -1 Ống nhắm ảo
+    expect(computeDistance(makeState({ players }), "a", "c")).toBe(1); // gốc 2, -1 Ống nhắm ảo
   });
 
   it("cộng dồn được với Mustang/Ống nhắm THẬT", () => {
     const players = ["a", "b", "c", "d", "e"].map((id) => makePlayer(id));
     players[1] = makePlayer("b", { characterId: "paul_regret", equipment: ["mustang_1"] });
 
-    expect(computeDistance(players, "a", "b")).toBe(3); // gốc 1, +1 Mustang thật, +1 Mustang ảo
+    expect(computeDistance(makeState({ players }), "a", "b")).toBe(3); // gốc 1, +1 Mustang thật, +1 Mustang ảo
   });
 });
 

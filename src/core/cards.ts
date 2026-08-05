@@ -1,7 +1,7 @@
 // Bảng dữ liệu bộ bài cơ bản. Chỉ là DỮ LIỆU — không chứa logic xử lý lá bài
 // (logic thuộc về reduce.ts ở việc 1.6 trở đi).
 
-import type { Card, Suit, Rank } from "./types";
+import type { Card, ExpansionId, Suit, Rank } from "./types";
 
 // Tên các loại lá bài nâu (đánh từ tay, chơi xong vào chồng bỏ)
 // Mở rộng Dodge City đợt 2 (Luat_Bang_Mo_Rong_DodgeCity.txt, mục 2 nhóm NÂU) —
@@ -157,8 +157,8 @@ export const DEFAULT_CARD_COUNTS: Record<CardName, number> = {
   jail: 3,
   dynamite: 1,
   // Mở rộng Dodge City — KHÔNG thuộc bộ bài cơ bản, nên mặc định 0 (không
-  // xuất hiện trong ván bình thường). Chỉ được cộng vào khi house rule
-  // "extra_cards" bật (xem DODGE_CITY_CARD_COUNTS bên dưới + setup.ts).
+  // xuất hiện trong ván bình thường). Chỉ được cộng vào khi bộ mở rộng
+  // "dodge_city" bật (xem EXPANSION_CARD_COUNTS bên dưới + setup.ts).
   bible: 0,
   sombrero: 0,
   ten_gallon_hat: 0,
@@ -183,57 +183,62 @@ export const DEFAULT_CARD_COUNTS: Record<CardName, number> = {
   howitzer: 0,
 };
 
-// Mở rộng Dodge City — số lượng bài THẬT khi house rule "extra_cards" bật
-// (xem HouseRuleId ở types.ts + setup.ts). Giá trị ở đây là TỔNG SỐ CUỐI CÙNG
-// muốn có trong bộ bài khi bật (buildDeck() GHI ĐÈ, không cộng dồn với
-// DEFAULT_CARD_COUNTS) — với các tên đã có sẵn trong bộ cơ bản (bang, beer,
-// missed, cat_balou, general_store, indians, panic, barrel, dynamite,
-// remington, rev_carabine), số ở đây = số gốc CỘNG THÊM số lá Dodge City in
-// trong danh sách bài chính thức (xem Luat_Bang_Mo_Rong_DodgeCity.txt mục 2).
-// ĐỢT 1: 6 lá vàng không cần hook mới. ĐỢT 2: nốt 34/40 lá còn lại — 6 lá xanh
-// (Barrel/Dynamite/Remington/Rev.Carabine thêm bản sao thứ 2, Binocular/
-// Hideout hoàn toàn mới), 14 lá nâu (7 tên trùng bộ cơ bản thêm bản sao, 7 tên
-// mới: Brawl/Dodge/Punch/Rag Time/Springfield/Tequila/Whisky), và 7 lá vàng
-// còn lại (Derringer/Conestoga/Can Can/Buffalo Rifle/Knife/Pepperbox/
-// Howitzer).
-export const DODGE_CITY_CARD_COUNTS: Partial<Record<CardName, number>> = {
-  bible: 1,
-  sombrero: 1,
-  ten_gallon_hat: 1,
-  iron_plate: 2,
-  canteen: 1,
-  pony_express: 1,
-  // Đợt 2 — lá xanh: thêm 1 bản sao thứ 2 cho 4 tên đã có sẵn, cộng 2 tên mới.
-  barrel: 3, // 2 (gốc) + 1 (Dodge City)
-  dynamite: 2, // 1 (gốc) + 1
-  remington: 2, // 1 (gốc) + 1
-  rev_carabine: 2, // 1 (gốc) + 1
-  binocular: 1,
-  hideout: 1,
-  // Đợt 2 — lá nâu: 7 tên trùng bộ cơ bản (thêm số lượng Dodge City vào).
-  bang: 29, // 25 (gốc) + 4
-  beer: 8, // 6 (gốc) + 2
-  missed: 13, // 12 (gốc) + 1
-  cat_balou: 5, // 4 (gốc) + 1
-  general_store: 3, // 2 (gốc) + 1
-  indians: 3, // 2 (gốc) + 1
-  panic: 5, // 4 (gốc) + 1
-  // Đợt 2 — lá nâu hoàn toàn mới.
-  brawl: 1,
-  dodge: 2,
-  punch: 1,
-  rag_time: 1,
-  springfield: 1,
-  tequila: 1,
-  whisky: 1,
-  // Đợt 2 — 7 lá vàng còn lại.
-  derringer: 1,
-  conestoga: 1,
-  can_can: 1,
-  buffalo_rifle: 1,
-  knife: 1,
-  pepperbox: 1,
-  howitzer: 1,
+// Số lượng bài THẬT do từng BỘ MỞ RỘNG đóng góp khi bật (xem ExpansionId ở
+// types.ts + setup.ts — setup.ts gộp EXPANSION_CARD_COUNTS của MỌI bộ đang
+// bật cho ván, nên nhiều bộ mở rộng cùng lúc cũng chạy qua đúng 1 đường code
+// này, không cần rẽ nhánh riêng từng bộ). Giá trị của từng bộ là TỔNG SỐ CUỐI
+// CÙNG muốn có trong bộ bài khi bật (buildDeck() GHI ĐÈ, không cộng dồn với
+// DEFAULT_CARD_COUNTS).
+//
+// dodge_city — với các tên đã có sẵn trong bộ cơ bản (bang, beer, missed,
+// cat_balou, general_store, indians, panic, barrel, dynamite, remington,
+// rev_carabine), số ở đây = số gốc CỘNG THÊM số lá Dodge City in trong danh
+// sách bài chính thức (xem Luat_Bang_Mo_Rong_DodgeCity.txt mục 2). ĐỢT 1: 6 lá
+// vàng không cần hook mới. ĐỢT 2: nốt 34/40 lá còn lại — 6 lá xanh (Barrel/
+// Dynamite/Remington/Rev.Carabine thêm bản sao thứ 2, Binocular/Hideout hoàn
+// toàn mới), 14 lá nâu (7 tên trùng bộ cơ bản thêm bản sao, 7 tên mới: Brawl/
+// Dodge/Punch/Rag Time/Springfield/Tequila/Whisky), và 7 lá vàng còn lại
+// (Derringer/Conestoga/Can Can/Buffalo Rifle/Knife/Pepperbox/Howitzer).
+export const EXPANSION_CARD_COUNTS: Record<ExpansionId, Partial<Record<CardName, number>>> = {
+  dodge_city: {
+    bible: 1,
+    sombrero: 1,
+    ten_gallon_hat: 1,
+    iron_plate: 2,
+    canteen: 1,
+    pony_express: 1,
+    // Đợt 2 — lá xanh: thêm 1 bản sao thứ 2 cho 4 tên đã có sẵn, cộng 2 tên mới.
+    barrel: 3, // 2 (gốc) + 1 (Dodge City)
+    dynamite: 2, // 1 (gốc) + 1
+    remington: 2, // 1 (gốc) + 1
+    rev_carabine: 2, // 1 (gốc) + 1
+    binocular: 1,
+    hideout: 1,
+    // Đợt 2 — lá nâu: 7 tên trùng bộ cơ bản (thêm số lượng Dodge City vào).
+    bang: 29, // 25 (gốc) + 4
+    beer: 8, // 6 (gốc) + 2
+    missed: 13, // 12 (gốc) + 1
+    cat_balou: 5, // 4 (gốc) + 1
+    general_store: 3, // 2 (gốc) + 1
+    indians: 3, // 2 (gốc) + 1
+    panic: 5, // 4 (gốc) + 1
+    // Đợt 2 — lá nâu hoàn toàn mới.
+    brawl: 1,
+    dodge: 2,
+    punch: 1,
+    rag_time: 1,
+    springfield: 1,
+    tequila: 1,
+    whisky: 1,
+    // Đợt 2 — 7 lá vàng còn lại.
+    derringer: 1,
+    conestoga: 1,
+    can_can: 1,
+    buffalo_rifle: 1,
+    knife: 1,
+    pepperbox: 1,
+    howitzer: 1,
+  },
 };
 
 // (suit, rank) IN THẬT trên từng lá của bộ bài cơ bản — tra từ danh sách bài

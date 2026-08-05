@@ -2,18 +2,25 @@
 // (biến thể riêng của dự án, xem LO-TRINH.md).
 
 import type { CardName } from "./cards";
-import { buildDeck, DODGE_CITY_CARD_COUNTS } from "./cards";
-import { CHARACTERS, computeStartingHp, getCharacterDefinition } from "./characters";
+import { buildDeck, EXPANSION_CARD_COUNTS } from "./cards";
+import { CHARACTERS, EXPANSION_CHARACTER_IDS, computeStartingHp, getCharacterDefinition } from "./characters";
 import { giveCardToPlayer } from "./equipment";
 import { applyTurnStartChecks } from "./reduce";
 import { shuffle } from "./rng";
-import type { CharacterChoice, GameState, HouseRuleId, PlayerState, Role } from "./types";
+import type { CharacterChoice, ExpansionId, GameState, HouseRuleId, PlayerState, Role } from "./types";
 
 export interface RuleOptions {
   cardCounts?: Partial<Record<CardName, number>>; // tuỳ chỉnh số lượng bài, để dành cho house rules sau này
   // Giai đoạn 5, việc 5.3 — luật bổ sung chủ phòng BẬT cho riêng ván này (xem
   // HouseRuleId ở types.ts). Mặc định [] = đúng luật gốc, không đổi gì.
   houseRules?: HouseRuleId[];
+  // Mở rộng Dodge City — bộ mở rộng chủ phòng BẬT cho riêng ván này (xem
+  // ExpansionId ở types.ts). Mặc định [] = không có lá/nhân vật bộ mở rộng
+  // nào, đúng luật gốc. Có thể bật NHIỀU bộ cùng lúc (mảng) — mỗi bộ đóng góp
+  // cardCounts riêng (EXPANSION_CARD_COUNTS ở cards.ts) và characterIds riêng
+  // (EXPANSION_CHARACTER_IDS ở characters.ts), gộp lại bên dưới qua 1 đường
+  // code chung, không rẽ nhánh riêng từng bộ.
+  expansions?: ExpansionId[];
   // Giai đoạn 5, việc 5.2 (đợt 1) — gán THẲNG nhân vật cho từng người chơi
   // theo playerId, BỎ QUA HẲN bước "phát 2 lá, tự chọn" bên dưới — chỉ để có
   // nhân vật thật mà thử/test nhanh (đa số test hiện có dùng cách này).
@@ -87,11 +94,18 @@ export function setupGame(
   // nhau chỉ vì số nhánh gọi shuffle() không đều.
   const { result: shuffledRoles, nextState: stateAfterRoles } = shuffle(roleSet, seed);
 
-  // Việc 5.3 (house rule "extra_cards") — bật thì cộng thêm số lượng bài Dodge
-  // City (DODGE_CITY_CARD_COUNTS, xem cards.ts) vào bộ bài. options.cardCounts
-  // (tuỳ chỉnh thủ công, hiếm dùng — hiện chỉ có test) được ƯU TIÊN hơn nếu
-  // trùng key, để không phá cách tuỳ biến thủ công đã có từ trước.
-  const extraCards = (options.houseRules ?? []).includes("extra_cards") ? DODGE_CITY_CARD_COUNTS : {};
+  // Bộ mở rộng đang bật cho ván này — dùng lại ở cả bước dựng bộ bài lẫn bước
+  // xáo bộ nhân vật bên dưới (mảng nên nhiều bộ cùng lúc tự nhiên gộp được).
+  const activeExpansions = options.expansions ?? [];
+
+  // Cộng thêm số lượng bài do MỌI bộ mở rộng đang bật đóng góp (xem
+  // EXPANSION_CARD_COUNTS ở cards.ts). options.cardCounts (tuỳ chỉnh thủ công,
+  // hiếm dùng — hiện chỉ có test) được ƯU TIÊN hơn nếu trùng key, để không phá
+  // cách tuỳ biến thủ công đã có từ trước.
+  const extraCards = activeExpansions.reduce<Partial<Record<CardName, number>>>(
+    (acc, expansionId) => ({ ...acc, ...EXPANSION_CARD_COUNTS[expansionId] }),
+    {}
+  );
   const deck = buildDeck({ ...extraCards, ...options.cardCounts });
   const { result: shuffledDeck, nextState: stateAfterDeck } = shuffle(deck, stateAfterRoles);
 
@@ -99,14 +113,22 @@ export function setupGame(
   // gán nhân vật loại trừ nhau — xem ghi chú ở RuleOptions).
   const useCharacterSelection = options.dealCharacterCards === true && !options.characterAssignments;
 
-  // Xáo bộ bài nhân vật (toàn bộ registry CHARACTERS, đúng luật gốc — bản cơ
-  // bản dùng hết 16 lá, người chơi càng ít thì càng dư nhiều, số dư không
-  // dùng tới trong ván này). Phát 2 lá LIÊN TIẾP cho từng người theo đúng thứ
-  // tự ghế ngồi (playerIds), giống cách chia bài tay bên dưới.
+  // Xáo bộ bài nhân vật (registry CHARACTERS, ĐÃ LỌC BỚT nhân vật thuộc bộ mở
+  // rộng chưa bật — 16 nhân vật gốc luôn có mặt, nhân vật của 1 bộ mở rộng chỉ
+  // vào bộ bốc khi expansions chứa đúng id bộ đó, xem EXPANSION_CHARACTER_IDS ở
+  // characters.ts). Người chơi càng ít thì càng dư nhiều, số dư không dùng tới
+  // trong ván này. Phát 2 lá LIÊN TIẾP cho từng người theo đúng thứ tự ghế
+  // ngồi (playerIds), giống cách chia bài tay bên dưới.
   let characterOptionsByPlayer: Record<string, [string, string]> = {};
   let rngStateAfterCharacterDeck = stateAfterDeck;
   if (useCharacterSelection) {
-    const characterIds = Object.keys(CHARACTERS);
+    const allExpansionCharacterIds = new Set(Object.values(EXPANSION_CHARACTER_IDS).flat());
+    const activeExpansionCharacterIds = new Set(
+      activeExpansions.flatMap((expansionId) => EXPANSION_CHARACTER_IDS[expansionId])
+    );
+    const characterIds = Object.keys(CHARACTERS).filter(
+      (id) => !allExpansionCharacterIds.has(id) || activeExpansionCharacterIds.has(id)
+    );
     if (characterIds.length < playerIds.length * 2) {
       throw new Error(
         `Không đủ nhân vật trong registry (${characterIds.length}) để phát 2 lá cho mỗi người trong ${playerIds.length} người chơi`
@@ -186,9 +208,14 @@ export function setupGame(
     bangUsedThisTurn: false,
     characterSelection,
     houseRules: options.houseRules ?? [],
+    expansions: activeExpansions,
     cardNamesPlayedThisTurn: [],
     turnNumber: 0,
     equipmentPlayedTurn: {},
+    joseDelgadoUsesThisTurn: 0,
+    docHolydayUsedThisTurn: false,
+    duelBangDrawPending: null,
+    veraCusterBorrowedCharacterId: null,
   };
 
   // Lượt đầu tiên cũng phải qua Bước 0 (mục 4): nếu Sheriff (hoặc ai đi lượt

@@ -10,7 +10,7 @@
 // là "ngôn ngữ chung" cả 2 bên đều cần đọc — core/ vẫn không đụng tới file
 // này (không vi phạm quy tắc 1), chỉ server/ và client/ cùng import.
 
-import type { Action, GameEvent, HouseRuleId } from "./core/types";
+import type { Action, ExpansionId, GameEvent, HouseRuleId } from "./core/types";
 import type { PlayerView } from "./core/view";
 
 // Việc 4.1: đồng hồ đếm ngược lượt (chỉ chơi qua mạng — dùng DO Alarm ở
@@ -54,12 +54,16 @@ export type ClientMessage =
   // lobby trước khi bấm nút này — không broadcast lựa chọn đang gõ dở cho cả
   // phòng (giống `seed`, không ai khác cần biết trước khi ván thật sự bắt
   // đầu), chỉ gửi kèm 1 lần lúc bắt đầu ván thật.
+  // `expansions` (mở rộng Dodge City): bộ mở rộng chủ phòng tick chọn, CÙNG
+  // MÀN HÌNH và CÙNG QUY TẮC gửi như `houseRules` ở trên nhưng tách field
+  // riêng — đây là "thêm nội dung" (lá bài + nhân vật), khác bản chất "chỉnh
+  // luật chơi" của houseRules (xem ExpansionId ở core/types.ts).
   // `force` (nút "Bắt đầu ván mới" trong dialog Cài đặt, chơi qua mạng): CHỈ
   // chủ phòng mới gửi được field này — bỏ qua kiểm tra "đã có ván đang chơi
   // dở" ở server, HUỶ NGANG ván cũ (chưa có `winner`) để tạo ván mới đè lên.
   // Client tự hỏi xác nhận TRƯỚC khi gửi kèm `force: true` (xem main.ts) —
   // server không tự hỏi gì, tin thẳng field này.
-  | { type: "start_game"; seed: number; houseRules?: HouseRuleId[]; force?: boolean }
+  | { type: "start_game"; seed: number; houseRules?: HouseRuleId[]; expansions?: ExpansionId[]; force?: boolean }
   // Một hành động luật chơi (rút bài, đánh bài, trả lời...) — forward nguyên
   // si vào reduce(state, action) ở server.
   | { type: "action"; action: Action }

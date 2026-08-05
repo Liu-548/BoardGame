@@ -28,9 +28,10 @@
 // "lobby" cho cả phòng để ai cũng thấy đúng danh sách hiện tại.
 
 import { cardNameFromId } from "../core/cards";
+import { getHandLimit } from "../core/characters";
 import { reduce } from "../core/reduce";
 import { setupGame } from "../core/setup";
-import type { Action, GameEvent, GameState, HouseRuleId, PendingAction } from "../core/types";
+import type { Action, ExpansionId, GameEvent, GameState, HouseRuleId, PendingAction } from "../core/types";
 import { viewFor } from "../core/view";
 import type { ClientMessage, DeadlineInfo, ServerMessage } from "../protocol";
 
@@ -137,7 +138,7 @@ export class Room {
         this.broadcastChat(ws, parsed.text, parsed.to);
         return;
       case "start_game":
-        await this.handleStartGame(ws, parsed.seed, parsed.houseRules, parsed.force);
+        await this.handleStartGame(ws, parsed.seed, parsed.houseRules, parsed.expansions, parsed.force);
         return;
       case "action":
         await this.handleAction(ws, parsed.action);
@@ -193,6 +194,7 @@ export class Room {
     ws: WebSocket,
     seed: number,
     houseRules?: HouseRuleId[],
+    expansions?: ExpansionId[],
     force?: boolean
   ): Promise<void> {
     const attachment = ws.deserializeAttachment() as SocketAttachment | null;
@@ -224,7 +226,7 @@ export class Room {
       // còn kết nối nhưng cứ không bấm chọn, ván sẽ chờ vô thời hạn ở bước
       // này (mất kết nối thì cơ chế huỷ ván có sẵn từ việc 4.3 vẫn hoạt động
       // bình thường, không liên quan gì tới field mới này).
-      state = setupGame(playerIds, seed, { dealCharacterCards: true, houseRules });
+      state = setupGame(playerIds, seed, { dealCharacterCards: true, houseRules, expansions });
     } catch (e) {
       this.sendError(ws, e instanceof Error ? e.message : "Không tạo được ván mới");
       return;
@@ -496,7 +498,9 @@ export class Room {
     if (deadline.kind === "discard") {
       const player = state.players.find((p) => p.id === deadline.playerId);
       if (!player) return null;
-      const excess = player.hand.length - player.hp;
+      // Mở rộng Dodge City, mục C nhóm B (Sean Mallory) — getHandLimit() thay
+      // player.hp trực tiếp, giống reduce.ts's handleEndTurn()/handleDiscardCards().
+      const excess = player.hand.length - getHandLimit(state, player);
       if (excess <= 0) return null;
       // Bỏ ngẫu nhiên đủ số dư — không cần seed (không thuộc core/, không
       // ảnh hưởng tính replay-được của reduce()).
@@ -563,6 +567,26 @@ export class Room {
       // đã ẩn qua viewFor(), nên vẫn đọc được top.cards bình thường.
       case "NEED_PICK_KEPT_CARDS":
         return { type: "RESPOND", playerId: top.player, cardId: top.cards[2] };
+
+      // Mở rộng Dodge City, mục C nhóm A (Pat Brennan) — hết giờ thì rút bộ
+      // bài như bình thường (không kèm targetId), cùng quy ước timeout với
+      // Pedro Ramirez/Jesse Jones ở trên.
+      case "NEED_PICK_DRAW_OR_EQUIPMENT":
+        return { type: "RESPOND", playerId: top.player };
+
+      // Mở rộng Dodge City, mục C nhóm C (Vera Custer) — BẮT BUỘC chọn (không
+      // có lựa chọn "không mượn ai", đã hỏi lại và chốt) — hết giờ tự chọn
+      // NGẪU NHIÊN 1 người còn sống khác đã có nhân vật. Không dùng RNG có
+      // seed (không thuộc core/, không ảnh hưởng tính replay-được của reduce()),
+      // giống cách bỏ bài ngẫu nhiên ở nhánh "discard" phía trên.
+      case "NEED_PICK_BORROWED_CHARACTER": {
+        const player = state.players.find((p) => p.id === top.player);
+        if (!player) return null;
+        const candidates = state.players.filter((p) => p.alive && p.id !== player.id && p.characterId !== null);
+        if (candidates.length === 0) return null;
+        const target = candidates[Math.floor(Math.random() * candidates.length)];
+        return { type: "RESPOND", playerId: top.player, targetId: target.id };
+      }
     }
   }
 

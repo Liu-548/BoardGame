@@ -129,7 +129,25 @@ export type PendingAction =
   // ĐẦU) — ĐÂY LÀ HOUSE RULE, khác bản gốc BANG! (bản gốc đặt lá thứ 3 TRỞ LẠI
   // lên đỉnh bộ bài, bản này bỏ vào chồng bài bỏ) — xem respondToPickKeptCards()
   // trong reduce.ts.
-  | { kind: "NEED_PICK_KEPT_CARDS"; player: string; cards: string[] };
+  | { kind: "NEED_PICK_KEPT_CARDS"; player: string; cards: string[] }
+  // Mở rộng Dodge City, mục C nhóm A (Pat Brennan, xem core/characters.ts) —
+  // đẩy đầu lượt THAY VÌ rút bài ngay, y hệt khuôn Pedro Ramirez/Jesse Jones:
+  // rút 2 lá như bình thường, HAY lấy đúng 1 lá trang bị bất kỳ (kể cả "delayed"
+  // — mở rộng Dodge City) đang bày trước mặt 1 người chơi khác vào tay mình?
+  // Không cần lưu thêm dữ liệu gì — trang bị của mọi người vốn đã công khai
+  // (PlayerState.equipment không bị viewFor() ẩn). RESPOND kèm targetId (chủ
+  // lá) + cardId (đúng lá muốn lấy) = lấy lá đó; không kèm targetId = rút bộ
+  // bài như thường (mặc định/timeout). Xem respondToPickDrawOrEquipment()
+  // trong reduce.ts.
+  | { kind: "NEED_PICK_DRAW_OR_EQUIPMENT"; player: string }
+  // Mở rộng Dodge City, mục C nhóm C (Vera Custer) — đẩy Ở BƯỚC ĐẦU TIÊN của
+  // lượt cô ta, TRƯỚC CẢ draw!-check Dynamite/Jail (đã hỏi lại và chốt — lựa
+  // chọn này có thể ảnh hưởng tới chính draw!-check đó, vd mượn Lucky Duke).
+  // Chỉ đẩy khi có ít nhất 1 người chơi khác còn sống VÀ đã có nhân vật (bỏ
+  // qua nếu không ai để mượn). RESPOND kèm targetId = mượn ĐÚNG characterId
+  // hiện tại của người đó; hết giờ tự chọn NGẪU NHIÊN 1 trong các ứng viên
+  // (bắt buộc chọn, không có lựa chọn "không mượn ai" — xem room.ts).
+  | { kind: "NEED_PICK_BORROWED_CHARACTER"; player: string };
 
 // ----- Hành động -----
 // Các hành động cho vòng lượt (việc 1.5) và đánh bài (việc 1.7/1.8, hiện chỉ hỗ
@@ -174,13 +192,26 @@ export type Action =
       // lá đưa hay không (bỏ trống/false = cướp ngẫu nhiên ngay).
       letTargetChoose?: boolean;
     }
-  // Giai đoạn 5 (Sid Ketchum, đợt 7, xem core/characters.ts) — kỹ năng CHỦ
-  // ĐỘNG, dùng được BẤT CỨ LÚC NÀO: bỏ đúng 2 lá (KHÁC NHAU) trên tay CHÍNH
-  // MÌNH để hồi 1 máu. KHÔNG đi qua assertCurrentPlayer/kiểm tra pending như
-  // mọi action khác — cố tình để dùng được cả ngoài lượt mình, kể cả đang bị
-  // tấn công (xem handleUseAbility() trong reduce.ts). Không làm gì tới lượt/
-  // pending của bất kỳ ai — chỉ đổi hand/discardPile/hp của CHÍNH player này.
-  | { type: "USE_ABILITY"; playerId: string; cardIds: [string, string] }
+  // Kỹ năng CHỦ ĐỘNG dùng chung cho 3 nhân vật khác nhau — `cardIds` đổi ý
+  // nghĩa/độ dài tuỳ nhân vật đang dùng (xem handleUseAbility() trong
+  // reduce.ts, tự nhánh theo field tĩnh nào có mặt trên CharacterDefinition):
+  // - Sid Ketchum (canSelfHeal, đợt 7): ĐÚNG 2 lá KHÁC NHAU trên tay để hồi 1
+  //   máu. Dùng được BẤT CỨ LÚC NÀO — KHÔNG đi qua assertCurrentPlayer/kiểm
+  //   tra pending như mọi action khác, kể cả đang bị tấn công. Không làm gì
+  //   tới lượt/pending của bất kỳ ai — chỉ đổi hand/discardPile/hp của CHÍNH
+  //   player này.
+  // - Chuck Wengam (canPayLifeToDraw, mở rộng Dodge City mục C nhóm A): mảng
+  //   RỖNG (không bỏ lá nào) — mất 1 máu để rút 2 lá, lặp lại được nhiều lần
+  //   TRONG lượt của chính mình, chặn nếu chỉ còn đúng 1 máu.
+  // - José Delgado (canDiscardEquipmentToDraw, mở rộng Dodge City mục C nhóm
+  //   A): ĐÚNG 1 lá xanh dương (equipment "instant", không tính lá vàng
+  //   "delayed") trên tay để rút 2 lá, tối đa 2 LẦN/lượt, CHỈ trong lượt của
+  //   chính mình (xem GameState.joseDelgadoUsesThisTurn).
+  // - Doc Holyday (canDiscardTwoForBang, mở rộng Dodge City mục C nhóm C):
+  //   ĐÚNG 2 lá bất kỳ (không cần cùng tên) trên tay để bắn hiệu ứng Bang!
+  //   nhắm `targetId` (bắt buộc, trong tầm súng đang cầm), tối đa 1 LẦN/lượt,
+  //   CHỈ trong lượt của chính mình, KHÔNG tính vào giới hạn 1 Bang!/lượt.
+  | { type: "USE_ABILITY"; playerId: string; cardIds: string[]; targetId?: string }
   // Chọn nhân vật đầu ván (xem CharacterChoice ở trên + setup.ts's
   // RuleOptions.dealCharacterCards) — CHỈ hợp lệ khi state.characterSelection
   // đang có giá trị (khác null). `characterId` PHẢI là 1 trong 2 lá đã phát
@@ -269,7 +300,9 @@ export type GameEvent =
   // chết. Bắn event này THAY VÌ PLAYER_ELIMINATED — xem eliminateIfDead()
   // trong reduce.ts (dùng chung cho MỌI nguồn sát thương: Bang!/Gatling/Duel/
   // Indians!/Dynamite, vì tất cả đều gọi qua đúng 1 hàm này).
-  | { type: "BEER_SAVED_FROM_DEATH"; playerId: string; cardId: string }
+  // `hp` = máu SAU KHI hồi sinh (thường là 1, nhưng Tequila Joe — mở rộng
+  // Dodge City, mục C nhóm B — được cộng thêm riêng +1 nữa, thành 2).
+  | { type: "BEER_SAVED_FROM_DEATH"; playerId: string; cardId: string; hp: number }
   // Chỉ còn 2 người sống — Bia KHÔNG có tác dụng (luật gốc, xem playBeer()/
   // eliminateIfDead()). Bắn ở CẢ 2 tình huống: (1) tự đánh Bia chủ động trong
   // lượt mình mà không hồi được máu gì, (2) máu về 0 mà đang cầm Bia trên tay
@@ -285,6 +318,36 @@ export type GameEvent =
   | { type: "OUTLAW_BOUNTY_DRAWN"; playerId: string; count: number }
   // playerId = Cảnh sát trưởng bị phạt (chính là người kết liễu Phó cảnh sát trưởng).
   | { type: "SHERIFF_KILLED_DEPUTY_PENALTY"; playerId: string }
+  // Mở rộng Dodge City, mục D — biến thể 3 người (vòng tròn săn đuổi): hạ BẤT
+  // KỲ ai (bất kể vai, kể cả sai vòng tròn săn đuổi) đều được thưởng rút 3 lá,
+  // khác nguồn thưởng OUTLAW_BOUNTY_DRAWN (chỉ áp dụng 4-8 người). count = số
+  // lá rút được (có thể ít hơn 3 nếu deck+chồng bỏ cạn giữa chừng).
+  | { type: "HUNT_KILL_BOUNTY_DRAWN"; playerId: string; count: number }
+  // Mở rộng Dodge City, mục C nhóm A — Chuck Wengam dùng kỹ năng chủ động:
+  // mất 1 máu để rút thêm bài. `count` = số lá rút được (có thể ít hơn 2 nếu
+  // deck+chồng bỏ cạn). KHÔNG tái dùng DAMAGE_DEALT — event đó gắn nghĩa "bị
+  // tấn công" trong nhật ký, dùng lại ở đây (mất máu TỰ NGUYỆN) dễ hiểu nhầm.
+  | { type: "CHUCK_WENGAM_TRADED_LIFE"; playerId: string; count: number }
+  // Mở rộng Dodge City, mục C nhóm A — José Delgado dùng kỹ năng chủ động: bỏ
+  // đúng 1 lá xanh dương (`cardId`) từ tay để rút thêm bài (`count`, có thể ít
+  // hơn 2 nếu deck+chồng bỏ cạn). KHÔNG tái dùng CARDS_DISCARDED — event đó đã
+  // gắn nghĩa "bỏ bài thừa cuối lượt" trong nhật ký (giống lý do
+  // KIT_CARLSON_DISCARDED tách riêng khỏi CARDS_DISCARDED).
+  | { type: "JOSE_DELGADO_TRADED_EQUIPMENT"; playerId: string; cardId: string; count: number }
+  // Mở rộng Dodge City, mục C nhóm B — Apache Kid miễn nhiễm với lá chất Rô
+  // (`cardId`) do `fromPlayerId` đánh nhắm vào mình (`playerId` = Apache Kid).
+  // Lá vẫn bị đánh/rời tay/vào chồng bỏ bình thường — chỉ HIỆU ỨNG không áp
+  // dụng, event này để tránh hiểu nhầm "không có gì xảy ra" là bug.
+  | { type: "APACHE_KID_IMMUNE"; playerId: string; fromPlayerId: string; cardId: string }
+  // Mở rộng Dodge City, mục C nhóm C — Doc Holyday dùng kỹ năng chủ động: bỏ
+  // 2 lá (`cardIds`) để bắn hiệu ứng Bang! nhắm `targetId`. Hậu quả THẬT (né/
+  // mất máu/miễn nhiễm Apache Kid) báo qua các event khác như Bang! thường
+  // (MISSED_PLAYED/DAMAGE_DEALT/APACHE_KID_IMMUNE) — event này chỉ ghi nhận
+  // hành động DÙNG kỹ năng, giống CARD_PLAYED cho lá thật.
+  | { type: "DOC_HOLYDAY_SHOT"; playerId: string; cardIds: [string, string]; targetId: string }
+  // Mở rộng Dodge City, mục C nhóm C — Vera Custer chọn mượn khả năng của
+  // `borrowedFromPlayerId` (hiệu lực tới lượt kế tiếp của chính cô).
+  | { type: "VERA_CUSTER_BORROWED"; playerId: string; borrowedFromPlayerId: string; characterId: string }
   | { type: "GAME_ENDED"; winner: Winner };
 
 // ----- State tổng -----
@@ -319,6 +382,12 @@ export interface GameState {
   // RuleOptions.houseRules. Mảng RỖNG (mặc định) = chơi đúng luật gốc, không
   // đổi gì so với trước — mọi ván cũ/test cũ không cần quan tâm field này.
   houseRules: HouseRuleId[];
+  // Mở rộng Dodge City — bộ mở rộng chủ phòng chọn BẬT cho RIÊNG ván này (xem
+  // ExpansionId ở trên + setup.ts's RuleOptions.expansions). Mảng RỖNG (mặc
+  // định) = đúng luật gốc, không có lá/nhân vật bộ mở rộng nào trong ván. Lưu
+  // lại trong state (dù chỉ setup.ts đọc lúc tạo ván, không đọc lại lúc chơi)
+  // để UI hiển thị "Bộ mở rộng đang bật" giống cách houseRules đang làm.
+  expansions: ExpansionId[];
   // Chỉ có ý nghĩa khi houseRules chứa "no_duplicate_card_names" — tên các lá
   // NÂU (không tính trang bị) người đang tới lượt đã đánh CHỦ ĐỘNG trong CHÍNH
   // lượt này. Reset về [] mỗi khi sang lượt mới (advanceTurn() trong
@@ -347,6 +416,33 @@ export interface GameState {
   // LÁ ở cards.ts (giống cách WEAPON_RANGES tra theo tên), vì đây là thuộc
   // tính cố định của LOẠI lá, không đổi theo từng lượt chơi.
   equipmentPlayedTurn: Record<string, number>;
+  // Mở rộng Dodge City, mục C nhóm A — José Delgado dùng được kỹ năng chủ động
+  // (bỏ 1 lá xanh dương từ tay, rút 2 lá) tối đa 2 LẦN/lượt, CHỈ trong lượt
+  // của chính mình. Reset về 0 mỗi khi sang lượt mới (advanceTurn(), giống
+  // bangUsedThisTurn) — không cần theo playerId vì chỉ người ĐANG tới lượt mới
+  // dùng được (assertCurrentPlayer() chặn mọi trường hợp khác).
+  joseDelgadoUsesThisTurn: number;
+  // Mở rộng Dodge City, mục C nhóm C — Doc Holyday dùng được kỹ năng chủ động
+  // (bỏ 2 lá bất kỳ, bắn Bang! trong tầm súng) tối đa 1 LẦN/lượt, CHỈ trong
+  // lượt của chính mình. Reset về false mỗi khi sang lượt mới (advanceTurn(),
+  // giống bangUsedThisTurn).
+  docHolydayUsedThisTurn: boolean;
+  // Mở rộng Dodge City, mục C nhóm C — Molly Stark: dồn số lần bỏ Bang! TỰ
+  // NGUYỆN trong 1 ván Đấu tay đôi (Duel) ĐANG diễn ra, CHỈ rút bài khi Duel
+  // THẬT SỰ kết thúc (xem onVoluntaryPlayOutOfTurn ở characters.ts +
+  // respondToDuel()/playDuel() trong reduce.ts). null = không ai đang dồn
+  // (reset mỗi khi Duel MỚI bắt đầu). `playerId` do CHÍNH hook ghi lại — cố
+  // tình KHÔNG so khớp cứng characterId ở nơi tiêu thụ (drainDuelBangDrawPending()),
+  // để không phá vỡ quy ước "tra qua hook/field, không so khớp tên nhân vật".
+  duelBangDrawPending: { playerId: string; count: number } | null;
+  // Mở rộng Dodge City, mục C nhóm C — Vera Custer: characterId đang MƯỢN
+  // (hoặc null nếu chưa mượn/chưa tới lượt cô lần nào) — hiệu lực từ lúc chọn
+  // tới tận lượt KẾ TIẾP của chính cô (không tự hết hạn giữa chừng, chỉ bị GHI
+  // ĐÈ khi cô chọn lại đầu lượt sau). Không theo playerId vì chỉ 1 người có
+  // thể là Vera Custer. Xem getEffectiveCharacterId() ở characters.ts — hàm
+  // TRUNG TÂM DUY NHẤT mọi nơi cần biết "characterId hiệu lực" của 1 người
+  // phải gọi qua, thay vì đọc thẳng player.characterId.
+  veraCusterBorrowedCharacterId: string | null;
 }
 
 // Giai đoạn 5, việc 5.3 — danh sách id luật bổ sung đã cài (xem LO-TRINH.md
@@ -358,9 +454,16 @@ export type HouseRuleId =
   | "extra_distance" // khoảng cách vòng tròn mặc định +1 (distance.ts)
   | "require_weapon_for_bang" // phải có súng trang bị mới đánh Bang! được, bỏ súng ngầm định tầm 1 (playBang())
   | "no_duplicate_card_names" // cấm đánh 2 lá NÂU trùng tên trong 1 lượt (trừ lá trang bị, handlePlayCard())
-  | "beer_below_two" // Bia vẫn có tác dụng dù chỉ còn 2 người sống, bỏ ngoại lệ luật gốc (playBeer()/eliminateIfDead())
-  | "extra_cards"; // CHỈ LÀ CỜ, CHƯA CÓ HIỆU ỨNG: dự định thêm các lá bài đặc biệt (vd bộ mở rộng
-  // Dodge City, xem Luat_Bang_Mo_Rong_DodgeCity.txt) vào bộ bài khi bật. setupGame()
-  // (setup.ts) đã sẵn RuleOptions.cardCounts để buildDeck() cộng thêm bài — chỉ cần nối
-  // dây khi có dữ liệu bài thật, KHÔNG đổi gì reduce.ts. Bật cờ này lúc này không thay
-  // đổi hành vi ván (bộ bài vẫn y hệt luật gốc), chỉ để chuẩn bị sẵn UI cho việc sau.
+  | "beer_below_two"; // Bia vẫn có tác dụng dù chỉ còn 2 người sống, bỏ ngoại lệ luật gốc (playBeer()/eliminateIfDead())
+
+// Mở rộng Dodge City — danh sách id BỘ MỞ RỘNG đã cài, TÁCH RIÊNG khỏi
+// HouseRuleId ở trên: house rule là chỉnh SỬA luật chơi gốc, còn bộ mở rộng là
+// THÊM NỘI DUNG (lá bài + nhân vật mới). Trước đây gộp chung 1 cờ "extra_cards"
+// trong HouseRuleId — đổi sang mảng riêng vì: (1) nhiều bộ mở rộng có thể cùng
+// tồn tại sau này, mỗi bộ đóng góp cardCounts/characterIds riêng (xem
+// EXPANSION_CARD_COUNTS ở cards.ts, EXPANSION_CHARACTER_IDS ở characters.ts);
+// (2) đây vốn là 1 MẢNG (giống houseRules) nên nhiều bộ mở rộng TỰ NHIÊN chơi
+// kết hợp được với nhau — bật đồng thời nhiều id trong mảng, setup.ts gộp dữ
+// liệu của tất cả bộ đang bật qua 1 đường code chung, không rẽ nhánh riêng
+// từng bộ. Thêm bộ mở rộng mới thì thêm 1 giá trị vào union này.
+export type ExpansionId = "dodge_city";

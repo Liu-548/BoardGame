@@ -31,7 +31,12 @@ function makeState(players: PlayerState[], overrides: Partial<GameState> = {}): 
     characterSelection: null,
     turnNumber: 0,
     equipmentPlayedTurn: {},
+    joseDelgadoUsesThisTurn: 0,
+    docHolydayUsedThisTurn: false,
+    duelBangDrawPending: null,
+    veraCusterBorrowedCharacterId: null,
     houseRules: [],
+    expansions: [],
     cardNamesPlayedThisTurn: [],
     ...overrides,
   };
