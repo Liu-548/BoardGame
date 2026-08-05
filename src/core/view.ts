@@ -22,7 +22,7 @@
 // lá vừa xem RIÊNG, phải ẩn với mọi người TRỪ đúng chủ nhân (xem
 // PendingActionView/viewPendingItem() bên dưới).
 
-import type { CharacterChoice, GameState, HouseRuleId, PendingAction, PlayerState, Role } from "./types";
+import type { CharacterChoice, ExpansionId, GameState, HouseRuleId, PendingAction, PlayerState, Role } from "./types";
 
 export interface PlayerHandView {
   id: string;
@@ -73,6 +73,8 @@ export interface PlayerView {
   // Việc 5.3 — luật bổ sung đang bật cho ván này, KHÔNG bí mật gì (chủ phòng
   // chọn công khai trước khi bắt đầu ván) nên giữ nguyên, không cần ẩn/lọc.
   houseRules: HouseRuleId[];
+  // Mở rộng Dodge City — cùng lý do KHÔNG bí mật như houseRules ở trên.
+  expansions: ExpansionId[];
 }
 
 function viewRole(player: PlayerState, viewerId: string): Role | null {
@@ -132,5 +134,6 @@ export function viewFor(state: GameState, viewerId: string): PlayerView {
       ? state.characterSelection.map((c) => viewCharacterChoice(c, viewerId))
       : null,
     houseRules: state.houseRules,
+    expansions: state.expansions,
   };
 }

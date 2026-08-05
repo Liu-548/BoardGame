@@ -34,7 +34,12 @@ function makeState(players: PlayerState[], overrides: Partial<GameState> = {}): 
     characterSelection: null,
     turnNumber: 0,
     equipmentPlayedTurn: {},
+    joseDelgadoUsesThisTurn: 0,
+    docHolydayUsedThisTurn: false,
+    duelBangDrawPending: null,
+    veraCusterBorrowedCharacterId: null,
     houseRules: [],
+    expansions: [],
     cardNamesPlayedThisTurn: [],
     ...overrides,
   };
@@ -44,17 +49,17 @@ describe("computeDistance — vòng tròn cơ bản (mọi người còn sống)
   const players = ["a", "b", "c", "d", "e"].map((id) => makePlayer(id));
 
   it("người ngồi cạnh nhau: khoảng cách 1", () => {
-    expect(computeDistance(players, "a", "b")).toBe(1);
-    expect(computeDistance(players, "a", "e")).toBe(1); // vòng tròn, e cạnh a phía bên kia
+    expect(computeDistance(makeState(players), "a", "b")).toBe(1);
+    expect(computeDistance(makeState(players), "a", "e")).toBe(1); // vòng tròn, e cạnh a phía bên kia
   });
 
   it("người ngồi cách nhau 2 ghế theo chiều ngắn hơn", () => {
-    expect(computeDistance(players, "a", "c")).toBe(2);
-    expect(computeDistance(players, "a", "d")).toBe(2); // đi ngược chiều: a-e-d, cũng 2 ghế
+    expect(computeDistance(makeState(players), "a", "c")).toBe(2);
+    expect(computeDistance(makeState(players), "a", "d")).toBe(2); // đi ngược chiều: a-e-d, cũng 2 ghế
   });
 
   it("khoảng cách đối xứng 2 chiều", () => {
-    expect(computeDistance(players, "c", "a")).toBe(2);
+    expect(computeDistance(makeState(players), "c", "a")).toBe(2);
   });
 });
 
@@ -70,7 +75,7 @@ describe("computeDistance — vòng tròn co lại khi có người chết", () 
 
     // Trước khi b chết: a-c cách 2. Sau khi b chết, vòng tròn còn a,c,d,e (4
     // ghế) — a cạnh c luôn (b đã biến mất khỏi vòng).
-    expect(computeDistance(players, "a", "c")).toBe(1);
+    expect(computeDistance(makeState(players), "a", "c")).toBe(1);
   });
 
   it("chết nhiều người: vòng tròn co lại chỉ còn người sống", () => {
@@ -83,8 +88,8 @@ describe("computeDistance — vòng tròn co lại khi có người chết", () 
     ];
 
     // Còn sống: a, d, e — vòng tròn 3 người, ai cũng cạnh ai.
-    expect(computeDistance(players, "a", "d")).toBe(1);
-    expect(computeDistance(players, "d", "e")).toBe(1);
+    expect(computeDistance(makeState(players), "a", "d")).toBe(1);
+    expect(computeDistance(makeState(players), "d", "e")).toBe(1);
   });
 });
 
@@ -93,14 +98,14 @@ describe("computeDistance — Scope và Mustang", () => {
     const players = ["a", "b", "c", "d", "e"].map((id) => makePlayer(id));
     players[0] = makePlayer("a", { equipment: ["scope_1"] });
 
-    expect(computeDistance(players, "a", "c")).toBe(1); // gốc 2, Scope trừ 1
+    expect(computeDistance(makeState(players), "a", "c")).toBe(1); // gốc 2, Scope trừ 1
   });
 
   it("Mustang: người khác nhìn mục tiêu xa hơn 1", () => {
     const players = ["a", "b", "c", "d", "e"].map((id) => makePlayer(id));
     players[1] = makePlayer("b", { equipment: ["mustang_1"] });
 
-    expect(computeDistance(players, "a", "b")).toBe(2); // gốc 1, Mustang cộng 1
+    expect(computeDistance(makeState(players), "a", "b")).toBe(2); // gốc 1, Mustang cộng 1
   });
 
   it("Scope + Mustang cùng lúc: có thể triệt tiêu lẫn nhau", () => {
@@ -108,7 +113,7 @@ describe("computeDistance — Scope và Mustang", () => {
     players[0] = makePlayer("a", { equipment: ["scope_1"] });
     players[2] = makePlayer("c", { equipment: ["mustang_1"] });
 
-    expect(computeDistance(players, "a", "c")).toBe(2); // gốc 2, -1 (Scope) +1 (Mustang) = 2
+    expect(computeDistance(makeState(players), "a", "c")).toBe(2); // gốc 2, -1 (Scope) +1 (Mustang) = 2
   });
 
   it("Mustang không ảnh hưởng khoảng cách người mang nó nhìn ra ngoài", () => {
@@ -116,14 +121,14 @@ describe("computeDistance — Scope và Mustang", () => {
     players[1] = makePlayer("b", { equipment: ["mustang_1"] });
 
     // b đánh a: Mustang chỉ đổi cách NGƯỜI KHÁC nhìn b, không đổi cách b nhìn người khác.
-    expect(computeDistance(players, "b", "a")).toBe(1);
+    expect(computeDistance(makeState(players), "b", "a")).toBe(1);
   });
 
   it("khoảng cách tối thiểu là 1, không thể về 0 hay âm", () => {
     const players = ["a", "b", "c", "d", "e"].map((id) => makePlayer(id));
     players[0] = makePlayer("a", { equipment: ["scope_1"] });
 
-    expect(computeDistance(players, "a", "b")).toBe(1); // gốc 1, Scope trừ 1 -> vẫn 1 (chặn ở 1)
+    expect(computeDistance(makeState(players), "a", "b")).toBe(1); // gốc 1, Scope trừ 1 -> vẫn 1 (chặn ở 1)
   });
 });
 

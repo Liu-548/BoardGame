@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CHARACTERS } from "../src/core/characters";
+import { CHARACTERS, EXPANSION_CHARACTER_IDS } from "../src/core/characters";
 import { setupGame } from "../src/core/setup";
 
 function ids(count: number): string[] {
@@ -221,10 +221,10 @@ describe("setupGame", () => {
     });
   });
 
-  // Mở rộng Dodge City — house rule "extra_cards" (xem DODGE_CITY_CARD_COUNTS
-  // ở cards.ts) phải cộng thêm đúng số lá Dodge City vào bộ bài khi bật,
-  // KHÔNG đổi gì khi tắt (mặc định).
-  describe("house rule 'extra_cards' (Dodge City)", () => {
+  // Mở rộng Dodge City — options.expansions: ["dodge_city"] (xem
+  // EXPANSION_CARD_COUNTS ở cards.ts) phải cộng thêm đúng số lá Dodge City vào
+  // bộ bài khi bật, KHÔNG đổi gì khi tắt (mặc định).
+  describe("bộ mở rộng 'dodge_city'", () => {
     function totalCardsByName(state: ReturnType<typeof setupGame>, name: string): number {
       const inDeck = state.deck.filter((id) => id.startsWith(`${name}_`)).length;
       const inHands = state.players.reduce(
@@ -241,7 +241,7 @@ describe("setupGame", () => {
     });
 
     it("BẬT: cộng đủ 40/40 lá Dodge City (đợt 1 + đợt 2) vào bộ bài — 80 lá gốc + 39 lá cộng thêm = 119 lá tổng", () => {
-      const state = setupGame(ids(4), 1, { houseRules: ["extra_cards"] });
+      const state = setupGame(ids(4), 1, { expansions: ["dodge_city"] });
       // Đợt 1.
       expect(totalCardsByName(state, "bible")).toBe(1);
       expect(totalCardsByName(state, "sombrero")).toBe(1);
@@ -285,6 +285,34 @@ describe("setupGame", () => {
       // giveCardToPlayer()), không nằm trong hand như bài thường.
       const dealt = state.players.reduce((sum, p) => sum + p.hand.length + p.equipment.length, 0);
       expect(state.deck.length + dealt).toBe(119);
+    });
+  });
+
+  // Mở rộng Dodge City, bổ sung theo yêu cầu chủ dự án — bộ mở rộng KHÔNG
+  // được tính vào bộ nhân vật đưa ra phát 2-lá-chọn-1 (dealCharacterCards) trừ
+  // khi chủ phòng tick đúng bộ đó, y hệt cách nó hoạt động với bộ bài ở trên.
+  describe("bộ mở rộng 'dodge_city' — lọc bộ nhân vật khi dealCharacterCards bật", () => {
+    it("TẮT (mặc định): không bao giờ ra 1 trong 15 nhân vật Dodge City", () => {
+      // 6 người x 20 ván khác seed — đủ nhiều lần bốc để bắt được lỗi nếu vô
+      // tình lọt 1 nhân vật Dodge City vào bộ bốc.
+      for (let seed = 1; seed <= 20; seed++) {
+        const state = setupGame(ids(6), seed, { dealCharacterCards: true });
+        const dealt = state.characterSelection!.flatMap((c) => c.options);
+        for (const characterId of dealt) {
+          expect(EXPANSION_CHARACTER_IDS.dodge_city).not.toContain(characterId);
+        }
+      }
+    });
+
+    it("BẬT: đủ 31 nhân vật (16 gốc + 15 Dodge City) trong bộ bốc", () => {
+      // 8 người x 2 lá = 16 lá — đúng bằng số nhân vật gốc, nên PHẢI có ít
+      // nhất 1 nhân vật Dodge City lọt vào nếu bộ bốc đã gộp đủ 31 nhân vật
+      // (bốc KHÔNG lặp lại — xem shuffle() ở rng.ts).
+      const state = setupGame(ids(8), 1, { dealCharacterCards: true, expansions: ["dodge_city"] });
+      const dealt = state.characterSelection!.flatMap((c) => c.options);
+      expect(dealt).toHaveLength(16);
+      expect(new Set(dealt).size).toBe(16); // không trùng lá nào
+      expect(dealt.some((characterId) => EXPANSION_CHARACTER_IDS.dodge_city.includes(characterId))).toBe(true);
     });
   });
 });

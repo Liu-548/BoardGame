@@ -2,7 +2,7 @@
 // trang bị trì hoãn"). Đợt 1: chỉ 6/40 lá vàng KHÔNG cần hook nhân vật mới —
 // Bible/Sombrero/Ten Gallon Hat/Iron Plate (dùng NHƯ Missed!) và
 // Canteen/Pony Express (hiệu ứng chủ động đơn giản: tự hồi máu, rút bài).
-// Xem test/setup.test.ts's describe("house rule 'extra_cards'") cho phần
+// Xem test/setup.test.ts's describe("bộ mở rộng 'dodge_city'") cho phần
 // bộ bài — file này chỉ kiểm luồng reduce() với state dựng thẳng.
 import { describe, expect, it } from "vitest";
 import { reduce } from "../src/core/reduce";
@@ -37,7 +37,12 @@ function makeState(players: PlayerState[], overrides: Partial<GameState> = {}): 
     characterSelection: null,
     turnNumber: 0,
     equipmentPlayedTurn: {},
+    joseDelgadoUsesThisTurn: 0,
+    docHolydayUsedThisTurn: false,
+    duelBangDrawPending: null,
+    veraCusterBorrowedCharacterId: null,
     houseRules: [],
+    expansions: [],
     cardNamesPlayedThisTurn: [],
     ...overrides,
   };

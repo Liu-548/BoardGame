@@ -56,7 +56,7 @@ function playCardCandidates(state: GameState, player: PlayerState): Action[] {
     // Mở rộng Dodge City — lá vàng "trì hoãn" (bible/sombrero/canteen...) được
     // CHƠI RA lần đầu y hệt trang bị xanh dương thường (không cần mục tiêu).
     // Bot CHƯA sinh ứng viên "kích hoạt" lá đã bày sẵn trên sân (equipment) —
-    // mặc định house rule "extra_cards" tắt nên bot không bao giờ rút được lá
+    // mặc định bộ mở rộng "dodge_city" tắt nên bot không bao giờ rút được lá
     // này trong các test hiện có, chỉ cần qua compile an toàn.
     if (isSelfEquipBlueCardName(name) || isDelayedEquipmentCardName(name)) {
       candidates.push({ type: "PLAY_CARD", playerId: player.id, cardId });
@@ -116,7 +116,7 @@ function playCardCandidates(state: GameState, player: PlayerState): Action[] {
       case "dynamite":
       case "dodge":
         break; // không bao giờ đánh chủ động được, khỏi tạo ứng viên
-      // Mở rộng Dodge City đợt 2 — mặc định house rule "extra_cards" tắt nên
+      // Mở rộng Dodge City đợt 2 — mặc định bộ mở rộng "dodge_city" tắt nên
       // bot không bao giờ thực sự rút được các lá này trong test hiện có, chỉ
       // cần ứng viên "có lý" để qua compile an toàn (giống ghi chú ở trên).
       case "punch":
@@ -221,6 +221,20 @@ function chooseRespondAction(state: GameState): Action {
     case "NEED_PICK_KEPT_CARDS":
       // Giai đoạn 5 (Kit Carlson) — bot cứ giữ 2 lá đầu, bỏ lá thứ 3 (mặc định).
       return { type: "RESPOND", playerId: top.player };
+    case "NEED_PICK_DRAW_OR_EQUIPMENT":
+      // Mở rộng Dodge City (Pat Brennan) — bot cứ rút bộ bài như bình thường,
+      // khỏi cần lấy trang bị của ai (an toàn, luôn hợp lệ).
+      return { type: "RESPOND", playerId: top.player };
+    case "NEED_PICK_BORROWED_CHARACTER": {
+      // Mở rộng Dodge City (Vera Custer) — bot không dùng nhân vật nên pending
+      // này không thực sự phát sinh, nhưng vẫn xử lý an toàn cho đủ exhaustive:
+      // chọn ngẫu nhiên 1 người còn sống khác có nhân vật (nếu có).
+      const player = state.players.find((p) => p.id === top.player)!;
+      const candidates = state.players.filter((p) => p.alive && p.id !== player.id && p.characterId !== null);
+      return candidates[0]
+        ? { type: "RESPOND", playerId: top.player, targetId: candidates[0].id }
+        : { type: "RESPOND", playerId: top.player };
+    }
     default: {
       const neverKind: never = top;
       throw new Error(`Bot chưa biết cách phản hồi: ${JSON.stringify(neverKind)}`);

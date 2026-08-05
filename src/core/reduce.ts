@@ -10,7 +10,15 @@ import {
   isWeaponCardName,
   yellowCardActsAsMissed,
 } from "./cards";
-import { computeStartingHp, getCharacterDefinition, getCharacterHooks, triggerHandEmptyHook } from "./characters";
+import {
+  computeStartingHp,
+  getEffectiveCharacterDefinition,
+  getEffectiveCharacterHooks,
+  getEffectiveEquipment,
+  getHandLimit,
+  triggerHandEmptyHook,
+  triggerVoluntaryOutOfTurnHook,
+} from "./characters";
 import { drawTopCard } from "./deck";
 import { computeDistance, getWeaponRange } from "./distance";
 import { giveCardToPlayer, transferDynamiteToNextPlayer } from "./equipment";
@@ -28,32 +36,44 @@ const DRAW_COUNT = 2;
 // Giai đoạn 5 (Calamity Janet, đợt 7) — coi lá `cardId` có ĐÓNG VAI Bang!
 // được không: đúng là Bang! thật, HOẶC là Missed! nhưng thuộc về Janet. Dùng
 // ở MỌI chỗ cần "1 lá Bang!" (đánh Bang! chủ động, đỡ Duel, đỡ Indians!).
-function actsAsBang(cardId: string, player: PlayerState): boolean {
+function actsAsBang(state: GameState, cardId: string, player: PlayerState): boolean {
   const name = cardNameFromId(cardId);
   if (name === "bang") return true;
-  return name === "missed" && getCharacterDefinition(player.characterId)?.hasBangMissedAlias === true;
+  return name === "missed" && getEffectiveCharacterDefinition(state, player)?.hasBangMissedAlias === true;
 }
 
 // Ngược lại: coi lá `cardId` có ĐÓNG VAI Missed! được không — đúng là Missed!
 // thật, HOẶC là Bang! nhưng thuộc về Janet. Dùng để đỡ Bang!/Gatling.
-function actsAsMissed(cardId: string, player: PlayerState): boolean {
+function actsAsMissed(state: GameState, cardId: string, player: PlayerState): boolean {
   const name = cardNameFromId(cardId);
   // Mở rộng Dodge City — Dodge hoạt động y hệt Missed! (đỡ Bang!/Gatling), chỉ
   // khác tên và có rút thêm 1 lá khi đỡ thành công (xem respondToMissed()) —
   // KHÔNG cần gắn với nhân vật nào (khác alias Calamity Janet bên dưới).
   if (name === "missed" || name === "dodge") return true;
-  return name === "bang" && getCharacterDefinition(player.characterId)?.hasBangMissedAlias === true;
+  // Mở rộng Dodge City, mục C nhóm B (Elena Fuente) — MỌI lá trên tay đều coi
+  // như có thêm vai trò Missed!, không riêng "bang" như Calamity Janet.
+  if (getEffectiveCharacterDefinition(state, player)?.hasAnyCardMissedAlias === true) return true;
+  return name === "bang" && getEffectiveCharacterDefinition(state, player)?.hasBangMissedAlias === true;
 }
 
 // Mở rộng Dodge City (mục 1.1) — `cardId` này CÓ nằm trong equipment của
-// `player` VÀ dùng được NGAY để đỡ Missed! không? Phải là lá vàng nhóm
+// `player` VÀ dùng được NGAY để đỡ Missed! không? 2 đường: (1) lá vàng nhóm
 // yellowCardActsAsMissed() (Bible/Sombrero/Ten Gallon Hat/Iron Plate) VÀ đã
 // qua ít nhất 1 lượt kể từ lúc được chơi ra (equipmentPlayedTurn khác lượt
-// hiện tại) — KHÔNG liên quan gì tới actsAsMissed()/alias Calamity Janet (đó
-// là khái niệm riêng cho lá TRÊN TAY, không áp dụng cho trang bị trên sân).
-function isUsableDelayedMissedEquipment(state: GameState, player: PlayerState, cardId: string): boolean {
-  if (!player.equipment.includes(cardId)) return false;
+// hiện tại); (2) mục C nhóm B (Elena Fuente, canUseOwnEquipmentAsMissed) —
+// BẤT KỲ lá nào trên sân của CHÍNH mình, KHÔNG cần chờ 1 lượt, TRỪ Dynamite.
+// KHÔNG liên quan gì tới actsAsMissed()/alias Calamity Janet (đó là khái
+// niệm riêng cho lá TRÊN TAY, không áp dụng cho trang bị trên sân).
+function isEquipmentUsableAsMissed(state: GameState, player: PlayerState, cardId: string): boolean {
+  // Mở rộng Dodge City, mục C nhóm C (Belle Star) — trang bị của người ĐANG
+  // PHẢN ỨNG (luôn là người khác, không bao giờ là ai đang tới lượt) mất tác
+  // dụng nếu đang là lượt của 1 nhân vật disablesOthersEquipment.
+  const effectiveEquipment = getEffectiveEquipment(state, player);
+  if (!effectiveEquipment.includes(cardId)) return false;
   const name = cardNameFromId(cardId);
+  if (getEffectiveCharacterDefinition(state, player)?.canUseOwnEquipmentAsMissed === true) {
+    return name !== "dynamite";
+  }
   return yellowCardActsAsMissed(name) && state.equipmentPlayedTurn[cardId] !== state.turnNumber;
 }
 
@@ -62,8 +82,8 @@ function isUsableDelayedMissedEquipment(state: GameState, player: PlayerState, c
 // Dùng để kiểm missesNeeded (Slab the Killer, Giai đoạn 5) — người chơi phải
 // có ĐỦ ngay từ đầu mới được bỏ dần, không được bỏ thiếu giữa chừng.
 function countEligibleMissedSources(state: GameState, player: PlayerState): number {
-  const fromHand = player.hand.filter((id) => actsAsMissed(id, player)).length;
-  const fromEquipment = player.equipment.filter((id) => isUsableDelayedMissedEquipment(state, player, id)).length;
+  const fromHand = player.hand.filter((id) => actsAsMissed(state, id, player)).length;
+  const fromEquipment = player.equipment.filter((id) => isEquipmentUsableAsMissed(state, player, id)).length;
   return fromHand + fromEquipment;
 }
 
@@ -123,7 +143,7 @@ function handleDrawCards(
   // còn bài (rỗng thì rút thẳng bộ bài, khỏi cần hỏi). Đẩy pending rồi TRẢ VỀ
   // NGAY — turnPhase vẫn ở "draw", respondToPickDrawSource() mới thực sự rút
   // bài và chuyển sang "play".
-  if (getCharacterDefinition(player.characterId)?.canDrawFromDiscardPile === true && next.discardPile.length > 0) {
+  if (getEffectiveCharacterDefinition(next, player)?.canDrawFromDiscardPile === true && next.discardPile.length > 0) {
     next.pending.push({ kind: "NEED_PICK_DRAW_SOURCE", player: player.id });
     return { state: next, events: [] };
   }
@@ -131,7 +151,7 @@ function handleDrawCards(
   // Giai đoạn 5 (Jesse Jones, đợt 5) — HỎI trước khi rút gì cả: lá 1 lấy từ
   // bộ bài hay từ tay 1 người khác? Đẩy pending rồi TRẢ VỀ NGAY, y hệt Pedro
   // Ramirez — respondToPickDrawTarget() mới thực sự rút bài và chuyển "play".
-  if (getCharacterDefinition(player.characterId)?.canStealFirstDrawCard === true) {
+  if (getEffectiveCharacterDefinition(next, player)?.canStealFirstDrawCard === true) {
     next.pending.push({ kind: "NEED_PICK_DRAW_TARGET", player: player.id });
     return { state: next, events: [] };
   }
@@ -141,7 +161,7 @@ function handleDrawCards(
   // viết thêm gì), rồi HỎI: giữ 2 bỏ 1. Không đủ 3 lá để rút (deck + chồng bỏ
   // cùng cạn — cực hiếm) thì không có gì để CHỌN bỏ, cứ giữ hết những gì rút
   // được, khỏi cần hỏi.
-  if (getCharacterDefinition(player.characterId)?.canPeekTopThree === true) {
+  if (getEffectiveCharacterDefinition(next, player)?.canPeekTopThree === true) {
     const peeked: string[] = [];
     for (let i = 0; i < 3; i++) {
       const card = drawTopCard(next);
@@ -156,9 +176,19 @@ function handleDrawCards(
     return { state: next, events: [] };
   }
 
+  // Mở rộng Dodge City, mục C nhóm A (Pat Brennan, xem core/characters.ts) —
+  // HỎI trước khi rút gì cả: rút 2 lá như thường, hay lấy đúng 1 lá trang bị
+  // bất kỳ đang bày trước mặt người khác? Đẩy pending rồi TRẢ VỀ NGAY, y hệt
+  // Pedro Ramirez/Jesse Jones — respondToPickDrawOrEquipment() mới thực sự
+  // rút/lấy bài và chuyển turnPhase sang "play".
+  if (getEffectiveCharacterDefinition(next, player)?.canTakeEquipmentInsteadOfDraw === true) {
+    next.pending.push({ kind: "NEED_PICK_DRAW_OR_EQUIPMENT", player: player.id });
+    return { state: next, events: [] };
+  }
+
   // Giai đoạn 5 (Black Jack, xem core/characters.ts) — onDrawPhase THAY HẲN
   // pha rút 2 lá mặc định khi nhân vật có định nghĩa hook này.
-  const onDrawPhase = getCharacterHooks(player.characterId).onDrawPhase;
+  const onDrawPhase = getEffectiveCharacterHooks(next, player).onDrawPhase;
   let events: GameEvent[];
   if (onDrawPhase) {
     events = onDrawPhase(next, player);
@@ -354,6 +384,91 @@ function respondToPickKeptCards(
   };
 }
 
+// Mở rộng Dodge City, mục C nhóm A (Pat Brennan) — trả lời
+// NEED_PICK_DRAW_OR_EQUIPMENT. Gửi kèm targetId (chủ lá) + cardId (đúng lá
+// trang bị muốn lấy) -> lấy lá đó vào tay (dùng giveCardToPlayer() như mọi
+// nơi khác — nếu lá đó là Dynamite, tự động gắn xuống sân thay vì vào tay,
+// đúng luật Dynamite "không bao giờ nằm trên tay"); không kèm targetId -> rút
+// 2 lá từ bộ bài như bình thường (mặc định/timeout).
+function respondToPickDrawOrEquipment(
+  state: GameState,
+  action: Action & { type: "RESPOND" }
+): Result {
+  const next = cloneState(state);
+  next.pending.pop();
+  const player = next.players.find((p) => p.id === action.playerId)!;
+
+  if (action.targetId) {
+    if (action.targetId === player.id) {
+      throw new Error("Không thể tự lấy trang bị của chính mình");
+    }
+    const target = next.players.find((p) => p.id === action.targetId);
+    if (!target || !target.alive) {
+      throw new Error("Mục tiêu không hợp lệ");
+    }
+    if (!action.cardId) {
+      throw new Error("Phải chỉ định đúng lá trang bị muốn lấy");
+    }
+    const index = target.equipment.indexOf(action.cardId);
+    if (index === -1) {
+      throw new Error(`Người chơi ${target.id} không có lá trang bị ${action.cardId}`);
+    }
+    target.equipment.splice(index, 1);
+    delete next.equipmentPlayedTurn[action.cardId]; // dọn rác Dodge City nếu là lá "delayed"
+    giveCardToPlayer(next.players, player, action.cardId);
+
+    next.turnPhase = "play";
+    return {
+      state: next,
+      events: [{ type: "CARD_STOLEN", playerId: player.id, fromPlayerId: target.id, cardId: action.cardId }],
+    };
+  }
+
+  const drawnCount = drawCardsForPlayer(next, player, DRAW_COUNT);
+  next.turnPhase = "play";
+  return { state: next, events: [{ type: "CARDS_DRAWN", playerId: player.id, count: drawnCount }] };
+}
+
+// Mở rộng Dodge City, mục C nhóm C (Vera Custer) — trả lời
+// NEED_PICK_BORROWED_CHARACTER. BẮT BUỘC chọn đúng 1 người chơi khác còn sống
+// ĐÃ có nhân vật (không có lựa chọn "không mượn ai" — hết giờ thì room.ts tự
+// chọn ngẫu nhiên, xem buildReactiveTimeoutAction()). Ghi
+// veraCusterBorrowedCharacterId RỒI GỌI THẲNG applyDynamiteAndJailChecks()
+// (KHÔNG gọi lại applyTurnStartChecks() — sẽ hỏi lại vô hạn vì Vera Custer vẫn
+// còn canBorrowCharacterAbilities) để tiếp tục đúng thứ tự Bước 0 còn lại.
+function respondToPickBorrowedCharacter(
+  state: GameState,
+  action: Action & { type: "RESPOND" }
+): Result {
+  const next = cloneState(state);
+  next.pending.pop();
+  const player = next.players.find((p) => p.id === action.playerId)!;
+
+  if (!action.targetId) {
+    throw new Error("Phải chọn 1 người chơi khác còn sống để mượn khả năng — không có lựa chọn 'không mượn ai'");
+  }
+  if (action.targetId === player.id) {
+    throw new Error("Không thể tự mượn khả năng của chính mình");
+  }
+  const target = next.players.find((p) => p.id === action.targetId);
+  if (!target || !target.alive) {
+    throw new Error("Mục tiêu không hợp lệ");
+  }
+  if (!target.characterId) {
+    throw new Error(`Người chơi ${target.id} chưa có nhân vật, không có gì để mượn`);
+  }
+
+  next.veraCusterBorrowedCharacterId = target.characterId;
+  applyDynamiteAndJailChecks(next, player);
+
+  return {
+    state: next,
+    events: [
+      { type: "VERA_CUSTER_BORROWED", playerId: player.id, borrowedFromPlayerId: target.id, characterId: target.characterId },
+    ],
+  };
+}
+
 function handleEndTurn(state: GameState, action: Action & { type: "END_TURN" }): Result {
   assertCurrentPlayer(state, action.playerId);
   assertPhase(state, "play");
@@ -364,7 +479,9 @@ function handleEndTurn(state: GameState, action: Action & { type: "END_TURN" }):
   const next = cloneState(state);
   const player = next.players[next.currentPlayerIndex];
 
-  if (player.hand.length > player.hp) {
+  // Mở rộng Dodge City, mục C nhóm B (Sean Mallory) — getHandLimit() thay
+  // player.hp trực tiếp (mặc định trả về đúng player.hp nếu không có hook).
+  if (player.hand.length > getHandLimit(next, player)) {
     next.turnPhase = "discard";
     return { state: next, events: [] };
   }
@@ -395,8 +512,9 @@ function handleDiscardCards(
     next.discardPile.push(cardId);
   }
 
-  if (player.hand.length > player.hp) {
-    throw new Error("Phải bỏ đủ bài thừa xuống bằng đúng số máu hiện có");
+  // Mở rộng Dodge City, mục C nhóm B (Sean Mallory) — xem ghi chú ở handleEndTurn().
+  if (player.hand.length > getHandLimit(next, player)) {
+    throw new Error("Phải bỏ đủ bài thừa xuống bằng đúng giới hạn cho phép");
   }
 
   const events: GameEvent[] = [{ type: "CARDS_DISCARDED", playerId: player.id, cardIds: action.cardIds }];
@@ -475,7 +593,7 @@ function handlePlayCard(state: GameState, action: Action & { type: "PLAY_CARD" }
     // báo lỗi như người khác). KHÔNG đổi gì cho case "bang" — đánh Bang! thật
     // luôn bình thường, không có gì mơ hồ ở chiều này.
     const dispatchCardName =
-      cardName === "missed" && actsAsBang(action.cardId, player) ? "bang" : cardName;
+      cardName === "missed" && actsAsBang(next, action.cardId, player) ? "bang" : cardName;
 
     switch (dispatchCardName) {
       case "missed":
@@ -592,7 +710,7 @@ function playBang(
 
   const range = getWeaponRange(player);
   const extraDistance = next.houseRules.includes("extra_distance") ? 1 : 0;
-  const distance = computeDistance(next.players, player.id, target.id, extraDistance);
+  const distance = computeDistance(next, player.id, target.id, extraDistance);
   if (distance > range) {
     throw new Error(`Mục tiêu ngoài tầm bắn (khoảng cách ${distance}, tầm súng ${range})`);
   }
@@ -601,17 +719,20 @@ function playBang(
   // Willy the Kid (Giai đoạn 5, bỏ giới hạn này luôn dù không cầm Volcanic —
   // xem CharacterDefinition.bypassBangLimit ở core/characters.ts).
   const hasVolcanic = player.equipment.some((id) => cardNameFromId(id) === "volcanic");
-  const hasUnlimitedBang = hasVolcanic || getCharacterDefinition(player.characterId)?.bypassBangLimit === true;
+  const hasUnlimitedBang = hasVolcanic || getEffectiveCharacterDefinition(next, player)?.bypassBangLimit === true;
   if (next.bangUsedThisTurn && !hasUnlimitedBang) {
     throw new Error("Đã đánh Bang! trong lượt này — cần súng Volcanic mới được đánh thêm lần nữa");
   }
   next.bangUsedThisTurn = true;
 
-  pushMissedReaction(next, target, { card: "bang", from: player.id });
+  const immunityEvents = pushMissedReaction(next, target, { card: "bang", from: player.id }, action.cardId);
 
   return {
     state: next,
-    events: [{ type: "CARD_PLAYED", playerId: player.id, cardId: action.cardId, targetId: target.id }],
+    events: [
+      { type: "CARD_PLAYED", playerId: player.id, cardId: action.cardId, targetId: target.id },
+      ...immunityEvents,
+    ],
   };
 }
 
@@ -626,10 +747,31 @@ function playBang(
 function pushMissedReaction(
   next: GameState,
   target: PlayerState,
+  source: { card: string; from: string },
+  attackCardId: string
+): GameEvent[] {
+  // Mở rộng Dodge City, mục C nhóm B (Apache Kid) — lá chất Rô nhắm vào mình
+  // (KHÔNG áp dụng Duel — Duel không đi qua hàm này, xem playDuel()). Lá đã
+  // bị đánh/rời tay ở nơi gọi (handlePlayCard()) — chỉ riêng HIỆU ỨNG (đẩy
+  // NEED_MISSED/Barrel draw!) không xảy ra.
+  if (getEffectiveCharacterHooks(next, target).isImmuneToCard?.(attackCardId) === true) {
+    return [{ type: "APACHE_KID_IMMUNE", playerId: target.id, fromPlayerId: source.from, cardId: attackCardId }];
+  }
+  return pushMissedReactionUnconditional(next, target, source);
+}
+
+// Phần đẩy pending THẬT của pushMissedReaction() — TÁCH RIÊNG (mở rộng Dodge
+// City, mục C nhóm C, Doc Holyday) để useDocHolydayShot() dùng lại được sau
+// khi TỰ tính miễn nhiễm Apache Kid theo luật RIÊNG của mình (miễn nhiễm khi
+// CẢ 2 lá bỏ ra đều chất Rô — khác luật chung "1 lá Rô là đủ" của
+// pushMissedReaction() ở trên, nên không thể tái dùng nguyên hàm đó).
+function pushMissedReactionUnconditional(
+  next: GameState,
+  target: PlayerState,
   source: { card: string; from: string }
-): void {
+): GameEvent[] {
   const attacker = next.players.find((p) => p.id === source.from);
-  const missesNeeded = getCharacterHooks(attacker?.characterId ?? null).onOutgoingBang?.() ?? 1;
+  const missesNeeded = (attacker ? getEffectiveCharacterHooks(next, attacker).onOutgoingBang?.() : undefined) ?? 1;
 
   next.pending.push(
     missesNeeded > 1
@@ -637,8 +779,13 @@ function pushMissedReaction(
       : { kind: "NEED_MISSED", player: target.id, source }
   );
 
-  const hasRealBarrel = target.equipment.some((id) => cardNameFromId(id) === "barrel");
-  const hasVirtualBarrel = getCharacterDefinition(target.characterId)?.virtualBarrel === true;
+  // Mở rộng Dodge City, mục C nhóm C (Belle Star) — Barrel THẬT (vật lý trên
+  // sân) của mục tiêu mất tác dụng nếu đang là lượt Belle Star. Barrel ẢO của
+  // Jourdonnais (virtualBarrel) là KHẢ NĂNG nhân vật, không phải "lá bày trước
+  // mặt" — không đụng gì, vẫn hoạt động bình thường.
+  const targetEquipment = getEffectiveEquipment(next, target);
+  const hasRealBarrel = targetEquipment.some((id) => cardNameFromId(id) === "barrel");
+  const hasVirtualBarrel = getEffectiveCharacterDefinition(next, target)?.virtualBarrel === true;
   const barrelCheckCount = (hasRealBarrel ? 1 : 0) + (hasVirtualBarrel ? 1 : 0);
 
   for (let i = 0; i < barrelCheckCount; i++) {
@@ -649,6 +796,7 @@ function pushMissedReaction(
       matchSuits: ["hearts"],
     });
   }
+  return [];
 }
 
 // Gatling: giống Bang! nhưng nhắm vào TẤT CẢ người chơi còn sống khác — mỗi
@@ -661,10 +809,14 @@ function playGatling(
   action: Action & { type: "PLAY_CARD" }
 ): Result {
   const targets = otherAlivePlayersInOrder(next, player.id);
+  const immunityEvents: GameEvent[] = [];
   for (let i = targets.length - 1; i >= 0; i--) {
-    pushMissedReaction(next, targets[i], { card: "gatling", from: player.id });
+    immunityEvents.push(...pushMissedReaction(next, targets[i], { card: "gatling", from: player.id }, action.cardId));
   }
-  return { state: next, events: [{ type: "CARD_PLAYED", playerId: player.id, cardId: action.cardId }] };
+  return {
+    state: next,
+    events: [{ type: "CARD_PLAYED", playerId: player.id, cardId: action.cardId }, ...immunityEvents],
+  };
 }
 
 // Indians!: mỗi người chơi khác còn sống phải bỏ 1 lá Bang! hoặc mất 1 máu.
@@ -700,6 +852,11 @@ function playDuel(
   if (!target || !target.alive) {
     throw new Error("Mục tiêu không hợp lệ");
   }
+
+  // Mở rộng Dodge City, mục C nhóm C (Molly Stark) — reset đầu mỗi ván Duel
+  // MỚI, phòng rác còn sót (không nên xảy ra vì Duel luôn giải quyết trọn vẹn
+  // trước khi advanceTurn() được phép chạy, nhưng reset cho chắc, đúng quy tắc 3).
+  next.duelBangDrawPending = null;
 
   next.pending.push({
     kind: "NEED_DUEL_RESPONSE",
@@ -752,12 +909,12 @@ function playPanic(
   // dụng chung, giống playBang(): tăng "khoảng cách mặc định" ảnh hưởng MỌI
   // lá phụ thuộc khoảng cách, không riêng gì Bang!.
   const extraDistance = next.houseRules.includes("extra_distance") ? 1 : 0;
-  const distance = computeDistance(next.players, player.id, target.id, extraDistance);
+  const distance = computeDistance(next, player.id, target.id, extraDistance);
   if (distance !== 1) {
     throw new Error(`Panic! chỉ dùng được ở khoảng cách 1 (khoảng cách hiện tại: ${distance})`);
   }
 
-  const stealEvents = applyPanicEffect(next, player, target, action.targetCardId);
+  const stealEvents = applyPanicEffect(next, player, target, action.targetCardId, action.cardId);
   return {
     state: next,
     events: [{ type: "CARD_PLAYED", playerId: player.id, cardId: action.cardId, targetId: target.id }, ...stealEvents],
@@ -770,12 +927,19 @@ function playPanic(
 // (bản "delayed" của Panic!, cũng không giới hạn khoảng cách — xem
 // activateDelayedEquipment()). Ưu tiên bài trên tay — úp, chọn NGẪU NHIÊN; tay
 // hết bài mới cướp được trên sân, phải chỉ định đúng targetCardId.
+// `attackCardId` = lá Panic!/Rag Time/Conestoga THẬT đang dùng (mục C nhóm B,
+// Apache Kid — kiểm tra chất Rô trước khi áp dụng).
 function applyPanicEffect(
   next: GameState,
   player: PlayerState,
   target: PlayerState,
-  targetCardId: string | undefined
+  targetCardId: string | undefined,
+  attackCardId: string
 ): GameEvent[] {
+  if (getEffectiveCharacterHooks(next, target).isImmuneToCard?.(attackCardId) === true) {
+    return [{ type: "APACHE_KID_IMMUNE", playerId: target.id, fromPlayerId: player.id, cardId: attackCardId }];
+  }
+
   let stolenCardId: string;
   let stolenFromHand = false;
 
@@ -838,11 +1002,20 @@ function playCatBalou(
     throw new Error("Đánh Cat Balou cần chọn bắt mục tiêu bỏ bài từ tay hay từ sân");
   }
 
-  pushDiscardFromZoneReaction(next, target, action.targetZone, { card: "cat_balou", from: player.id });
+  const immunityEvents = pushDiscardFromZoneReaction(
+    next,
+    target,
+    action.targetZone,
+    { card: "cat_balou", from: player.id },
+    action.cardId
+  );
 
   return {
     state: next,
-    events: [{ type: "CARD_PLAYED", playerId: player.id, cardId: action.cardId, targetId: target.id }],
+    events: [
+      { type: "CARD_PLAYED", playerId: player.id, cardId: action.cardId, targetId: target.id },
+      ...immunityEvents,
+    ],
   };
 }
 
@@ -850,13 +1023,20 @@ function playCatBalou(
 // lại cho Brawl (mỗi nạn nhân 1 lần, đẩy theo thứ tự như Gatling) và Can Can
 // (mở rộng Dodge City — bản "delayed" của Cat Balou, xem
 // activateDelayedEquipment()). Dynamite miễn nhiễm (mục 8 file luật) — không
-// tính là "có bài trên sân để bỏ".
+// tính là "có bài trên sân để bỏ". `attackCardId` = lá Cat Balou/Brawl/Can Can
+// THẬT đang dùng (mục C nhóm B, Apache Kid — kiểm tra chất Rô trước khi áp
+// dụng, TRƯỚC CẢ kiểm tra "có gì để bỏ không" — miễn nhiễm thì không cần biết).
 function pushDiscardFromZoneReaction(
   next: GameState,
   target: PlayerState,
   zone: "hand" | "equipment",
-  source: { card: string; from: string }
-): void {
+  source: { card: string; from: string },
+  attackCardId: string
+): GameEvent[] {
+  if (getEffectiveCharacterHooks(next, target).isImmuneToCard?.(attackCardId) === true) {
+    return [{ type: "APACHE_KID_IMMUNE", playerId: target.id, fromPlayerId: source.from, cardId: attackCardId }];
+  }
+
   const discardableCount =
     zone === "hand" ? target.hand.length : target.equipment.filter((id) => cardNameFromId(id) !== "dynamite").length;
   if (discardableCount === 0) {
@@ -868,6 +1048,7 @@ function pushDiscardFromZoneReaction(
   }
 
   next.pending.push({ kind: "NEED_DISCARD_FROM_ZONE", player: target.id, zone, source });
+  return [];
 }
 
 // Mở rộng Dodge City, mục 1.2 — bỏ CÙNG LÚC 1 lá phụ bất kỳ từ tay `player`,
@@ -912,18 +1093,25 @@ function playBrawl(
 
   const targets = otherAlivePlayersInOrder(next, player.id);
   const zones = action.brawlZones ?? {};
+  const immunityEvents: GameEvent[] = [];
   for (let i = targets.length - 1; i >= 0; i--) {
     const target = targets[i];
     const zone = zones[target.id];
     if (!zone) {
       throw new Error(`Đánh Brawl cần chọn vùng bỏ bài (tay/sân) cho người chơi ${target.id}`);
     }
-    pushDiscardFromZoneReaction(next, target, zone, { card: "brawl", from: player.id });
+    immunityEvents.push(
+      ...pushDiscardFromZoneReaction(next, target, zone, { card: "brawl", from: player.id }, action.cardId)
+    );
   }
 
   return {
     state: next,
-    events: [{ type: "CARD_PLAYED", playerId: player.id, cardId: action.cardId }, ...extraEvents],
+    events: [
+      { type: "CARD_PLAYED", playerId: player.id, cardId: action.cardId },
+      ...extraEvents,
+      ...immunityEvents,
+    ],
   };
 }
 
@@ -938,16 +1126,19 @@ function playPunch(
   const target = findLivingTarget(next, player, action.targetId, "Đánh Punch cần chọn mục tiêu", "Không thể tự đánh Punch vào chính mình");
 
   const extraDistance = next.houseRules.includes("extra_distance") ? 1 : 0;
-  const distance = computeDistance(next.players, player.id, target.id, extraDistance);
+  const distance = computeDistance(next, player.id, target.id, extraDistance);
   if (distance > 1) {
     throw new Error(`Punch chỉ dùng được ở khoảng cách 1 (khoảng cách hiện tại: ${distance})`);
   }
 
-  pushMissedReaction(next, target, { card: "punch", from: player.id });
+  const immunityEvents = pushMissedReaction(next, target, { card: "punch", from: player.id }, action.cardId);
 
   return {
     state: next,
-    events: [{ type: "CARD_PLAYED", playerId: player.id, cardId: action.cardId, targetId: target.id }],
+    events: [
+      { type: "CARD_PLAYED", playerId: player.id, cardId: action.cardId, targetId: target.id },
+      ...immunityEvents,
+    ],
   };
 }
 
@@ -961,7 +1152,7 @@ function playRagTime(
 ): Result {
   const target = findLivingTarget(next, player, action.targetId, "Đánh Rag Time cần chọn mục tiêu", "Không thể tự cướp bài của chính mình");
   const extraEvents = discardExtraCard(next, player, "rag_time", action.extraDiscardCardId);
-  const stealEvents = applyPanicEffect(next, player, target, action.targetCardId);
+  const stealEvents = applyPanicEffect(next, player, target, action.targetCardId, action.cardId);
 
   return {
     state: next,
@@ -985,13 +1176,14 @@ function playSpringfield(
   const target = findLivingTarget(next, player, action.targetId, "Đánh Springfield cần chọn mục tiêu", "Không thể tự đánh Springfield vào chính mình");
   const extraEvents = discardExtraCard(next, player, "springfield", action.extraDiscardCardId);
 
-  pushMissedReaction(next, target, { card: "springfield", from: player.id });
+  const immunityEvents = pushMissedReaction(next, target, { card: "springfield", from: player.id }, action.cardId);
 
   return {
     state: next,
     events: [
       { type: "CARD_PLAYED", playerId: player.id, cardId: action.cardId, targetId: target.id },
       ...extraEvents,
+      ...immunityEvents,
     ],
   };
 }
@@ -1133,7 +1325,7 @@ function activateDelayedEquipment(
     // KHÔNG có ký hiệu Missed!, KHÔNG tính vào giới hạn 1 Bang!/lượt (mục 1.4).
     case "derringer": {
       const target = findLivingTarget(next, player, action.targetId, "Kích hoạt Derringer cần chọn mục tiêu", "Không thể tự đánh Derringer vào chính mình");
-      const distance = computeDistance(next.players, player.id, target.id, extraDistance);
+      const distance = computeDistance(next, player.id, target.id, extraDistance);
       if (distance > 1) {
         throw new Error(`Derringer chỉ dùng được ở khoảng cách 1 (khoảng cách hiện tại: ${distance})`);
       }
@@ -1143,16 +1335,16 @@ function activateDelayedEquipment(
       // NEED_MISSED bên dưới).
       const drawnCount = drawCardsForPlayer(next, player, 1);
       if (drawnCount > 0) events.push({ type: "CARDS_DRAWN", playerId: player.id, count: drawnCount });
-      pushMissedReaction(next, target, { card: "derringer", from: player.id });
+      events.push(...pushMissedReaction(next, target, { card: "derringer", from: player.id }, cardId));
       break;
     }
     case "knife": {
       const target = findLivingTarget(next, player, action.targetId, "Kích hoạt Knife cần chọn mục tiêu", "Không thể tự đánh Knife vào chính mình");
-      const distance = computeDistance(next.players, player.id, target.id, extraDistance);
+      const distance = computeDistance(next, player.id, target.id, extraDistance);
       if (distance > 1) {
         throw new Error(`Knife chỉ dùng được ở khoảng cách 1 (khoảng cách hiện tại: ${distance})`);
       }
-      pushMissedReaction(next, target, { card: "knife", from: player.id });
+      events.push(...pushMissedReaction(next, target, { card: "knife", from: player.id }, cardId));
       break;
     }
     case "pepperbox": {
@@ -1160,16 +1352,16 @@ function activateDelayedEquipment(
       // đây là điểm phân biệt 2 lá súng "delayed" này (đã chốt với chủ dự án).
       const target = findLivingTarget(next, player, action.targetId, "Kích hoạt Pepperbox cần chọn mục tiêu", "Không thể tự đánh Pepperbox vào chính mình");
       const range = getWeaponRange(player);
-      const distance = computeDistance(next.players, player.id, target.id, extraDistance);
+      const distance = computeDistance(next, player.id, target.id, extraDistance);
       if (distance > range) {
         throw new Error(`Mục tiêu ngoài tầm bắn của Pepperbox (khoảng cách ${distance}, tầm súng ${range})`);
       }
-      pushMissedReaction(next, target, { card: "pepperbox", from: player.id });
+      events.push(...pushMissedReaction(next, target, { card: "pepperbox", from: player.id }, cardId));
       break;
     }
     case "buffalo_rifle": {
       const target = findLivingTarget(next, player, action.targetId, "Kích hoạt Buffalo Rifle cần chọn mục tiêu", "Không thể tự đánh Buffalo Rifle vào chính mình");
-      pushMissedReaction(next, target, { card: "buffalo_rifle", from: player.id });
+      events.push(...pushMissedReaction(next, target, { card: "buffalo_rifle", from: player.id }, cardId));
       break;
     }
     case "howitzer": {
@@ -1177,7 +1369,7 @@ function activateDelayedEquipment(
       // Gatling (đã chốt với chủ dự án).
       const targets = otherAlivePlayersInOrder(next, player.id);
       for (let i = targets.length - 1; i >= 0; i--) {
-        pushMissedReaction(next, targets[i], { card: "howitzer", from: player.id });
+        events.push(...pushMissedReaction(next, targets[i], { card: "howitzer", from: player.id }, cardId));
       }
       break;
     }
@@ -1185,7 +1377,7 @@ function activateDelayedEquipment(
     // giới hạn khoảng cách (đã chốt với chủ dự án).
     case "conestoga": {
       const target = findLivingTarget(next, player, action.targetId, "Kích hoạt Conestoga cần chọn mục tiêu", "Không thể tự cướp bài của chính mình bằng Conestoga");
-      events.push(...applyPanicEffect(next, player, target, action.targetCardId));
+      events.push(...applyPanicEffect(next, player, target, action.targetCardId, cardId));
       break;
     }
     case "can_can": {
@@ -1193,7 +1385,9 @@ function activateDelayedEquipment(
       if (!action.targetZone) {
         throw new Error("Kích hoạt Can Can cần chọn bắt mục tiêu bỏ bài từ tay hay từ sân");
       }
-      pushDiscardFromZoneReaction(next, target, action.targetZone, { card: "can_can", from: player.id });
+      events.push(
+        ...pushDiscardFromZoneReaction(next, target, action.targetZone, { card: "can_can", from: player.id }, cardId)
+      );
       break;
     }
     case "bible":
@@ -1231,6 +1425,13 @@ function playJail(
   }
   if (target.equipment.some((id) => cardNameFromId(id) === "jail")) {
     throw new Error("Mục tiêu đã có Jail trước mặt, không thể đánh thêm");
+  }
+  // Mở rộng Dodge City, mục C nhóm B (Apache Kid) — đã hỏi lại và chốt: Jail
+  // chất Rô KHÔNG THỂ gắn lên Apache Kid, chặn NGAY LÚC ĐÁNH (khác Bang!-like/
+  // Cat Balou/Panic! — lá vẫn "dùng" được nhưng vô hiệu; Jail thì bị từ chối
+  // hẳn, y hệt cách chặn Cảnh sát trưởng ở trên).
+  if (getEffectiveCharacterHooks(next, target).isImmuneToCard?.(action.cardId) === true) {
+    throw new Error("Apache Kid miễn nhiễm với lá chất Rô — không thể đánh Jail chất Rô lên người này");
   }
 
   target.equipment.push(action.cardId);
@@ -1306,7 +1507,10 @@ function playBeer(next: GameState, player: PlayerState, cardId: string): Result 
   // sống" của luật gốc, coi như luôn đủ điều kiện hồi máu.
   const beerWorksBelowTwo = next.houseRules.includes("beer_below_two");
   if (aliveCount > 2 || beerWorksBelowTwo) {
-    const restored = Math.min(1, player.maxHp - player.hp);
+    // Mở rộng Dodge City, mục C nhóm B (Tequila Joe) — modifyHealAmount CHỈ
+    // áp dụng ở ĐÂY (đúng lời chốt "chỉ Beer hồi 2, các lá hồi máu khác vẫn 1").
+    const baseHeal = getEffectiveCharacterHooks(next, player).modifyHealAmount?.("beer", 1) ?? 1;
+    const restored = Math.min(baseHeal, player.maxHp - player.hp);
     if (restored > 0) {
       player.hp += restored;
       events.push({ type: "HP_RESTORED", playerId: player.id, amount: restored });
@@ -1377,50 +1581,225 @@ function drawCardsForPlayer(next: GameState, player: PlayerState, count: number)
   return drawnCount;
 }
 
+// Kỹ năng CHỦ ĐỘNG dùng CHUNG action USE_ABILITY cho 3 nhân vật khác nhau —
+// tự nhánh theo field tĩnh nào có mặt trên CharacterDefinition (mỗi người chỉ
+// có ĐÚNG 1 nhân vật nên không lo đụng nhau). Xem ghi chú chi tiết từng nhánh
+// ở 3 hàm con bên dưới.
+function handleUseAbility(state: GameState, action: Action & { type: "USE_ABILITY" }): Result {
+  const player = state.players.find((p) => p.id === action.playerId);
+  // Bất biến: alive => hp > 0 (xem eliminatePlayer()) — không cần kiểm tra hp
+  // riêng, chỉ cần loại người chơi không tồn tại/đã chết.
+  if (!player || !player.alive) {
+    throw new Error("Người chơi không hợp lệ hoặc đã chết");
+  }
+
+  // Mở rộng Dodge City, mục C nhóm C (Vera Custer) — getEffectiveCharacterDefinition()
+  // thay getCharacterDefinition(player.characterId) trực tiếp, để mượn được
+  // CẢ kỹ năng chủ động (Sid Ketchum/Chuck Wengam/José Delgado/Doc Holyday).
+  const definition = getEffectiveCharacterDefinition(state, player);
+  if (definition?.canSelfHeal === true) return useSidKetchumHeal(state, action, player);
+  if (definition?.canPayLifeToDraw === true) return useChuckWengamTrade(state, action, player);
+  if (definition?.canDiscardEquipmentToDraw === true) return useJoseDelgadoTrade(state, action, player);
+  if (definition?.canDiscardTwoForBang === true) return useDocHolydayShot(state, action, player);
+  throw new Error("Nhân vật này không có kỹ năng chủ động này");
+}
+
 // Giai đoạn 5 (Sid Ketchum, đợt 7) — kỹ năng CHỦ ĐỘNG, dùng được BẤT CỨ LÚC
 // NÀO: KHÔNG gọi assertCurrentPlayer()/kiểm tra state.pending.length như mọi
 // action khác (cố tình — đây là điểm khác biệt duy nhất của action này so
 // với phần còn lại của reduce.ts). Chỉ đổi hand/discardPile/hp của CHÍNH
 // player này — không đụng gì tới lượt/pending/turnPhase của bất kỳ ai, kể cả
 // khi dùng lúc không phải lượt/phản ứng của mình.
-function handleUseAbility(state: GameState, action: Action & { type: "USE_ABILITY" }): Result {
+function useSidKetchumHeal(state: GameState, action: Action & { type: "USE_ABILITY" }, player: PlayerState): Result {
   const next = cloneState(state);
-  const player = next.players.find((p) => p.id === action.playerId);
-  // Bất biến: alive => hp > 0 (xem eliminatePlayer()) — không cần kiểm tra hp
-  // riêng, chỉ cần loại người chơi không tồn tại/đã chết.
-  if (!player || !player.alive) {
-    throw new Error("Người chơi không hợp lệ hoặc đã chết");
-  }
-  if (getCharacterDefinition(player.characterId)?.canSelfHeal !== true) {
-    throw new Error("Nhân vật này không có kỹ năng chủ động này");
-  }
+  const nextPlayer = next.players.find((p) => p.id === player.id)!;
 
   const [cardId1, cardId2] = action.cardIds;
-  if (cardId1 === cardId2) {
-    throw new Error("Phải chọn 2 lá KHÁC NHAU để bỏ");
+  if (cardId1 === undefined || cardId2 === undefined || action.cardIds.length !== 2 || cardId1 === cardId2) {
+    throw new Error("Phải chọn ĐÚNG 2 lá KHÁC NHAU để bỏ");
   }
-  const index1 = player.hand.indexOf(cardId1);
-  const index2 = player.hand.indexOf(cardId2);
+  const index1 = nextPlayer.hand.indexOf(cardId1);
+  const index2 = nextPlayer.hand.indexOf(cardId2);
   if (index1 === -1 || index2 === -1) {
     throw new Error("Cả 2 lá phải nằm trong tay của chính bạn");
   }
 
   // Bỏ theo chỉ số GIẢM DẦN để splice() không làm lệch chỉ số của nhau.
   for (const index of [index1, index2].sort((a, b) => b - a)) {
-    const [cardId] = player.hand.splice(index, 1);
+    const [cardId] = nextPlayer.hand.splice(index, 1);
     next.discardPile.push(cardId);
   }
 
-  const handEmptyEvents = triggerHandEmptyHook(next, player); // Giai đoạn 5 (Suzy Lafayette)
+  const handEmptyEvents = triggerHandEmptyHook(next, nextPlayer); // Giai đoạn 5 (Suzy Lafayette)
 
-  const restored = Math.min(1, player.maxHp - player.hp);
-  player.hp += restored;
+  const restored = Math.min(1, nextPlayer.maxHp - nextPlayer.hp);
+  nextPlayer.hp += restored;
 
   return {
     state: next,
     events: [
-      { type: "SID_KETCHUM_HEALED", playerId: player.id, cardIds: [cardId1, cardId2], amount: restored },
+      { type: "SID_KETCHUM_HEALED", playerId: nextPlayer.id, cardIds: [cardId1, cardId2], amount: restored },
       ...handEmptyEvents,
+    ],
+  };
+}
+
+// Mở rộng Dodge City, mục C nhóm A (Chuck Wengam) — CHỈ dùng được TRONG lượt
+// của chính mình (khác Sid Ketchum), lặp lại được nhiều lần trong CÙNG 1
+// lượt: mất 1 máu để rút 2 lá, chặn nếu chỉ còn đúng 1 máu (không được tự sát
+// bằng cách này). Không bỏ lá nào — `action.cardIds` phải rỗng.
+function useChuckWengamTrade(
+  state: GameState,
+  action: Action & { type: "USE_ABILITY" },
+  player: PlayerState
+): Result {
+  assertCurrentPlayer(state, player.id);
+  assertPhase(state, "play");
+  if (state.pending.length > 0) {
+    throw new Error("Không thể dùng kỹ năng khi còn việc đang chờ xử lý");
+  }
+  if (action.cardIds.length > 0) {
+    throw new Error("Kỹ năng này không cần bỏ lá nào — chỉ tốn máu");
+  }
+  if (player.hp <= 1) {
+    throw new Error("Không thể mất máu cuối cùng theo cách này");
+  }
+
+  const next = cloneState(state);
+  const nextPlayer = next.players.find((p) => p.id === player.id)!;
+
+  nextPlayer.hp -= 1;
+  const drawnCount = drawCardsForPlayer(next, nextPlayer, DRAW_COUNT);
+
+  return {
+    state: next,
+    events: [{ type: "CHUCK_WENGAM_TRADED_LIFE", playerId: nextPlayer.id, count: drawnCount }],
+  };
+}
+
+// Mở rộng Dodge City, mục C nhóm A (José Delgado) — CHỈ dùng được TRONG lượt
+// của chính mình (khác Sid Ketchum), tối đa 2 LẦN/lượt (đếm bằng
+// GameState.joseDelgadoUsesThisTurn, reset ở advanceTurn()): bỏ ĐÚNG 1 lá
+// xanh dương (equipment "instant" — isSelfEquipBlueCardName(), KHÔNG tính lá
+// vàng "delayed", đã chốt ở LO-TRINH.md "Ghi chú cho 5.4" mục C.8) từ tay để
+// rút 2 lá.
+function useJoseDelgadoTrade(
+  state: GameState,
+  action: Action & { type: "USE_ABILITY" },
+  player: PlayerState
+): Result {
+  assertCurrentPlayer(state, player.id);
+  assertPhase(state, "play");
+  if (state.pending.length > 0) {
+    throw new Error("Không thể dùng kỹ năng khi còn việc đang chờ xử lý");
+  }
+  if (state.joseDelgadoUsesThisTurn >= 2) {
+    throw new Error("Đã dùng kỹ năng này đủ 2 lần trong lượt này");
+  }
+  const [cardId] = action.cardIds;
+  if (cardId === undefined || action.cardIds.length !== 1) {
+    throw new Error("Phải chọn ĐÚNG 1 lá xanh dương để bỏ");
+  }
+  const cardIndex = player.hand.indexOf(cardId);
+  if (cardIndex === -1) {
+    throw new Error("Lá này phải nằm trong tay của chính bạn");
+  }
+  if (!isSelfEquipBlueCardName(cardNameFromId(cardId))) {
+    throw new Error("Chỉ được bỏ lá xanh dương (trang bị) cho kỹ năng này, không tính lá vàng");
+  }
+
+  const next = cloneState(state);
+  const nextPlayer = next.players.find((p) => p.id === player.id)!;
+
+  const [discardedCardId] = nextPlayer.hand.splice(nextPlayer.hand.indexOf(cardId), 1);
+  next.discardPile.push(discardedCardId);
+  const handEmptyEvents = triggerHandEmptyHook(next, nextPlayer); // Giai đoạn 5 (Suzy Lafayette)
+
+  next.joseDelgadoUsesThisTurn += 1;
+  const drawnCount = drawCardsForPlayer(next, nextPlayer, DRAW_COUNT);
+
+  return {
+    state: next,
+    events: [
+      { type: "JOSE_DELGADO_TRADED_EQUIPMENT", playerId: nextPlayer.id, cardId: discardedCardId, count: drawnCount },
+      ...handEmptyEvents,
+    ],
+  };
+}
+
+// Mở rộng Dodge City, mục C nhóm C (Doc Holyday) — CHỈ dùng được TRONG lượt
+// của chính mình (khác Sid Ketchum), tối đa 1 LẦN/lượt: bỏ ĐÚNG 2 lá KHÁC
+// NHAU bất kỳ (không cần cùng tên, khác José Delgado) để bắn hiệu ứng Bang!
+// nhắm `action.targetId` (bắt buộc), trong tầm súng đang cầm, KHÔNG tính vào
+// giới hạn 1 Bang!/lượt (không đụng next.bangUsedThisTurn).
+function useDocHolydayShot(
+  state: GameState,
+  action: Action & { type: "USE_ABILITY" },
+  player: PlayerState
+): Result {
+  assertCurrentPlayer(state, player.id);
+  assertPhase(state, "play");
+  if (state.pending.length > 0) {
+    throw new Error("Không thể dùng kỹ năng khi còn việc đang chờ xử lý");
+  }
+  if (state.docHolydayUsedThisTurn) {
+    throw new Error("Đã dùng kỹ năng này trong lượt này");
+  }
+  const [cardId1, cardId2] = action.cardIds;
+  if (cardId1 === undefined || cardId2 === undefined || action.cardIds.length !== 2 || cardId1 === cardId2) {
+    throw new Error("Phải chọn ĐÚNG 2 lá KHÁC NHAU để bỏ");
+  }
+  const index1 = player.hand.indexOf(cardId1);
+  const index2 = player.hand.indexOf(cardId2);
+  if (index1 === -1 || index2 === -1) {
+    throw new Error("Cả 2 lá phải nằm trong tay của chính bạn");
+  }
+  if (!action.targetId) {
+    throw new Error("Kỹ năng này cần chọn mục tiêu");
+  }
+  if (action.targetId === player.id) {
+    throw new Error("Không thể tự nhắm vào chính mình");
+  }
+  const target = state.players.find((p) => p.id === action.targetId);
+  if (!target || !target.alive) {
+    throw new Error("Mục tiêu không hợp lệ");
+  }
+  const range = getWeaponRange(player);
+  const extraDistance = state.houseRules.includes("extra_distance") ? 1 : 0;
+  const distance = computeDistance(state, player.id, target.id, extraDistance);
+  if (distance > range) {
+    throw new Error(`Mục tiêu ngoài tầm bắn (khoảng cách ${distance}, tầm súng ${range})`);
+  }
+
+  const next = cloneState(state);
+  const nextPlayer = next.players.find((p) => p.id === player.id)!;
+  const nextTarget = next.players.find((p) => p.id === target.id)!;
+
+  // Bỏ theo chỉ số GIẢM DẦN để splice() không làm lệch chỉ số của nhau.
+  for (const index of [index1, index2].sort((a, b) => b - a)) {
+    const [cardId] = nextPlayer.hand.splice(index, 1);
+    next.discardPile.push(cardId);
+  }
+  const handEmptyEvents = triggerHandEmptyHook(next, nextPlayer); // Giai đoạn 5 (Suzy Lafayette)
+  next.docHolydayUsedThisTurn = true;
+
+  // Apache Kid: miễn nhiễm CHỈ khi CẢ 2 lá bỏ ra đều chất Rô — khác luật
+  // chung "1 lá Rô là đủ" của isImmuneToCard/pushMissedReaction() (đã hỏi lại
+  // và chốt riêng cho Doc Holyday) — nên KHÔNG tái dùng pushMissedReaction()
+  // nguyên hàm, tự tính miễn nhiễm rồi gọi thẳng phần đẩy pending không điều
+  // kiện (pushMissedReactionUnconditional()).
+  const immuneHook = getEffectiveCharacterHooks(next, nextTarget).isImmuneToCard;
+  const immune = immuneHook !== undefined && immuneHook(cardId1) && immuneHook(cardId2);
+  const shotEvents: GameEvent[] = immune
+    ? [{ type: "APACHE_KID_IMMUNE", playerId: nextTarget.id, fromPlayerId: nextPlayer.id, cardId: cardId1 }]
+    : pushMissedReactionUnconditional(next, nextTarget, { card: "doc_holyday", from: nextPlayer.id });
+
+  return {
+    state: next,
+    events: [
+      { type: "DOC_HOLYDAY_SHOT", playerId: nextPlayer.id, cardIds: [cardId1, cardId2], targetId: nextTarget.id },
+      ...handEmptyEvents,
+      ...shotEvents,
     ],
   };
 }
@@ -1545,6 +1924,10 @@ function handleRespond(state: GameState, action: Action & { type: "RESPOND" }): 
       return respondToGiveCardToPlayer(state, action, top);
     case "NEED_PICK_KEPT_CARDS":
       return respondToPickKeptCards(state, action, top);
+    case "NEED_PICK_DRAW_OR_EQUIPMENT":
+      return respondToPickDrawOrEquipment(state, action);
+    case "NEED_PICK_BORROWED_CHARACTER":
+      return respondToPickBorrowedCharacter(state, action);
     default: {
       const neverKind: never = top;
       throw new Error(`Chưa hỗ trợ phản hồi loại việc: ${JSON.stringify(neverKind)}`);
@@ -1578,7 +1961,7 @@ function respondDiscardOrDamage(
     // "bang" (chỉ NEED_DISCARD_BANG/Indians! còn dùng hàm này) nên chấp nhận
     // luôn lá Missed! của Janet qua actsAsBang(); giữ nhánh so khớp thường cho
     // an toàn nếu sau này có ai gọi hàm này với requiredCardName khác "bang".
-    const isValidCard = requiredCardName === "bang" ? actsAsBang(action.cardId, player) : cardName === requiredCardName;
+    const isValidCard = requiredCardName === "bang" ? actsAsBang(next, action.cardId, player) : cardName === requiredCardName;
     if (!isValidCard) {
       throw new Error(`Lá "${cardName}" không hợp lệ cho việc đang chờ này`);
     }
@@ -1587,6 +1970,11 @@ function respondDiscardOrDamage(
     next.discardPile.push(action.cardId);
     const events: GameEvent[] = [{ type: playedEventType, playerId: player.id }];
     events.push(...triggerHandEmptyHook(next, player)); // Giai đoạn 5 (Suzy Lafayette)
+    // Mở rộng Dodge City, mục C nhóm C (Molly Stark) — bỏ Bang! tự vệ trước
+    // Indians! LUÔN là "ngoài lượt mình" (đúng hàm này chỉ dùng cho
+    // NEED_DISCARD_BANG/Indians!, không phải Duel) — đã CHỐT tính là chủ
+    // động, context "immediate", rút ngay.
+    events.push(...triggerVoluntaryOutOfTurnHook(next, player, "bang", "immediate"));
     return { state: next, events };
   }
 
@@ -1615,14 +2003,30 @@ function respondToMissed(
     // SẴN trên sân (Bible/Sombrero/Ten Gallon Hat/Iron Plate), miễn đã qua ít
     // nhất 1 lượt kể từ lúc chơi ra. Kiểm TRƯỚC actsAsMissed() (hàm đó chỉ
     // biết về bài TRÊN TAY/alias Janet, không biết gì về trang bị).
-    const fromEquipment = !inHand && isUsableDelayedMissedEquipment(next, player, action.cardId);
+    const fromEquipment = !inHand && isEquipmentUsableAsMissed(next, player, action.cardId);
 
     // Giai đoạn 5 (Calamity Janet, đợt 7) — chấp nhận cả lá Bang! của Janet để đỡ.
-    if (!fromEquipment && (!inHand || !actsAsMissed(action.cardId, player))) {
+    if (!fromEquipment && (!inHand || !actsAsMissed(next, action.cardId, player))) {
       if (inHand) {
         throw new Error(`Lá "${cardName}" không hợp lệ cho việc đang chờ này`);
       }
       if (player.equipment.includes(action.cardId)) {
+        // Mở rộng Dodge City, mục C nhóm B (Elena Fuente) — Dynamite LUÔN bị
+        // loại trừ (kể cả với canUseOwnEquipmentAsMissed), không phải vì
+        // "chưa đủ 1 lượt" — báo lỗi riêng để khỏi gây hiểu nhầm.
+        if (cardName === "dynamite") {
+          throw new Error("Thuốc nổ không bao giờ dùng được như Missed!");
+        }
+        // Mở rộng Dodge City, mục C nhóm C (Belle Star) — phân biệt rõ "đang
+        // bị vô hiệu hoá tạm thời" với "chưa đủ 1 lượt" (2 lý do khác hẳn
+        // nhau, dùng chung 1 thông báo dễ gây hiểu nhầm là bug).
+        const currentPlayer = next.players[next.currentPlayerIndex];
+        if (
+          getEffectiveCharacterDefinition(next, currentPlayer)?.disablesOthersEquipment === true &&
+          player.id !== currentPlayer.id
+        ) {
+          throw new Error(`"${cardName}" đang bị Belle Star vô hiệu hoá tạm thời trong lượt này`);
+        }
         throw new Error(`"${cardName}" vừa được đánh ra lượt này — phải chờ ít nhất 1 lượt mới dùng được`);
       }
       throw new Error(`Người chơi ${player.id} không có lá bài ${action.cardId} trong tay`);
@@ -1672,6 +2076,10 @@ function respondToMissed(
     if (!fromEquipment) {
       events.push(...triggerHandEmptyHook(next, player)); // Giai đoạn 5 (Suzy Lafayette)
     }
+    // Mở rộng Dodge City, mục C nhóm C (Molly Stark) — dùng Missed! LÀ luôn
+    // "ngoài lượt mình" (NEED_MISSED không bao giờ nhắm chính người đang tới
+    // lượt) — context "immediate", rút ngay.
+    events.push(...triggerVoluntaryOutOfTurnHook(next, player, cardName, "immediate"));
     return { state: next, events };
   }
 
@@ -1694,7 +2102,7 @@ function respondToDuel(
     }
     const cardName = cardNameFromId(action.cardId);
     // Giai đoạn 5 (Calamity Janet, đợt 7) — chấp nhận cả lá Missed! của Janet để đỡ.
-    if (!actsAsBang(action.cardId, player)) {
+    if (!actsAsBang(next, action.cardId, player)) {
       throw new Error(`Lá "${cardName}" không đỡ được Duel, cần Bang!`);
     }
 
@@ -1711,10 +2119,35 @@ function respondToDuel(
 
     const events: GameEvent[] = [{ type: "BANG_DISCARDED", playerId: player.id }];
     events.push(...triggerHandEmptyHook(next, player)); // Giai đoạn 5 (Suzy Lafayette)
+    // Mở rộng Dodge City, mục C nhóm C (Molly Stark) — bỏ Bang! trong Duel:
+    // context "duel" (KHÔNG rút ngay, dồn lại — xem ghi chú hook ở
+    // characters.ts). Duel vẫn còn tiếp diễn (vừa đẩy lại NEED_DUEL_RESPONSE ở
+    // trên) nên chưa phải lúc "kết thúc thật sự" — chỉ ghi nhận, chưa rút.
+    events.push(...triggerVoluntaryOutOfTurnHook(next, player, "bang", "duel"));
     return { state: next, events };
   }
 
-  return { state: next, events: applyDamage(next, player, 1, top.opponent) };
+  // Duel kết thúc thật sự (thua) — rút hết số Bang! Molly Stark đã dồn (nếu có).
+  return {
+    state: next,
+    events: [...applyDamage(next, player, 1, top.opponent), ...drainDuelBangDrawPending(next)],
+  };
+}
+
+// Mở rộng Dodge City, mục C nhóm C (Molly Stark) — rút hết số lá đã dồn khi
+// Đấu tay đôi (Duel) THẬT SỰ kết thúc (mốc: nhánh thua ở respondToDuel() —
+// không có Bang! để đỡ nữa). Không quan tâm ai thắng/thua — Molly Stark được
+// tính công bất kể kết quả cuối cùng, chỉ cần cô ĐÃ chủ động bỏ Bang! ngoài
+// lượt mình trong ván Duel đó.
+function drainDuelBangDrawPending(next: GameState): GameEvent[] {
+  const pending = next.duelBangDrawPending;
+  next.duelBangDrawPending = null;
+  if (!pending) return [];
+  const player = next.players.find((p) => p.id === pending.playerId);
+  if (!player) return [];
+  const drawnCount = drawCardsForPlayer(next, player, pending.count);
+  if (drawnCount === 0) return [];
+  return [{ type: "CARDS_DRAWN", playerId: player.id, count: drawnCount }];
 }
 
 function respondToStorePick(state: GameState, action: Action & { type: "RESPOND" }): Result {
@@ -1830,7 +2263,7 @@ function resolveDrawCheck(
   // Jail dùng "hoặc" (chỉ cần 1 lá khớp là đủ), Dynamite dùng "và" (cả 2 đều
   // phải khớp mới thật sự nổ, còn không thì đã có ít nhất 1 lá không khớp).
   const drawer = next.players.find((p) => p.id === top.player);
-  const hasLuckyDraw = getCharacterDefinition(drawer?.characterId ?? null)?.hasLuckyDraw === true;
+  const hasLuckyDraw = (drawer ? getEffectiveCharacterDefinition(next, drawer)?.hasLuckyDraw : undefined) === true;
   if (hasLuckyDraw) {
     const secondCardId = drawTopCard(next);
     if (secondCardId) {
@@ -1966,7 +2399,7 @@ function triggerLoseLifeHooks(
   amount: number,
   byPlayerId: string | null
 ): GameEvent[] {
-  const hooks = getCharacterHooks(target.characterId);
+  const hooks = getEffectiveCharacterHooks(next, target);
   const events: GameEvent[] = [];
   if (hooks.onLoseLife) events.push(...hooks.onLoseLife(next, target, amount));
   if (byPlayerId && hooks.onLoseLifeFromCard) {
@@ -2000,9 +2433,22 @@ function eliminateIfDead(next: GameState, target: PlayerState, killerId: string 
     const [beerId] = target.hand.splice(beerIndex, 1);
     next.discardPile.push(beerId);
     target.hp = 1;
+    // Mở rộng Dodge City, mục C nhóm B (Tequila Joe) — cộng thêm RIÊNG +1 máu
+    // nữa (không qua modifyHealAmount, đã chốt — xem ghi chú doubleRevivalHp
+    // ở characters.ts), tổng 2 máu sau hồi sinh.
+    if (getEffectiveCharacterDefinition(next, target)?.doubleRevivalHp === true) {
+      target.hp = Math.min(target.hp + 1, target.maxHp);
+    }
     return [
-      { type: "BEER_SAVED_FROM_DEATH", playerId: target.id, cardId: beerId },
+      { type: "BEER_SAVED_FROM_DEATH", playerId: target.id, cardId: beerId, hp: target.hp },
       ...triggerHandEmptyHook(next, target), // Giai đoạn 5 (Suzy Lafayette) — nếu Bia vừa bỏ là lá cuối
+      // Mở rộng Dodge City, mục C nhóm C (Molly Stark) — hồi sinh tự động là
+      // ĐƯỜNG DUY NHẤT "chơi Beer ngoài lượt" thật sự tồn tại trong engine
+      // (playBeer() bình thường luôn bắt buộc đúng lượt mình) — nhưng
+      // triggerVoluntaryOutOfTurnHook() tự loại đúng ca "tự nổ Dynamite chết
+      // ngay trong lượt chính mình" (không tính là ngoài lượt), khớp chính
+      // xác lời chốt.
+      ...triggerVoluntaryOutOfTurnHook(next, target, "beer", "immediate"),
     ];
   }
 
@@ -2030,7 +2476,7 @@ function eliminatePlayer(next: GameState, target: PlayerState, killerId: string 
   const deathHookEvents: GameEvent[] = [];
   for (const player of next.players) {
     if (!player.alive || player.id === target.id) continue;
-    const hooks = getCharacterHooks(player.characterId);
+    const hooks = getEffectiveCharacterHooks(next, player);
     if (hooks.onAnyDeath) deathHookEvents.push(...hooks.onAnyDeath(next, player, target));
   }
 
@@ -2073,6 +2519,19 @@ function eliminatePlayer(next: GameState, target: PlayerState, killerId: string 
       if (killerHadCards) {
         events.push(...triggerHandEmptyHook(next, killer));
       }
+    } else if (target.role === "police" || target.role === "criminal" || target.role === "traitor") {
+      // Mở rộng Dodge City, mục D (biến thể 3 người) — hạ BẤT KỲ ai, kể cả sai
+      // vòng tròn săn đuổi, đều được thưởng ngay 3 lá rút. Khác nguồn thưởng
+      // "hạ đúng Outlaw" ở nhánh trên — 2 nguồn không đụng nhau vì role của
+      // biến thể 3 người ("police"/"criminal"/"traitor") không trùng "outlaw".
+      let drawnCount = 0;
+      for (let i = 0; i < 3; i++) {
+        const card = drawTopCard(next);
+        if (!card) break;
+        giveCardToPlayer(next.players, killer, card);
+        drawnCount++;
+      }
+      events.push({ type: "HUNT_KILL_BOUNTY_DRAWN", playerId: killer.id, count: drawnCount });
     }
   }
 
@@ -2116,18 +2575,41 @@ function advanceTurn(next: GameState): void {
   next.bangUsedThisTurn = false;
   next.cardNamesPlayedThisTurn = []; // việc 5.3 (house rule "no_duplicate_card_names")
   next.turnNumber += 1; // mở rộng Dodge City, mục 1.1 (xem GameState.turnNumber ở types.ts)
+  next.joseDelgadoUsesThisTurn = 0; // mở rộng Dodge City, mục C nhóm A (José Delgado)
+  next.docHolydayUsedThisTurn = false; // mở rộng Dodge City, mục C nhóm C (Doc Holyday)
   applyTurnStartChecks(next);
+}
+
+// Bước ĐẦU TIÊN của lượt (mở rộng Dodge City, mục C nhóm C — Vera Custer, đã
+// hỏi lại và chốt): TRƯỚC CẢ Dynamite/Jail, nếu người tới lượt có
+// canBorrowCharacterAbilities (chỉ Vera Custer) VÀ có ít nhất 1 người chơi
+// khác còn sống đã có nhân vật, HỎI chọn mượn ai — vì lựa chọn này có thể ảnh
+// hưởng tới CHÍNH draw!-check Dynamite/Jail sắp tới (vd mượn Lucky Duke).
+// Không có ai để mượn thì bỏ qua, xét thẳng Dynamite/Jail như bình thường.
+// Export để setup.ts gọi cho LƯỢT ĐẦU TIÊN của ván (setupGame không đi qua
+// advanceTurn, nhưng lượt đầu vẫn phải qua đủ các bước này nếu cần).
+export function applyTurnStartChecks(next: GameState): void {
+  const player = next.players[next.currentPlayerIndex];
+  if (getEffectiveCharacterDefinition(next, player)?.canBorrowCharacterAbilities === true) {
+    const candidates = otherAlivePlayersInOrder(next, player.id).filter((p) => p.characterId !== null);
+    if (candidates.length > 0) {
+      next.pending.push({ kind: "NEED_PICK_BORROWED_CHARACTER", player: player.id });
+      return;
+    }
+  }
+  applyDynamiteAndJailChecks(next, player);
 }
 
 // Bước 0 đầu lượt (mục 4 file luật): Dynamite kiểm tra TRƯỚC (có thể giết luôn,
 // khỏi xét Jail), Jail SAU. Chỉ đẩy pending cho bước đang xét đầu tiên còn áp
 // dụng — bước tiếp theo (vd Jail sau khi Dynamite nổ/chuyển xong) được
 // resolveDrawCheck() đẩy tiếp sau khi xử lý xong hậu quả của bước trước, không
-// đẩy cả 2 cùng lúc ở đây. Export để setup.ts gọi cho LƯỢT ĐẦU TIÊN của ván
-// (setupGame không đi qua advanceTurn, nhưng lượt đầu vẫn phải qua Bước 0 nếu
-// ai đó chẳng may được chia Dynamite ngay lúc setup).
-export function applyTurnStartChecks(next: GameState): void {
-  const player = next.players[next.currentPlayerIndex];
+// đẩy cả 2 cùng lúc ở đây. TÁCH RIÊNG khỏi applyTurnStartChecks() (mở rộng
+// Dodge City, mục C nhóm C) để respondToPickBorrowedCharacter() gọi thẳng vào
+// đây SAU KHI đã ghi nhận xong lựa chọn mượn — không quay lại từ đầu
+// applyTurnStartChecks() (sẽ hỏi lại vô hạn vì Vera Custer vẫn còn
+// canBorrowCharacterAbilities).
+function applyDynamiteAndJailChecks(next: GameState, player: PlayerState): void {
   if (player.equipment.some((id) => cardNameFromId(id) === "dynamite")) {
     next.pending.push({
       kind: "NEED_DRAW_CHECK",

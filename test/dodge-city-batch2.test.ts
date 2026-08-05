@@ -5,8 +5,8 @@
 // (7 tên trùng bộ cơ bản — cũng chỉ đổi dữ liệu; Brawl/Dodge/Punch/Rag Time/
 // Springfield/Tequila/Whisky mới), và 7 lá vàng còn lại (Derringer/Conestoga/
 // Can Can/Buffalo Rifle/Knife/Pepperbox/Howitzer). File này chỉ kiểm luồng
-// reduce() với state dựng thẳng — xem test/setup.test.ts's describe("house
-// rule 'extra_cards'") cho phần bộ bài.
+// reduce() với state dựng thẳng — xem test/setup.test.ts's describe("bộ mở
+// rộng 'dodge_city'") cho phần bộ bài.
 import { describe, expect, it } from "vitest";
 import { reduce } from "../src/core/reduce";
 import type { GameState, PlayerState } from "../src/core/types";
@@ -40,7 +40,12 @@ function makeState(players: PlayerState[], overrides: Partial<GameState> = {}): 
     characterSelection: null,
     turnNumber: 0,
     equipmentPlayedTurn: {},
+    joseDelgadoUsesThisTurn: 0,
+    docHolydayUsedThisTurn: false,
+    duelBangDrawPending: null,
+    veraCusterBorrowedCharacterId: null,
     houseRules: [],
+    expansions: [],
     cardNamesPlayedThisTurn: [],
     ...overrides,
   };

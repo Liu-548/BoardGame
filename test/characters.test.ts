@@ -38,7 +38,12 @@ function makeState(overrides: Partial<GameState> = {}): GameState {
     characterSelection: null,
     turnNumber: 0,
     equipmentPlayedTurn: {},
+    joseDelgadoUsesThisTurn: 0,
+    docHolydayUsedThisTurn: false,
+    duelBangDrawPending: null,
+    veraCusterBorrowedCharacterId: null,
     houseRules: [],
+    expansions: [],
     cardNamesPlayedThisTurn: [],
     ...overrides,
   };
@@ -63,7 +68,7 @@ describe("modifyDistance", () => {
     const players = ["a", "b", "c", "d", "e"].map((id) => makePlayer(id));
     players[1] = makePlayer("b", { characterId: TEST_ID });
 
-    expect(computeDistance(players, "a", "b")).toBe(2); // gốc 1, +1 nhân vật
+    expect(computeDistance(makeState({ players }), "a", "b")).toBe(2); // gốc 1, +1 nhân vật
   });
 
   it("vai attacker: trừ khoảng cách, giống Ống nhắm ảo (Rose Doolan)", () => {
@@ -78,7 +83,7 @@ describe("modifyDistance", () => {
     const players = ["a", "b", "c", "d", "e"].map((id) => makePlayer(id));
     players[0] = makePlayer("a", { characterId: TEST_ID });
 
-    expect(computeDistance(players, "a", "c")).toBe(1); // gốc 2, -1 nhân vật
+    expect(computeDistance(makeState({ players }), "a", "c")).toBe(1); // gốc 2, -1 nhân vật
   });
 
   it("cộng dồn được với Ống nhắm/Ngựa Mustang THẬT, không tách riêng", () => {
@@ -94,12 +99,12 @@ describe("modifyDistance", () => {
     players[0] = makePlayer("a", { characterId: TEST_ID, equipment: ["scope_1"] });
 
     // Gốc 2 (a-c), -1 Ống nhắm thật, -1 nhân vật giả -> 0, chặn sàn ở 1.
-    expect(computeDistance(players, "a", "c")).toBe(1);
+    expect(computeDistance(makeState({ players }), "a", "c")).toBe(1);
   });
 
   it("không có characterId thì không đụng gì tới khoảng cách", () => {
     const players = ["a", "b", "c", "d", "e"].map((id) => makePlayer(id));
-    expect(computeDistance(players, "a", "c")).toBe(2);
+    expect(computeDistance(makeState({ players }), "a", "c")).toBe(2);
   });
 });
 
