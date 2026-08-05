@@ -219,18 +219,25 @@ hoá" bình thường, chỉ HIỆU ỨNG tắt chứ lá không biến mất) h
 chỉ tự đọc equipment của chính người đang hành động (luôn miễn nhiễm với
 chính mình).
 
-**LƯU Ý QUAN TRỌNG (áp dụng cho CẢ 3 nhóm A/B/C)**: `dealCharacterCards: true`
-đã HARDCODE bật thật trong `room.ts` — nghĩa là ngay khi code này được DEPLOY
-(kể cả bản beta), cả 14 nhân vật (nhóm A+B+C) có thể bị phát ngẫu nhiên cho
-người chơi THẬT. Đa số hoạt động ĐÚNG hoàn toàn dù chưa có UI riêng (hiệu ứng
+**LƯU Ý (ĐÃ SỬA, xem CLAUDE.md)**: đoạn dưới đây mô tả rủi ro CŨ — `dealCharacterCards: true`
+hardcode bật thật trong `room.ts` khiến 14 nhân vật (nhóm A+B+C) CÓ THỂ bị phát
+ngẫu nhiên cho người chơi THẬT ngay khi deploy dù chưa có UI. Rủi ro này đã hết:
+bổ sung theo yêu cầu chủ dự án (2026-08-05), 15 nhân vật Dodge City giờ CHỈ vào
+bộ bốc khi chủ phòng chủ động tick bộ mở rộng "dodge_city" (checkbox riêng, xem
+`ExpansionId` ở `types.ts` + lọc ở `setup.ts`) — ván thật KHÔNG tick thì không
+bao giờ phát nhầm nhân vật Dodge City nào nữa. Giữ nguyên đoạn mô tả cũ bên dưới
+để biết CHÍNH XÁC nhân vật nào còn thiếu UI (Pat Brennan/Chuck Wengam/José
+Delgado/Doc Holyday — dùng chung `USE_ABILITY`, hiện **CHƯA CÓ NÚT BẤM NÀO cho
+action này, kể cả Sid Ketchum** — phát hiện lúc rà UI mảng lá vàng, xem CLAUDE.md).
+
+Đa số hoạt động ĐÚNG hoàn toàn dù chưa có UI riêng (hiệu ứng
 tự động hoặc chỉ cần nút RESPOND/PLAY_CARD sẵn có — Pixie Pete/Bill Noface/
 Greg Digger/Herb Hunter/Sean Mallory/Tequila Joe/Elena Fuente/Apache Kid/Molly
 Stark/Belle Star) — nhưng Pat Brennan/Chuck Wengam/José Delgado/Doc Holyday sẽ
 bị "vô hiệu" tạm thời (không có nút để dùng kỹ năng đặc biệt — Pat Brennan tự
 hết giờ về rút bài thường sau 10 giây, không bị treo; 3 người còn lại chỉ đơn
 giản không dùng được kỹ năng, chơi như nhân vật bình thường) cho tới khi có
-UI. Đúng tiền lệ "core trước, UI sau" của 16 nhân vật bản gốc — **vẫn CHƯA
-deploy, kể cả bản beta**, cho tới khi có UI.
+UI. Đúng tiền lệ "core trước, UI sau" của 16 nhân vật bản gốc.
 
 **Vera Custer — ✅ XONG (nhân vật CUỐI CÙNG, 15/15) — xem changelog "Dodge City
 Vera Custer" trong CHANGELOG.md để biết chi tiết đầy đủ.** Tóm tắt kiến trúc:
