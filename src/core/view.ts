@@ -82,6 +82,12 @@ export interface PlayerView {
   // đây chưa cần lộ ra vì chưa có nút bấm nào phụ thuộc 2 field này.
   equipmentPlayedTurn: GameState["equipmentPlayedTurn"];
   turnNumber: number;
+  // Mở rộng Dodge City, mục C — client cần biết đúng như core để tự vẽ/ẩn nút
+  // "Dùng kỹ năng" của José Delgado (tối đa 2 lần/lượt) và Doc Holyday (tối đa
+  // 1 lần/lượt). KHÔNG bí mật gì — chỉ là bộ đếm số lần dùng trong lượt, không
+  // liên quan bài úp/thông tin ẩn nào.
+  joseDelgadoUsesThisTurn: number;
+  docHolydayUsedThisTurn: boolean;
 }
 
 function viewRole(player: PlayerState, viewerId: string): Role | null {
@@ -144,5 +150,7 @@ export function viewFor(state: GameState, viewerId: string): PlayerView {
     expansions: state.expansions,
     equipmentPlayedTurn: state.equipmentPlayedTurn,
     turnNumber: state.turnNumber,
+    joseDelgadoUsesThisTurn: state.joseDelgadoUsesThisTurn,
+    docHolydayUsedThisTurn: state.docHolydayUsedThisTurn,
   };
 }

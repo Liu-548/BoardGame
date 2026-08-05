@@ -43,7 +43,7 @@ import {
   renderNetworkLobbyForm,
   renderSetupScreen,
 } from "./ui";
-import type { BetaLinkInfo, DrawCheckNotice, LobbyPlayer, Selection } from "./ui";
+import type { BetaLinkInfo, DrawCheckNotice, LobbyPlayer, Selection, UseAbilityCharacter } from "./ui";
 
 const root = document.getElementById("game-root") as HTMLDivElement;
 
@@ -53,7 +53,13 @@ applyStoredSettings();
 
 // Các lá cần chọn thêm mục tiêu khi đánh — lá còn lại (bia, saloon, súng máy
 // Gatling, tự trang bị...) đánh xong ngay, không cần bước chọn nào thêm.
-const NEEDS_TARGET = new Set<CardName>(["bang", "duel", "jail", "panic", "cat_balou"]);
+// Mở rộng Dodge City, mục 1.2 — thêm "punch" (BUG CŨ: thiếu từ trước, không
+// liên quan riêng Dodge City — sửa luôn vì cùng chỗ), "rag_time"/"springfield"/
+// "tequila" (cả 3 đều cần mục tiêu — xem playRagTime()/playSpringfield()/
+// playTequila() ở reduce.ts). "brawl"/"whisky" KHÔNG cần mục tiêu (brawl nhắm
+// TẤT CẢ, whisky chỉ tự dùng) nên không thêm vào đây — xử lý riêng ở
+// onHandCardClick() bên dưới.
+const NEEDS_TARGET = new Set<CardName>(["bang", "duel", "jail", "panic", "cat_balou", "punch", "rag_time", "springfield", "tequila"]);
 
 // Giai đoạn 5 (Calamity Janet) — lá Missed! của Janet ĐÓNG VAI Bang! nên cũng
 // cần chọn mục tiêu (NEEDS_TARGET không có "missed" vì Missed! thường không
@@ -281,6 +287,16 @@ function renderScreen(): void {
           onPickDrawSource,
           onPickDrawTarget,
           onPickKeptCard,
+          onPickEquipmentFromPlayer,
+          onPickBorrowedCharacter,
+          onBrawlZonePick,
+          onBrawlZonesConfirmed,
+          onExtraDiscardCardClick,
+          onArmAbility,
+          onUseChuckWengamAbility,
+          onToggleAbilityCard,
+          onConfirmAbilityCards,
+          onAbilityTargetClick,
           onToggleSeatExpanded,
           onOpenLogDialog,
           onCloseLogDialog,
@@ -368,6 +384,16 @@ function renderScreen(): void {
             onPickDrawSource: onNetworkPickDrawSource,
             onPickDrawTarget: onNetworkPickDrawTarget,
             onPickKeptCard: onNetworkPickKeptCard,
+            onPickEquipmentFromPlayer: onNetworkPickEquipmentFromPlayer,
+            onPickBorrowedCharacter: onNetworkPickBorrowedCharacter,
+            onBrawlZonePick: onNetworkBrawlZonePick,
+            onBrawlZonesConfirmed: onNetworkBrawlZonesConfirmed,
+            onExtraDiscardCardClick: onNetworkExtraDiscardCardClick,
+            onArmAbility: onNetworkArmAbility,
+            onUseChuckWengamAbility: onNetworkUseChuckWengamAbility,
+            onToggleAbilityCard: onNetworkToggleAbilityCard,
+            onConfirmAbilityCards: onNetworkConfirmAbilityCards,
+            onAbilityTargetClick: onNetworkAbilityTargetClick,
             onToggleSeatExpanded: onNetworkToggleSeatExpanded,
             onOpenLogDialog: onNetworkOpenLogDialog,
             onCloseLogDialog: onNetworkCloseLogDialog,
@@ -560,6 +586,19 @@ function onHandCardClick(cardId: string): void {
   }
 
   const name = cardNameFromId(cardId);
+  // Mở rộng Dodge City, mục 1.2 — Brawl/Whisky KHÔNG cần chọn mục tiêu (Brawl
+  // nhắm TẤT CẢ người khác, Whisky chỉ tự dùng), nhưng CẦN bỏ kèm 1 lá phụ —
+  // xem discardExtraCard()/playBrawl()/playWhisky() ở reduce.ts.
+  if (name === "brawl") {
+    selection = { step: "picking-brawl-zones", cardId, zones: {} };
+    render();
+    return;
+  }
+  if (name === "whisky") {
+    selection = { step: "picking-extra-discard", cardId };
+    render();
+    return;
+  }
   if (cardNeedsTarget(cardId, state.players[state.currentPlayerIndex].characterId)) {
     selection = { step: "picking-target", cardId, cardName: name };
     render();
@@ -577,6 +616,19 @@ function onHandCardClick(cardId: string): void {
 // tay, xem activateDelayedEquipment() trong reduce.ts).
 function onEquipmentClick(ownerId: string, cardId: string): void {
   if (selection.step === "picking-panic-equipment") {
+    // Rag Time (mở rộng Dodge City) — cùng bước chọn lá trang bị cụ thể như
+    // Panic!/Conestoga, nhưng còn PHẢI chọn tiếp lá phụ để bỏ kèm trước khi
+    // gửi đi (khác Panic!/Conestoga, dispatch thẳng).
+    if (cardNameFromId(selection.cardId) === "rag_time") {
+      selection = {
+        step: "picking-extra-discard",
+        cardId: selection.cardId,
+        targetId: selection.targetId,
+        targetCardId: cardId,
+      };
+      render();
+      return;
+    }
     dispatch({
       type: "PLAY_CARD",
       playerId: currentPlayerId(),
@@ -618,12 +670,19 @@ function onPlayerClick(targetId: string): void {
   if (selection.step !== "picking-target") return;
   const { cardId, cardName } = selection;
 
-  // Conestoga (mở rộng Dodge City) — bản "delayed" của Panic!, cùng luồng bắt
-  // chọn LÁ TRANG BỊ cụ thể khi tay mục tiêu đã hết bài.
-  if (cardName === "panic" || cardName === "conestoga") {
+  // Rag Time (mở rộng Dodge City) — CÙNG luồng Panic!/Conestoga (chọn lá
+  // trang bị cụ thể khi tay mục tiêu hết bài), nhưng còn cần chọn lá phụ để
+  // bỏ kèm trước khi gửi đi — route qua "picking-extra-discard" thay vì
+  // dispatch thẳng.
+  if (cardName === "panic" || cardName === "conestoga" || cardName === "rag_time") {
     const target = state.players.find((p) => p.id === targetId)!;
     if (target.hand.length > 0) {
-      dispatch({ type: "PLAY_CARD", playerId: currentPlayerId(), cardId, targetId });
+      if (cardName === "rag_time") {
+        selection = { step: "picking-extra-discard", cardId, targetId };
+        render();
+      } else {
+        dispatch({ type: "PLAY_CARD", playerId: currentPlayerId(), cardId, targetId });
+      }
     } else {
       selection = { step: "picking-panic-equipment", cardId, targetId };
       render();
@@ -635,6 +694,14 @@ function onPlayerClick(targetId: string): void {
   // hỏi bắt bỏ tay hay sân.
   if (cardName === "cat_balou" || cardName === "can_can") {
     selection = { step: "picking-cat-balou-zone", cardId, targetId };
+    render();
+    return;
+  }
+
+  // Springfield/Tequila (mở rộng Dodge City) — đã có mục tiêu, còn cần chọn
+  // lá phụ để bỏ kèm trước khi gửi đi.
+  if (cardName === "springfield" || cardName === "tequila") {
+    selection = { step: "picking-extra-discard", cardId, targetId };
     render();
     return;
   }
@@ -656,6 +723,88 @@ function onZoneClick(zone: "hand" | "equipment"): void {
     targetId: selection.targetId,
     targetZone: zone,
   });
+}
+
+// Brawl (mở rộng Dodge City) — người đánh chọn VÙNG bỏ bài riêng cho 1 nạn
+// nhân (`targetId`), không dispatch ngay — còn phải chọn đủ cho MỌI nạn nhân
+// khác (xem renderApp() ở ui.ts: nút "Tiếp tục" chỉ hiện khi đã chọn đủ).
+function onBrawlZonePick(targetId: string, zone: "hand" | "equipment"): void {
+  if (selection.step !== "picking-brawl-zones") return;
+  selection.zones[targetId] = zone;
+  render();
+}
+
+// Brawl — đã chọn đủ vùng cho mọi nạn nhân, chuyển sang bước cuối: chọn lá
+// phụ để bỏ kèm.
+function onBrawlZonesConfirmed(): void {
+  if (selection.step !== "picking-brawl-zones") return;
+  selection = { step: "picking-extra-discard", cardId: selection.cardId, brawlZones: selection.zones };
+  render();
+}
+
+// Mở rộng Dodge City, mục 1.2 — bước CUỐI CÙNG của Brawl/Rag Time/Springfield/
+// Tequila/Whisky: đã gom đủ targetId/targetCardId/brawlZones (nếu có) từ các
+// bước trước, giờ chọn `extraCardId` làm lá phụ rồi gửi PLAY_CARD thật sự.
+function onExtraDiscardCardClick(extraCardId: string): void {
+  if (selection.step !== "picking-extra-discard") return;
+  dispatch({
+    type: "PLAY_CARD",
+    playerId: currentPlayerId(),
+    cardId: selection.cardId,
+    targetId: selection.targetId,
+    targetCardId: selection.targetCardId,
+    brawlZones: selection.brawlZones,
+    extraDiscardCardId: extraCardId,
+  });
+}
+
+// Mở rộng Dodge City, mục C — USE_ABILITY. Sid Ketchum/José Delgado/Doc
+// Holyday cần chọn ĐỦ số lá trên tay trước khi gửi đi — `playerId` là CHỦ
+// NHÂN kỹ năng, KHÔNG chắc là người đang tới lượt (Sid Ketchum dùng được bất
+// cứ lúc nào). `needed` = 1 cho José Delgado (1 lá xanh dương), 2 cho 2 người
+// còn lại.
+function onArmAbility(playerId: string, ability: UseAbilityCharacter): void {
+  const needed = ability === "jose_delgado" ? 1 : 2;
+  selection = { step: "picking-ability-cards", playerId, ability, needed, selectedCardIds: [] };
+  render();
+}
+
+// Chuck Wengam — không cần bỏ lá nào (chỉ tốn máu), gửi đi ngay.
+function onUseChuckWengamAbility(playerId: string): void {
+  dispatch({ type: "USE_ABILITY", playerId, cardIds: [] });
+}
+
+// Bấm 1 lá trong lúc đang chọn lá cho kỹ năng — bấm lại lá đã chọn để bỏ
+// chọn; đã đủ số lượng cần thì không cho chọn thêm (phải bỏ bớt trước).
+function onToggleAbilityCard(cardId: string): void {
+  if (selection.step !== "picking-ability-cards") return;
+  const index = selection.selectedCardIds.indexOf(cardId);
+  if (index === -1) {
+    if (selection.selectedCardIds.length >= selection.needed) return;
+    selection.selectedCardIds.push(cardId);
+  } else {
+    selection.selectedCardIds.splice(index, 1);
+  }
+  render();
+}
+
+// Đã chọn đủ lá cho kỹ năng — Doc Holyday còn cần chọn mục tiêu tiếp, 2 người
+// còn lại gửi đi luôn.
+function onConfirmAbilityCards(): void {
+  if (selection.step !== "picking-ability-cards" || selection.selectedCardIds.length !== selection.needed) return;
+  const { playerId, ability, selectedCardIds } = selection;
+  if (ability === "doc_holyday") {
+    selection = { step: "picking-ability-target", playerId, cardIds: selectedCardIds };
+    render();
+    return;
+  }
+  dispatch({ type: "USE_ABILITY", playerId, cardIds: selectedCardIds });
+}
+
+// Doc Holyday — đã chọn đủ 2 lá, giờ chọn mục tiêu để bắn.
+function onAbilityTargetClick(targetId: string): void {
+  if (selection.step !== "picking-ability-target") return;
+  dispatch({ type: "USE_ABILITY", playerId: selection.playerId, cardIds: selection.cardIds, targetId });
 }
 
 // "Chịu hậu quả" dùng chung cho: chịu mất máu thay vì đỡ (Missed!/Indians!/
@@ -683,6 +832,20 @@ function onPickDrawTarget(targetId: string, letTargetChoose: boolean): void {
 function onPickKeptCard(cardId: string): void {
   const top = state.pending[state.pending.length - 1];
   if (top) dispatch({ type: "RESPOND", playerId: top.player, cardId });
+}
+
+// Mở rộng Dodge City, mục C nhóm A (Pat Brennan) — lấy đúng lá trang bị
+// `cardId` của người chơi `targetId` thay vì rút bài.
+function onPickEquipmentFromPlayer(targetId: string, cardId: string): void {
+  const top = state.pending[state.pending.length - 1];
+  if (top) dispatch({ type: "RESPOND", playerId: top.player, targetId, cardId });
+}
+
+// Mở rộng Dodge City, mục C nhóm C (Vera Custer) — chọn mượn khả năng của
+// người chơi `targetId`.
+function onPickBorrowedCharacter(targetId: string): void {
+  const top = state.pending[state.pending.length - 1];
+  if (top) dispatch({ type: "RESPOND", playerId: top.player, targetId });
 }
 
 function onCancelSelection(): void {
@@ -1062,6 +1225,17 @@ function onNetworkHandCardClick(cardId: string): void {
   }
 
   const name = cardNameFromId(cardId);
+  // Mở rộng Dodge City — xem ghi chú y hệt ở onHandCardClick() (hotseat).
+  if (name === "brawl") {
+    networkSelection = { step: "picking-brawl-zones", cardId, zones: {} };
+    render();
+    return;
+  }
+  if (name === "whisky") {
+    networkSelection = { step: "picking-extra-discard", cardId };
+    render();
+    return;
+  }
   const myCharacterId = networkView.players.find((p) => p.id === myPlayerId)?.characterId ?? null;
   if (cardNeedsTarget(cardId, myCharacterId)) {
     networkSelection = { step: "picking-target", cardId, cardName: name };
@@ -1074,6 +1248,17 @@ function onNetworkHandCardClick(cardId: string): void {
 // Mở rộng Dodge City, mục 1.1 — xem ghi chú y hệt ở onEquipmentClick() (hotseat).
 function onNetworkEquipmentClick(ownerId: string, cardId: string): void {
   if (networkSelection.step === "picking-panic-equipment") {
+    // Rag Time — xem ghi chú y hệt ở onEquipmentClick() (hotseat).
+    if (cardNameFromId(networkSelection.cardId) === "rag_time") {
+      networkSelection = {
+        step: "picking-extra-discard",
+        cardId: networkSelection.cardId,
+        targetId: networkSelection.targetId,
+        targetCardId: cardId,
+      };
+      render();
+      return;
+    }
     networkDispatch({
       type: "PLAY_CARD",
       playerId: myPlayerId,
@@ -1116,11 +1301,16 @@ function onNetworkPlayerClick(targetId: string): void {
   if (networkSelection.step !== "picking-target" || !networkView) return;
   const { cardId, cardName } = networkSelection;
 
-  // Conestoga (mở rộng Dodge City) — xem ghi chú y hệt ở onPlayerClick() (hotseat).
-  if (cardName === "panic" || cardName === "conestoga") {
+  // Rag Time (mở rộng Dodge City) — xem ghi chú y hệt ở onPlayerClick() (hotseat).
+  if (cardName === "panic" || cardName === "conestoga" || cardName === "rag_time") {
     const target = networkView.players.find((p) => p.id === targetId)!;
     if (target.handCount > 0) {
-      networkDispatch({ type: "PLAY_CARD", playerId: myPlayerId, cardId, targetId });
+      if (cardName === "rag_time") {
+        networkSelection = { step: "picking-extra-discard", cardId, targetId };
+        render();
+      } else {
+        networkDispatch({ type: "PLAY_CARD", playerId: myPlayerId, cardId, targetId });
+      }
     } else {
       networkSelection = { step: "picking-panic-equipment", cardId, targetId };
       render();
@@ -1131,6 +1321,13 @@ function onNetworkPlayerClick(targetId: string): void {
   // Can Can (mở rộng Dodge City) — xem ghi chú y hệt ở onPlayerClick() (hotseat).
   if (cardName === "cat_balou" || cardName === "can_can") {
     networkSelection = { step: "picking-cat-balou-zone", cardId, targetId };
+    render();
+    return;
+  }
+
+  // Springfield/Tequila (mở rộng Dodge City) — xem ghi chú y hệt ở onPlayerClick() (hotseat).
+  if (cardName === "springfield" || cardName === "tequila") {
+    networkSelection = { step: "picking-extra-discard", cardId, targetId };
     render();
     return;
   }
@@ -1153,6 +1350,79 @@ function onNetworkZoneClick(zone: "hand" | "equipment"): void {
     targetId: networkSelection.targetId,
     targetZone: zone,
   });
+}
+
+// Mở rộng Dodge City — giống hệt onBrawlZonePick (hotseat).
+function onNetworkBrawlZonePick(targetId: string, zone: "hand" | "equipment"): void {
+  if (networkSelection.step !== "picking-brawl-zones") return;
+  networkSelection.zones[targetId] = zone;
+  render();
+}
+
+// Giống hệt onBrawlZonesConfirmed (hotseat).
+function onNetworkBrawlZonesConfirmed(): void {
+  if (networkSelection.step !== "picking-brawl-zones") return;
+  networkSelection = { step: "picking-extra-discard", cardId: networkSelection.cardId, brawlZones: networkSelection.zones };
+  render();
+}
+
+// Giống hệt onExtraDiscardCardClick (hotseat).
+function onNetworkExtraDiscardCardClick(extraCardId: string): void {
+  if (networkSelection.step !== "picking-extra-discard") return;
+  networkDispatch({
+    type: "PLAY_CARD",
+    playerId: myPlayerId,
+    cardId: networkSelection.cardId,
+    targetId: networkSelection.targetId,
+    targetCardId: networkSelection.targetCardId,
+    brawlZones: networkSelection.brawlZones,
+    extraDiscardCardId: extraCardId,
+  });
+}
+
+// Giống hệt onArmAbility (hotseat).
+function onNetworkArmAbility(playerId: string, ability: UseAbilityCharacter): void {
+  const needed = ability === "jose_delgado" ? 1 : 2;
+  networkSelection = { step: "picking-ability-cards", playerId, ability, needed, selectedCardIds: [] };
+  render();
+}
+
+// Giống hệt onUseChuckWengamAbility (hotseat).
+function onNetworkUseChuckWengamAbility(playerId: string): void {
+  networkDispatch({ type: "USE_ABILITY", playerId, cardIds: [] });
+}
+
+// Giống hệt onToggleAbilityCard (hotseat).
+function onNetworkToggleAbilityCard(cardId: string): void {
+  if (networkSelection.step !== "picking-ability-cards") return;
+  const index = networkSelection.selectedCardIds.indexOf(cardId);
+  if (index === -1) {
+    if (networkSelection.selectedCardIds.length >= networkSelection.needed) return;
+    networkSelection.selectedCardIds.push(cardId);
+  } else {
+    networkSelection.selectedCardIds.splice(index, 1);
+  }
+  render();
+}
+
+// Giống hệt onConfirmAbilityCards (hotseat).
+function onNetworkConfirmAbilityCards(): void {
+  if (networkSelection.step !== "picking-ability-cards" || networkSelection.selectedCardIds.length !== networkSelection.needed) {
+    return;
+  }
+  const { playerId, ability, selectedCardIds } = networkSelection;
+  if (ability === "doc_holyday") {
+    networkSelection = { step: "picking-ability-target", playerId, cardIds: selectedCardIds };
+    render();
+    return;
+  }
+  networkDispatch({ type: "USE_ABILITY", playerId, cardIds: selectedCardIds });
+}
+
+// Giống hệt onAbilityTargetClick (hotseat).
+function onNetworkAbilityTargetClick(targetId: string): void {
+  if (networkSelection.step !== "picking-ability-target") return;
+  networkDispatch({ type: "USE_ABILITY", playerId: networkSelection.playerId, cardIds: networkSelection.cardIds, targetId });
 }
 
 function onNetworkRespondTakeConsequence(): void {
@@ -1180,6 +1450,20 @@ function onNetworkPickKeptCard(cardId: string): void {
   if (!networkView) return;
   const top = networkView.pending[networkView.pending.length - 1];
   if (top) networkDispatch({ type: "RESPOND", playerId: top.player, cardId });
+}
+
+// Mở rộng Dodge City — giống hệt onPickEquipmentFromPlayer (hotseat).
+function onNetworkPickEquipmentFromPlayer(targetId: string, cardId: string): void {
+  if (!networkView) return;
+  const top = networkView.pending[networkView.pending.length - 1];
+  if (top) networkDispatch({ type: "RESPOND", playerId: top.player, targetId, cardId });
+}
+
+// Mở rộng Dodge City — giống hệt onPickBorrowedCharacter (hotseat).
+function onNetworkPickBorrowedCharacter(targetId: string): void {
+  if (!networkView) return;
+  const top = networkView.pending[networkView.pending.length - 1];
+  if (top) networkDispatch({ type: "RESPOND", playerId: top.player, targetId });
 }
 
 function onNetworkCancelSelection(): void {
