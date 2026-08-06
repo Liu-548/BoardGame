@@ -1,4 +1,4 @@
-// Việc 5.1 — kiểm tra DÂY NỐI của hệ thống hook (không phải nhân vật thật:
+﻿// Việc 5.1 — kiểm tra DÂY NỐI của hệ thống hook (không phải nhân vật thật:
 // CHARACTERS thật sự luôn rỗng, xem core/characters.ts). Mỗi test tự cắm 1
 // "nhân vật giả" thẳng vào registry thật rồi tự dọn lại ở afterEach — cách
 // này kiểm tra đúng con đường thật (getCharacterHooks() -> registry -> hook)
@@ -42,6 +42,11 @@ function makeState(overrides: Partial<GameState> = {}): GameState {
     docHolydayUsedThisTurn: false,
     duelBangDrawPending: null,
     veraCusterBorrowedCharacterId: null,
+    elenaNoirArmed: {},
+    elenaNoirImmortalTurnsLeft: {},
+    marcelJailCompanion: {},
+    marcelCompanionSkipNextTurn: {},
+    marcelJailBonusDrawThisTurn: {},
     houseRules: [],
     expansions: [],
     cardNamesPlayedThisTurn: [],

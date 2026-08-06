@@ -587,6 +587,26 @@ export class Room {
         const target = candidates[Math.floor(Math.random() * candidates.length)];
         return { type: "RESPOND", playerId: top.player, targetId: target.id };
       }
+
+      // Bộ mở rộng "custom_characters" (Elena Noir) — hết giờ thì mặc định
+      // KHÔNG vũ trang (không kèm `armed`, respondToPickArmed() tự hiểu là
+      // false) — an toàn hơn (rút 2 lá bình thường) so với tự ý vũ trang thay
+      // người chơi (sẽ mất 1 lá rút mà họ không hề chọn).
+      case "NEED_PICK_ARMED":
+        return { type: "RESPOND", playerId: top.player };
+
+      // Bộ mở rộng "custom_characters" (Marcel Marcelo) — BẮT BUỘC chọn
+      // (không có lựa chọn "không chọn ai") — hết giờ tự chọn NGẪU NHIÊN 1
+      // người còn sống khác, cùng quy ước timeout với Vera Custer ở trên
+      // (khác Vera: không cần lọc characterId !== null, ai cũng chọn được).
+      case "NEED_PICK_MARCEL_COMPANION": {
+        const player = state.players.find((p) => p.id === top.player);
+        if (!player) return null;
+        const candidates = state.players.filter((p) => p.alive && p.id !== player.id);
+        if (candidates.length === 0) return null;
+        const target = candidates[Math.floor(Math.random() * candidates.length)];
+        return { type: "RESPOND", playerId: top.player, targetId: target.id };
+      }
     }
   }
 

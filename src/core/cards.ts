@@ -239,6 +239,10 @@ export const EXPANSION_CARD_COUNTS: Record<ExpansionId, Partial<Record<CardName,
     pepperbox: 1,
     howitzer: 1,
   },
+  // Bộ mở rộng "custom_characters" (Elena Noir, xem House_Rule.txt) — CHỈ
+  // thêm nhân vật, KHÔNG thêm lá bài nào — object rỗng vẫn PHẢI có mặt vì
+  // Record<ExpansionId, ...> bắt buộc đủ mọi key của union (ExpansionId).
+  custom_characters: {},
 };
 
 // (suit, rank) IN THẬT trên từng lá của bộ bài cơ bản — tra từ danh sách bài

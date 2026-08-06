@@ -1,4 +1,4 @@
-// Mở rộng Dodge City, đợt 2 (Luat_Bang_Mo_Rong_DodgeCity.txt, mục 2) — 34/40
+﻿// Mở rộng Dodge City, đợt 2 (Luat_Bang_Mo_Rong_DodgeCity.txt, mục 2) — 34/40
 // lá còn lại sau đợt 1 (test/dodge-city-yellow-cards.test.ts): 6 lá xanh
 // (Barrel/Dynamite/Remington/Rev. Carabine thêm bản sao thứ 2 — chỉ đổi dữ
 // liệu, không cần test riêng; Binocular/Hideout hoàn toàn mới), 14 lá nâu
@@ -44,6 +44,11 @@ function makeState(players: PlayerState[], overrides: Partial<GameState> = {}): 
     docHolydayUsedThisTurn: false,
     duelBangDrawPending: null,
     veraCusterBorrowedCharacterId: null,
+    elenaNoirArmed: {},
+    elenaNoirImmortalTurnsLeft: {},
+    marcelJailCompanion: {},
+    marcelCompanionSkipNextTurn: {},
+    marcelJailBonusDrawThisTurn: {},
     houseRules: [],
     expansions: [],
     cardNamesPlayedThisTurn: [],

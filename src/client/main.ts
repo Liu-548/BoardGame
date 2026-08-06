@@ -289,6 +289,8 @@ function renderScreen(): void {
           onPickKeptCard,
           onPickEquipmentFromPlayer,
           onPickBorrowedCharacter,
+          onPickArmed,
+          onPickMarcelCompanion,
           onBrawlZonePick,
           onBrawlZonesConfirmed,
           onExtraDiscardCardClick,
@@ -386,6 +388,8 @@ function renderScreen(): void {
             onPickKeptCard: onNetworkPickKeptCard,
             onPickEquipmentFromPlayer: onNetworkPickEquipmentFromPlayer,
             onPickBorrowedCharacter: onNetworkPickBorrowedCharacter,
+            onPickArmed: onNetworkPickArmed,
+            onPickMarcelCompanion: onNetworkPickMarcelCompanion,
             onBrawlZonePick: onNetworkBrawlZonePick,
             onBrawlZonesConfirmed: onNetworkBrawlZonesConfirmed,
             onExtraDiscardCardClick: onNetworkExtraDiscardCardClick,
@@ -844,6 +848,18 @@ function onPickEquipmentFromPlayer(targetId: string, cardId: string): void {
 // Mở rộng Dodge City, mục C nhóm C (Vera Custer) — chọn mượn khả năng của
 // người chơi `targetId`.
 function onPickBorrowedCharacter(targetId: string): void {
+  const top = state.pending[state.pending.length - 1];
+  if (top) dispatch({ type: "RESPOND", playerId: top.player, targetId });
+}
+
+// Bộ mở rộng "custom_characters" (Elena Noir) — trả lời NEED_PICK_ARMED.
+function onPickArmed(armed: boolean): void {
+  const top = state.pending[state.pending.length - 1];
+  if (top) dispatch({ type: "RESPOND", playerId: top.player, armed });
+}
+
+// Bộ mở rộng "custom_characters" (Marcel Marcelo) — trả lời NEED_PICK_MARCEL_COMPANION.
+function onPickMarcelCompanion(targetId: string): void {
   const top = state.pending[state.pending.length - 1];
   if (top) dispatch({ type: "RESPOND", playerId: top.player, targetId });
 }
@@ -1461,6 +1477,21 @@ function onNetworkPickEquipmentFromPlayer(targetId: string, cardId: string): voi
 
 // Mở rộng Dodge City — giống hệt onPickBorrowedCharacter (hotseat).
 function onNetworkPickBorrowedCharacter(targetId: string): void {
+  if (!networkView) return;
+  const top = networkView.pending[networkView.pending.length - 1];
+  if (top) networkDispatch({ type: "RESPOND", playerId: top.player, targetId });
+}
+
+// Bộ mở rộng "custom_characters" (Elena Noir) — giống hệt onPickArmed (hotseat).
+function onNetworkPickArmed(armed: boolean): void {
+  if (!networkView) return;
+  const top = networkView.pending[networkView.pending.length - 1];
+  if (top) networkDispatch({ type: "RESPOND", playerId: top.player, armed });
+}
+
+// Bộ mở rộng "custom_characters" (Marcel Marcelo) — giống hệt
+// onPickMarcelCompanion (hotseat).
+function onNetworkPickMarcelCompanion(targetId: string): void {
   if (!networkView) return;
   const top = networkView.pending[networkView.pending.length - 1];
   if (top) networkDispatch({ type: "RESPOND", playerId: top.player, targetId });

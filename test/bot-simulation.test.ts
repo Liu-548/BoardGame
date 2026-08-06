@@ -235,6 +235,23 @@ function chooseRespondAction(state: GameState): Action {
         ? { type: "RESPOND", playerId: top.player, targetId: candidates[0].id }
         : { type: "RESPOND", playerId: top.player };
     }
+    case "NEED_PICK_ARMED":
+      // Bộ mở rộng "custom_characters" (Elena Noir) — bot không dùng nhân vật
+      // này nên pending không thực sự phát sinh, nhưng vẫn xử lý an toàn: cứ
+      // KHÔNG vũ trang (an toàn, luôn hợp lệ, giống mọi pending "có mặc định"
+      // khác ở trên).
+      return { type: "RESPOND", playerId: top.player };
+    case "NEED_PICK_MARCEL_COMPANION": {
+      // Bộ mở rộng "custom_characters" (Marcel Marcelo) — bot không dùng nhân
+      // vật này nên pending không thực sự phát sinh, nhưng vẫn xử lý an toàn
+      // cho đủ exhaustive: chọn ngẫu nhiên 1 người còn sống khác (BẮT BUỘC
+      // chọn, không có lựa chọn "không chọn ai").
+      const player = state.players.find((p) => p.id === top.player)!;
+      const candidates = state.players.filter((p) => p.alive && p.id !== player.id);
+      return candidates[0]
+        ? { type: "RESPOND", playerId: top.player, targetId: candidates[0].id }
+        : { type: "RESPOND", playerId: top.player };
+    }
     default: {
       const neverKind: never = top;
       throw new Error(`Bot chưa biết cách phản hồi: ${JSON.stringify(neverKind)}`);
