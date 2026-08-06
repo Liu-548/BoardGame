@@ -659,7 +659,8 @@ const EXPANSION_DESCRIPTIONS: Record<ExpansionId, string> = {
   // Nhân vật TỰ CHẾ (không thuộc bản gốc/Dodge City, xem House_Rule.txt) —
   // KHÔNG thêm lá bài nào, chỉ thêm nhân vật vào bộ bốc "phát 2 lá chọn giữ
   // 1". Tên hiển thị trong ván luôn có đuôi "*ex".
-  custom_characters: "Thêm Elena Noir *ex vào bộ bốc nhân vật (chỉ phát khi bật cơ chế chọn nhân vật) — không thêm lá bài nào.",
+  custom_characters:
+    "Thêm 3 nhân vật tự chế Elena Noir/Marcel Marcelo/Mary Rose *ex vào bộ bốc nhân vật (chỉ phát khi bật cơ chế chọn nhân vật) — không thêm lá bài nào.",
 };
 const EXPANSION_IDS: ExpansionId[] = ["dodge_city", "custom_characters"];
 
