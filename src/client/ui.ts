@@ -1401,7 +1401,10 @@ export function cardActsAsBang(cardId: string, characterId: string | null): bool
 
 function cardActsAsMissed(cardId: string, characterId: string | null): boolean {
   const name = cardNameFromId(cardId);
-  if (name === "missed") return true;
+  if (name === "missed" || name === "dodge") return true;
+  // Mở rộng Dodge City, mục C nhóm B (Elena Fuente) — MỌI lá trên tay đều
+  // dùng được như Missed!, không riêng "bang" như Calamity Janet.
+  if (getCharacterDefinition(characterId)?.hasAnyCardMissedAlias === true) return true;
   return name === "bang" && getCharacterDefinition(characterId)?.hasBangMissedAlias === true;
 }
 
