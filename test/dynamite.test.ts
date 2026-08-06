@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+﻿import { describe, expect, it } from "vitest";
 import { giveCardToPlayer, transferDynamiteToNextPlayer } from "../src/core/equipment";
 import { reduce } from "../src/core/reduce";
 import { setupGame } from "../src/core/setup";
@@ -29,6 +29,11 @@ function makeState(overrides: Partial<GameState> = {}): GameState {
     docHolydayUsedThisTurn: false,
     duelBangDrawPending: null,
     veraCusterBorrowedCharacterId: null,
+    elenaNoirArmed: {},
+    elenaNoirImmortalTurnsLeft: {},
+    marcelJailCompanion: {},
+    marcelCompanionSkipNextTurn: {},
+    marcelJailBonusDrawThisTurn: {},
     houseRules: [],
     expansions: [],
     cardNamesPlayedThisTurn: [],

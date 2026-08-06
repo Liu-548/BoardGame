@@ -337,6 +337,57 @@ export interface CharacterDefinition {
   // trên (hàm TRUNG TÂM mọi hook/field tĩnh khác trong file này đều tra qua,
   // tự động "mượn" đúng mà không cần biết gì về field này).
   canBorrowCharacterAbilities?: boolean;
+  // Bộ mở rộng "custom_characters" (Elena Noir, xem House_Rule.txt mục I) —
+  // đầu MỖI lượt của chính người này (khi KHÔNG đang trong trạng thái Miễn Tử
+  // — GameState.elenaNoirImmortalTurnsLeft === null), được HỎI (xem
+  // NEED_PICK_ARMED ở types.ts + handleDrawCards()/respondToPickArmed() trong
+  // reduce.ts) có muốn "vũ trang" khả năng Miễn Tử cho chu kỳ này không (chọn
+  // có thì rút 1 lá thay vì 2 lượt đó). Toàn bộ logic Miễn Tử (kích hoạt lúc
+  // sắp chết, đếm 2 lượt, chặn Jail, chết chắc sau 2 lượt...) nằm thẳng trong
+  // reduce.ts (eliminateIfDead()/playJail()/advanceTurn()), KHÔNG qua
+  // CharacterHooks — đây CHỈ là cờ tĩnh bật/tắt câu hỏi đầu lượt, giống
+  // canTakeEquipmentInsteadOfDraw (Pat Brennan). DỮ LIỆU tĩnh, không có gì để
+  // tính trong 1 hàm hook.
+  //
+  // ĐÃ XỬ LÝ triệt để xung đột với Vera Custer (mở rộng Dodge City,
+  // canBorrowCharacterAbilities): GameState.elenaNoirArmed/
+  // elenaNoirImmortalTurnsLeft là Record<playerId, ...> (KHÔNG phải field
+  // đơn) — nếu 1 ván có CẢ Elena Noir thật LẪN Vera Custer mượn đúng cô ta,
+  // mỗi người có entry RIÊNG theo id, không tranh nhau state. Xem ghi chú đầy
+  // đủ ở 2 field đó (types.ts).
+  canArmImmortality?: boolean;
+  // Bộ mở rộng "custom_characters" (Marcel Marcelo, xem House_Rule.txt mục I)
+  // — bó gọn 3 hệ quả CÙNG kích hoạt bởi 1 khả năng duy nhất (khác Elena Noir
+  // ở trên chỉ có 1 hệ quả): (1) vừa bị Jail gắn lên -> LẬP TỨC chọn 1 người
+  // "cùng vào tù" (playJail()); (2) draw!-check Jail đầu lượt của CHÍNH người
+  // này được rút TỐI ĐA 2 LÁ thay vì 1 (resolveDrawCheck()); (3) thoát tù
+  // thành công -> lượt đó rút 3 lá thay vì 2 (handleDrawCards()). Toàn bộ logic
+  // nằm thẳng trong reduce.ts, KHÔNG qua CharacterHooks — giống canArmImmortality,
+  // đây CHỈ là cờ tĩnh bật/tắt, không có gì để tính trong 1 hàm hook.
+  //
+  // Dùng Record<playerId, ...> cho cả 3 field GameState liên quan
+  // (marcelJailCompanion/marcelCompanionSkipNextTurn/marcelJailBonusDrawThisTurn)
+  // ngay từ đầu — ÁP DỤNG TRƯỚC bài học từ vụ xung đột Vera Custer/Elena Noir,
+  // khỏi cần sửa lại lần 2 nếu 1 ván có CẢ Marcel thật LẪN Vera Custer mượn
+  // đúng anh ta.
+  canJailCompanion?: boolean;
+  // Bộ mở rộng "custom_characters" (Mary Rose, xem House_Rule.txt mục I) — cả
+  // 2 field dưới đây HOÀN TOÀN KHÔNG CẦN state gì trong GameState (khác Elena
+  // Noir/Marcel Marcelo ở trên) — tính lại NGAY MỖI LẦN qua
+  // getEffectiveCharacterDefinition(), không có gì để lưu theo thời gian, nên
+  // cũng không có xung đột Vera Custer nào phải lo (mượn khả năng này của ai
+  // là áp dụng ngay, trả lại là mất ngay, không cần dọn dẹp Record gì cả).
+  //
+  // requiresTwoBangCardsToShoot: đánh Bang! CHỦ ĐỘNG (playBang()) phải bỏ ĐỦ 2
+  // lá Bang! (không phải 1) — kiểm tra ngay trong playBang().
+  requiresTwoBangCardsToShoot?: boolean;
+  // canReflectBangDamage: THẬT SỰ mất máu (không đỡ được) vì trúng Bang! ĐƠN
+  // LẺ (KHÔNG tính Gatling/Duel/Indians! — những lá đó không đi qua
+  // respondToMissed(), hoặc source.card khác "bang") -> bắn trả MIỄN PHÍ,
+  // không tốn bài, bỏ qua khoảng cách, cần 2 Missed! mới né được. Xem nhánh
+  // "chịu mất máu" của respondToMissed() + pushMaryRoseReflection() trong
+  // reduce.ts.
+  canReflectBangDamage?: boolean;
   hooks: CharacterHooks;
 }
 
@@ -746,6 +797,33 @@ export const CHARACTERS: Record<string, CharacterDefinition> = {
     canBorrowCharacterAbilities: true,
     hooks: {},
   },
+
+  // ----- Bộ mở rộng "custom_characters" — nhân vật TỰ CHẾ, xem House_Rule.txt -----
+
+  elena_noir: {
+    id: "elena_noir",
+    name: "Elena Noir *ex",
+    bullets: 3,
+    canArmImmortality: true,
+    hooks: {},
+  },
+
+  marcel_marcelo: {
+    id: "marcel_marcelo",
+    name: "Marcel Marcelo *ex",
+    bullets: 4,
+    canJailCompanion: true,
+    hooks: {},
+  },
+
+  mary_rose: {
+    id: "mary_rose",
+    name: "Mary Rose *ex",
+    bullets: 3,
+    requiresTwoBangCardsToShoot: true,
+    canReflectBangDamage: true,
+    hooks: {},
+  },
 };
 
 // Id nhân vật do từng BỘ MỞ RỘNG đóng góp (xem ExpansionId ở types.ts +
@@ -772,6 +850,7 @@ export const EXPANSION_CHARACTER_IDS: Record<ExpansionId, string[]> = {
     "belle_star",
     "vera_custer",
   ],
+  custom_characters: ["elena_noir", "marcel_marcelo", "mary_rose"],
 };
 
 // ----- Hook/nhân vật còn lại, ĐỂ DÀNH cho các đợt 5.2 sau -----

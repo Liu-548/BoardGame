@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+﻿import { describe, expect, it } from "vitest";
 import { viewFor } from "../src/core/view";
 import type { GameState, PlayerState } from "../src/core/types";
 
@@ -35,6 +35,11 @@ function makeState(players: PlayerState[], overrides: Partial<GameState> = {}): 
     docHolydayUsedThisTurn: false,
     duelBangDrawPending: null,
     veraCusterBorrowedCharacterId: null,
+    elenaNoirArmed: {},
+    elenaNoirImmortalTurnsLeft: {},
+    marcelJailCompanion: {},
+    marcelCompanionSkipNextTurn: {},
+    marcelJailBonusDrawThisTurn: {},
     houseRules: [],
     expansions: [],
     cardNamesPlayedThisTurn: [],

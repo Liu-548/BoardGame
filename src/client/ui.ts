@@ -398,6 +398,14 @@ const CHARACTER_DESCRIPTIONS: Record<string, string> = {
   belle_star: "Trong lượt của mình, trang bị của TẤT CẢ người khác tạm mất tác dụng (khoảng cách, Thùng rượu, súng...).",
   vera_custer:
     "Đầu lượt bắt buộc chọn 1 người chơi khác còn sống để mượn khả năng nhân vật của họ tới hết lượt sau — không mượn số máu.",
+  // Bộ mở rộng "custom_characters" (xem House_Rule.txt mục I) — nhân vật TỰ
+  // CHẾ, soạn theo ĐÚNG logic đã cài trong core/reduce.ts/characters.ts.
+  elena_noir:
+    "Đòn lẽ ra giết mình (Bia không cứu được) sẽ kích hoạt Miễn Tử 2 lượt: không thể bị nhắm bởi bất kỳ lá nào (trừ Thuốc nổ vẫn nổ nhưng không giết được) và không thể bị Jail — chết chắc chắn khi hết 2 lượt. Đầu mỗi lượt (khi không Miễn Tử) được chọn vũ trang trước (rút 1 lá) hoặc rút 2 lá bình thường (không vũ trang thì không kích hoạt Miễn Tử nếu chết trong lượt đó).",
+  marcel_marcelo:
+    "Bị nhốt tù thì lập tức chỉ định 1 người khác 'cùng vào tù' (ăn theo kết quả, không tự rút). Đầu lượt được rút tối đa 2 lá để tìm Cơ thoát tù; thoát thành công thì lượt đó rút 3 lá thay vì 2.",
+  mary_rose:
+    "Thật sự mất máu vì trúng Bang! đơn lẻ (không đỡ được) thì bắn trả MIỄN PHÍ vào người đó, bỏ qua khoảng cách, cần 2 Missed! mới né được — không tính Gatling/Duel/Indians!. Đổi lại, đánh Bang! chủ động phải bỏ đủ 2 lá Bang! thay vì 1.",
 };
 
 function characterImageUrl(characterId: string): string {
@@ -636,6 +644,7 @@ const HOUSE_RULE_IDS: HouseRuleId[] = [
 // này mà không lẫn vào khối "Luật bổ sung".
 const EXPANSION_LABELS: Record<ExpansionId, string> = {
   dodge_city: "Dodge City (mở rộng)",
+  custom_characters: "Nhân vật tự chế (*ex)",
 };
 const EXPANSION_DESCRIPTIONS: Record<ExpansionId, string> = {
   dodge_city:
@@ -647,8 +656,12 @@ const EXPANSION_DESCRIPTIONS: Record<ExpansionId, string> = {
     "Luật đã cài đủ core, NHƯNG giao diện CHƯA có nút bấm cho lá vàng 'trì hoãn' (kích hoạt lá đã bày sẵn/đỡ Missed! " +
     "bằng trang bị) hay lá nâu cần bỏ kèm 1 lá phụ (Brawl/Rag Time/Springfield/Tequila/Whisky) — chỉ nên bật để thử " +
     "qua mã nguồn/test, CHƯA nên bật khi chơi thật với bạn bè.",
+  // Nhân vật TỰ CHẾ (không thuộc bản gốc/Dodge City, xem House_Rule.txt) —
+  // KHÔNG thêm lá bài nào, chỉ thêm nhân vật vào bộ bốc "phát 2 lá chọn giữ
+  // 1". Tên hiển thị trong ván luôn có đuôi "*ex".
+  custom_characters: "Thêm Elena Noir *ex vào bộ bốc nhân vật (chỉ phát khi bật cơ chế chọn nhân vật) — không thêm lá bài nào.",
 };
-const EXPANSION_IDS: ExpansionId[] = ["dodge_city"];
+const EXPANSION_IDS: ExpansionId[] = ["dodge_city", "custom_characters"];
 
 function renderHouseRuleCheckboxes(
   container: HTMLElement,
@@ -852,6 +865,22 @@ export function describeEvent(event: GameEvent, nameOf: (id: string) => string):
       return `${nameOf(event.playerId)} (Doc Holyday) bỏ 2 lá để bắn ${nameOf(event.targetId)}`;
     case "VERA_CUSTER_BORROWED":
       return `${nameOf(event.playerId)} (Vera Custer) mượn khả năng của ${nameOf(event.borrowedFromPlayerId)}`;
+    case "ELENA_NOIR_IMMORTAL_TRIGGERED":
+      return `${nameOf(event.playerId)} (Elena Noir) "dạt ra cho mẹ bắn" — Miễn Tử ${event.turnsLeft} lượt`;
+    case "MARCEL_COMPANION_PICKED":
+      return `${nameOf(event.playerId)} (Marcel Marcelo) chỉ định ${nameOf(event.companionId)} cùng vào tù`;
+    case "MARCEL_JAIL_SECOND_DRAW":
+      return `${nameOf(event.playerId)} (Marcel Marcelo) rút thêm lá thứ 2 để thoát tù: ${cardFaceLabel(event.cardId)} — ${event.matched ? "KHỚP" : "không khớp"}`;
+    case "MARCEL_COMPANION_FREED":
+      return `${nameOf(event.playerId)} được tự do — Marcel Marcelo đã thoát tù`;
+    case "MARCEL_COMPANION_JAILED":
+      return `${nameOf(event.playerId)} sẽ mất lượt kế tiếp — Marcel Marcelo kẹt tù`;
+    case "MARCEL_COMPANION_TURN_SKIPPED":
+      return `${nameOf(event.playerId)} bị bỏ qua lượt (cùng vào tù với Marcel Marcelo)`;
+    case "MARY_ROSE_EXTRA_BANG_DISCARDED":
+      return `${nameOf(event.playerId)} (Mary Rose) bỏ thêm 1 lá Bang! (giá của kỹ năng)`;
+    case "MARY_ROSE_REFLECTED":
+      return `${nameOf(event.playerId)} (Mary Rose) bắn trả miễn phí vào ${nameOf(event.targetId)}, cần 2 Missed! mới né được`;
   }
 }
 
@@ -1342,6 +1371,16 @@ export interface UiHandlers {
   // Mở rộng Dodge City, mục C nhóm C (Vera Custer) — chọn mượn khả năng của
   // người chơi `targetId` (bắt buộc chọn, không có lựa chọn "không mượn ai").
   onPickBorrowedCharacter(targetId: string): void;
+  // Bộ mở rộng "custom_characters" (Elena Noir, xem House_Rule.txt mục I) —
+  // trả lời NEED_PICK_ARMED. true = vũ trang (rút 1 lá lượt này); false =
+  // không vũ trang (rút 2 lá bình thường, dùng cho nút "Không vũ trang" —
+  // KHÔNG tái dùng onRespondTakeConsequence dù kết quả cuối tương đương, để
+  // nút bấm rõ nghĩa hơn là "chọn không" thay vì "mặc định/hết giờ").
+  onPickArmed(armed: boolean): void;
+  // Bộ mở rộng "custom_characters" (Marcel Marcelo, xem House_Rule.txt mục I)
+  // — trả lời NEED_PICK_MARCEL_COMPANION: chọn `targetId` làm người "cùng vào
+  // tù" (bắt buộc chọn, không có lựa chọn "không chọn ai").
+  onPickMarcelCompanion(targetId: string): void;
   // Đợt 2 UI/UX (mục 4) — bấm "nở"/"thu gọn" khu trang bị của 1 seat khi bàn
   // >6 người. Client-only, không phải hành động ván đấu, không gửi lên server.
   onToggleSeatExpanded(playerId: string): void;
@@ -1737,6 +1776,46 @@ function renderPlayer(
   );
   el.appendChild(roleAndHp);
 
+  // Bộ mở rộng "custom_characters" (Elena Noir, xem House_Rule.txt mục I) —
+  // đọc THẲNG player.characterId (không qua getEffectiveCharacterDefinition/
+  // getEffectiveCharacterId, 2 hàm đó cần GameState đầy đủ, phía network chỉ
+  // có PlayerView không đủ dữ liệu) — CÙNG giới hạn có sẵn với MỌI nút bấm
+  // khả năng "mượn" khác của Vera Custer trong file này (vd renderAbilitySection,
+  // đều đọc player.characterId thật, chưa có hàm "effective" phía client),
+  // không phải giới hạn MỚI riêng của Elena Noir. Dữ liệu cốt lõi (reduce.ts)
+  // đã tách theo playerId, đúng cho cả trường hợp Vera Custer mượn — chỉ badge
+  // hiển thị này chưa vẽ ra cho ca đó.
+  if (player.characterId === "elena_noir" && state.elenaNoirImmortalTurnsLeft[player.id] !== undefined) {
+    const immortalLabel = document.createElement("p");
+    immortalLabel.className = "player--targeted-label";
+    immortalLabel.textContent = `☠ Miễn Tử — còn ${state.elenaNoirImmortalTurnsLeft[player.id]} lượt`;
+    el.appendChild(immortalLabel);
+  }
+  // Bộ mở rộng "custom_characters" (Marcel Marcelo) — 2 hướng khác nhau: badge
+  // trên CHÍNH Marcel (player.id là khoá) cho biết đã chỉ định ai; badge trên
+  // NGƯỜI ĐƯỢC CHỌN (player.id là giá trị) cho biết đang chờ ăn theo kết quả.
+  // Không loại trừ 2 badge còn lại (sắp mất lượt) — dùng state trực tiếp,
+  // không lọc theo characterId cụ thể vì đây là trạng thái của người liên quan.
+  const marcelCompanionId = state.marcelJailCompanion[player.id];
+  if (marcelCompanionId) {
+    const label = document.createElement("p");
+    label.className = "player--targeted-label";
+    label.textContent = `Đã chỉ định ${state.players.find((p) => p.id === marcelCompanionId)?.name ?? marcelCompanionId} cùng vào tù`;
+    el.appendChild(label);
+  }
+  if (Object.values(state.marcelJailCompanion).includes(player.id)) {
+    const label = document.createElement("p");
+    label.className = "player--targeted-label";
+    label.textContent = `Đang chờ ăn theo kết quả thoát tù của Marcel Marcelo`;
+    el.appendChild(label);
+  }
+  if (state.marcelCompanionSkipNextTurn[player.id]) {
+    const label = document.createElement("p");
+    label.className = "player--targeted-label";
+    label.textContent = `Sẽ mất lượt kế tiếp (cùng vào tù với Marcel Marcelo)`;
+    el.appendChild(label);
+  }
+
   const handLabel = document.createElement("p");
   handLabel.textContent = `Bài trên tay (${player.hand.length}):`;
   el.appendChild(handLabel);
@@ -1771,7 +1850,12 @@ function renderPlayer(
   // dùng bước này.
   if (selection.step === "picking-target" && player.alive) {
     const acting = state.players[state.currentPlayerIndex];
-    if (player.id !== acting.id || selection.cardName === "tequila") {
+    // Jail KHÔNG BAO GIỜ được đánh lên Cảnh sát trưởng (reduce.ts's playJail()
+    // từ chối hẳn) — ẩn nút luôn ở đây thay vì để người chơi bấm rồi bị dội lỗi,
+    // giống cách room.ts đã lọc sẵn ứng viên cho các trường hợp "chắc chắn bị
+    // từ chối" khác (vd Dynamite miễn nhiễm Cat Balou).
+    const jailOnSheriff = selection.cardName === "jail" && player.role === "sheriff";
+    if ((player.id !== acting.id || selection.cardName === "tequila") && !jailOnSheriff) {
       el.appendChild(button("Chọn làm mục tiêu", () => handlers.onPlayerClick(player.id)));
     }
   }
@@ -1909,6 +1993,10 @@ function pendingDescription(state: GameState, item: PendingAction): string {
       return `${player} chọn rút bộ bài hay lấy 1 lá trang bị của người khác`;
     case "NEED_PICK_BORROWED_CHARACTER":
       return `${player} chọn mượn khả năng của 1 người chơi khác`;
+    case "NEED_PICK_ARMED":
+      return `${player} (Elena Noir) chọn vũ trang khả năng Miễn Tử cho lượt này hay không`;
+    case "NEED_PICK_MARCEL_COMPANION":
+      return `${player} (Marcel Marcelo) chọn 1 người cùng vào tù`;
     default: {
       const neverKind: never = item;
       throw new Error(`Chưa biết mô tả cho pending: ${JSON.stringify(neverKind)}`);
@@ -2017,6 +2105,14 @@ function renderPendingPanel(container: HTMLElement, state: GameState, handlers: 
           handlers.onPickBorrowedCharacter(p.id)
         )
       );
+    }
+  } else if (top.kind === "NEED_PICK_ARMED") {
+    panel.appendChild(button("Vũ trang (rút 1 lá)", () => handlers.onPickArmed(true)));
+    panel.appendChild(button("Không vũ trang (rút 2 lá)", () => handlers.onPickArmed(false)));
+  } else if (top.kind === "NEED_PICK_MARCEL_COMPANION") {
+    for (const p of state.players) {
+      if (!p.alive || p.id === top.player) continue;
+      panel.appendChild(button(`Chỉ định ${p.name} cùng vào tù`, () => handlers.onPickMarcelCompanion(p.id)));
     }
   }
 
@@ -2649,6 +2745,10 @@ export interface NetworkGameHandlers {
   // Mở rộng Dodge City — giống hệt UiHandlers (hotseat), xem ghi chú ở đó.
   onPickEquipmentFromPlayer(targetId: string, cardId: string): void;
   onPickBorrowedCharacter(targetId: string): void;
+  // Bộ mở rộng "custom_characters" (Elena Noir/Marcel Marcelo) — giống hệt
+  // UiHandlers (hotseat), xem ghi chú ở đó.
+  onPickArmed(armed: boolean): void;
+  onPickMarcelCompanion(targetId: string): void;
   onBrawlZonePick(targetId: string, zone: "hand" | "equipment"): void;
   onBrawlZonesConfirmed(): void;
   onExtraDiscardCardClick(cardId: string): void;
@@ -2963,6 +3063,36 @@ function networkRenderPlayer(
   );
   el.appendChild(roleAndHp);
 
+  // Bộ mở rộng "custom_characters" (Elena Noir) — giống hệt renderPlayer()
+  // (hotseat), xem ghi chú ở đó (giới hạn Vera Custer).
+  if (player.characterId === "elena_noir" && view.elenaNoirImmortalTurnsLeft[player.id] !== undefined) {
+    const immortalLabel = document.createElement("p");
+    immortalLabel.className = "player--targeted-label";
+    immortalLabel.textContent = `☠ Miễn Tử — còn ${view.elenaNoirImmortalTurnsLeft[player.id]} lượt`;
+    el.appendChild(immortalLabel);
+  }
+  // Bộ mở rộng "custom_characters" (Marcel Marcelo) — giống hệt renderPlayer()
+  // (hotseat), xem ghi chú ở đó.
+  const marcelCompanionId = view.marcelJailCompanion[player.id];
+  if (marcelCompanionId) {
+    const label = document.createElement("p");
+    label.className = "player--targeted-label";
+    label.textContent = `Đã chỉ định ${view.players.find((p) => p.id === marcelCompanionId)?.name ?? marcelCompanionId} cùng vào tù`;
+    el.appendChild(label);
+  }
+  if (Object.values(view.marcelJailCompanion).includes(player.id)) {
+    const label = document.createElement("p");
+    label.className = "player--targeted-label";
+    label.textContent = `Đang chờ ăn theo kết quả thoát tù của Marcel Marcelo`;
+    el.appendChild(label);
+  }
+  if (view.marcelCompanionSkipNextTurn[player.id]) {
+    const label = document.createElement("p");
+    label.className = "player--targeted-label";
+    label.textContent = `Sẽ mất lượt kế tiếp (cùng vào tù với Marcel Marcelo)`;
+    el.appendChild(label);
+  }
+
   const handLabel = document.createElement("p");
   handLabel.textContent = "Bài trên tay:";
   el.appendChild(handLabel);
@@ -2989,12 +3119,14 @@ function networkRenderPlayer(
   // Chọn mục tiêu: chỉ hiện nút này khi CHÍNH MÌNH đang chọn mục tiêu, cho
   // người KHÁC mình. NGOẠI LỆ: Tequila (mở rộng Dodge City) cho tự chọn
   // chính mình — xem ghi chú y hệt ở renderPlayer() (hotseat).
-  if (
-    selection.step === "picking-target" &&
-    player.alive &&
-    (player.id !== view.viewerId || selection.cardName === "tequila")
-  ) {
-    el.appendChild(button("Chọn làm mục tiêu", () => handlers.onPlayerClick(player.id)));
+  if (selection.step === "picking-target" && player.alive) {
+    // Jail KHÔNG BAO GIỜ được đánh lên Cảnh sát trưởng — giống hệt
+    // renderPlayer() (hotseat), xem ghi chú ở đó. player.role luôn lộ đúng
+    // nếu là Cảnh sát trưởng (viewFor() công khai vai này ngay từ đầu ván).
+    const jailOnSheriff = selection.cardName === "jail" && player.role === "sheriff";
+    if ((player.id !== view.viewerId || selection.cardName === "tequila") && !jailOnSheriff) {
+      el.appendChild(button("Chọn làm mục tiêu", () => handlers.onPlayerClick(player.id)));
+    }
   }
 
   // Mở rộng Dodge City, mục C nhóm C (Doc Holyday) — xem ghi chú y hệt ở
@@ -3140,6 +3272,10 @@ function networkRenderPendingPanel(
         return `${name} chọn rút bộ bài hay lấy 1 lá trang bị của người khác`;
       case "NEED_PICK_BORROWED_CHARACTER":
         return `${name} chọn mượn khả năng của 1 người chơi khác`;
+      case "NEED_PICK_ARMED":
+        return `${name} (Elena Noir) chọn vũ trang khả năng Miễn Tử cho lượt này hay không`;
+      case "NEED_PICK_MARCEL_COMPANION":
+        return `${name} (Marcel Marcelo) chọn 1 người cùng vào tù`;
       default: {
         const neverKind: never = item;
         throw new Error(`Chưa biết mô tả cho pending: ${JSON.stringify(neverKind)}`);
@@ -3261,6 +3397,14 @@ function networkRenderPendingPanel(
             handlers.onPickBorrowedCharacter(p.id)
           )
         );
+      }
+    } else if (top.kind === "NEED_PICK_ARMED") {
+      panel.appendChild(button("Vũ trang (rút 1 lá)", () => handlers.onPickArmed(true)));
+      panel.appendChild(button("Không vũ trang (rút 2 lá)", () => handlers.onPickArmed(false)));
+    } else if (top.kind === "NEED_PICK_MARCEL_COMPANION") {
+      for (const p of view.players) {
+        if (!p.alive || p.id === top.player) continue;
+        panel.appendChild(button(`Chỉ định ${p.name} cùng vào tù`, () => handlers.onPickMarcelCompanion(p.id)));
       }
     }
   }

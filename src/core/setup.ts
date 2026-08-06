@@ -216,6 +216,11 @@ export function setupGame(
     docHolydayUsedThisTurn: false,
     duelBangDrawPending: null,
     veraCusterBorrowedCharacterId: null,
+    elenaNoirArmed: {},
+    elenaNoirImmortalTurnsLeft: {},
+    marcelJailCompanion: {},
+    marcelCompanionSkipNextTurn: {},
+    marcelJailBonusDrawThisTurn: {},
   };
 
   // Lượt đầu tiên cũng phải qua Bước 0 (mục 4): nếu Sheriff (hoặc ai đi lượt

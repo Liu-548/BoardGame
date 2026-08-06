@@ -1,21 +1,357 @@
-I. Nhân vật
-	- Elena Noir 3 máu: khi nhân vật này bị người chơi gây 
-	sát thương khi còn 1 máu cô sẽ vào trạng thái "dạt ra 
-	cho mẹ bắn" miễn tử trong 2 lượt chơi tới khi kết thúc 
-	2 lượt chắc chắn sẽ chết, 2 lượt miễn tử này thay vì 
-	rút 2 lá cô ta sẽ rút đc 3 ( không thể nhốt tù nhân 
-	vật này khi cô ta trong trạng thái " dạt ra cho mẹ bắn ") 
-	bom sẽ không kích hoạt hiệu ứng "dạt ra cho mẹ bắn"
+I. Nhân vật *ex — nhân vật TỰ CHẾ (không thuộc bản gốc/Dodge City),
+CHỈ được đưa vào bộ bốc "phát 2 lá chọn giữ 1" nếu chủ phòng bật riêng
+1 lựa chọn "chơi thêm nhân vật extra" lúc thiết lập ván (giống cách bật
+bộ mở rộng Dodge City — CẦN BÀN kỹ đây là ExpansionId hay HouseRuleId,
+xem mục III). Tên hiển thị trong game LUÔN có
+đuôi "*ex" (vd "Elena Noir *ex") để phân biệt với nhân vật chính thức.
+Mỗi khả năng của nhân vật *ex code thành 1 hàm RIÊNG (không dùng chung
+cơ chế/hook trừu tượng với nhau) — dễ chỉnh sửa từng nhân vật sau này
+mà không ảnh hưởng nhân vật *ex khác.
 
-	- Marcel Marcelo 4 máu: khi nhân vật này bị nhốt tù nó 
-	thể lập tức chỉ định 1 người chơi khác để cùng vào tù 
-	với anh ta , nếu nhân vật này nhốt tù người khác thì 
-	người ở lượt tiếp theo của người bị nhốt cũng sẽ bị 
-	nhốt theo ( nhân vật này có thể check tù 2 lần )
+	- Elena Noir 3 máu — ✅ ĐÃ CODE XONG (core + UI hotseat/qua mạng +
+	test, chọn Phương án 2, xem đánh giá sức mạnh bản CUỐI ở mục IV).
+	Test: test/elena-noir.test.ts (15 test, kể cả 1 test riêng cho ca
+	Vera Custer mượn). Xung đột với Vera Custer (Dodge City mượn khả
+	năng này) ĐÃ XỬ LÝ TRIỆT ĐỂ — elenaNoirArmed/elenaNoirImmortalTurnsLeft
+	đổi thành Record<playerId, ...> thay vì field đơn, mỗi người có
+	trạng thái riêng. Xem ghi chú đầy đủ ở field canArmImmortality
+	trong core/characters.ts.
 
-	- Mary Rose 3 máu: là 1 sát thủ luôn biết cách linh 
-	hoạt trong các cuộc đấu súng khi cô ta bị người chơi 
-	khác bang và mất máu cô ta sẽ lập tức bang lại người 
-	chơi đó ( 2 miss mới né được lượt bang này của cô ta ) 
-	bù lại nhân vật này phải dùng đến 2 lá bang để có thể 
-	bang người chơi khác ở 1 lượt bang bình thường
+	  Tên hiệu ứng: "dạt ra cho mẹ bắn" (trạng thái "Miễn Tử").
+
+	  BƯỚC 1 — Vũ trang (armed), hỏi ĐẦU MỖI LƯỢT của chính Elena
+	  Noir, CHỈ khi cô KHÔNG đang trong trạng thái Miễn Tử (đang Miễn
+	  Tử thì bỏ qua bước này, không hỏi vì vô nghĩa — đã miễn nhiễm
+	  chết rồi):
+	  - Hỏi người chơi có muốn "vũ trang" khả năng Miễn Tử cho lượt
+	    này không.
+	  - CHỌN vũ trang: lượt này chỉ rút 1 lá (thay vì 2) ở bước rút
+	    bài — cái giá phải trả dù có bị tấn công hay không. Trạng
+	    thái "đã vũ trang" có hiệu lực từ lúc chọn tới HẾT lượt kế
+	    tiếp của chính cô (tức là suốt lượt các người chơi khác xen
+	    giữa) — nếu trong khoảng đó máu cô về 0 (đòn lẽ ra giết được
+	    cô) VÀ không có Bia tự động cứu, thì kích hoạt BƯỚC 2 (Miễn
+	    Tử). Hết lượt kế tiếp mà không chết thì trạng thái vũ trang
+	    tự huỷ — lượt sau phải chọn vũ trang lại từ đầu, không giữ
+	    mặc định.
+	  - KHÔNG vũ trang: rút 2 lá bình thường; máu về 0 lúc này thì
+	    CHẾT THẬT (kể cả không có Bia cứu), không có gì đỡ.
+
+	  BƯỚC 2 — Trạng thái Miễn Tử (kéo dài đúng 2 LƯỢT CỦA CHÍNH nhân
+	  vật này, không tính lượt người khác), kích hoạt khi đang vũ
+	  trang mà đáng lẽ chết:
+	  - Máu giữ nguyên ở mức 0 (code chọn 0 máu thật hay 1 máu ảo tuỳ
+	    cách nào dễ cài hơn — quyết định lúc viết code).
+	  - Vẫn là mục tiêu BÌNH THƯỜNG cho MỌI lá bài khác (Bang!,
+	    Panic!, Cat Balou, Duel, Indians!, Gatling, Cửa hàng tổng
+	    hợp...) — Panic!/Cat Balou vẫn cướp được bài cô, Duel vẫn bắt
+	    cô phản ứng, Indians!/Gatling vẫn "bắn trúng" — CHỈ khác là
+	    không gì giết được cô trong 2 lượt này.
+	  - RIÊNG Jail: KHÔNG đánh lên được cô trong lúc Miễn Tử (ngoại
+	    lệ duy nhất còn giữ nguyên, để tránh rắc rối tính lượt Miễn
+	    Tử lúc bị nhốt tù).
+	  - Đầu mỗi lượt trong 2 lượt Miễn Tử: rút 3 lá thay vì 2 (như
+	    Pixie Pete) — giữ nguyên bonus gốc, không đổi.
+	  - Cuối mỗi lượt trong 2 lượt Miễn Tử: phải bỏ bài xuống còn
+	    ĐÚNG bằng số máu hiện tại (= 0), tức bỏ SẠCH toàn bộ bài trên
+	    tay kể cả Bang!/Missed!/Bia chưa dùng kịp — 3 lá rút thêm mỗi
+	    lượt là "dùng hết hoặc mất", không tích trữ sang lượt sau.
+	  - Thuốc nổ (Dynamite) nếu đang gắn trên người: vẫn lật bài
+	    kiểm tra bình thường mỗi đầu lượt (không bị vô hiệu hoá),
+	    nhưng nếu nổ thì KHÔNG giết được cô trong lúc Miễn Tử.
+
+	  Kết thúc: chết chắc chắn ngay khi lượt Miễn Tử thứ 2 kết thúc —
+	  không ngoại lệ, không lá bài nào cứu được (kể cả Bia, vì tay đã
+	  bị bỏ sạch từ luật cuối-lượt ở trên).
+
+	  Ngoại lệ với Thuốc nổ LÚC CHƯA vũ trang/CHƯA Miễn Tử: nếu Thuốc
+	  nổ nổ trúng giết cô trong lúc cô KHÔNG đang vũ trang (hoặc đã
+	  vũ trang nhưng đây vẫn tính là đòn giết bình thường qua Bước 1
+	  — xem xét như mọi đòn chí mạng khác) thì xử lý y hệt luồng Bước
+	  1/2 ở trên (vũ trang thì cứu, không vũ trang thì chết thật) —
+	  Thuốc nổ KHÔNG có luật riêng ở bước kích hoạt, chỉ đặc biệt ở
+	  chỗ KHÔNG giết được cô nếu nổ trúng lúc cô ĐÃ đang trong trạng
+	  thái Miễn Tử rồi (xem gạch đầu dòng "Thuốc nổ" ở Bước 2).
+
+	- Marcel Marcelo 4 máu — ✅ ĐÃ CODE XONG (core + UI hotseat/qua mạng
+	+ test, xem đánh giá sức mạnh ở mục IV). Test: test/marcel-marcelo.test.ts
+	(15 test, kể cả 1 test riêng cho ca Vera Custer mượn). Nguyên văn gốc
+	"người ở lượt tiếp theo của người bị nhốt cũng bị nhốt theo" — ĐÃ
+	BỎ HẲN, không đưa vào code (chủ dự án xác nhận sau khi bàn: phạt
+	"lây" sang người thứ 3 không liên quan gì tới Marcel/nạn nhân gốc,
+	không hợp lý về mặt hình dung + dễ gây ức chế, và nhân vật vẫn
+	trọn vẹn/cân bằng mà không cần khoản này).
+
+	  GHI CHÚ KHI CODE (đọc kỹ nếu chỉnh sửa sau này): "người cùng vào
+	  tù ăn theo kết quả CÙNG LƯỢT" chỉ đúng nghĩa đen khi 2 người NGỒI
+	  LIỀN NHAU trong vòng chơi. Vì ván đấu là lượt tuần tự (không có
+	  khái niệm "2 người cùng 1 lượt"), cách cài đặt thực tế là: kết
+	  quả thoát/kẹt tù của Marcel được CHỐT NGAY lúc anh ta rút bài,
+	  nhưng hệ quả lên người "cùng vào tù" (thoát -> không có gì; kẹt
+	  -> mất lượt) chỉ THỰC SỰ ÁP DỤNG vào đúng LƯỢT KẾ TIẾP CỦA CHÍNH
+	  NGƯỜI ĐÓ (có thể ngay sau Marcel, có thể còn phải chờ qua lượt
+	  của những người khác xen giữa nếu chỗ ngồi cách xa) — xem
+	  GameState.marcelCompanionSkipNextTurn + applyTurnStartChecks()
+	  trong reduce.ts. Đã bàn và thấy đây là cách duy nhất khả thi với
+	  kiến trúc lượt tuần tự hiện có, không có lựa chọn nào khác gần
+	  nghĩa gốc hơn.
+
+	  Toàn bộ khả năng chỉ kích hoạt khi CHÍNH Marcel bị nhốt tù (lá
+	  Jail đánh lên anh ta) — thuần phòng thủ, không có phần chủ động
+	  tấn công:
+
+	  - Ngay khi bị nhốt tù, Marcel LẬP TỨC được chỉ định thêm 1
+	    người chơi CÒN SỐNG bất kỳ (không giới hạn khoảng cách) để
+	    "cùng vào tù" với anh ta.
+	  - Đầu lượt của Marcel (lúc kiểm tra tù): Marcel được rút TỐI ĐA
+	    2 LÁ để tìm Cơ thoát tù (rút lá 1, ra Cơ thì thoát ngay không
+	    cần rút lá 2; không phải Cơ thì rút tiếp lá 2, ra Cơ thì thoát,
+	    không thì chịu kẹt tù lượt đó) — thay vì chỉ 1 lá như luật
+	    gốc.
+	  - Người được chỉ định "cùng vào tù" KHÔNG tự rút bài kiểm tra
+	    riêng — ăn theo đúng kết quả của Marcel: Marcel thoát tù (ở
+	    bước rút 1 hoặc rút 2) thì người đó cũng thoát; Marcel kẹt tù
+	    lượt đó thì người đó cũng kẹt tù lượt đó.
+	  - BUFF (Phương án C, đã chọn): nếu Marcel thoát tù thành công
+	    (ra Cơ ở lần rút 1 hoặc lần rút 2 — lá Cơ đó vẫn bỏ đi như
+	    luật gốc, không tính vào tay), lượt đó CHUYỂN SANG chơi bình
+	    thường (bỏ Jail, giai đoạn rút bài như thường) NHƯNG rút 3 lá
+	    thay vì 2 ở bước rút bài đầu lượt — +1 lá thưởng "vượt tù
+	    thành công", CHỈ 1 lượt đó thôi. Chỉ áp dụng cho Marcel, KHÔNG
+	    áp dụng cho người "cùng vào tù" ăn theo (người đó thoát theo
+	    nhưng không được lá thưởng, vẫn rút 2 lá bình thường).
+
+	- Mary Rose 3 máu — ✅ ĐÃ CODE XONG (core + UI hotseat/qua mạng +
+	test, xem đánh giá sức mạnh ở mục IV). Test: test/mary-rose.test.ts
+	(12 test, kể cả 2 test riêng cho ca Vera Custer mượn). KHÔNG cần
+	field GameState nào — cả 2 khả năng (bắn trả + giá 2 lá Bang!) đều
+	tính lại ngay mỗi lần qua getEffectiveCharacterDefinition(), không
+	có gì để lưu theo thời gian, nên cũng không có xung đột Vera Custer
+	nào phải lo (khác Elena Noir/Marcel Marcelo).
+
+	  GHI CHÚ KHI CODE (đọc kỹ nếu chỉnh sửa sau này):
+	  - Đòn "bang trả" KHÔNG đi qua Apache Kid (isImmuneToCard) — đòn
+	    này không gắn với lá bài thật nào để tra chất Rô (nó là hiệu
+	    ứng "miễn phí", không phải 1 lá đang cầm trên tay đánh ra), nên
+	    cố tình bỏ qua bước kiểm tra đó — giống cách Đấu tay đôi/
+	    Indians! cũng không áp dụng luật miễn nhiễm này của Apache Kid.
+	    Vẫn tôn trọng Barrel thật/Jourdonnais ảo của người bị bắn trả
+	    như bình thường.
+	  - "CHỈ tính lá Bang! ĐƠN LẺ" được hiểu ĐÚNG NGHĨA ĐEN là lá tên
+	    "bang" — KHÔNG áp dụng cho các lá "giống Bang!" khác (Punch,
+	    Springfield, Derringer, Knife, Pepperbox, Buffalo Rifle,
+	    Howitzer, đòn bắn của Doc Holyday...), vì file luật gốc chỉ
+	    liệt kê loại trừ Duel/Indians!/Gatling, không nhắc nhóm này.
+
+	  Điều kiện kích hoạt: CHỈ tính lá Bang! ĐƠN LẺ nhắm thẳng vào cô
+	  và trúng thật, tức THỰC SỰ MẤT MÁU — KHÔNG tính Duel/Indians!/
+	  Gatling. Nói rõ để không nhầm lúc code: nếu cô đỡ được bằng
+	  Missed! (hoặc lá tương đương qua cardActsAsMissed()) thì đòn
+	  Bang! đó coi như KHÔNG trúng, KHÔNG mất máu → KHÔNG kích hoạt
+	  bang trả. Chỉ khi cô thật sự chịu mất 1 máu (không đỡ được/
+	  không có gì để đỡ/chủ động không đỡ) thì mới kích hoạt.
+
+	  Đòn "bang trả":
+	  - HOÀN TOÀN MIỄN PHÍ — không tốn bất kỳ lá bài nào trên tay, tự
+	    động kích hoạt ngay khi trúng đòn Bang! (khác hẳn đòn Bang!
+	    bình thường phải bỏ 1 lá Bang! ra đánh).
+	  - Bỏ qua khoảng cách/tầm súng — luôn bắn trúng người vừa bang cô,
+	    bất kể ở đâu trên bàn (giống Đấu tay đôi).
+	  - Người bị bang trả cần 2 lá Missed! (hoặc tương đương, xem
+	    cardActsAsMissed() có sẵn trong code) mới né được — gấp đôi
+	    yêu cầu thông thường.
+	  - Không tính vào giới hạn "1 Bang!/lượt" của MARY ROSE (đây là
+	    phản đòn ngoài lượt, độc lập hoàn toàn, không đụng tới lượt
+	    đánh bài bình thường của cô).
+	  - Kích hoạt NGAY CẢ KHI đòn Bang! trúng đó giết chết cô (đưa
+	    máu về 0) — đòn trả đũa vẫn xảy ra dù cô đã "chết" ngay sau
+	    đó (đòn cuối cùng trước khi bị loại).
+
+	  Cái giá phải trả — lượt đánh bài bình thường của chính cô: phải
+	  bỏ ra 2 LÁ BANG! (không phải 1) để đánh 1 phát Bang! offensive
+	  bình thường. Không đủ 2 lá Bang! trên tay thì không đánh Bang!
+	  được lượt đó, dù chỉ có 1 lá.
+
+II. Luật bổ sung khác (house rules) — không phải nhân vật, mà là
+chỉnh luật gốc, chọn theo phòng cho 1 ván cụ thể. Xem code ở
+core/types.ts (HouseRuleId), core/distance.ts, core/reduce.ts.
+
+	ĐÃ LÀM (core + UI hotseat/qua mạng đều xong):
+
+	- [extra_distance] Tăng khoảng cách vòng tròn mặc định
+	giữa 2 người chơi lên +1 (vd 2 người ngồi cạnh nhau vốn
+	cách 1 thì giờ tính cách 2). Áp dụng ở distance.ts, ảnh
+	hưởng luôn tầm bắn Bang!/tầm với các lá cần khoảng cách.
+
+	- [require_weapon_for_bang] Bắt buộc phải có trang bị
+	súng mới đánh được Bang! — bỏ luật gốc "không có súng
+	vẫn coi như có súng ngầm định tầm 1". Không có súng thì
+	không đánh Bang! được luôn, dù mục tiêu ở khoảng cách 1.
+
+	- [no_duplicate_card_names] Cấm dùng 2 lá NÂU (lá hành
+	động, không phải trang bị) trùng tên trong CÙNG 1 lượt.
+	Vd đã đánh 1 lá Panic! trong lượt thì không được đánh
+	thêm lá Panic! thứ 2 trong lượt đó nữa, dù còn bài. Lá
+	trang bị (xanh dương) không bị luật này chi phối.
+
+	- [beer_below_two] Bia (Beer) vẫn có tác dụng hồi máu dù
+	bàn chỉ còn 2 người sống — bỏ ngoại lệ luật gốc "Bia vô
+	tác dụng khi chỉ còn 2 người" (luật gốc coi 2 người còn
+	lại là "so kè tay đôi", Bia không dùng được nữa).
+
+	CHƯA LÀM (mới chỉ là ý tưởng, chưa thiết kế chi tiết,
+	chưa code — cần cơ chế chọn mục tiêu mới trước khi làm):
+
+	- Gộp 2 lá Bia để hồi máu cho 1 người chơi KHÁC (thay vì
+	luật gốc Bia chỉ tự hồi máu cho chính mình). Còn thiếu:
+	cách chọn "gộp 2 lá + chọn 1 mục tiêu" trong 1 lần đánh,
+	số máu hồi (1 hay 2?), có hồi được người đã 0 máu (cứu
+	mạng) hay chỉ hồi người còn sống bình thường.
+
+III. Ghi chú kiến trúc cho nhân vật *ex — ✅ ĐÃ CHỐT (chủ dự án xác
+nhận):
+
+	Dự án hiện phân biệt RÕ 2 khái niệm khác nhau (xem types.ts):
+	- HouseRuleId: CHỈNH SỬA luật chơi gốc (vd tăng khoảng cách).
+	- ExpansionId: THÊM NỘI DUNG mới (lá bài/nhân vật) — Dodge City là
+	  ví dụ duy nhất hiện có, cấu trúc đã sẵn sàng cho NHIỀU bộ mở
+	  rộng cùng lúc (mảng `expansions`, không rẽ nhánh riêng từng bộ).
+
+	3 nhân vật *ex này là "THÊM nhân vật mới" — ĐÃ CHỐT: coi là 1
+	ExpansionId MỚI, id = `"custom_characters"`, tái dùng đúng cơ chế
+	`EXPANSION_CHARACTER_IDS` đã có sẵn ở characters.ts (dùng cho
+	Dodge City) — không viết cơ chế lọc bộ bốc nhân vật lần 2. Chủ
+	phòng bật riêng bộ mở rộng "custom_characters" lúc thiết lập ván
+	(y hệt cách bật Dodge City) thì 3 nhân vật *ex mới vào bộ bốc
+	"phát 2 lá chọn giữ 1".
+
+IV. Đánh giá sức mạnh (đánh giá cá nhân, chỉ mang tính tham khảo —
+chủ dự án là người quyết định cuối cùng có giữ nguyên hay chỉnh lại)
+
+	Elena Noir *ex (BẢN CUỐI — Phương án 2 đã chốt) — theo tôi giờ đã
+	CÂN BẰNG HỢP LÝ HƠN NHIỀU so với bản gốc/Phương án 1, không còn ở
+	mức "phá vỡ cân bằng" nữa, nhưng vẫn hơi NHỈNH HƠN mặt bằng chung
+	một chút. Lý do:
+
+	- Bỏ "không thể bị nhắm đến" (chỉ còn giữ "không thể chết") là
+	  thay đổi quan trọng nhất — Panic!/Cat Balou vẫn cướp được bài
+	  cô trong lúc Miễn Tử, Duel vẫn bắt cô phản ứng, đối phương KHÔNG
+	  còn hoàn toàn bất lực như bản gốc nữa.
+	- Cơ chế "vũ trang" trả phí (mất 1 lá rút MỖI LƯỢT chọn vũ trang,
+	  dù có bị tấn công hay không) biến khả năng này từ "lưới an toàn
+	  miễn phí" thành "bảo hiểm có giá thật, phải đoán trước" — đúng
+	  tinh thần BANG! gốc (lợi thế nào cũng trả giá). Đoán sai (vũ
+	  trang mà không bị tấn công, hoặc không vũ trang mà bị hạ) đều
+	  có cái giá riêng.
+	- Điểm CÒN ĐÁNG LO: nếu người chơi Elena Noir chọn "cứ vũ trang
+	  MỌI lượt" làm chiến thuật mặc định (chấp nhận thiệt 1 lá/lượt
+	  vĩnh viễn để đổi lấy an toàn gần như tuyệt đối bất cứ khi nào
+	  cần) thì hiệu quả thực tế có thể gần giống bản gốc, chỉ là trả
+	  giá đều đặn thay vì miễn phí — mức độ "trả giá 1 lá/lượt có đủ
+	  đắt để ngăn chiến thuật này không" là câu hỏi khó trả lời trên
+	  giấy, cần chơi thử thật vài ván để cảm nhận (không phải thứ
+	  đoán được chính xác chỉ bằng lý thuyết).
+	- 2 lượt Miễn Tử vẫn giữ nguyên rút 3 lá + vẫn tấn công được bình
+	  thường — khi ĐÃ kích hoạt thành công thì phần thưởng vẫn lớn y
+	  hệt bản gốc, chỉ là XÁC SUẤT/ĐỘ TIN CẬY để có được nó đã giảm
+	  nhiều (phải đoán đúng lượt nguy hiểm, không phải lúc nào cũng
+	  đoán đúng).
+	- Ngoại lệ Jail vẫn còn (không bị nhốt tù lúc Miễn Tử) — 1 khoảng
+	  an toàn nhỏ còn sót lại so với các nhân vật khác, nhưng phạm vi
+	  hẹp, không đáng lo bằng bản gốc.
+
+	Tóm lại: bản này tôi đánh giá Ở MỨC CHẤP NHẬN ĐƯỢC, không cần
+	chỉnh thêm ngay — nhưng nên THEO DÕI lúc chơi thử thật xem chiến
+	thuật "vũ trang mọi lượt" có trở thành lựa chọn áp đảo hay không,
+	nếu có thì lúc đó tăng thêm cái giá (vd rút 0 lá thay vì 1 lá lúc
+	vũ trang, hoặc giới hạn số lần vũ trang được phép trong 1 ván).
+
+	Marcel Marcelo *ex — theo tôi Ở MỨC TRUNG BÌNH, THẬM CHÍ HƠI YẾU,
+	không đáng lo về cân bằng:
+
+	- Toàn bộ khả năng CHỈ kích hoạt khi có người khác chủ động đánh
+	  Jail lên Marcel — một lá khá hiếm khi xuất hiện và không phải
+	  ai cũng chọn dùng để nhắm vào đúng 1 người. So với Elena Noir
+	  (kích hoạt trên BẤT KỲ đòn chí mạng nào — luôn có khả năng dùng
+	  tới ở gần như mọi ván), khả năng của Marcel có xác suất được
+	  "dùng tới" trong 1 ván thấp hơn nhiều — nhiều ván có thể trôi
+	  qua mà Marcel không hề bị Jail, khả năng này coi như không tồn
+	  tại.
+	- Khi ĐÃ kích hoạt: 2 lần rút để thoát tù nâng xác suất thoát từ
+	  ~25% (luật gốc, cần ra Cơ) lên ~44% — cải thiện thật nhưng vẫn
+	  hơn nửa số lần bị nhốt là kẹt tù trọn lượt, không phải "thoát
+	  gần như chắc chắn".
+	- Khoản "lôi thêm 1 người cùng vào tù" không tăng khả năng thoát
+	  của Marcel, chỉ thêm 1 người khác cùng bị ảnh hưởng — đây là
+	  hiệu ứng "trả đũa/gây khó chịu cho đối phương" nhiều hơn là sức
+	  mạnh thật sự (không đổi thắng thua trực tiếp, chỉ đổi AI phải
+	  chịu thiệt cùng Marcel).
+	- Không có ảnh hưởng gì tới nhịp độ tấn công/phòng thủ bình
+	  thường của Marcel ở các lượt không liên quan tới Jail — 90%+
+	  thời gian trong ván, Marcel chơi y hệt 1 nhân vật không có khả
+	  năng đặc biệt.
+
+	Không cần chỉnh gì thêm — nếu có lo ngại thì là lo KHẢ NĂNG NÀY
+	QUÁ ÍT ĐẤT DIỄN chứ không phải quá mạnh, nhưng đây vốn là đặc thù
+	nhân vật "chuyên trị 1 tình huống cụ thể" (giống Sid Ketchum
+	trong bản gốc chỉ có tác dụng khi cần hồi máu) — không nhất thiết
+	phải mạnh đều ở mọi tình huống.
+
+	✅ ĐÃ THÊM BUFF (Phương án C — rút thêm 1 lá thưởng nếu thoát tù
+	thành công): đánh giá lại — vẫn Ở MỨC TRUNG BÌNH, chưa đủ để lo
+	về cân bằng, nhưng đã đỡ "hụt hẫng" hơn. Buff này không thay đổi
+	xác suất thoát tù (vẫn ~44%), chỉ tăng PHẦN THƯỞNG khi thoát
+	thành công (rút 3 lá thay vì 2 đúng lượt đó) — tức là làm cho
+	tình huống "bị Jail" từ chỗ TOÀN RỦI RO (44% thoát bình thường/
+	56% mất trắng cả lượt) chuyển thành có thêm chút PHẦN THƯỞNG khi
+	may mắn (44% thoát + có lợi hơn bình thường/56% mất trắng như
+	cũ) — cải thiện cảm giác chơi nhưng không đổi bản chất "phần lớn
+	thời gian trong ván khả năng này không có tác dụng gì". Vẫn hợp
+	lý với vai "nhân vật chuyên trị 1 tình huống cụ thể", không cần
+	lo lắng gì thêm.
+
+	Mary Rose *ex — theo tôi MẠNH, gần bằng mức đáng lo như Elena Noir
+	bản gốc (dù không đến mức "bất tử"), vì mấy lý do:
+
+	- Phản đòn HOÀN TOÀN MIỄN PHÍ (không tốn bài) + bỏ qua khoảng
+	  cách + kích hoạt trên MỌI lần bị Bang! trúng (không giới hạn
+	  1 lần/lượt) — nghĩa là nếu 3 người khác nhau đều đánh trúng
+	  Bang! vào cô trong cùng 1 vòng (tình huống rất thường gặp khi
+	  cả bàn dồn hoả lực vào 1 mục tiêu máu yếu, mà cô lại chỉ có 3
+	  máu — dễ là mục tiêu bị dồn), cô phản đòn LẠI CẢ 3 người, mỗi
+	  đòn đều cần 2 Missed! mới né được — tổng chi phí phòng thủ ép
+	  lên đối phương RẤT lớn so với 1 lá bài "miễn phí" từ phía cô.
+	- Đúng lúc phe Bảo an cần "dồn hoả lực kết liễu nhanh" 1 Outlaw/
+	  Renegade máu yếu (chiến thuật rất phổ biến trong Bang!), Mary
+	  Rose lại khiến chiến thuật này cực kỳ tốn kém — mỗi người tham
+	  gia dồn Bang! đều phải è cổ né đòn trả đũa yêu cầu 2 Missed!.
+	- Vẫn giết được cô bình thường (không bất tử như Elena Noir bản
+	  gốc) — đây là điểm khác biệt lớn giúp Mary Rose không đáng sợ
+	  bằng, nhưng cái giá đối phương phải trả ĐỂ giết được cô là rất
+	  cao so với 3 máu ít ỏi của cô.
+	- Cái giá "phải dùng 2 lá Bang!" chỉ ảnh hưởng lượt CHỦ ĐỘNG tấn
+	  công của cô — không hề làm giảm sức mạnh PHÒNG THỦ/PHẢN ĐÒN,
+	  mà phòng thủ mới là phần đáng gờm nhất ở đây.
+
+	ĐÁNH GIÁ LẠI (sau khi làm rõ "chỉ kích hoạt khi thực sự mất máu"):
+	điều kiện này KHÔNG làm giảm sức mạnh — bản chốt trước đó vốn đã
+	ngầm định vậy. Ngược lại, nó hé ra 1 lớp chiến thuật khiến cô còn
+	đáng gờm hơn: vì Missed! trong Bang! LUÔN là lựa chọn tự nguyện
+	(không ai bắt buộc phải đỡ dù có bài), 1 người chơi giỏi có thể
+	CHỦ ĐỘNG không đỡ dù đang cầm sẵn Missed! — chấp nhận mất 1/3 máu
+	để đổi lấy đòn phản công miễn phí, bỏ qua khoảng cách, buộc đối
+	phương phải có sẵn 2 Missed! mới thoát. Quy đổi thuần theo giá
+	trị lá bài: "mất 1 máu, không tốn bài" đổi lấy "buộc đối phương
+	tốn 2 lá phòng thủ" là cuộc trao đổi rất có lợi cho cô — giữ
+	nguyên đánh giá MẠNH ở trên, không hạ xuống.
+
+	Đề xuất (chỉ để tham khảo, càng thấy hợp lý hơn sau phát hiện
+	trên): cân nhắc giới hạn phản đòn tối đa 1 lần/lượt của CHÍNH CÔ
+	(dù bị nhiều Bang! trúng trong 1 vòng, chỉ phản đòn người ĐẦU
+	TIÊN hoặc người GẦN NHẤT) — giữ được tinh thần "ăn miếng trả
+	miếng" nhưng tránh trường hợp bị dồn hoả lực (hoặc tự ăn đòn có
+	chủ đích) biến thành phản đòn hàng loạt quá mạnh so với 3 máu gốc
+	của cô.
+
+	✅ CHỐT CUỐI: giữ nguyên như đã thiết kế, KHÔNG áp dụng giới hạn
+	1 lần/lượt — chủ dự án xác nhận chấp nhận mức sức mạnh này.

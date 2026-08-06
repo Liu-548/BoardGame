@@ -88,6 +88,19 @@ export interface PlayerView {
   // liên quan bài úp/thông tin ẩn nào.
   joseDelgadoUsesThisTurn: number;
   docHolydayUsedThisTurn: boolean;
+  // Bộ mở rộng "custom_characters" (Elena Noir, xem House_Rule.txt mục I) —
+  // client cần biết đúng như core để tự vẽ nút "vũ trang" (chỉ hiện khi KHÔNG
+  // đang Miễn Tử) và hiển thị trạng thái "đang Miễn Tử (còn N lượt)". KHÔNG bí
+  // mật gì — không liên quan bài úp/thông tin ẩn nào, giống 2 field trên. THEO
+  // PLAYERID (không phải field đơn) — xem ghi chú ở GameState (Vera Custer có
+  // thể mượn khả năng này, cần trạng thái riêng với Elena Noir thật).
+  elenaNoirArmed: Record<string, boolean>;
+  elenaNoirImmortalTurnsLeft: Record<string, number>;
+  // Bộ mở rộng "custom_characters" (Marcel Marcelo, xem House_Rule.txt mục I)
+  // — cùng lý do KHÔNG bí mật như 2 field Elena Noir ở trên: ai "cùng vào tù"
+  // với ai, và ai sắp mất lượt kế tiếp, đều công khai (không liên quan bài úp).
+  marcelJailCompanion: GameState["marcelJailCompanion"];
+  marcelCompanionSkipNextTurn: GameState["marcelCompanionSkipNextTurn"];
 }
 
 function viewRole(player: PlayerState, viewerId: string): Role | null {
@@ -152,5 +165,9 @@ export function viewFor(state: GameState, viewerId: string): PlayerView {
     turnNumber: state.turnNumber,
     joseDelgadoUsesThisTurn: state.joseDelgadoUsesThisTurn,
     docHolydayUsedThisTurn: state.docHolydayUsedThisTurn,
+    elenaNoirArmed: state.elenaNoirArmed,
+    elenaNoirImmortalTurnsLeft: state.elenaNoirImmortalTurnsLeft,
+    marcelJailCompanion: state.marcelJailCompanion,
+    marcelCompanionSkipNextTurn: state.marcelCompanionSkipNextTurn,
   };
 }

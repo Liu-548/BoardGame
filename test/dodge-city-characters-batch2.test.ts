@@ -1,4 +1,4 @@
-// Mở rộng Dodge City, mục C nhóm B (5.4) — 4 nhân vật cần hook mới nhưng độc
+﻿// Mở rộng Dodge City, mục C nhóm B (5.4) — 4 nhân vật cần hook mới nhưng độc
 // lập: Sean Mallory (modifyHandLimit), Tequila Joe (modifyHealAmount +
 // doubleRevivalHp), Elena Fuente (hasAnyCardMissedAlias +
 // canUseOwnEquipmentAsMissed), Apache Kid (isImmuneToCard). Xem LO-TRINH.md
@@ -40,6 +40,11 @@ function makeState(overrides: Partial<GameState> = {}): GameState {
     docHolydayUsedThisTurn: false,
     duelBangDrawPending: null,
     veraCusterBorrowedCharacterId: null,
+    elenaNoirArmed: {},
+    elenaNoirImmortalTurnsLeft: {},
+    marcelJailCompanion: {},
+    marcelCompanionSkipNextTurn: {},
+    marcelJailBonusDrawThisTurn: {},
     houseRules: [],
     expansions: [],
     cardNamesPlayedThisTurn: [],

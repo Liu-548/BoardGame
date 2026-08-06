@@ -1,4 +1,4 @@
-// Giai đoạn 5, việc 5.3 — house rules (luật bổ sung chủ phòng BẬT cho riêng 1
+﻿// Giai đoạn 5, việc 5.3 — house rules (luật bổ sung chủ phòng BẬT cho riêng 1
 // ván, xem GameState.houseRules ở types.ts + LO-TRINH.md/CLAUDE.md). Đợt này
 // mới có 4 luật KHÔNG cần PendingAction/cơ chế mới: "extra_distance",
 // "require_weapon_for_bang", "no_duplicate_card_names", "beer_below_two".
@@ -42,6 +42,11 @@ function makeState(players: PlayerState[], houseRules: HouseRuleId[], overrides:
     docHolydayUsedThisTurn: false,
     duelBangDrawPending: null,
     veraCusterBorrowedCharacterId: null,
+    elenaNoirArmed: {},
+    elenaNoirImmortalTurnsLeft: {},
+    marcelJailCompanion: {},
+    marcelCompanionSkipNextTurn: {},
+    marcelJailBonusDrawThisTurn: {},
     houseRules,
     expansions: [],
     cardNamesPlayedThisTurn: [],

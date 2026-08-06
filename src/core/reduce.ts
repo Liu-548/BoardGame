@@ -138,6 +138,19 @@ function handleDrawCards(
   const next = cloneState(state);
   const player = next.players[next.currentPlayerIndex];
 
+  // Bộ mở rộng "custom_characters" (Marcel Marcelo, xem House_Rule.txt mục I)
+  // — vừa thoát tù thành công Ở ĐÚNG lượt này (cờ đặt ở nhánh Jail của
+  // resolveDrawCheck()): rút THẲNG 3 lá thay vì hỏi han gì (Phương án C), rồi
+  // tiêu thụ (xoá) cờ ngay. Xét TRƯỚC MỌI nhánh "hỏi trước khi rút" khác —
+  // không xung đột được với chúng vì đây LUÔN đi kèm vừa thoát tù (không hỏi
+  // gì thêm), khác hẳn các nhánh dưới đây (đều HỎI trước khi rút).
+  if (next.marcelJailBonusDrawThisTurn[player.id]) {
+    delete next.marcelJailBonusDrawThisTurn[player.id];
+    const drawnCount = drawCardsForPlayer(next, player, 3);
+    next.turnPhase = "play";
+    return { state: next, events: [{ type: "CARDS_DRAWN", playerId: player.id, count: drawnCount }] };
+  }
+
   // Giai đoạn 5 (Pedro Ramirez, đợt 4) — HỎI trước khi rút gì cả: lấy lá 1 từ
   // đỉnh chồng bỏ, hay rút thẳng bộ bài như bình thường? Chỉ hỏi khi chồng bỏ
   // còn bài (rỗng thì rút thẳng bộ bài, khỏi cần hỏi). Đẩy pending rồi TRẢ VỀ
@@ -183,6 +196,24 @@ function handleDrawCards(
   // rút/lấy bài và chuyển turnPhase sang "play".
   if (getEffectiveCharacterDefinition(next, player)?.canTakeEquipmentInsteadOfDraw === true) {
     next.pending.push({ kind: "NEED_PICK_DRAW_OR_EQUIPMENT", player: player.id });
+    return { state: next, events: [] };
+  }
+
+  // Bộ mở rộng "custom_characters" (Elena Noir, xem House_Rule.txt mục I) —
+  // ĐANG trong trạng thái Miễn Tử (có entry trong elenaNoirImmortalTurnsLeft,
+  // theo playerId — xem ghi chú ở GameState): rút THẲNG 3 lá, không hỏi vũ
+  // trang gì cả (đã miễn nhiễm chết rồi, hỏi vô nghĩa). KHÔNG đang Miễn Tử:
+  // HỎI trước khi rút gì cả — vũ trang khả năng Miễn Tử cho chu kỳ này (rút 1
+  // lá) hay không (rút 2 lá bình thường)? Đẩy pending rồi TRẢ VỀ NGAY, y hệt
+  // Pat Brennan — respondToPickArmed() mới thực sự rút bài và chuyển
+  // turnPhase sang "play".
+  if (getEffectiveCharacterDefinition(next, player)?.canArmImmortality === true) {
+    if (next.elenaNoirImmortalTurnsLeft[player.id] !== undefined) {
+      const drawnCount = drawCardsForPlayer(next, player, 3);
+      next.turnPhase = "play";
+      return { state: next, events: [{ type: "CARDS_DRAWN", playerId: player.id, count: drawnCount }] };
+    }
+    next.pending.push({ kind: "NEED_PICK_ARMED", player: player.id });
     return { state: next, events: [] };
   }
 
@@ -429,6 +460,31 @@ function respondToPickDrawOrEquipment(
   return { state: next, events: [{ type: "CARDS_DRAWN", playerId: player.id, count: drawnCount }] };
 }
 
+// Bộ mở rộng "custom_characters" (Elena Noir, xem House_Rule.txt mục I) — trả
+// lời NEED_PICK_ARMED. `armed: true` -> chỉ rút 1 lá lượt này, đặt
+// elenaNoirArmed[playerId] = true (bảo vệ tới đầu lượt kế tiếp của CHÍNH
+// người này — bị GHI ĐÈ ở chính chỗ này lần rút bài sau, không tự hết hạn
+// giữa chừng). Không kèm/`armed: false` (mặc định/hết giờ) -> rút 2 lá bình
+// thường, XOÁ key khỏi elenaNoirArmed (coi như false — dọn sạch trạng thái vũ
+// trang cũ nếu có, dù về lý thuyết không thể có vì lần trước cũng ĐÃ bị ghi
+// đè y hệt cách này). THEO PLAYERID (không phải field đơn) — xem ghi chú ở
+// GameState.elenaNoirArmed (Vera Custer có thể mượn khả năng này).
+function respondToPickArmed(state: GameState, action: Action & { type: "RESPOND" }): Result {
+  const next = cloneState(state);
+  next.pending.pop();
+  const player = next.players.find((p) => p.id === action.playerId)!;
+
+  const armed = action.armed === true;
+  if (armed) {
+    next.elenaNoirArmed[player.id] = true;
+  } else {
+    delete next.elenaNoirArmed[player.id];
+  }
+  const drawnCount = drawCardsForPlayer(next, player, armed ? 1 : 2);
+  next.turnPhase = "play";
+  return { state: next, events: [{ type: "CARDS_DRAWN", playerId: player.id, count: drawnCount }] };
+}
+
 // Mở rộng Dodge City, mục C nhóm C (Vera Custer) — trả lời
 // NEED_PICK_BORROWED_CHARACTER. BẮT BUỘC chọn đúng 1 người chơi khác còn sống
 // ĐÃ có nhân vật (không có lựa chọn "không mượn ai" — hết giờ thì room.ts tự
@@ -469,6 +525,38 @@ function respondToPickBorrowedCharacter(
   };
 }
 
+// Bộ mở rộng "custom_characters" (Marcel Marcelo, xem House_Rule.txt mục I)
+// — trả lời NEED_PICK_MARCEL_COMPANION. BẮT BUỘC chọn đúng 1 người chơi khác
+// còn sống (không giới hạn khoảng cách, được phép trùng người vừa đánh Jail
+// lên mình) — không có lựa chọn "không chọn ai". Hết giờ thì room.ts tự chọn
+// ngẫu nhiên (xem buildReactiveTimeoutAction()).
+function respondToPickMarcelCompanion(
+  state: GameState,
+  action: Action & { type: "RESPOND" }
+): Result {
+  const next = cloneState(state);
+  next.pending.pop();
+  const player = next.players.find((p) => p.id === action.playerId)!;
+
+  if (!action.targetId) {
+    throw new Error("Phải chọn 1 người chơi khác còn sống để cùng vào tù");
+  }
+  if (action.targetId === player.id) {
+    throw new Error("Không thể tự chỉ định chính mình");
+  }
+  const target = next.players.find((p) => p.id === action.targetId);
+  if (!target || !target.alive) {
+    throw new Error("Mục tiêu không hợp lệ");
+  }
+
+  next.marcelJailCompanion[player.id] = target.id;
+
+  return {
+    state: next,
+    events: [{ type: "MARCEL_COMPANION_PICKED", playerId: player.id, companionId: target.id }],
+  };
+}
+
 function handleEndTurn(state: GameState, action: Action & { type: "END_TURN" }): Result {
   assertCurrentPlayer(state, action.playerId);
   assertPhase(state, "play");
@@ -486,8 +574,8 @@ function handleEndTurn(state: GameState, action: Action & { type: "END_TURN" }):
     return { state: next, events: [] };
   }
 
-  advanceTurn(next);
-  return { state: next, events: [{ type: "TURN_ENDED", playerId: player.id }] };
+  const advanceEvents = advanceTurn(next);
+  return { state: next, events: [{ type: "TURN_ENDED", playerId: player.id }, ...advanceEvents] };
 }
 
 function handleDiscardCards(
@@ -520,8 +608,8 @@ function handleDiscardCards(
   const events: GameEvent[] = [{ type: "CARDS_DISCARDED", playerId: player.id, cardIds: action.cardIds }];
   events.push(...triggerHandEmptyHook(next, player)); // Giai đoạn 5 (Suzy Lafayette)
 
-  advanceTurn(next);
   events.push({ type: "TURN_ENDED", playerId: player.id });
+  events.push(...advanceTurn(next));
   return { state: next, events };
 }
 
@@ -725,15 +813,29 @@ function playBang(
   }
   next.bangUsedThisTurn = true;
 
-  const immunityEvents = pushMissedReaction(next, target, { card: "bang", from: player.id }, action.cardId);
+  const events: GameEvent[] = [
+    { type: "CARD_PLAYED", playerId: player.id, cardId: action.cardId, targetId: target.id },
+  ];
 
-  return {
-    state: next,
-    events: [
-      { type: "CARD_PLAYED", playerId: player.id, cardId: action.cardId, targetId: target.id },
-      ...immunityEvents,
-    ],
-  };
+  // Bộ mở rộng "custom_characters" (Mary Rose, xem House_Rule.txt mục I) —
+  // đánh Bang! chủ động phải bỏ ĐỦ 2 lá Bang!. Lá THỨ NHẤT (action.cardId) đã
+  // rời tay/vào chồng bỏ ở handlePlayCard() TRƯỚC KHI gọi tới đây — chỉ cần
+  // tìm và bỏ thêm 1 lá "bang" THỨ 2 còn lại trên tay. Không đủ thì throw
+  // NGAY (next chỉ là bản sao cục bộ, throw ở đây không để lại hậu quả gì
+  // trên state thật — xem ghi chú ở handlePlayCard()).
+  if (getEffectiveCharacterDefinition(next, player)?.requiresTwoBangCardsToShoot === true) {
+    const secondBangIndex = player.hand.findIndex((id) => cardNameFromId(id) === "bang");
+    if (secondBangIndex === -1) {
+      throw new Error("Mary Rose cần bỏ ĐỦ 2 lá Bang! để đánh Bang! chủ động — chỉ có 1 lá");
+    }
+    const [secondBangId] = player.hand.splice(secondBangIndex, 1);
+    next.discardPile.push(secondBangId);
+    events.push({ type: "MARY_ROSE_EXTRA_BANG_DISCARDED", playerId: player.id, cardId: secondBangId });
+  }
+
+  events.push(...pushMissedReaction(next, target, { card: "bang", from: player.id }, action.cardId));
+
+  return { state: next, events };
 }
 
 // Đẩy NEED_MISSED cho mục tiêu; với MỖI nguồn Barrel mục tiêu có (Barrel thật
@@ -1433,13 +1535,34 @@ function playJail(
   if (getEffectiveCharacterHooks(next, target).isImmuneToCard?.(action.cardId) === true) {
     throw new Error("Apache Kid miễn nhiễm với lá chất Rô — không thể đánh Jail chất Rô lên người này");
   }
+  // Bộ mở rộng "custom_characters" (Elena Noir, xem House_Rule.txt mục I) —
+  // KHÔNG bị nhốt tù trong lúc Miễn Tử (ngoại lệ DUY NHẤT — mọi lá khác vẫn
+  // nhắm tới cô bình thường, chỉ riêng Jail bị chặn hẳn NGAY LÚC ĐÁNH, y hệt
+  // cách chặn Apache Kid/Cảnh sát trưởng ở trên — KHÔNG dùng isImmuneToCard
+  // vì hook đó PURE, không biết state để phân biệt "đang Miễn Tử hay không").
+  if (
+    getEffectiveCharacterDefinition(next, target)?.canArmImmortality === true &&
+    next.elenaNoirImmortalTurnsLeft[target.id] !== undefined
+  ) {
+    throw new Error("Elena Noir đang trong trạng thái Miễn Tử, không thể bị nhốt tù");
+  }
 
   target.equipment.push(action.cardId);
 
-  return {
-    state: next,
-    events: [{ type: "CARD_PLAYED", playerId: player.id, cardId: action.cardId, targetId: target.id }],
-  };
+  const events: GameEvent[] = [
+    { type: "CARD_PLAYED", playerId: player.id, cardId: action.cardId, targetId: target.id },
+  ];
+
+  // Bộ mở rộng "custom_characters" (Marcel Marcelo, xem House_Rule.txt mục I)
+  // — vừa bị nhốt tù xong, LẬP TỨC chọn 1 người chơi khác còn sống bất kỳ
+  // (không giới hạn khoảng cách, kể cả chính người vừa đánh Jail) để "cùng vào
+  // tù" — đẩy pending NGAY trước khi trả về, y hệt cơ chế Missed!/mượn khả
+  // năng Vera Custer. Luôn có ít nhất 1 ứng viên (chí ít là `player` vừa đánh).
+  if (getEffectiveCharacterDefinition(next, target)?.canJailCompanion === true) {
+    next.pending.push({ kind: "NEED_PICK_MARCEL_COMPANION", player: target.id });
+  }
+
+  return { state: next, events };
 }
 
 function findLivingTarget(
@@ -1890,8 +2013,7 @@ function finishCharacterSelection(next: GameState): GameEvent[] {
     }
   }
   next.characterSelection = null;
-  applyTurnStartChecks(next);
-  return [];
+  return applyTurnStartChecks(next);
 }
 
 function handleRespond(state: GameState, action: Action & { type: "RESPOND" }): Result {
@@ -1928,6 +2050,10 @@ function handleRespond(state: GameState, action: Action & { type: "RESPOND" }): 
       return respondToPickDrawOrEquipment(state, action);
     case "NEED_PICK_BORROWED_CHARACTER":
       return respondToPickBorrowedCharacter(state, action);
+    case "NEED_PICK_ARMED":
+      return respondToPickArmed(state, action);
+    case "NEED_PICK_MARCEL_COMPANION":
+      return respondToPickMarcelCompanion(state, action);
     default: {
       const neverKind: never = top;
       throw new Error(`Chưa hỗ trợ phản hồi loại việc: ${JSON.stringify(neverKind)}`);
@@ -2083,7 +2209,58 @@ function respondToMissed(
     return { state: next, events };
   }
 
-  return { state: next, events: applyDamage(next, player, 1, top.source.from) };
+  const damageEvents = applyDamage(next, player, 1, top.source.from);
+
+  // Bộ mở rộng "custom_characters" (Mary Rose, xem House_Rule.txt mục I) —
+  // THẬT SỰ mất máu (nhánh "chịu mất máu", không đỡ được) VÀ nguồn là Bang!
+  // ĐƠN LẺ (top.source.card === "bang" — literal, KHÔNG tính Gatling/Duel/
+  // Indians!: Gatling cũng qua đây nhưng source.card = "gatling"; Duel/
+  // Indians! không đi qua respondToMissed() luôn, xem playDuel()/
+  // respondDiscardOrDamage()) -> bắn trả MIỄN PHÍ. Kích hoạt NGAY CẢ KHI đòn
+  // này vừa giết chết cô (applyDamage() ở trên đã tự xử lý chết/Bia/Miễn Tử
+  // Elena Noir nếu có — không liên quan gì tới việc CÓ bắn trả hay không).
+  if (
+    top.source.card === "bang" &&
+    getEffectiveCharacterDefinition(next, player)?.canReflectBangDamage === true
+  ) {
+    const attacker = next.players.find((p) => p.id === top.source.from);
+    if (attacker?.alive) {
+      damageEvents.push(...pushMaryRoseReflection(next, player, attacker));
+    }
+  }
+
+  return { state: next, events: damageEvents };
+}
+
+// Bộ mở rộng "custom_characters" (Mary Rose) — đẩy NEED_MISSED miễn phí nhắm
+// vào `attacker` (bỏ qua khoảng cách, LUÔN cần 2 Missed!). Cố tình KHÔNG dùng
+// chung pushMissedReaction()/pushMissedReactionUnconditional():
+// (1) KHÔNG qua Apache Kid isImmuneToCard() — đòn phản không gắn với lá bài
+//     thật nào để tra chất Rô, giống cách Duel/Indians! cũng không áp dụng
+//     luật miễn nhiễm này (xem ghi chú isImmuneToCard ở characters.ts).
+// (2) missesNeeded LUÔN LÀ 2 (đặc thù riêng của đòn phản này) — không tra
+//     onOutgoingBang() của Mary Rose, vì hook đó (nếu có) sẽ áp dụng SAI cho
+//     CẢ lượt Bang! chủ động bình thường của chính cô, không chỉ đòn phản.
+// Vẫn tôn trọng Barrel thật/Jourdonnais ảo của người bị bắn trả — đây là
+// phần logic DÙNG CHUNG với pushMissedReactionUnconditional(), chỉ khác ở 2
+// điểm trên.
+function pushMaryRoseReflection(next: GameState, maryRose: PlayerState, attacker: PlayerState): GameEvent[] {
+  next.pending.push({
+    kind: "NEED_MISSED",
+    player: attacker.id,
+    source: { card: "bang", from: maryRose.id },
+    missesNeeded: 2,
+  });
+
+  const attackerEquipment = getEffectiveEquipment(next, attacker);
+  const hasRealBarrel = attackerEquipment.some((id) => cardNameFromId(id) === "barrel");
+  const hasVirtualBarrel = getEffectiveCharacterDefinition(next, attacker)?.virtualBarrel === true;
+  const barrelCheckCount = (hasRealBarrel ? 1 : 0) + (hasVirtualBarrel ? 1 : 0);
+  for (let i = 0; i < barrelCheckCount; i++) {
+    next.pending.push({ kind: "NEED_DRAW_CHECK", player: attacker.id, source: { card: "barrel" }, matchSuits: ["hearts"] });
+  }
+
+  return [{ type: "MARY_ROSE_REFLECTED", playerId: maryRose.id, targetId: attacker.id }];
 }
 
 function respondToDuel(
@@ -2283,6 +2460,28 @@ function resolveDrawCheck(
     }
     // Nếu deck+chồng bỏ cạn giữa chừng (secondCardId undefined) thì đành chỉ
     // dùng đúng lá đã lật, y hệt không có Lucky Duke — hiếm khi xảy ra.
+  } else if (
+    !matched &&
+    top.source.card === "jail" &&
+    drawer &&
+    getEffectiveCharacterDefinition(next, drawer)?.canJailCompanion === true
+  ) {
+    // Bộ mở rộng "custom_characters" (Marcel Marcelo) — lá đầu KHÔNG phải Cơ
+    // -> rút thêm lá thứ 2 (tối đa 2 lá/lượt để tìm Cơ thoát tù, xem
+    // House_Rule.txt mục I). KHÔNG rút lá thứ 2 nếu lá đầu ĐÃ khớp (nhánh
+    // `!matched` ở trên) — khỏi lãng phí thêm 1 lá của bộ bài. Khác Lucky Duke
+    // (luôn rút cả 2 lá cùng lúc rồi mới so sánh), đây là rút TUẦN TỰ, dừng
+    // sớm nếu lá đầu đã đủ.
+    const secondCardId = drawTopCard(next);
+    if (secondCardId) {
+      next.discardPile.push(secondCardId);
+      const secondMatched = matches(secondCardId);
+      cardId = secondCardId;
+      matched = secondMatched;
+      events.push({ type: "MARCEL_JAIL_SECOND_DRAW", playerId: top.player, cardId: secondCardId, matched: secondMatched });
+    }
+    // Nếu deck+chồng bỏ cạn giữa chừng thì đành chỉ dùng đúng lá đầu (kẹt tù),
+    // giống ca hiếm gặp của Lucky Duke ở trên.
   }
 
   events.unshift({ type: "DRAW_CHECK_RESOLVED", playerId: action.playerId, cardId, matched });
@@ -2357,12 +2556,42 @@ function resolveDrawCheck(
     const [jailId] = jailedPlayer.equipment.splice(jailIndex, 1);
     next.discardPile.push(jailId);
 
+    // Bộ mở rộng "custom_characters" (Marcel Marcelo) — chốt XONG trạng thái
+    // của người "cùng vào tù" (mutate state + gom event) TRƯỚC KHI gọi
+    // advanceTurn() ở nhánh kẹt tù bên dưới — advanceTurn() có thể NGAY LẬP
+    // TỨC chạy applyTurnStartChecks() cho chính companion (nếu ngồi liền sau
+    // Marcel trong vòng chơi), nên cờ marcelCompanionSkipNextTurn PHẢI có mặt
+    // TRƯỚC lúc đó, không phải sau. Người được chỉ định lỡ đã chết giữa chừng
+    // thì bỏ qua, không có gì để chia sẻ.
+    const companionId = next.marcelJailCompanion[jailedPlayer.id];
+    let companionEvent: GameEvent | null = null;
+    if (companionId) {
+      delete next.marcelJailCompanion[jailedPlayer.id];
+      const companion = next.players.find((p) => p.id === companionId);
+      if (companion?.alive) {
+        if (matched) {
+          companionEvent = { type: "MARCEL_COMPANION_FREED", playerId: companion.id };
+        } else {
+          next.marcelCompanionSkipNextTurn[companion.id] = true;
+          companionEvent = { type: "MARCEL_COMPANION_JAILED", playerId: companion.id };
+        }
+      }
+    }
+
     if (matched) {
       events.push({ type: "JAIL_ESCAPED", playerId: jailedPlayer.id });
+      if (companionEvent) events.push(companionEvent);
+      // Thoát tù thành công -> lượt này rút 3 lá thay vì 2, tiêu thụ ở
+      // handleDrawCards() (Phương án C).
+      if (getEffectiveCharacterDefinition(next, jailedPlayer)?.canJailCompanion === true) {
+        next.marcelJailBonusDrawThisTurn[jailedPlayer.id] = true;
+      }
     } else {
       events.push({ type: "JAIL_SKIPPED_TURN", playerId: jailedPlayer.id });
-      advanceTurn(next); // bỏ qua cả lượt — người kế tiếp lại được xét Bước 0 y hệt
+      if (companionEvent) events.push(companionEvent);
+      events.push(...advanceTurn(next)); // bỏ qua cả lượt — người kế tiếp lại được xét Bước 0 y hệt
     }
+
     return { state: next, events };
   }
 
@@ -2416,6 +2645,21 @@ function triggerLoseLifeHooks(
 function eliminateIfDead(next: GameState, target: PlayerState, killerId: string | null): GameEvent[] {
   if (target.hp > 0) return [];
 
+  // Bộ mở rộng "custom_characters" (Elena Noir, xem House_Rule.txt mục I) —
+  // ĐÃ đang trong Miễn Tử (đòn kích hoạt đầu tiên đã xử lý ở nhánh riêng bên
+  // dưới, xong 1 lần thì elenaNoirImmortalTurnsLeft khác null suốt 2 lượt) —
+  // MỌI sát thương tiếp theo trong lúc này giữ máu NGUYÊN ở 0, không chạm gì
+  // khác (không xét Bia — Bia không được "cứu nhầm" cô về 1 máu giữa chừng
+  // Miễn Tử, không gọi eliminatePlayer()). Chặn ở đây SỚM, TRƯỚC nhánh Bia bên
+  // dưới, để không lỡ tiêu mất 1 lá Bia của cô một cách vô nghĩa.
+  if (
+    getEffectiveCharacterDefinition(next, target)?.canArmImmortality === true &&
+    next.elenaNoirImmortalTurnsLeft[target.id] !== undefined
+  ) {
+    target.hp = 0;
+    return [];
+  }
+
   // Bia "hồi sinh" — TỰ ĐỘNG (không hỏi người chơi, đúng ghi chú "tự động"
   // trong NHAN-VAT-BANG-CO-BAN.txt, mục Sid Ketchum): còn ít nhất 1 lá Bia
   // trên tay VÀ tổng số người còn sống (TÍNH CẢ target — target.alive vẫn
@@ -2460,6 +2704,27 @@ function eliminateIfDead(next: GameState, target: PlayerState, killerId: string 
     !(aliveCount > 2 || beerWorksBelowTwo) && beerIndex !== -1
       ? [{ type: "BEER_INEFFECTIVE", playerId: target.id }]
       : [];
+
+  // Bộ mở rộng "custom_characters" (Elena Noir, xem House_Rule.txt mục I) —
+  // Bia không cứu được (hoặc không có) — đòn này lẽ ra giết cô. Đang "vũ
+  // trang" khả năng Miễn Tử VÀ CHƯA đang trong Miễn Tử (có entry trong
+  // elenaNoirImmortalTurnsLeft nghĩa là đã kích hoạt từ trước — không kích
+  // hoạt CHỒNG lên chính nó, dù về lý thuyết không thể xảy ra vì trong Miễn
+  // Tử cô không thể chết) -> thay vì eliminatePlayer(), vào Miễn Tử đúng 2
+  // LƯỢT CỦA CHÍNH cô. Máu giữ nguyên ở 0 (không phải "hồi sinh" như Bia —
+  // không đặt lại = 1). "Vũ trang" coi như đã dùng xong (xoá key khỏi
+  // elenaNoirArmed — không còn ý nghĩa gì trong lúc Miễn Tử, xem
+  // handleDrawCards() tự bỏ qua bước hỏi khi đã có entry Miễn Tử).
+  if (
+    getEffectiveCharacterDefinition(next, target)?.canArmImmortality === true &&
+    (next.elenaNoirArmed[target.id] ?? false) &&
+    next.elenaNoirImmortalTurnsLeft[target.id] === undefined
+  ) {
+    target.hp = 0;
+    delete next.elenaNoirArmed[target.id];
+    next.elenaNoirImmortalTurnsLeft[target.id] = 2;
+    return [...ineffectiveEvents, { type: "ELENA_NOIR_IMMORTAL_TRIGGERED", playerId: target.id, turnsLeft: 2 }];
+  }
 
   return [...ineffectiveEvents, ...eliminatePlayer(next, target, killerId)];
 }
@@ -2544,11 +2809,13 @@ function eliminatePlayer(next: GameState, target: PlayerState, killerId: string 
   }
 
   // Người vừa chết đang là người tới lượt (chỉ có thể xảy ra khi tự thua Duel
-  // với chính mình, hoặc tự nổ Dynamite ở Bước 0 đầu lượt) và không còn việc
-  // gì khác đang chờ -> chuyển lượt ngay, người chết không thể tự rút/đánh/bỏ bài.
+  // với chính mình, tự nổ Dynamite ở Bước 0 đầu lượt, hoặc bộ mở rộng
+  // "custom_characters" — Elena Noir hết hạn Miễn Tử, xem advanceTurn()) và
+  // không còn việc gì khác đang chờ -> chuyển lượt ngay, người chết không thể
+  // tự rút/đánh/bỏ bài.
   const isCurrentPlayer = next.players[next.currentPlayerIndex].id === target.id;
   if (isCurrentPlayer && next.pending.length === 0) {
-    advanceTurn(next);
+    events.push(...advanceTurn(next));
   }
 
   return events;
@@ -2569,7 +2836,33 @@ function assertPhase(state: GameState, phase: GameState["turnPhase"]): void {
   }
 }
 
-function advanceTurn(next: GameState): void {
+// Trả về GameEvent[] (khác `void` trước đây) vì bộ mở rộng "custom_characters"
+// (Elena Noir, xem House_Rule.txt mục I) có thể khiến việc "chuyển lượt" kéo
+// theo cả 1 người chết (chết chắc chắn sau đúng 2 lượt Miễn Tử) — cascade
+// events đó phải truyền ngược lên MỌI nơi gọi hàm này (4 chỗ, xem lịch sử
+// sửa). Người MỚI kết thúc lượt CHƯA bị đổi (next.currentPlayerIndex vẫn trỏ
+// đúng họ) lúc hàm này bắt đầu chạy — dùng để biết ai "vừa hết 1 lượt".
+function advanceTurn(next: GameState): GameEvent[] {
+  const departingPlayer = next.players[next.currentPlayerIndex];
+
+  // Bộ mở rộng "custom_characters" (Elena Noir) — lượt VỪA KẾT THÚC của
+  // departingPlayer tính là 1 trong 2 lượt Miễn Tử -> giảm đếm ngược. Về 0 ->
+  // chết chắc chắn NGAY BÂY GIỜ, gọi eliminatePlayer() THAY VÌ tự chuyển lượt
+  // bình thường bên dưới — eliminatePlayer() tự thấy cô VẪN đang là người tới
+  // lượt (currentPlayerIndex CHƯA đổi ở đây) nên tự gọi LẠI advanceTurn() này
+  // (đệ quy) để thật sự chuyển sang người kế tiếp, không cần lặp code.
+  if (
+    next.elenaNoirImmortalTurnsLeft[departingPlayer.id] !== undefined &&
+    getEffectiveCharacterDefinition(next, departingPlayer)?.canArmImmortality === true
+  ) {
+    const turnsLeft = next.elenaNoirImmortalTurnsLeft[departingPlayer.id] - 1;
+    if (turnsLeft <= 0) {
+      delete next.elenaNoirImmortalTurnsLeft[departingPlayer.id];
+      return eliminatePlayer(next, departingPlayer, null);
+    }
+    next.elenaNoirImmortalTurnsLeft[departingPlayer.id] = turnsLeft;
+  }
+
   next.currentPlayerIndex = nextAlivePlayerIndex(next, next.currentPlayerIndex);
   next.turnPhase = "draw";
   next.bangUsedThisTurn = false;
@@ -2577,7 +2870,7 @@ function advanceTurn(next: GameState): void {
   next.turnNumber += 1; // mở rộng Dodge City, mục 1.1 (xem GameState.turnNumber ở types.ts)
   next.joseDelgadoUsesThisTurn = 0; // mở rộng Dodge City, mục C nhóm A (José Delgado)
   next.docHolydayUsedThisTurn = false; // mở rộng Dodge City, mục C nhóm C (Doc Holyday)
-  applyTurnStartChecks(next);
+  return applyTurnStartChecks(next);
 }
 
 // Bước ĐẦU TIÊN của lượt (mở rộng Dodge City, mục C nhóm C — Vera Custer, đã
@@ -2587,17 +2880,34 @@ function advanceTurn(next: GameState): void {
 // hưởng tới CHÍNH draw!-check Dynamite/Jail sắp tới (vd mượn Lucky Duke).
 // Không có ai để mượn thì bỏ qua, xét thẳng Dynamite/Jail như bình thường.
 // Export để setup.ts gọi cho LƯỢT ĐẦU TIÊN của ván (setupGame không đi qua
-// advanceTurn, nhưng lượt đầu vẫn phải qua đủ các bước này nếu cần).
-export function applyTurnStartChecks(next: GameState): void {
+// advanceTurn, nhưng lượt đầu vẫn phải qua đủ các bước này nếu cần). Trả về
+// GameEvent[] (khác `void` trước đây) vì bộ mở rộng "custom_characters"
+// (Marcel Marcelo) có thể khiến lượt này bị BỎ QUA HOÀN TOÀN ngay từ đầu
+// (người "cùng vào tù" của Marcel) — kéo theo 1 lần advanceTurn() đệ quy nữa,
+// y hệt cascade Elena Noir ở advanceTurn().
+export function applyTurnStartChecks(next: GameState): GameEvent[] {
   const player = next.players[next.currentPlayerIndex];
+
+  // Bộ mở rộng "custom_characters" (Marcel Marcelo) — người "cùng vào tù" ăn
+  // theo kết quả kẹt tù của Marcel: bỏ qua HẲN lượt này (không rút, không
+  // đánh), y hệt JAIL_SKIPPED_TURN nhưng KHÔNG tự rút bài kiểm tra gì — chỉ
+  // tiêu thụ đúng 1 lần cờ rồi chuyển lượt tiếp. Xét TRƯỚC CẢ Vera Custer/
+  // Dynamite/Jail vì đây là hệ quả đã định đoạt từ trước, không có gì để hỏi/
+  // kiểm nữa (kể cả nếu người này CŨNG có Dynamite/Jail riêng của họ).
+  if (next.marcelCompanionSkipNextTurn[player.id]) {
+    delete next.marcelCompanionSkipNextTurn[player.id];
+    return [{ type: "MARCEL_COMPANION_TURN_SKIPPED", playerId: player.id }, ...advanceTurn(next)];
+  }
+
   if (getEffectiveCharacterDefinition(next, player)?.canBorrowCharacterAbilities === true) {
     const candidates = otherAlivePlayersInOrder(next, player.id).filter((p) => p.characterId !== null);
     if (candidates.length > 0) {
       next.pending.push({ kind: "NEED_PICK_BORROWED_CHARACTER", player: player.id });
-      return;
+      return [];
     }
   }
   applyDynamiteAndJailChecks(next, player);
+  return [];
 }
 
 // Bước 0 đầu lượt (mục 4 file luật): Dynamite kiểm tra TRƯỚC (có thể giết luôn,
@@ -2667,5 +2977,18 @@ function cloneState(state: GameState): GameState {
     // respondToMissed() — cùng lý do cần clone nông (Record phẳng, không có
     // giá trị lồng nhau nào cần clone sâu hơn).
     equipmentPlayedTurn: { ...state.equipmentPlayedTurn },
+    // Bộ mở rộng "custom_characters" (Elena Noir) — cùng lý do
+    // equipmentPlayedTurn ở trên: 2 Record này bị mutate TRỰC TIẾP (gán/xoá
+    // key theo playerId) ở handleDrawCards()/respondToPickArmed()/
+    // eliminateIfDead()/advanceTurn(), cần clone nông mỗi lần.
+    elenaNoirArmed: { ...state.elenaNoirArmed },
+    elenaNoirImmortalTurnsLeft: { ...state.elenaNoirImmortalTurnsLeft },
+    // Bộ mở rộng "custom_characters" (Marcel Marcelo) — cùng lý do 3 Record ở
+    // trên: bị mutate TRỰC TIẾP (gán/xoá key theo playerId) ở playJail()/
+    // respondToPickMarcelCompanion()/resolveDrawCheck()/handleDrawCards()/
+    // applyTurnStartChecks(), cần clone nông mỗi lần.
+    marcelJailCompanion: { ...state.marcelJailCompanion },
+    marcelCompanionSkipNextTurn: { ...state.marcelCompanionSkipNextTurn },
+    marcelJailBonusDrawThisTurn: { ...state.marcelJailBonusDrawThisTurn },
   };
 }

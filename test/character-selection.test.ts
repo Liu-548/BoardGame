@@ -1,4 +1,4 @@
-// Giai đoạn 5 — cơ chế "phát 2 lá nhân vật, chọn giữ 1" (xem CharacterChoice ở
+﻿// Giai đoạn 5 — cơ chế "phát 2 lá nhân vật, chọn giữ 1" (xem CharacterChoice ở
 // types.ts + CHOOSE_CHARACTER/FINALIZE_CHARACTER_SELECTION ở reduce.ts). Test
 // ở ĐÂY dùng THẲNG state.characterSelection tự dựng (không qua setupGame()) để
 // kiểm đúng luồng reduce() — test riêng cho việc setupGame() PHÁT bài nhân vật
@@ -52,6 +52,11 @@ function makeState(characterSelection: CharacterChoice[], overrides: Partial<Gam
     docHolydayUsedThisTurn: false,
     duelBangDrawPending: null,
     veraCusterBorrowedCharacterId: null,
+    elenaNoirArmed: {},
+    elenaNoirImmortalTurnsLeft: {},
+    marcelJailCompanion: {},
+    marcelCompanionSkipNextTurn: {},
+    marcelJailBonusDrawThisTurn: {},
     ...overrides,
   };
 }

@@ -1,4 +1,4 @@
-// Mở rộng Dodge City, mục C nhóm A (5.4) — 7 nhân vật dùng lại cơ chế có sẵn:
+﻿// Mở rộng Dodge City, mục C nhóm A (5.4) — 7 nhân vật dùng lại cơ chế có sẵn:
 // Pixie Pete/Bill Noface (onDrawPhase), Greg Digger/Herb Hunter (onAnyDeath),
 // Pat Brennan (NEED_PICK_DRAW_OR_EQUIPMENT, PendingAction mới), Chuck Wengam/
 // José Delgado (USE_ABILITY, cùng action với Sid Ketchum nhưng khác luật).
@@ -40,6 +40,11 @@ function makeState(overrides: Partial<GameState> = {}): GameState {
     docHolydayUsedThisTurn: false,
     duelBangDrawPending: null,
     veraCusterBorrowedCharacterId: null,
+    elenaNoirArmed: {},
+    elenaNoirImmortalTurnsLeft: {},
+    marcelJailCompanion: {},
+    marcelCompanionSkipNextTurn: {},
+    marcelJailBonusDrawThisTurn: {},
     houseRules: [],
     expansions: [],
     cardNamesPlayedThisTurn: [],

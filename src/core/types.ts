@@ -147,7 +147,26 @@ export type PendingAction =
   // qua nếu không ai để mượn). RESPOND kèm targetId = mượn ĐÚNG characterId
   // hiện tại của người đó; hết giờ tự chọn NGẪU NHIÊN 1 trong các ứng viên
   // (bắt buộc chọn, không có lựa chọn "không mượn ai" — xem room.ts).
-  | { kind: "NEED_PICK_BORROWED_CHARACTER"; player: string };
+  | { kind: "NEED_PICK_BORROWED_CHARACTER"; player: string }
+  // Bộ mở rộng "custom_characters" (Elena Noir, xem House_Rule.txt mục I) —
+  // đẩy đầu lượt CỦA CHÍNH người có khả năng này (thường là Elena Noir, có
+  // thể là Vera Custer đang mượn — xem GameState.elenaNoirImmortalTurnsLeft),
+  // CHỈ khi KHÔNG đang trong trạng thái Miễn Tử — đang Miễn Tử thì bỏ qua
+  // bước này, rút thẳng 3 lá (xem handleDrawCards()). RESPOND kèm
+  // `armed: true` -> chỉ rút 1 lá lượt này, đặt elenaNoirArmed[playerId] =
+  // true (bảo vệ tới đầu lượt kế tiếp của CHÍNH người này); không kèm/
+  // `armed: false` (mặc định/hết giờ) -> rút 2 lá bình thường,
+  // elenaNoirArmed[playerId] = false. Xem respondToPickArmed() trong
+  // reduce.ts.
+  | { kind: "NEED_PICK_ARMED"; player: string }
+  // Bộ mở rộng "custom_characters" (Marcel Marcelo, xem House_Rule.txt mục I)
+  // — đẩy NGAY khi Jail vừa được gắn lên người có khả năng này (playJail()
+  // trong reduce.ts), TRƯỚC CẢ khi trả về — bắt buộc chọn đúng 1 người chơi
+  // khác còn sống bất kỳ (không giới hạn khoảng cách, được phép trùng người
+  // vừa đánh Jail) để "cùng vào tù": người này sẽ ăn theo ĐÚNG kết quả thoát
+  // tù của chính Marcel sau này, không tự rút bài riêng (xem
+  // GameState.marcelJailCompanion, resolveDrawCheck() trong reduce.ts).
+  | { kind: "NEED_PICK_MARCEL_COMPANION"; player: string };
 
 // ----- Hành động -----
 // Các hành động cho vòng lượt (việc 1.5) và đánh bài (việc 1.7/1.8, hiện chỉ hỗ
@@ -191,6 +210,10 @@ export type Action =
       // Jesse Jones (đợt 5) — đi kèm targetId ở trên: có để người đó tự chọn
       // lá đưa hay không (bỏ trống/false = cướp ngẫu nhiên ngay).
       letTargetChoose?: boolean;
+      // Bộ mở rộng "custom_characters" (Elena Noir) — trả lời NEED_PICK_ARMED:
+      // true = vũ trang (rút 1 lá lượt này); bỏ trống/false = không vũ trang
+      // (rút 2 lá bình thường). Xem respondToPickArmed() trong reduce.ts.
+      armed?: boolean;
     }
   // Kỹ năng CHỦ ĐỘNG dùng chung cho 3 nhân vật khác nhau — `cardIds` đổi ý
   // nghĩa/độ dài tuỳ nhân vật đang dùng (xem handleUseAbility() trong
@@ -348,6 +371,38 @@ export type GameEvent =
   // Mở rộng Dodge City, mục C nhóm C — Vera Custer chọn mượn khả năng của
   // `borrowedFromPlayerId` (hiệu lực tới lượt kế tiếp của chính cô).
   | { type: "VERA_CUSTER_BORROWED"; playerId: string; borrowedFromPlayerId: string; characterId: string }
+  // Bộ mở rộng "custom_characters" (Elena Noir) — đòn lẽ ra giết cô (Bia
+  // không cứu được/không có Bia) nhưng cô ĐANG vũ trang -> thay vì
+  // PLAYER_ELIMINATED, vào trạng thái Miễn Tử `turnsLeft` lượt (luôn là 2 lúc
+  // mới kích hoạt — xem eliminateIfDead() trong reduce.ts). Bắn event này
+  // THAY VÌ PLAYER_ELIMINATED, giống cách BEER_SAVED_FROM_DEATH thay thế.
+  | { type: "ELENA_NOIR_IMMORTAL_TRIGGERED"; playerId: string; turnsLeft: number }
+  // Bộ mở rộng "custom_characters" (Marcel Marcelo) — vừa bị nhốt tù xong,
+  // chọn xong `companionId` để "cùng vào tù" (xem NEED_PICK_MARCEL_COMPANION).
+  | { type: "MARCEL_COMPANION_PICKED"; playerId: string; companionId: string }
+  // Lá đầu (đã báo qua DRAW_CHECK_RESOLVED) không phải Cơ -> rút thêm lá thứ 2
+  // (tối đa 2 lá/lượt để tìm Cơ thoát tù) — `cardId`/`matched` ở đây là của lá
+  // THỨ 2 này; DRAW_CHECK_RESOLVED bắn SAU đó sẽ phản ánh đúng lá thứ 2 làm
+  // kết quả cuối cùng (xem resolveDrawCheck() trong reduce.ts).
+  | { type: "MARCEL_JAIL_SECOND_DRAW"; playerId: string; cardId: string; matched: boolean }
+  // Marcel vừa thoát tù thành công -> người "cùng vào tù" (`playerId` ở đây)
+  // được tự do, không có gì khác xảy ra.
+  | { type: "MARCEL_COMPANION_FREED"; playerId: string }
+  // Marcel vừa kẹt tù -> người "cùng vào tù" (`playerId` ở đây) cũng bị đánh
+  // dấu mất LƯỢT KẾ TIẾP của chính họ (xem GameState.marcelCompanionSkipNextTurn).
+  | { type: "MARCEL_COMPANION_JAILED"; playerId: string }
+  // Tới đúng lượt của người "cùng vào tù" — lượt đó bị bỏ qua hoàn toàn (không
+  // rút, không đánh), y hệt JAIL_SKIPPED_TURN nhưng không tự rút bài kiểm tra
+  // gì (kết quả đã định đoạt từ trước, xem applyTurnStartChecks() trong reduce.ts).
+  | { type: "MARCEL_COMPANION_TURN_SKIPPED"; playerId: string }
+  // Bộ mở rộng "custom_characters" (Mary Rose, xem House_Rule.txt mục I) —
+  // đánh Bang! chủ động phải bỏ ĐỦ 2 lá Bang! (không phải 1). `cardId` = lá
+  // Bang! THỨ 2 (ngoài lá chính đã báo qua CARD_PLAYED như bình thường).
+  | { type: "MARY_ROSE_EXTRA_BANG_DISCARDED"; playerId: string; cardId: string }
+  // Mary Rose THẬT SỰ mất máu vì trúng Bang! ĐƠN LẺ (không đỡ được) -> bắn trả
+  // MIỄN PHÍ vào `targetId` (người vừa bang cô), bỏ qua khoảng cách, cần 2
+  // Missed! mới né được (xem pushMaryRoseReflection() trong reduce.ts).
+  | { type: "MARY_ROSE_REFLECTED"; playerId: string; targetId: string }
   | { type: "GAME_ENDED"; winner: Winner };
 
 // ----- State tổng -----
@@ -443,6 +498,53 @@ export interface GameState {
   // TRUNG TÂM DUY NHẤT mọi nơi cần biết "characterId hiệu lực" của 1 người
   // phải gọi qua, thay vì đọc thẳng player.characterId.
   veraCusterBorrowedCharacterId: string | null;
+  // Bộ mở rộng "custom_characters" (Elena Noir, xem House_Rule.txt mục I) —
+  // playerId -> đang "vũ trang" khả năng Miễn Tử cho chu kỳ hiện tại hay
+  // không. THEO PLAYERID (khác các field "...UsedThisTurn" khác) vì Vera
+  // Custer (Dodge City, canBorrowCharacterAbilities) có thể MƯỢN khả năng
+  // này qua getEffectiveCharacterDefinition() — nếu 1 ván có CẢ Elena Noir
+  // thật LẪN Vera Custer đang mượn đúng cô ta, mỗi người cần trạng thái vũ
+  // trang RIÊNG, không dùng chung 1 field đơn (đã từng là field đơn, ĐÃ SỬA
+  // triệt để sau khi phát hiện xung đột này). Không có entry (`undefined`)
+  // coi như false — dùng `?? false` khi đọc, XOÁ KEY (không set false) khi
+  // "dùng xong" để Record không phình to vô ích qua nhiều lượt.
+  //
+  // Chỉ được set lại mỗi khi ĐẾN LƯỢT CỦA CHÍNH người đó (ở handleDrawCards(),
+  // lúc trả lời NEED_PICK_ARMED) — KHÔNG reset vô điều kiện ở advanceTurn()
+  // như bangUsedThisTurn/docHolydayUsedThisTurn (2 field đó reset mỗi lượt
+  // CỦA BẤT KỲ AI; field này phải sống sót qua hết lượt của những người chơi
+  // khác xen giữa 2 lượt liên tiếp của chính người sở hữu).
+  elenaNoirArmed: Record<string, boolean>;
+  // Bộ mở rộng "custom_characters" (Elena Noir) — playerId -> còn bấy nhiêu
+  // LƯỢT CỦA CHÍNH NGƯỜI ĐÓ trong trạng thái Miễn Tử (luôn bắt đầu ở 2 lúc
+  // mới kích hoạt, xem ELENA_NOIR_IMMORTAL_TRIGGERED) — giảm dần mỗi khi 1
+  // lượt TRONG Miễn Tử kết thúc; về 0 thì XOÁ KEY này (thay vì giữ 0) VÀ chết
+  // chắc chắn (xem advanceTurn() trong reduce.ts). KHÔNG có entry = không
+  // trong Miễn Tử (tương đương "null" của field đơn cũ) — THEO PLAYERID cùng
+  // lý do với elenaNoirArmed ở trên (xung đột Vera Custer). Máu (hp) giữ
+  // nguyên ở 0 suốt trạng thái này — không dùng field riêng đánh dấu "đang
+  // Miễn Tử", chỉ cần có entry trong Record này là đủ.
+  elenaNoirImmortalTurnsLeft: Record<string, number>;
+  // Bộ mở rộng "custom_characters" (Marcel Marcelo, xem House_Rule.txt mục I)
+  // — playerId của người ĐANG BỊ JAIL có khả năng này (thường là Marcel, có
+  // thể là Vera Custer đang mượn) -> playerId của người được chỉ định "cùng
+  // vào tù". Chỉ tồn tại từ lúc Jail vừa gắn (NEED_PICK_MARCEL_COMPANION) tới
+  // lúc chính draw!-check Jail đó của người bị nhốt được giải quyết xong (xem
+  // resolveDrawCheck() trong reduce.ts) — XOÁ KEY ngay sau đó, dù thoát hay
+  // kẹt tù. THEO PLAYERID (khoá = người bị nhốt, không hardcode "marcel") vì
+  // Vera Custer có thể mượn khả năng này — cùng lý do với elenaNoirArmed ở trên.
+  marcelJailCompanion: Record<string, string>;
+  // Bộ mở rộng "custom_characters" (Marcel Marcelo) — playerId (của người
+  // "cùng vào tù", KHÔNG phải Marcel) -> đánh dấu sẽ mất LƯỢT KẾ TIẾP của
+  // chính họ (bất kể xa gần), vì Marcel vừa kẹt tù. Tiêu thụ (xoá key) đúng 1
+  // lần ở applyTurnStartChecks() (reduce.ts) khi tới lượt người đó — bỏ qua cả
+  // lượt, không rút bài kiểm tra gì thêm. Không có entry = không bị ảnh hưởng.
+  marcelCompanionSkipNextTurn: Record<string, boolean>;
+  // Bộ mở rộng "custom_characters" (Marcel Marcelo) — playerId -> vừa thoát tù
+  // thành công lượt này, lượt rút bài SẮP TỚI (handleDrawCards() trong
+  // reduce.ts) phải rút 3 lá thay vì 2 (Phương án C, xem House_Rule.txt mục
+  // I). Tiêu thụ (xoá key) đúng 1 lần ngay khi handleDrawCards() đọc thấy.
+  marcelJailBonusDrawThisTurn: Record<string, boolean>;
 }
 
 // Giai đoạn 5, việc 5.3 — danh sách id luật bổ sung đã cài (xem LO-TRINH.md
@@ -466,4 +568,7 @@ export type HouseRuleId =
 // kết hợp được với nhau — bật đồng thời nhiều id trong mảng, setup.ts gộp dữ
 // liệu của tất cả bộ đang bật qua 1 đường code chung, không rẽ nhánh riêng
 // từng bộ. Thêm bộ mở rộng mới thì thêm 1 giá trị vào union này.
-export type ExpansionId = "dodge_city";
+// "custom_characters" — nhân vật TỰ CHẾ, không thuộc bản gốc/Dodge City (xem
+// House_Rule.txt), tên hiển thị luôn có đuôi "*ex". Không thêm lá bài mới
+// (EXPANSION_CARD_COUNTS.custom_characters là object rỗng, xem cards.ts).
+export type ExpansionId = "dodge_city" | "custom_characters";

@@ -1,4 +1,4 @@
-// Mở rộng Dodge City, mục C nhóm C (5.4) — 3 nhân vật phụ thuộc lẫn nhau:
+﻿// Mở rộng Dodge City, mục C nhóm C (5.4) — 3 nhân vật phụ thuộc lẫn nhau:
 // Molly Stark (onVoluntaryPlayOutOfTurn), Doc Holyday (USE_ABILITY biến thể
 // thứ 3, phụ thuộc isImmuneToCard của Apache Kid), Belle Star
 // (disablesOthersEquipment, qua getEffectiveEquipment()). Xem LO-TRINH.md
@@ -41,6 +41,11 @@ function makeState(overrides: Partial<GameState> = {}): GameState {
     docHolydayUsedThisTurn: false,
     duelBangDrawPending: null,
     veraCusterBorrowedCharacterId: null,
+    elenaNoirArmed: {},
+    elenaNoirImmortalTurnsLeft: {},
+    marcelJailCompanion: {},
+    marcelCompanionSkipNextTurn: {},
+    marcelJailBonusDrawThisTurn: {},
     houseRules: [],
     expansions: [],
     cardNamesPlayedThisTurn: [],
