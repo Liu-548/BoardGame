@@ -68,7 +68,12 @@ export type PendingAction =
   // bỏ đúng 1 Missed!/1 lượt draw! Barrel khớp Cơ chỉ tính là 1, chưa đủ thì
   // pending này được đẩy lại với số còn thiếu giảm 1 (xem respondToMissed()/
   // resolveDrawCheck() trong reduce.ts).
-  | { kind: "NEED_MISSED"; player: string; source: { card: string; from: string }; missesNeeded?: number }
+  // Mở rộng High Noon/A Fistful of Cards — `source.from` giờ CHO PHÉP `null`
+  // ("do lá sự kiện gây ra, không phải người chơi nào bắn" — xem mục 1.3
+  // Luat_Bang_Mo_Rong_HighNoon.txt, ví dụ lá "A Fistful of Cards"). MỌI nguồn
+  // cũ (Bang!/Gatling/Punch/...) vẫn luôn truyền `from` là 1 playerId THẬT —
+  // chỉ các hàm push MỚI (chưa cài) mới thật sự dùng `null`.
+  | { kind: "NEED_MISSED"; player: string; source: { card: string; from: string | null }; missesNeeded?: number }
   // Indians!: người chơi phải bỏ 1 lá Bang! hoặc mất 1 máu. Có thể chọn KHÔNG bỏ
   // dù có Bang! trong tay (RESPOND không kèm cardId) — chịu mất máu là lựa chọn hợp lệ.
   | { kind: "NEED_DISCARD_BANG"; player: string; source: { card: string; from: string } }
@@ -81,7 +86,9 @@ export type PendingAction =
   // Cat Balou: `player` (mục tiêu bị bắt bỏ bài) tự chọn đúng 1 lá trong `zone`
   // (tay hoặc sân) do người đánh Cat Balou chỉ định trước — không phải người
   // đánh chọn lá cụ thể, cũng không có lựa chọn "từ chối" (bị ép buộc).
-  | { kind: "NEED_DISCARD_FROM_ZONE"; player: string; zone: "hand" | "equipment"; source: { card: string; from: string } }
+  // Cùng lý do NEED_MISSED ở trên — `source.from: null` dùng cho The Daltons
+  // (High Noon, mọi người TỰ bỏ 1 lá xanh dương, không ai "bắt" ai cả).
+  | { kind: "NEED_DISCARD_FROM_ZONE"; player: string; zone: "hand" | "equipment"; source: { card: string; from: string | null } }
   // draw! (lật bài kiểm tra) — cơ chế DÙNG CHUNG cho Barrel/Jail/Dynamite (việc
   // 1.11) và sau này là kỹ năng nhân vật (Giai đoạn 5). Chỉ lật ĐÚNG 1 lá, báo
   // "khớp" hay không — không tự suy ra hậu quả (nổ/thoát tù/né đạn...), vì mỗi
@@ -274,7 +281,9 @@ export type GameEvent =
   | { type: "STORE_REVEALED"; cardIds: string[] } // General Store lật bài
   | { type: "STORE_CARD_TAKEN"; playerId: string; cardId: string }
   | { type: "CARD_STOLEN"; playerId: string; fromPlayerId: string; cardId: string } // Panic
-  | { type: "CARD_FORCE_DISCARDED"; playerId: string; byPlayerId: string; cardId: string } // Cat Balou
+  // Cat Balou/Brawl/Can Can (byPlayerId luôn là 1 người thật) — hoặc The
+  // Daltons (High Noon, byPlayerId: null — TỰ bỏ vì lá sự kiện, không ai bắt).
+  | { type: "CARD_FORCE_DISCARDED"; playerId: string; byPlayerId: string | null; cardId: string }
   | { type: "DRAW_CHECK_RESOLVED"; playerId: string; cardId: string; matched: boolean } // draw!
   | { type: "WEAPON_REPLACED"; playerId: string; oldCardId: string } // đánh súng mới, bỏ súng cũ
   | { type: "BARREL_DODGED"; playerId: string } // Barrel draw! khớp Cơ, né miễn phí không tốn Missed!
@@ -403,6 +412,11 @@ export type GameEvent =
   // MIỄN PHÍ vào `targetId` (người vừa bang cô), bỏ qua khoảng cách, cần 2
   // Missed! mới né được (xem pushMaryRoseReflection() trong reduce.ts).
   | { type: "MARY_ROSE_REFLECTED"; playerId: string; targetId: string }
+  // Mở rộng High Noon/A Fistful of Cards — lá sự kiện `eventId` (kiểu string,
+  // cùng lý do GameState.eventDeck ở trên) vừa được lật lên, đè lên lá cũ (nếu
+  // có). Hiệu ứng THẬT của lá (nếu thuộc nhóm A — chạy 1 lần lúc lật, xem mục
+  // 1.4) báo qua các event khác ngay sau event này trong cùng mảng events[].
+  | { type: "EVENT_REVEALED"; eventId: string }
   | { type: "GAME_ENDED"; winner: Winner };
 
 // ----- State tổng -----
@@ -545,6 +559,25 @@ export interface GameState {
   // reduce.ts) phải rút 3 lá thay vì 2 (Phương án C, xem House_Rule.txt mục
   // I). Tiêu thụ (xoá key) đúng 1 lần ngay khi handleDrawCards() đọc thấy.
   marcelJailBonusDrawThisTurn: Record<string, boolean>;
+  // Mở rộng High Noon/A Fistful of Cards (xem core/events.ts + mục 1.2
+  // Luat_Bang_Mo_Rong_HighNoon.txt) — chồng lá sự kiện chưa lật. Kiểu
+  // `string[]` (không phải `EventId[]`) để giữ đúng quy ước "types.ts không
+  // import từ file khác trong core/" (giống deck/discardPile ở trên dùng
+  // string[] thay vì CardName[]) — ép kiểu EventId khi đọc ở reduce.ts/
+  // events.ts. QUY ƯỚC: phần tử CUỐI = lá lật KẾ TIẾP (ĐỒNG BỘ với deck/
+  // discardPile — "phần tử cuối = lá trên cùng", đừng đảo ngược). Lá cuối
+  // (isFinalCard, "high_noon"/"a_fistful_of_cards") luôn là PHẦN TỬ ĐẦU (lật
+  // sau cùng — lật ngược cả chồng lúc chuẩn bị, xem setup.ts). LUÔN có mặt
+  // (mảng rỗng nếu không bật bộ mở rộng nào có lá sự kiện) — đúng quy tắc 3.
+  eventDeck: string[];
+  // Lá ĐANG có hiệu lực (null = chưa lật lá nào, kể cả khi eventDeck có sẵn
+  // nội dung chờ lật). Đã lật lá cuối (isFinalCard) thì field này giữ nguyên
+  // tới hết ván, eventDeck rỗng, không lật thêm gì nữa.
+  activeEventId: string | null;
+  // Các lá đã bị đè, giữ lại để hiển thị lịch sử — KHÔNG bí mật gì (mọi lá đã
+  // từng lật đều công khai), khác phần CÒN LẠI của eventDeck (bị viewFor() ẩn,
+  // xem view.ts + mục 1.2 "chỉ lộ lá đang chạy + lá kế tiếp").
+  eventDiscard: string[];
 }
 
 // Giai đoạn 5, việc 5.3 — danh sách id luật bổ sung đã cài (xem LO-TRINH.md
@@ -571,4 +604,9 @@ export type HouseRuleId =
 // "custom_characters" — nhân vật TỰ CHẾ, không thuộc bản gốc/Dodge City (xem
 // House_Rule.txt), tên hiển thị luôn có đuôi "*ex". Không thêm lá bài mới
 // (EXPANSION_CARD_COUNTS.custom_characters là object rỗng, xem cards.ts).
-export type ExpansionId = "dodge_city" | "custom_characters";
+// "high_noon"/"a_fistful_of_cards" — bộ mở rộng "lá sự kiện" (xem
+// Luat_Bang_Mo_Rong_HighNoon.txt/Luat_Bang_Mo_Rong_FistfulOfCards.txt +
+// core/events.ts). KHÔNG thêm lá bài chơi/nhân vật mới nào (EXPANSION_CARD_COUNTS
+// và EXPANSION_CHARACTER_IDS của 2 id này đều rỗng) — chỉ đóng góp
+// EXPANSION_EVENT_IDS (events.ts).
+export type ExpansionId = "dodge_city" | "custom_characters" | "high_noon" | "a_fistful_of_cards";

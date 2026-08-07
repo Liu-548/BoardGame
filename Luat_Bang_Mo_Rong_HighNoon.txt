@@ -1,0 +1,810 @@
+========================================================================
+BANG! HIGH NOON — ĐẶC TẢ MỞ RỘNG (input cho Claude Code khi cài đặt)
+========================================================================
+
+Mục đích: đặc tả bộ mở rộng High Noon để dùng làm cơ sở cài đặt trong
+core/ (giống vai trò của LUAT-BANG-CO-BAN.txt, NHAN-VAT-BANG-CO-BAN.txt
+và Luat_Bang_Mo_Rong_DodgeCity.txt). File CHƯA có gì được code — đây là
+spec đọc trước, không phải mô tả trạng thái hiện tại của repo.
+
+File này chứa ĐẶC TẢ CƠ CHẾ CHUNG cho CẢ HAI bộ sự kiện (mục 1). File
+Luat_Bang_Mo_Rong_FistfulOfCards.txt dùng lại nguyên mục 1 này, chỉ khai
+báo thêm 15 lá riêng của nó — ĐỌC FILE NÀY TRƯỚC.
+
+QUY ƯỚC ĐỌC FILE NÀY (áp dụng cho Claude Code):
+- Mỗi mục có 2 phần tách riêng: "Hiệu ứng" (luật thật, viết cho người đọc
+  hiểu) và "Cách cài đặt" (viết dưới dạng logic if/else, gọi thẳng tên
+  khái niệm đã dùng trong core/ — state, pending, draw!, view, GameEvent,
+  hook — để đọc là biết cần sửa ở đâu, không cần diễn giải lại luật).
+- Thuật ngữ khớp CLAUDE.md: "pending" = ngăn xếp việc đang chờ xử lý ở
+  đỉnh stack, "draw!" = lật bài kiểm tra, "view" = state đã lọc gửi cho 1
+  người chơi qua viewFor(), "hook" = điểm cắm hiệu ứng nhân vật trong
+  core/characters.ts (danh sách hook HIỆN CÓ, đã đếm lại trực tiếp trong
+  code chứ không chép từ file cũ: onDrawPhase, modifyDistance, onLoseLife,
+  onLoseLifeFromCard, onAnyDeath, onOutgoingBang, onHandEmpty,
+  modifyHandLimit, modifyHealAmount, isImmuneToCard,
+  onVoluntaryPlayOutOfTurn — 11 hook).
+- "LÁ SỰ KIỆN" (event card) ở file này KHÔNG PHẢI lá bài chơi. Nó không
+  có chất/giá trị, không vào bộ bài rút, không ai cầm trên tay, không bị
+  Cat Balou/Panic! đụng tới. Đây là loại đối tượng MỚI HOÀN TOÀN với dự
+  án — xem mục 1.1.
+- [CẦN KIỂM CHỨNG] = chưa xác nhận được 100% nguyên văn lá bài qua tra
+  cứu. Theo đúng quy tắc CLAUDE.md ("Luật Bang! không rõ ràng → dừng lại
+  và hỏi, không tự đoán rồi cài đặt"): KHÔNG tự suy diễn cách cài, phải
+  hỏi chủ dự án hoặc tra lại bằng bài vật lý trước khi viết code.
+- [CẦN HOOK MỚI] = hiệu ứng không khớp 11 hook đã có — phải thiết kế
+  thêm loại hook mới, bàn cách tiếp cận TRƯỚC, KHÔNG tự thêm.
+- [ĐỔI STATE] = cần thêm/đổi field trong GameState hoặc PlayerState —
+  theo quy tắc CLAUDE.md phải HỎI TRƯỚC.
+- [CẦN BÀN] = luật rõ nhưng cách nối vào code hiện tại có nhiều phương
+  án / va chạm với thứ đã cài, phải chốt với chủ dự án trước.
+- *dev = dòng do chính chủ dự án bổ sung.
+
+Thành phần hộp (phần High Noon): 13 lá sự kiện, không có nhân vật mới,
+không có lá bài chơi mới, không đổi số người chơi.
+
+------------------------------------------------------------------------
+CẬP NHẬT (bản dịch luật + FAQ chính thức Davinci, chủ dự án cung cấp)
+------------------------------------------------------------------------
+Bản đầu của file này viết theo hiểu biết chung. Nay đã đối chiếu với bản
+dịch luật tiếng Việt có trích dẫn FAQ chính thức Davinci Games (Q2, Q6,
+Q7, Q8, Q9 High Noon FAQ; Q13, Q14, Q15 Dodge City FAQ).
+
+LỖI NẶNG ĐÃ SỬA: bản đầu file này CHỈ CÓ 12/13 LÁ — THIẾU HẲN LÁ
+"GHOST TOWN". Nay đã bổ sung đầy đủ (xem mục 2, nhóm B).
+
+ĐÃ SỬA vì bản đầu SAI:
+  · Gold Rush — hiệu ứng của LÁ BÀI (Gatling/Indians!/General Store) VẪN
+    đi theo chiều kim đồng hồ, CHỈ có thứ tự LƯỢT bị đảo. Bản đầu bảo
+    phải đảo cả otherAlivePlayersInOrder() — SAI.
+  · Thirst / Train Arrival — là "±1 lá so với bình thường", KHÔNG phải
+    "ép cứng thành 1 lá". Xem cảnh báo mâu thuẫn *dev tại lá Thirst.
+  · The Sermon — lệnh cấm chỉ áp TRONG LƯỢT CỦA CHÍNH MÌNH. Ngoài lượt
+    vẫn bỏ Bang! được. Kéo theo 2 mâu thuẫn với *dev — xem tại lá đó.
+
+*** 3 MÂU THUẪN GIỮA *dev VÀ FAQ — CHỦ DỰ ÁN DUYỆT LẠI ***
+  (1) Thirst: *dev "force rút đúng 1 lá, không ngoại lệ" ⟷ FAQ "-1 lá so
+      với bình thường" (Bill Noface 4→3, Pixie Pete 3→2).
+      - *dev: Chốt theo FAQ, nghĩa là Thirst chỉ làm giảm số lá rút đầu lượt đi 1 lá so với bình thường, không ép buộc rút đúng 1 lá.
+  (2) The Sermon + Duel: *dev "không cấm BỎ Bang!" ⟷ FAQ Q2 "trong lượt
+      của MÌNH thì không được bỏ Bang! kể cả để đỡ Duel mình vừa đánh".
+      - *dev: Chốt theo FAQ, nghĩa là trong lượt của mình thì không được bỏ Bang! kể cả để đỡ Duel mình vừa đánh.
+  (3) The Sermon + Calamity Janet: *dev "vẫn dùng Missed! thay Bang!
+      được" ⟷ bản dịch "KHÔNG ĐƯỢC BẮN BẰNG LÁ MISSED".
+      - *dev: Chốt theo bản dịch, nghĩa là Calamity Janet KHÔNG được dùng Missed! thay cho Bang! trong lượt của mình. Nhưng dùng Bang! để Missed! vẫn được vì là ngoài lượt của mình.
+  Chi tiết đầy đủ ghi tại từng lá. Các dòng *dev được GIỮ NGUYÊN, không
+  sửa — chỉ ghi thêm phía dưới.
+
+ĐÃ XÁC NHẬN *dev ĐÚNG (khớp FAQ, không cần đổi gì): Gold Rush + Dynamite;
+The Daltons chỉ tính lá xanh dương; The Doctor chỉ hồi cho người còn
+sống; High Noon áp trước Dynamite và chỉ áp cho người đang tới lượt;
+Train Arrival cộng thêm 1 lá.
+
+CẢNH BÁO ĐỘ KHÓ — đọc trước khi ước lượng công việc: Dodge City chỉ THÊM
+nội dung (lá + nhân vật) vào các cơ chế sẵn có. High Noon thì khác hẳn:
+gần như mọi lá đều SỬA MỘT LUẬT NỀN mà cả bộ code đang giả định là bất
+biến (chất bài, số lá rút, chiều đi lượt, khả năng nhân vật, giới hạn
+Bang!/lượt). Vì vậy phần lớn công sức KHÔNG nằm ở "cài 13 lá" mà nằm ở
+mục 1 — dựng đủ chỗ cắm để 13 lá đó chỉ còn là dữ liệu.
+
+
+========================================================================
+1. CƠ CHẾ CHUNG CHO CẢ HAI BỘ SỰ KIỆN (High Noon + A Fistful of Cards)
+========================================================================
+
+1.1. Lá sự kiện là loại dữ liệu MỚI, không phải Card
+--------------------------------------------------------------------
+- Hiệu ứng: 13 lá sự kiện có mặt lưng và viền riêng, KHÔNG tráo chung
+  bộ bài thường. Mỗi lá là một câu luật áp cho TẤT CẢ người chơi trong
+  một vòng.
+- Cách cài đặt:
+  → KHÔNG tái dùng interface Card (types.ts) — Card bắt buộc có suit/rank
+    (mục 1 Blessing/Curse sẽ đọc suit của MỌI Card, lá sự kiện lọt vào
+    đó là sai ngay). Đề xuất: file MỚI core/events.ts, chứa
+    `export type EventId = "blessing" | "curse" | ...` và bảng tĩnh
+    `EVENT_CARDS: Record<EventId, EventDefinition>` — đúng khuôn
+    CHARACTERS ở characters.ts (dữ liệu tĩnh tra theo id, hàm KHÔNG nằm
+    trong state, giữ đúng quy tắc 3).
+  → EventDefinition đề xuất tối thiểu:
+      { id, name, expansion: ExpansionId, isFinalCard?: boolean }
+    KHÔNG nhồi hàm hiệu ứng vào đây nếu chưa cần — hiệu ứng nằm rải ở
+    đúng chỗ luật gốc trong reduce.ts/distance.ts, giống cách HouseRuleId
+    đang làm (xem types.ts, "KHÔNG tạo cơ chế chung chung"). Chỉ gom vào
+    events.ts những gì là DỮ LIỆU.
+  → ExpansionId (types.ts) thêm 2 giá trị: "high_noon" và
+    "a_fistful_of_cards". [ĐỔI STATE — union type trong state]
+  → EXPANSION_CARD_COUNTS (cards.ts) cho 2 bộ này là object RỖNG — chúng
+    không đóng góp lá bài chơi nào. Cần bảng RIÊNG
+    `EXPANSION_EVENT_IDS: Record<ExpansionId, EventId[]>` (rỗng cho
+    "dodge_city"/"custom_characters"), đọc ở setup.ts.
+
+1.2. State cho chồng sự kiện
+--------------------------------------------------------------------
+- Hiệu ứng: chủ trò để riêng lá cuối ("High Noon"), tráo 12 lá còn lại
+  úp xuống, đặt lá cuối lên TRÊN, rồi LẬT NGƯỢC cả chồng và để ngửa cạnh
+  mình — thành ra lá cuối nằm dưới đáy, và ai cũng nhìn thấy lá SẮP tới.
+- Cách cài đặt: [ĐỔI STATE — hỏi trước]
+  → GameState thêm 3 field:
+      eventDeck: EventId[];      // chưa lật; phần tử CUỐI = lá lật kế tiếp
+      activeEventId: EventId | null;  // lá đang có hiệu lực (null = chưa lật lá nào)
+      eventDiscard: EventId[];   // các lá đã bị đè, giữ để hiển thị lịch sử
+  → Quy ước "phần tử cuối = lá kế tiếp" chọn cho ĐỒNG BỘ với `deck` và
+    `discardPile` hiện có ("phần tử cuối = lá trên cùng", xem types.ts) —
+    đừng đảo quy ước giữa 2 loại chồng bài, rất dễ sai lúc đọc lại.
+  → Vì lật ngược cả chồng, lá "High Noon" phải là PHẦN TỬ ĐẦU của mảng
+    (eventDeck[0]) — lật sau cùng.
+  → Cả 3 field LUÔN có mặt kể cả khi không bật bộ mở rộng nào (mảng rỗng
+    + null), đúng quy tắc 3 (state JSON thuần, không field xuất hiện/biến
+    mất tuỳ lúc) — giống cách houseRules/expansions đang làm.
+  → viewFor() (view.ts, quy tắc 6): [CẦN BÀN] luật gốc nói "chỉ để lộ lá
+    KẾ TIẾP". Nghĩa là view PHẢI để lộ activeEventId + eventDeck[cuối],
+    và ẩn phần còn lại của eventDeck. Đây là pending/field thứ hai trong
+    dự án chứa thông tin bán-ẩn (tiền lệ: NEED_PICK_KEPT_CARDS của Kit
+    Carlson) — chốt rõ trước khi code, vì nếu gửi cả eventDeck thì
+    DevTools xem được toàn bộ kịch bản còn lại của ván.
+    -> *dev: hiểu đơn giản người chơi sẽ luôn thấy được 2 lá sự kiện bao gồm 1 lá đang active và 1 lá kế tiếp, còn các lá khác sẽ không thấy được.
+
+1.3. Thời điểm lật lá sự kiện
+--------------------------------------------------------------------
+- Hiệu ứng: bắt đầu từ lượt THỨ HAI của chủ trò, TRƯỚC khi chủ trò làm
+  bất cứ việc gì, bỏ lá trên cùng chồng sự kiện ra, đọc to, đặt vào giữa
+  bàn đè lên lá cũ.
+- Cách cài đặt:
+  → Điểm cắm: đầu applyTurnStartChecks() (reduce.ts) — đây là "bước đầu
+    tiên của lượt" đã có sẵn.
+  → Điều kiện lật: người đang tới lượt là CHỦ TRÒ, VÀ đây không phải
+    vòng đầu tiên. Không cần đếm vòng riêng — dùng
+    `next.turnNumber >= số người chơi` là đủ (turnNumber đã có sẵn từ
+    Dodge City mục 1.1) hoặc so `currentPlayerIndex === chỉ số chủ trò`
+    kèm 1 cờ "đã qua vòng 1". [CẦN BÀN] chọn 1 trong 2, đừng cài cả hai.
+  → AI LÀ CHỦ TRÒ: dự án có 3 biến thể không có Sheriff — 2 người
+    (role = null cả 2, xem isDuelMode()), 3 người (police/criminal/
+    traitor, xem isHuntMode()), và ván không chia vai. [CẦN BÀN] Đề xuất
+    an toàn: KHÔNG tra theo role, mà chốt "người ngồi ghế 0" (players[0]
+    — chính là người đi lượt đầu tiên trong mọi biến thể). Như vậy 1 quy
+    tắc chạy đúng cho cả 4-8 người lẫn 2/3 người, không rẽ nhánh.
+  → THỨ TỰ so với các bước đầu lượt đã có — [CẦN BÀN, quan trọng]. Thứ
+    tự hiện tại trong applyTurnStartChecks(): (a) Marcel companion skip,
+    (b) Vera Custer chọn mượn nhân vật, (c) Dynamite, (d) Jail. Lá sự
+    kiện phải lật TRƯỚC (b) vì nó có thể đổi luật của chính (b)(c)(d) —
+    ví dụ Hangover tắt khả năng Vera Custer, Blessing khiến Dynamite
+    không bao giờ nổ. Đề xuất chèn vào ngay SAU (a), TRƯỚC (b).
+  → Lật lá KHÔNG được đẩy pending (không có gì để hỏi) — trừ 4 lá có
+    hiệu ứng tức thời lúc lật (xem 1.4). Bắn GameEvent mới
+    `{ type: "EVENT_REVEALED"; eventId: EventId }`.
+  → Lá cuối (isFinalCard) khi đã lật thì eventDeck rỗng — từ đó về sau
+    applyTurnStartChecks() không lật gì nữa, activeEventId giữ nguyên
+    tới hết ván.
+    -> *dev: Việc lật lá sự kiện diễn ra ngay đầu lượt chơi của chủ trò, tức là trước cả vera nếu có.
+    -> *dev: Quy tắc xác định chủ trò:
+        - Nếu có sheriff thì chủ trò là người chơi có role = sheriff.
+        - Nếu không có sheriff thì chủ trò là người chơi ngồi ghế 0 (players[0]).
+    -> *dev: Thứ tự lật lá sự kiện so với các bước đầu lượt hiện tại:
+        1. Lật lá sự kiện (nếu điều kiện thỏa).
+        3. Vera Custer chọn mượn nhân vật (nếu có).
+        2. Kiểm tra Marcel companion skip.
+        4. Kiểm tra Dynamite.
+        5. Kiểm tra Jail.
+        6. Các nhân vật hỏi trước khi bốc bài khác (bao gồm cả Vera Custer nếu mượn chức năng của các nhân vật tương ứng).
+        7. Bắt đầu lượt chơi.
+
+1.4. Ba nhóm hiệu ứng — quyết định chỗ cắm code
+--------------------------------------------------------------------
+Phân loại này là XƯƠNG SỐNG của cả 2 file spec. Trước khi cài bất kỳ lá
+nào, xác định nó thuộc nhóm nào:
+
+  (A) LÚC LẬT (one-shot): chỉ chạy đúng 1 lần ngay khi lá được lật, sau
+      đó lá chỉ còn là "đang hiển thị", không làm gì thêm.
+      High Noon: The Daltons, The Doctor.
+      A Fistful of Cards: Russian Roulette, Dead Man.
+      → Cắm ngay tại chỗ lật ở 1.3, có thể đẩy pending.
+
+  (B) ĐẦU/CUỐI MỖI LƯỢT: chạy lại ở mỗi lượt của mỗi người trong suốt
+      thời gian lá còn hiệu lực.
+      High Noon: High Noon (mất 1 máu), Ghost Town.
+      A Fistful of Cards: A Fistful of Cards, Blood Brothers, Vendetta.
+      → Cắm ở applyTurnStartChecks() (đầu lượt) hoặc handleEndTurn()/
+        advanceTurn() (cuối lượt).
+
+  (C) SỬA LUẬT NỀN (passive): không "chạy" lúc nào cả, mà đổi kết quả
+      của một hàm nền nào đó suốt thời gian có hiệu lực.
+      Tất cả các lá còn lại.
+      → Cắm tại ĐÚNG hàm nền tương ứng. Xem 1.5.
+
+1.5. Hàm kiểm tra trung tâm + các hàm nền cần sửa
+--------------------------------------------------------------------
+- Cách cài đặt:
+  → Thêm đúng 1 helper ở events.ts:
+      export function isEventActive(state: GameState, id: EventId): boolean
+    → chỉ là `state.activeEventId === id`. Mọi nơi cần biết "lá X có
+      đang chạy không" đều gọi qua đây, KHÔNG so sánh chuỗi rải rác —
+      cùng lý do dự án đã gom getEffectiveCharacterId()/
+      getEffectiveEquipment() thành hàm trung tâm.
+  → Bảng các hàm nền nhóm (C) cần đụng tới (đã rà trong code thật):
+
+    | Luật nền           | Hàm/chỗ hiện tại                      | Lá tác động |
+    |--------------------|---------------------------------------|-------------|
+    | Chất của lá bài    | cardSuitRankFromId() (cards.ts)       | Blessing, Curse |
+    | Khả năng nhân vật  | getEffectiveCharacterHooks()/         | Hangover |
+    |                    | getEffectiveCharacterDefinition()     | |
+    | Số lá rút đầu lượt | DRAW_COUNT (hằng số ở reduce.ts)      | Thirst, Train Arrival |
+    | Giới hạn Bang!/lượt| bangUsedThisTurn (GameState)          | Shootout |
+    | Chiều đi lượt      | nextAlivePlayerIndex() (reduce.ts)    | Gold Rush |
+    | Vòng lượt gồm ai   | nextAlivePlayerIndex() (reduce.ts)    | Ghost Town |
+    | Cấm đánh 1 tên lá  | handlePlayCard() (reduce.ts)          | The Sermon, The Reverend, The Judge |
+    | Khoảng cách        | distance.ts                           | Ambush |
+    | Trang bị có hiệu lực| getEffectiveEquipment() (characters.ts)| Lasso |
+    | Nguồn rút/bỏ bài   | drawTopCard() (deck.ts), handleDiscardCards() | Abandoned Mine |
+
+  → LƯU Ý ĐÃ PHÁT HIỆN TRONG CODE (không phải suy đoán): cardSuitRankFromId()
+    đang được gọi ở 10 chỗ — 4 ở client/ui.ts (badge "8♥"), 3 ở
+    core/characters.ts, 2 ở core/reduce.ts, 1 ở core/cards.ts. Blessing/
+    Curse muốn đúng thì cả 10 chỗ phải đi qua 1 hàm mới
+    getEffectiveSuit(state, cardId) chứ không đọc thẳng. Đây là lý do
+    Blessing/Curse tuy chỉ 1 câu luật nhưng là 2 lá TỐN CÔNG NHẤT bộ.
+  → LƯU Ý THỨ HAI (đã đọc code): applyDynamiteAndJailChecks() trong
+    reduce.ts đọc THẲNG `player.equipment`, KHÔNG qua
+    getEffectiveEquipment(). Nghĩa là Lasso (và cả Belle Star của Dodge
+    City) hiện KHÔNG vô hiệu hoá được Dynamite/Jail. Cần chốt luật rồi
+    sửa cho nhất quán — xem lá Lasso ở file Fistful of Cards.
+
+1.6. Cách chuẩn bị chồng sự kiện (setup.ts)
+--------------------------------------------------------------------
+- Hiệu ứng: chơi 1 bộ → để riêng lá cuối, tráo 12 (hoặc 14) lá còn lại,
+  đặt lá cuối xuống đáy. Chơi CẢ HAI bộ → để riêng cả 2 lá cuối, tráo 26
+  lá còn lại, rút ngẫu nhiên 12 lá (nhiều hơn nếu muốn ván dài hơn), rồi
+  chọn NGẪU NHIÊN 1 trong 2 lá cuối đặt xuống đáy. Lá cuối còn lại KHÔNG
+  dùng trong ván đó.
+- Cách cài đặt:
+  → Ở setupGame() (setup.ts): gom EXPANSION_EVENT_IDS của mọi
+    ExpansionId đang bật, lọc ra các lá isFinalCard, tráo phần còn lại
+    bằng RNG có seed (quy tắc 2 — KHÔNG Math.random()).
+  → Số lá cắt bớt khi chơi 2 bộ (12) nên là 1 field trong RuleOptions
+    (vd `eventDeckSize?: number`, mặc định 12) để chủ phòng chỉnh được,
+    thay vì hằng số chôn trong code.
+  → Nếu chỉ bật 1 bộ: KHÔNG cắt bớt, dùng đủ 12 (High Noon) hoặc 14
+    (Fistful) lá + lá cuối.
+
+1.7. Những chỗ chắc chắn vỡ nếu không xử lý (đọc trước khi code)
+--------------------------------------------------------------------
+- CẬP NHẬT sau khi có bản dịch luật: 2/3 "tổ hợp chết máy" cảnh báo ở
+  bản đầu file này THỰC RA KHÔNG TỒN TẠI. Giữ lại đoạn này để không ai
+  đi lo lại từ đầu:
+  · Blessing + Vendetta ⇒ KHÔNG treo. Bản dịch xác nhận Vendetta chỉ cho
+    thêm ĐÚNG 1 lượt ("duy nhất 1 lượt nữa"), tự nó đã có trần.
+  · Blessing + Peyote ⇒ KHÔNG treo. Bản dịch xác nhận Peyote chỉ đoán
+    tối đa 2 lá, không lặp vô hạn. Blessing chỉ biến nó thành "rút 2 lá
+    miễn phí".
+  · Curse (mọi lá chất Bích) + Dynamite ⇒ nổ gần như chắc chắn (còn phải
+    khớp rank 2-9 nữa); + Jail ⇒ không bao giờ thoát. Đúng luật, KHÔNG
+    cần chặn, chỉ cần biết trước.
+- Nguy cơ treo ván THẬT SỰ còn lại nằm ở chỗ khác: Ghost Town + Dead Man
+  (file Fistful) cùng cần "người chết vẫn vào vòng lượt". Nếu cài 2 cơ
+  chế riêng rẽ, rất dễ tạo vòng lượt không bao giờ kết thúc. Thiết kế
+  CHUNG 1 cơ chế cho cả 2 — xem lá Ghost Town.
+- Va chạm với nhân vật đã cài: Blessing/Curse làm Apache Kid (miễn nhiễm
+  chất Rô) mất hoàn toàn tác dụng, và làm Black Jack/Lucky Duke/
+  Jourdonnais trở nên tất định. Đây là hệ quả đúng luật, chỉ cần biết
+  trước để không tưởng là bug lúc test.
+- Bot mô phỏng (test/bot-simulation.test.ts): mọi luật nền bị đổi đều có
+  thể làm bot kẹt (vd The Sermon cấm Bang! mà bot chỉ biết đánh Bang!).
+  Cần rà lại bộ test này sau khi cài, đúng quy tắc 10.
+  - *dev: Nếu chọn chơi cả 2 bộ High Noon + A Fistful of Cards, thì cũng không ảnh hưởng vì dù lá High Noon hay lá A Fistful of Cards đều là lá sự kiện, cả 2 được trộn chung và mỗi vòng chơi chỉ 1 lá được kích hoạt, nên không có chuyện xung đột giữa 2 lá sự kiện.
+
+
+========================================================================
+2. DANH SÁCH 13 LÁ SỰ KIỆN HIGH NOON
+========================================================================
+(Tên tiếng Anh giữ nguyên theo danh sách chính thức nhà xuất bản — xem
+"Nguồn tham khảo" cuối file. Nhóm (A)/(B)/(C) theo phân loại ở mục 1.4.)
+
+--- NHÓM (C): SỬA LUẬT NỀN ---
+
+Blessing — nhóm (C)
+  - Hiệu ứng: chất của MỌI lá bài đều là Cơ (Hearts) trong suốt vòng
+    này. Hệ quả: Barrel luôn thành công, Dynamite không bao giờ nổ, Jail
+    luôn thoát được.
+  - Cách cài đặt:
+    → Thêm hàm trung tâm `getEffectiveSuit(state, cardId): Suit` ở
+      cards.ts (hoặc events.ts nếu tránh vòng lặp import):
+        if (isEventActive(state, "blessing")) return "hearts";
+        if (isEventActive(state, "curse")) return "spades";
+        return cardSuitRankFromId(cardId).suit;
+    → ĐỔI TẤT CẢ 10 chỗ đang gọi cardSuitRankFromId() để đọc CHẤT sang
+      hàm này (xem cảnh báo ở mục 1.5). Chỗ chỉ cần GIÁ TRỊ (rank) thì
+      giữ nguyên — Blessing/Curse không đổi rank.
+    → [CẦN BÀN] client/ui.ts có 4 chỗ vẽ badge chất lá. Hiển thị chất
+      THẬT hay chất ĐÃ ĐỔI? Đề xuất: hiện chất đã đổi (đúng cái người
+      chơi cần biết để quyết định), kèm dấu hiệu phụ báo "đang bị
+      Blessing/Curse" để không tưởng là lỗi hiển thị.
+      -*dev: Hiển thị chất đã đổi (Hearts cho Blessing, Spades cho Curse) và thêm dấu hiệu phụ để người chơi biết đang bị ảnh hưởng bởi lá sự kiện.
+    → [CẦN BÀN] có áp cho isImmuneToCard của Apache Kid không (Blessing
+      ⇒ không lá nào là Rô ⇒ Apache Kid vô hiệu cả vòng). Theo nguyên
+      văn luật thì CÓ. Chốt rồi ghi lại, vì đây là điểm sẽ bị hỏi lại.
+      -*dev xét theo chất đã đổi, nên Apache Kid sẽ không miễn nhiễm với lá nào trong vòng Blessing.
+    → KHÔNG đụng reduce.ts ngoài việc đổi lời gọi — không có nhánh
+      if riêng cho Barrel/Dynamite/Jail, chúng tự đúng nhờ đọc qua hàm
+      mới.
+
+Curse — nhóm (C)
+  - Hiệu ứng: chất của MỌI lá bài đều là Bích (Spades). Hệ quả: Barrel
+    không bao giờ ăn, Dynamite LUÔN nổ, Jail không bao giờ thoát.
+  - Cách cài đặt: dùng CHUNG getEffectiveSuit() ở trên — không viết
+    nhánh riêng. Lưu ý Dynamite còn xét rank 2-9 nữa (matchRanks trong
+    NEED_DRAW_CHECK), nên Curse KHÔNG làm nổ 100% mà chỉ khi rank cũng
+    khớp — đọc lại applyDynamiteAndJailChecks() trước khi viết test kỳ
+    vọng.
+
+Hangover — nhóm (C)
+  - Hiệu ứng: mọi người chơi MẤT khả năng đặc biệt của nhân vật trong
+    vòng này.
+  - Cách cài đặt: đây là lá DỄ NHẤT bộ, nhờ Vera Custer (Dodge City) đã
+    gom sẵn 3 hàm trung tâm ở characters.ts.
+    → Trong getEffectiveCharacterHooks(): nếu isEventActive(state,
+      "hangover") thì trả về `{}` (không hook nào).
+    → Trong getEffectiveCharacterDefinition(): trả về định nghĩa đã
+      LỌC BỎ mọi field khả năng tĩnh (bypassBangLimit, virtualBarrel,
+      canSelfHeal, hasAnyCardMissedAlias, disablesOthersEquipment,
+      canBorrowCharacterAbilities...), NHƯNG GIỮ NGUYÊN `bullets`/tên —
+      máu tối đa KHÔNG phải "khả năng đặc biệt", không được đổi.
+      [CẦN BÀN] cách lọc: liệt kê tay danh sách field cần giữ, hay đánh
+      dấu field nào là "khả năng" ngay trong CharacterDefinition. Đề
+      xuất cái sau, ít rủi ro sót khi thêm nhân vật mới.
+    → Vera Custer đang mượn ai đó cũng mất luôn (tự đúng, vì cô tra qua
+      chính 2 hàm này).
+    → KHÔNG xoá veraCusterBorrowedCharacterId khi Hangover hết hiệu lực
+      — chỉ tạm không đọc tới.
+
+Shootout — nhóm (C)
+  - Hiệu ứng: mỗi người được đánh 2 lá Bang! trong lượt của mình (thay
+    vì 1).
+  - Cách cài đặt: [ĐỔI STATE]
+    → `bangUsedThisTurn: boolean` (12 chỗ dùng trong code) không đủ diễn
+      đạt "đã đánh mấy lá". Đổi thành `bangCountThisTurn: number`, reset
+      về 0 ở advanceTurn() cùng chỗ với bangUsedThisTurn hiện tại.
+    → Chỗ kiểm tra giới hạn (playBang() trong reduce.ts) đổi thành:
+        const limit = isEventActive(next, "shootout") ? 2 : 1;
+        if (bangCountThisTurn >= limit && !bypassBangLimit) → từ chối
+    → Volcanic (bypassBangLimit) vẫn bỏ qua giới hạn hoàn toàn — không
+      đổi.
+    → KHÔNG áp cho các lá "tương đương Bang!" của Dodge City (Punch,
+      Springfield, Derringer, Knife, Pepperbox, Buffalo Rifle, Howitzer)
+      và Doc Holyday — chúng vốn đã không tính vào giới hạn này.
+
+The Reverend — nhóm (C)
+  - Hiệu ứng (NGUYÊN VĂN bản dịch): "KHÔNG ĐƯỢC ĐÁNH LÁ BEER trong vòng
+    đó."
+    ⇒ Bản dịch KHÔNG nói rõ về cơ chế "Bia hồi sinh tự động khi máu về
+    0". Câu chữ chỉ nhắc "đánh lá Beer", và khác hẳn The Sermon (bản
+    dịch lá đó nói rõ "trong lượt của mình") — ở đây KHÔNG có giới hạn
+    "trong lượt", nghĩa là cấm cả trong lẫn ngoài lượt. Mà "Bia hồi sinh
+    tự động" chính là một lần chơi Beer ngoài lượt ⇒ nghiêng về CÓ bị
+    cấm, đúng như *dev đã chốt bên dưới.
+  - Cách cài đặt:
+    → Chặn ngay đầu playBeer() (reduce.ts) — từ chối action như mọi
+      action không hợp lệ khác.
+    → [CẦN BÀN, quan trọng] Cơ chế "Bia hồi sinh tự động" khi máu về 0
+      (eliminateIfDead(), event BEER_SAVED_FROM_DEATH) CÓ bị chặn không?
+      Theo nguyên văn "players cannot play Beer" thì CÓ — và điều đó
+      khiến The Reverend là lá gây chết người nhất bộ. Phải chốt, vì nó
+      quyết định luôn số phận của Tequila Joe (doubleRevivalHp) và Molly
+      Stark (rút bài khi bỏ Beer ngoài lượt).
+      -> *dev: Chốt là CÓ chặn cơ chế "Bia hồi sinh tự động" khi máu về 0, vì nguyên văn luật nói "players cannot play Beer".
+    → KHÔNG chặn Saloon/Tequila/Canteen/Sid Ketchum — chỉ riêng lá tên
+      "beer".
+    → House rule "beer_below_two" không liên quan, không đụng.
+
+The Sermon — nhóm (C)
+  - Hiệu ứng (NGUYÊN VĂN bản dịch + FAQ Q2 High Noon Davinci):
+    "TRONG LƯỢT CỦA MÌNH, không được đánh lá Bang!.
+     Khi bạn đánh lá Duello (Duel) thì người bị thách đấu CÓ THỂ bỏ ra lá
+     Bang! (vì không phải lượt của người đó), NHƯNG BẠN THÌ KHÔNG (vì
+     đang là lượt của bạn), nên bạn sẽ bị mất 1 máu.
+     Calamity Janet dùng Bang! như Missed! và ngược lại nên KHÔNG ĐƯỢC
+     BẮN BẰNG LÁ MISSED!."
+    ⇒ 3 điều bản đầu file này chưa nắm được:
+      · Lệnh cấm CHỈ áp TRONG LƯỢT CỦA CHÍNH MÌNH. Ngoài lượt (đỡ
+        Indians!, đấu Duel do người khác khởi xướng) vẫn bỏ Bang! bình
+        thường.
+      · Trong lượt của mình thì cấm CẢ VIỆC BỎ Bang! — điển hình là tự
+        đánh Duel rồi không đỡ được, mất 1 máu.
+      · Calamity Janet KHÔNG được dùng Missed! thay cho Bang!.
+
+  - *** MÂU THUẪN (2) CẦN DUYỆT LẠI — "chơi" hay cả "bỏ" ***
+    Ghi chú *dev cuối mục này viết "cấm CHƠI lá Bang! chứ không cấm BỎ
+    Bang!". FAQ Q2 lại nói ngược ở đúng 1 tình huống: người TỰ ĐÁNH Duel
+    (đang là lượt mình) KHÔNG được bỏ Bang! để đỡ. Hai phương án:
+      (a) THEO FAQ: mốc phân biệt là "có phải lượt mình không", không
+          phải "chơi hay bỏ". Trong lượt mình: cấm cả chơi lẫn bỏ.
+          Ngoài lượt: cho hết.
+      (b) THEO *dev: chỉ cấm hành động PLAY_CARD với lá bang, mọi kiểu
+          bỏ đều cho.
+    Chênh lệch thật: tự đánh Duel dưới Sermon — phương án (a) chắc chắn
+    mất 1 máu, phương án (b) đỡ được như thường.
+
+  - *** MÂU THUẪN (3) CẦN DUYỆT LẠI — Calamity Janet ***
+    *dev viết: "chỉ cấm lá Bang! chứ không cấm Missed! nên vẫn có thể
+    dùng Missed! để thay thế Bang!". Bản dịch nói THẲNG điều ngược lại:
+    "KHÔNG ĐƯỢC BẮN BẰNG LÁ MISSED!".
+    Lý do của bản dịch: khả năng của Calamity Janet là hoán đổi vai trò,
+    nên lá Missed! cô dùng để bắn CHÍNH LÀ "một lá Bang!" theo nghĩa
+    luật ⇒ vẫn dính lệnh cấm. Ngược lại, cô VẪN được dùng lá Bang! làm
+    Missed! để đỡ đòn (đó là Missed!, không phải Bang!).
+    Đề xuất: theo bản dịch — cắm ở actsAsBang() thay vì playBang(), tự
+    khắc đúng cho cả Calamity Janet lẫn lá Bang! thường.
+
+  - Cách cài đặt:
+    → Chặn ngay đầu playBang() (reduce.ts) — hoặc actsAsBang() nếu chốt
+      theo mâu thuẫn (3).
+    → [CẦN BÀN] PHẠM VI — nguyên văn chỉ nói lá "Bang!". Vậy các thứ
+      sau có bị cấm không:
+        · Gatling / Indians! / Duel (không phải lá Bang!) → KHÔNG cấm,
+          gần như chắc chắn.
+        · 7 lá "tương đương Bang!" của Dodge City → CHƯA RÕ.
+          - *dev: Chốt là KHÔNG cấm 7 lá "tương đương Bang!" của Dodge City, vì nguyên văn luật chỉ nói lá "Bang!".
+        · Doc Holyday (USE_ABILITY bắn Bang!) → CHƯA RÕ.
+          - *dev: Chốt là KHÔNG cấm Doc Holyday (USE_ABILITY bắn Bang!), vì nguyên văn luật chỉ nói lá "Bang!".
+        · Willy the Kid / Calamity Janet dùng lá khác NHƯ Bang!
+          (actsAsBang) → CHƯA RÕ.
+          - *dev: 
+                + Willy the Kid không thể dùng lá khác để Bang mà chỉ là không bị giới hạn số lá Bang! trong lượt -> Cấm lá Bang!.
+                + Calamity Janet có thể dùng lá khác để Bang! nhưng vì Sermon cấm Bang! nên cũng bị cấm. Lưu ý là chỉ cấm lá Bang! chứ không cấm Missed nên vẫn có thể dùng Missed để thay thế Bang!.
+        · BỎ lá Bang! để đỡ Indians!/Duel → ĐÃ CÓ LỜI GIẢI (FAQ Q2):
+          NGOÀI lượt thì được, TRONG lượt mình thì KHÔNG. Xem mâu thuẫn
+          (2) ở trên.
+      3 dòng đầu đã được *dev chốt và KHÔNG mâu thuẫn với bản dịch (bản
+      dịch không nhắc tới Dodge City). 2 dòng cuối đang mâu thuẫn.
+    → Nếu chốt là cấm cả nhóm "tương đương Bang!", cắm ở actsAsBang()
+      thay vì playBang() để không sót.
+    - *dev: Cấm chơi lá Bang! chứ không cấm bỏ Bang! hoặc các lá tương đương Bang!, hoặc dùng Bang! cho 1 chức năng khác (như Doc Holyday, Sid Ketchum,... , hoặc các lá yêu cầu bỏ thêm 1 lá khác để kích hoạt). Chỉ cấm chơi lá Bang! trực tiếp.
+
+Thirst — nhóm (C)
+  - Hiệu ứng (NGUYÊN VĂN bản dịch + FAQ Q6 Davinci / Q13 Dodge City):
+    "Trong lượt của mình, mỗi người chỉ được rút 1 lá."
+    NHƯNG 2 ví dụ FAQ đi kèm cho thấy luật thật là "RÚT ÍT HƠN BÌNH
+    THƯỜNG 1 LÁ", không phải "ép cứng = 1":
+      · Kit Carlson: vẫn XEM 3 lá trên cùng, nhưng chỉ CHỌN GIỮ 1 lá
+        (bình thường giữ 2), 2 lá còn lại trả về đỉnh bộ bài ĐÚNG THỨ TỰ
+        đã rút. (Q6)
+      · Bill Noface là Sheriff còn 2 máu, mất 3 máu ⇒ bình thường rút
+        1+3 = 4 lá; có Thirst thì rút 3 lá. Không phải Sheriff, có
+        Thirst thì rút 2 lá. (Q13 Dodge City)
+    ⇒ Người thường 2→1, Pixie Pete 3→2, Bill Noface 4→3. Luôn là -1.
+  - *** MÂU THUẪN (1) CẦN DUYỆT LẠI ***
+    Ghi chú *dev bên dưới ("force chỉ rút 1 lá, không có ngoại lệ") viết
+    KHI CHƯA CÓ 2 ví dụ FAQ này. Hai phương án:
+      (a) THEO FAQ: rút = (số lá lẽ ra rút) - 1, tối thiểu 0.
+      (b) THEO *dev: mọi người rút đúng 1 lá, bất kể nhân vật.
+    Chênh lệch thật: Pixie Pete/Bill Noface/Kit Carlson ra kết quả khác
+    hẳn. LƯU Ý phương án (b) mâu thuẫn với chính ghi chú *dev ở lá Train
+    Arrival (bên đó chốt "+1 lá", tức là kiểu ±1 của phương án (a)) —
+    chọn (b) sẽ khiến 2 lá anh em xử lý theo 2 kiểu khác nhau.
+  - GHI CHÚ RIÊNG cho Kit Carlson: FAQ nói trả 2 lá thừa VỀ ĐỈNH BỘ BÀI
+    theo đúng thứ tự. Dự án này đang dùng HOUSE RULE khác — bỏ lá thừa
+    vào chồng bài bỏ (xem chú thích NEED_PICK_KEPT_CARDS ở types.ts).
+    Giữ house rule đang có, chỉ cần biết là lệch luật gốc ở điểm này.
+  - Cách cài đặt:
+    → Thay hằng số DRAW_COUNT (reduce.ts, đang dùng ở 5 chỗ) bằng hàm
+      `getDrawCount(state): number`. CHÚ Ý: trong 5 chỗ đó, chỗ ở
+      useChuckWengamTrade()/useJoseDelgadoTrade() là "rút 2 lá do kỹ
+      năng", KHÔNG phải pha rút đầu lượt — 2 chỗ này PHẢI giữ nguyên 2.
+      Chỉ đổi chỗ thật sự là pha rút đầu lượt.
+    → Câu hỏi "chỉ rút 1" hay "-1 lá" ĐÃ CÓ LỜI GIẢI CHÍNH THỨC (là
+      "-1 lá", xem phần Hiệu ứng ở trên) — chỉ còn chờ chủ dự án duyệt
+      mâu thuẫn (1).
+    → Bất kể chốt cách nào, các hook onDrawPhase hiện tại đang THAY THẾ
+      HOÀN TOÀN pha rút mặc định, nên chúng sẽ KHÔNG tự động tuân theo
+      Thirst. Phải sửa từng hook, hoặc đổi giao kèo của hook thành "trả
+      về số lá muốn rút" rồi để chỗ gọi áp Thirst/Train Arrival lên
+      sau. Đề xuất cái sau. [CẦN BÀN — đổi giao kèo hook là thay đổi lớn]
+      - *dev: force chỉ rút 1 lá ở đầu lượt, ngoại trừ trường hợp bị jail thì mất lượt như bình thường, không có ngoại lệ. Nhưng các nhân vật, hoặc lá bài bài có khả năng rút bài ở ngoài lượt bốc bài thì không ảnh hưởng.
+
+Train Arrival — nhóm (C)
+  - Hiệu ứng (NGUYÊN VĂN bản dịch + FAQ Q6 Davinci / Q13 Dodge City):
+    "Tới lượt mình, mỗi người được rút THÊM 1 lá." Ví dụ FAQ:
+      · Kit Carlson: rút (giữ) 3 lá thay vì 2. (Q6)
+      · Bill Noface Sheriff còn 2 máu, mất 3 máu ⇒ bình thường 1+3 = 4
+        lá; có Train thì 5 lá. Không phải Sheriff, có Train thì 4 lá.
+        (Q13 Dodge City)
+    ⇒ LUÔN LÀ +1 so với số lá lẽ ra rút, CỘNG DỒN với khả năng nhân vật.
+    Ghi chú *dev bên dưới KHỚP với FAQ — không có mâu thuẫn.
+  - Cách cài đặt: cùng hàm getDrawCount() với Thirst. Cài 2 lá này CÙNG
+    MỘT LẦN, đừng tách — chúng dùng chung y hệt một chỗ.
+    → CẢNH BÁO NHẤT QUÁN: nếu ở lá Thirst chọn phương án (b) của *dev
+      ("ép cứng 1 lá") thì 2 lá anh em này KHÔNG còn đối xứng nữa
+      (Thirst = ép cứng, Train = ±1) ⇒ không dùng chung được 1 hàm
+      getDrawCount(), phải viết 2 nhánh riêng. Chọn phương án (a) thì
+      cả hai gọn trong 1 dòng: `soLa + (train ? 1 : 0) - (thirst ? 1 : 0)`.
+    - *dev: Khác với Thirst, (nếu không bị jail - tức mất lượt) Train Arrival sẽ tự động rút thêm 1 lá vào tay người chơi ở đầu lượt - Tức rút bài như bình thường xong rút thêm 1 lá. 
+
+Gold Rush — nhóm (C)
+  - Hiệu ứng (NGUYÊN VĂN bản dịch): "Bắt đầu từ Sheriff, VÒNG CHƠI chuyển
+    thành ngược chiều kim đồng hồ. CÁC LÁ BÀI TÁC DỤNG THEO CHIỀU KIM
+    ĐỒNG HỒ (lá Dynamite vẫn di chuyển theo chiều kim đồng hồ, và thứ tự
+    lấy bài nếu lá General Store xuất hiện vẫn theo chiều kim đồng hồ)."
+    ⇒ CHỈ thứ tự LƯỢT bị đảo. MỌI hiệu ứng lá bài (Dynamite chuyền,
+    General Store chọn bài, và theo đó là cả Gatling/Indians!/Brawl) VẪN
+    đi theo chiều gốc. Ghi chú *dev về Dynamite KHỚP với FAQ.
+  - Cách cài đặt:
+    → nextAlivePlayerIndex() (reduce.ts) hiện cộng `+step`. Đổi thành
+      cộng `+step` hoặc `-step` tuỳ isEventActive(state, "gold_rush").
+      Nhớ xử lý số âm: `(index + total * total) % total`.
+    → KHÔNG đụng distance.ts — khoảng cách trong Bang! tính theo vòng
+      tròn, đối xứng 2 chiều, nên đảo chiều lượt KHÔNG đổi khoảng cách.
+      Nếu ai đó định sửa distance.ts vì lá này thì đó là sai.
+    → Dynamite chuyền theo chiều GỐC (kim đồng hồ) — ĐÃ XÁC NHẬN bằng
+      bản dịch, khớp *dev.
+      - *dev: Quy tắc truyền của dynamite không bị ảnh hưởng.
+      CẢNH BÁO CÀI ĐẶT: chỗ chuyền Dynamite hiện đang gọi THẲNG
+      nextAlivePlayerIndex() — nếu sửa hàm đó cho Gold Rush thì Dynamite
+      sẽ BỊ ĐẢO THEO, tức là SAI. Bắt buộc tách 2 khái niệm:
+        · nextTurnPlayerIndex()  — có xét Gold Rush (dùng cho vòng lượt)
+        · nextSeatIndex()        — LUÔN chiều gốc (dùng cho Dynamite,
+                                   General Store, Gatling, Indians!,
+                                   Brawl, Russian Roulette...)
+      Rà lại TẤT CẢ lời gọi nextAlivePlayerIndex() hiện có và phân loại
+      từng chỗ vào 1 trong 2 hàm trên TRƯỚC khi code.
+    → SỬA LẠI so với bản đầu file này: bản đầu bảo
+      otherAlivePlayersInOrder() (Gatling/Indians!/Brawl) "cũng phải
+      đảo" — SAI. Bản dịch nói rõ "các lá bài tác dụng theo chiều kim
+      đồng hồ", và dẫn chứng General Store. Hàm này GIỮ NGUYÊN, không
+      đụng vào.
+
+--- NHÓM (A): CHẠY MỘT LẦN LÚC LẬT ---
+
+The Daltons — nhóm (A)
+  - Hiệu ứng (NGUYÊN VĂN bản dịch): "Khi Daltons xuất hiện, mỗi người
+    chơi TỰ BỎ 1 lá bài viền XANH DƯƠNG (GỒM CẢ Jail, Dynamite) trước
+    mặt vào đống bài dư."
+    ⇒ 2 điều xác nhận: (1) chính người chơi tự chọn lá, không phải ai
+    khác chọn hộ; (2) Jail và Dynamite CÓ tính (chúng vốn là lá viền
+    xanh dương) — điểm này bản đầu file không nói rõ.
+    ⇒ Lá VÀNG của Dodge City không phải viền xanh dương ⇒ KHÔNG tính,
+    khớp với ghi chú *dev bên dưới.
+  - Cách cài đặt:
+    → Tái dùng NGUYÊN pending có sẵn:
+      `{ kind: "NEED_DISCARD_FROM_ZONE", player, zone: "equipment", source }`
+      (vốn làm cho Cat Balou — chính nạn nhân tự chọn lá trong vùng).
+      KHÔNG cần kind mới.
+    → Đẩy 1 pending cho MỖI người có trang bị, theo thứ tự NGƯỢC với
+      thứ tự muốn xử lý (vì pending là stack, xử lý phần tử cuối trước)
+      — giống cách playGatling() đang làm.
+    → `source.from`: không có "người đánh" nào cả. [CẦN BÀN] — chọn 1
+      quy ước dùng chung cho mọi hiệu ứng không có người gây (lá này,
+      High Noon, A Fistful of Cards, Russian Roulette). Đề xuất mở rộng
+      kiểu `source` thành `{ card: string; from: string | null }`,
+      null = "do sự kiện, không do ai". [ĐỔI STATE]
+      - *dev: Quy ước dùng chung cho mọi hiệu ứng không có người gây (lá này, High Noon, A Fistful of Cards, Russian Roulette) là `source.from = null`.
+    → [CẦN BÀN] "lá xanh dương" có tính lá VÀNG (delayKind "delayed",
+      Dodge City) không? High Noon ra đời TRƯỚC Dodge City nên nguyên
+      văn chỉ nói blue. Dự án lại gộp cả 2 vào chung mảng `equipment`
+      (xem Luat_Bang_Mo_Rong_DodgeCity.txt mục 1.1) — nên nếu không xử
+      lý riêng thì lá vàng sẽ bị tính. Chốt trước.
+      - *dev: Chốt là chỉ tính lá xanh dương (blue) chứ không tính lá vàng (yellow) cho The Daltons.
+      ⇒ ĐÃ XÁC NHẬN *dev ĐÚNG bằng bản dịch ("bài viền xanh dương").
+        Cài: lọc equipment theo isDelayedEquipmentCardName() === false.
+    → Jail và Dynamite CÓ nằm trong danh sách chọn (bản dịch nói rõ) —
+      đừng lọc bỏ chúng dù chúng là "trang bị bất lợi". Người bị Jail
+      hoàn toàn có thể tự bỏ chính lá Jail đó, đúng luật.
+    → Người không có lá xanh dương nào: bỏ qua, không đẩy pending.
+
+The Doctor — nhóm (A)
+  - Hiệu ứng (NGUYÊN VĂN bản dịch): "Khi The Doctor xuất hiện thì người
+    chơi ÍT MÁU NHẤT sẽ được thêm 1 máu. Nếu các người chơi bằng máu
+    nhau thì MỖI NGƯỜI được thêm 1 máu."
+    ⇒ Khớp hoàn toàn bản đầu file này, không phải sửa gì.
+  - Cách cài đặt:
+    → Tính min hp trong số người còn sống, lọc ra mọi người bằng min,
+      hồi 1 máu cho từng người (không vượt maxHp).
+    → KHÔNG gọi qua hook modifyHealAmount — hook đó CHỈ áp ở playBeer()
+      (xem chú thích tại characters.ts), Tequila Joe không được nhân đôi
+      ở đây.
+    → Bắn HP_RESTORED cho từng người. Không cần pending (không có lựa
+      chọn nào).
+    → Trường hợp biên: ván 2 người, cả 2 cùng 1 máu ⇒ cả 2 cùng hồi.
+      Đúng luật, không cần chặn.
+      - *dev: đảm bảo không vô tình hồi máu cho người máu =0 (đã chết) — chỉ hồi cho người còn sống.
+
+--- NHÓM (B): CHẠY MỖI ĐẦU LƯỢT ---
+
+Ghost Town — nhóm (B) — KHÓ NHẤT BỘ NÀY
+  *** BẢN ĐẦU FILE NÀY THIẾU HẲN LÁ NÀY (12/13). Nay bổ sung. ***
+  - Hiệu ứng (NGUYÊN VĂN bản dịch + FAQ Q7/Q8/Q9 High Noon, Q14/Q15
+    Dodge City):
+    · Tới lượt của mình, NGƯỜI ĐÃ BỊ GIẾT được sống lại làm "ma", CÓ ĐẦY
+      ĐỦ đặc tính nhân vật (Q9).
+    · Ma rút 3 lá thay vì 2, và KHÔNG THỂ BỊ GIẾT nữa.
+    · Hết lượt thì ma rời khỏi cuộc chơi.
+    · LUẬT CHIẾN THẮNG VẪN ÁP DỤNG BÌNH THƯỜNG với ma, trong lượt của
+      ma. Ví dụ FAQ Q7: nếu trong lượt của mình, một Outlaw-ma giết được
+      Sheriff thì nhóm cướp THẮNG luôn.
+    · Cuối lượt, ma bỏ bài dư trên tay vào chồng bài bỏ theo đúng quy
+      định giới hạn (vì TRONG LÚC CHƠI MA CÓ THỂ BƠM MÁU) — số bài còn
+      lại thì đưa cho Vulture Sam nếu có, rồi ma rời cuộc chơi (Q8).
+    · Bill Noface làm ma: sống lại rút 5 lá (Q14 Dodge City) — vì công
+      thức của anh ta là 1 + số máu đã mất, và ma coi như mất hết máu.
+      Pixie Pete làm ma: rút 3 lá (đúng khả năng gốc của anh ta, KHÔNG
+      cộng thêm).
+    · MỖI KHI 1 MA RỜI CUỘC CHƠI: Greg Digger được +2 máu và Herb Hunter
+      rút thêm 2 lá (Q15 Dodge City) — tức là hook "có người chết" CHẠY
+      LẠI khi ma biến mất.
+    · Chuck Wengam làm ma: nếu đã tự bơm máu (Beer/Whisky...) thì được
+      dùng khả năng đổi máu lấy bài như thường (Q15 Dodge City).
+  - Điểm luật quan trọng suy ra từ Q8/Q14/Q15: MA CÓ CHỈ SỐ MÁU THẬT,
+    bắt đầu ở 0, VÀ CÓ THỂ HỒI MÁU. Không được cài ma theo kiểu "bất tử
+    tuyệt đối, hp vô nghĩa" — giới hạn bỏ bài cuối lượt và khả năng của
+    Bill Noface/Chuck Wengam đều đọc con số này.
+  - Cách cài đặt: [ĐỔI STATE — lá tốn công nhất bộ, hỏi trước khi làm]
+    → Đây là lần thứ HAI dự án cần "người chết vẫn được tính vào vòng
+      lượt" (lần đầu là Dead Man, file Fistful). Nên thiết kế CHUNG một
+      cơ chế cho cả 2 lá, đừng làm 2 lần: vd
+      `ghostPlayerIds: string[]` + nextTurnPlayerIndex() biết dừng ở
+      người trong danh sách đó dù alive = false.
+    → Khi tới lượt ma: alive = true tạm thời, hp = 0, rút 3 lá (hoặc
+      theo hook onDrawPhase của nhân vật — Bill Noface/Pixie Pete).
+      [CẦN BÀN] "3 lá" là ép cứng hay là +1? Ví dụ FAQ cho thấy nhân vật
+      có onDrawPhase thì DÙNG CÔNG THỨC RIÊNG, không cộng thêm (Pixie
+      Pete vẫn 3, không phải 4) ⇒ nghiêng về "ép 3 cho người thường,
+      nhân vật override thì theo nhân vật". Khác hẳn cách Train Arrival
+      cộng dồn — đừng dùng chung code.
+      - *dev: dùng phương thức an toàn nhất.
+    → KHÔNG THỂ BỊ GIẾT: chặn ở eliminateIfDead() — nếu người này đang
+      là ma thì bỏ qua hoàn toàn, không bắn PLAYER_ELIMINATED.
+    → Cuối lượt ma: áp giới hạn bỏ bài (getHandLimit() — với hp = 0 thì
+      giới hạn là 0, trừ khi đã hồi máu, và trừ Sean Mallory), phần bài
+      còn lại chuyển cho Vulture Sam nếu có, rồi gỡ alive về false.
+    → Hook onAnyDeath phải CHẠY LẠI lúc ma rời đi (Greg Digger +2 máu,
+      Herb Hunter +2 lá) — nhưng KHÔNG chạy lại logic thưởng hạ Outlaw
+      / phạt Sheriff giết Deputy (họ đã chết 1 lần rồi, không ai "giết"
+      lần này). [CẦN BÀN] cách tách 2 nhóm hậu quả này ra.
+    → checkWinCondition() phải chạy bình thường TRONG lượt của ma (Q7) —
+      không được bỏ qua vì "người này đã chết".
+    → Nhiều người chết ⇒ NHIỀU ma cùng quay lại trong cùng 1 vòng, mỗi
+      người vào đúng lượt của mình. Không phải chỉ 1 người như Dead Man.
+    → Va chạm Vulture Sam: nếu CHÍNH Vulture Sam là ma thì bài của chính
+      anh ta đi đâu lúc rời đi? [CẦN KIỂM CHỨNG]
+    → Va chạm Elena Noir (Miễn Tử) và Bia hồi sinh: 2 cơ chế đó chặn cái
+      chết TRƯỚC eliminatePlayer() nên không liên quan.
+    → Bắn event mới `GHOST_REVIVED` và `GHOST_LEFT`.
+
+High Noon — nhóm (B) — LÁ CUỐI, hiệu lực tới hết ván
+  - Hiệu ứng (NGUYÊN VĂN bản dịch): "Tới lượt của mình, TRƯỚC KHI BẮT
+    ĐẦU, người chơi bị mất 1 máu."
+    ⇒ Khớp *dev: chỉ NGƯỜI ĐANG TỚI LƯỢT mất máu, không phải cả bàn cùng
+    lúc. Lá này không bao giờ bị đè, chạy tới khi ván kết thúc.
+    ⇒ "Trước khi bắt đầu" xác nhận luôn thứ tự *dev đã chốt: TRƯỚC cả
+    draw!-check Dynamite/Jail.
+  - Cách cài đặt:
+    → isFinalCard: true trong EVENT_CARDS. eventDeck[0].
+    → Cắm ở applyTurnStartChecks(): gọi applyDamage(next, player, 1)
+      với killerId = null (tự chết, không ai "giết" — đúng khuôn
+      Dynamite, xem PLAYER_ELIMINATED.killedBy trong types.ts).
+    → Vì killerId = null ⇒ hook onLoseLifeFromCard KHÔNG chạy (El Gringo
+      không cướp được bài của ai), nhưng onLoseLife VẪN chạy (Bart
+      Cassidy vẫn rút bài). Đúng như Dynamite đang làm — nhất quán.
+    → Phải gọi eliminateIfDead() sau đó: người 1 máu sẽ chết ngay đầu
+      lượt, kéo theo Bia hồi sinh tự động / Elena Noir / thắng thua /
+      advanceTurn() đệ quy. Đọc kỹ eliminateIfDead() trước khi cài —
+      đây là chỗ dễ gây lượt bị "mất" nếu chuyển lượt sai.
+    → [CẦN BÀN] THỨ TỰ so với Dynamite: cả hai đều là "mất máu đầu
+      lượt". Đề xuất High Noon TRƯỚC (nó áp vô điều kiện, Dynamite còn
+      phải draw!), nhưng phải chốt vì nó đổi kết quả thật khi người chơi
+      còn đúng 1 máu và đang ôm Dynamite.
+      - *dev: Chốt là High Noon sẽ được áp dụng trước Dynamite, vì High Noon áp vô điều kiện, còn Dynamite còn phải draw bài để xác định nổ hay không.
+    → [CẦN BÀN] người bị Jail bỏ qua lượt CÓ mất máu vì High Noon
+      không? Người "cùng vào tù" của Marcel Marcelo (lượt bị bỏ qua
+      hoàn toàn) thì sao? Theo luật gốc "vào đầu lượt của mình" thì CÓ
+      — lượt vẫn là lượt của họ, chỉ là không làm gì được.
+      - *dev: Chốt là người bị Jail bỏ qua lượt vẫn mất máu vì High Noon, vì luật gốc nói "vào đầu lượt của mình" thì vẫn áp dụng.
+      - *dev: "QUAN TRỌNG" hãy hiểu đúng lá này tới lượt ai, người đó mất 1 máu, chứ không phải cả bàn mỗi người mất 1 máu. Chỉ người có lượt mới bị mất 1 máu.
+
+
+========================================================================
+3. KẾT HỢP VỚI A FISTFUL OF CARDS
+========================================================================
+- Hiệu ứng: xem mục 1.6 (tráo chung 26 lá, rút 12, chọn ngẫu nhiên 1
+  trong 2 lá cuối).
+  - *dev: Khi chơi cả 2 bộ, (ngoại trừ 2 lá đặc biệt là "High Noon" và "A Fistful of Cards") trộn tất cả 2 bộ lại với nhau. Trong 2 lá "High Noon" và "A Fistful of Cards" chọn ngẫu nhiên 1 trong 2 lá để đặt xuống đáy, lá còn lại sẽ không được sử dụng trong ván đó.
+- Cách cài đặt: KHÔNG cần code riêng nếu mục 1.6 đã làm đúng theo hướng
+  "gom EXPANSION_EVENT_IDS của mọi bộ đang bật" — bật 2 id trong mảng
+  `expansions` là tự chạy, đúng như kiến trúc nhiều-bộ-mở-rộng đã có
+  (xem chú thích ExpansionId ở types.ts).
+- CẢNH BÁO: đọc mục 1.7 trước khi bật cả 2 bộ — có tổ hợp làm ván không
+  kết thúc được.
+
+
+========================================================================
+NGUỒN THAM KHẢO
+========================================================================
+- Luật chính thức High Noon / A Fistful of Cards (PDF, dV Giochi):
+  https://www.dvgiochi.com/giochi/highnoon/download/Fistful_of_Cards-High_Noon_ENG.pdf
+- Luật gộp trong BANG! Expansion Pack (PDF, dV Giochi):
+  https://www.dvgiochi.com/giochi/BangExpansionPack/download/BANG-Expansion-Pack-ENG-Rules_WEB.pdf
+- Danh sách lá chính thức (đã dùng để đối chiếu đủ 13 + 15 lá):
+  https://bang.dvgiochi.com/cardslist.php?id=5&lang=en
+- BoardGameGeek — BANG! High Noon:
+  https://boardgamegeek.com/boardgame/8269/bang-high-noon
+- Bang! cardgame Wiki (Fandom) — HIGH NOON:
+  https://bang-cardgame.fandom.com/wiki/HIGH_NOON
+- *** NGUỒN CHÍNH cho các đoạn "NGUYÊN VĂN bản dịch" trong file này ***
+  Bản dịch luật tiếng Việt có trích dẫn FAQ chính thức Davinci Games
+  (Enjoy Boardgame / BoardgameVN), chủ dự án cung cấp. Các câu FAQ được
+  dẫn: Q2, Q6, Q7, Q8, Q9 (High Noon FAQ) và Q13, Q14, Q15 (Dodge City
+  FAQ — phần nói về nhân vật Dodge City trong bối cảnh High Noon).
+  ĐỘ TIN CẬY: cao hơn hẳn mọi nguồn khác trong danh sách này vì có dẫn
+  số hiệu FAQ chính thức. Khi mâu thuẫn, ƯU TIÊN nguồn này.
+
+
+========================================================================
+CẦN TRA / XÁC NHẬN TRƯỚC KHI CODE
+========================================================================
+(Tổng hợp mọi chỗ [CẦN KIỂM CHỨNG]/[CẦN BÀN]/[ĐỔI STATE] ở trên.)
+
+*** ƯU TIÊN SỐ 1 — 3 MÂU THUẪN GIỮA *dev VÀ FAQ CHÍNH THỨC ***
+(Ghi chú *dev đều viết KHI CHƯA CÓ bản dịch luật. Chủ dự án duyệt lại,
+chọn theo *dev hay theo FAQ. Cả 3 đều đổi kết quả ván đấu thật.)
+  ☒ (1) Thirst — *dev "ép cứng rút đúng 1 lá, không ngoại lệ" ⟷ FAQ Q6/
+        Q13 "-1 lá so với bình thường" (Bill Noface 4→3, Pixie Pete
+        3→2, Kit Carlson giữ 1 thay vì 2). Chọn *dev sẽ khiến Thirst và
+        Train Arrival xử lý theo 2 kiểu khác nhau, không dùng chung
+        được getDrawCount().
+  ☒ (2) The Sermon + Duel — *dev "cấm CHƠI Bang! chứ không cấm BỎ
+        Bang!" ⟷ FAQ Q2 "trong lượt của MÌNH thì không được bỏ Bang!,
+        kể cả để đỡ chính lá Duel mình vừa đánh, nên mất 1 máu".
+  ☒ (3) The Sermon + Calamity Janet — *dev "vẫn dùng Missed! thay Bang!
+        được" ⟷ bản dịch "KHÔNG ĐƯỢC BẮN BẰNG LÁ MISSED!".
+
+CƠ CHẾ CHUNG (mục 1) — phải chốt HẾT trước khi cài lá nào:
+  ☐ 3 field mới trong GameState (eventDeck/activeEventId/eventDiscard) —
+    [ĐỔI STATE], hỏi trước.
+  ☐ ExpansionId thêm "high_noon" + "a_fistful_of_cards" — [ĐỔI STATE].
+  ☒ viewFor() lộ tới đâu — *dev đã chốt: lá đang chạy + lá kế tiếp.
+  ☒ "Chủ trò" là ai — *dev đã chốt: có Sheriff thì là Sheriff, không có
+    thì players[0].
+  ☒ Vị trí chèn bước "lật lá sự kiện" — *dev đã chốt thứ tự đầy đủ 7
+    bước (xem mục 1.3).
+  ☒ Quy ước `source.from` — *dev đã chốt: null. Vẫn cần [ĐỔI STATE] cho
+    kiểu `from: string | null`.
+  ☒ Tổ hợp gây treo ván — không còn (xem mục 1.7 đã cập nhật).
+
+TỪNG LÁ:
+  ☐ Ghost Town — LÁ MỚI BỔ SUNG, nhiều việc nhất bộ: cơ chế "người chết
+    vào vòng lượt" (dùng chung với Dead Man bên Fistful); ma rút 3 lá là
+    ép cứng hay theo nhân vật; tách hook onAnyDeath (Greg Digger/Herb
+    Hunter CÓ chạy lại) khỏi thưởng-hạ-Outlaw (KHÔNG chạy lại); nếu
+    chính Vulture Sam là ma thì bài anh ta đi đâu.
+  ☐ Blessing/Curse — getEffectiveSuit() phải thay đủ 10 chỗ gọi
+    cardSuitRankFromId(). (2 câu hỏi kia *dev đã chốt: UI hiện chất đã
+    đổi; Apache Kid xét theo chất đã đổi.)
+  ☐ Hangover — cách lọc "field nào là khả năng đặc biệt" trong
+    CharacterDefinition (đề xuất: đánh dấu ngay trong định nghĩa).
+  ☐ Shootout — đổi bangUsedThisTurn (boolean) thành bangCountThisTurn
+    (number), [ĐỔI STATE], 12 chỗ dùng.
+  ☐ Gold Rush — tách nextAlivePlayerIndex() thành 2 hàm
+    (nextTurnPlayerIndex có xét Gold Rush / nextSeatIndex luôn chiều
+    gốc) rồi phân loại lại mọi lời gọi hiện có.
+
+ĐÃ ĐƯỢC BẢN DỊCH LUẬT TRẢ LỜI, KHÔNG CẦN HỎI NỮA:
+  ☒ The Reverend — nghiêng về CÓ chặn cả Bia hồi sinh tự động, khớp
+    *dev đã chốt.
+  ☒ The Sermon — 3/5 ý đã chốt qua *dev và không mâu thuẫn; 2 ý còn
+    lại nằm ở mâu thuẫn (2) và (3) phía trên.
+  ☒ Train Arrival — +1 lá, cộng dồn với khả năng nhân vật.
+  ☒ Gold Rush — chỉ đảo thứ tự LƯỢT; Dynamite/General Store/Gatling/
+    Indians! giữ chiều gốc.
+  ☒ The Daltons — chỉ lá viền xanh dương, GỒM CẢ Jail/Dynamite, không
+    tính lá vàng Dodge City.
+  ☒ The Doctor / High Noon — khớp hoàn toàn, không phải sửa gì.
+
+GHI CHÚ CHUNG: KHÔNG có lá nào trong bộ này cài được độc lập trước khi
+mục 1 xong. Thứ tự làm đề xuất: 1.1→1.2→1.3→1.6 (dựng chồng sự kiện,
+lật được lá, hiển thị được) → Hangover (lá dễ nhất, kiểm chứng cơ chế)
+→ The Doctor / The Daltons (nhóm A) → High Noon (nhóm B) → nhóm C theo
+thứ tự tăng dần độ khó: Gold Rush → Shootout → The Sermon/The Reverend
+→ Thirst/Train Arrival → Blessing/Curse → Ghost Town (khó nhất cả bộ,
+để cuối cùng, làm chung một thể với Dead Man bên file Fistful).
+
+
+========================================================================
+HẾT FILE
+========================================================================

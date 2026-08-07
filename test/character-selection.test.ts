@@ -57,6 +57,9 @@ function makeState(characterSelection: CharacterChoice[], overrides: Partial<Gam
     marcelJailCompanion: {},
     marcelCompanionSkipNextTurn: {},
     marcelJailBonusDrawThisTurn: {},
+    eventDeck: [],
+    activeEventId: null,
+    eventDiscard: [],
     ...overrides,
   };
 }

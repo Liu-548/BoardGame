@@ -31,6 +31,7 @@
 import { cardSuitRankFromId } from "./cards";
 import { giveCardToPlayer } from "./equipment";
 import { drawTopCard } from "./deck";
+import { isEventActive } from "./events";
 import { nextRandom } from "./rng";
 import type { ExpansionId, GameEvent, GameState, PlayerState, Role } from "./types";
 
@@ -66,11 +67,29 @@ export function getEffectiveCharacterId(state: GameState, player: PlayerState): 
 }
 
 export function getEffectiveCharacterHooks(state: GameState, player: PlayerState): CharacterHooks {
+  // Mở rộng High Noon, lá "Hangover" — mọi người MẤT khả năng đặc biệt trong
+  // vòng này. Trả rỗng thay vì tra hook thật — tự đúng cho CẢ Vera Custer
+  // đang mượn ai đó (cô tra qua đúng 2 hàm này, không có đường tắt nào khác
+  // đọc thẳng characterId), KHÔNG xoá veraCusterBorrowedCharacterId (chỉ tạm
+  // không đọc tới, tự hoạt động lại khi Hangover hết hiệu lực).
+  if (isEventActive(state, "hangover")) return {};
   return getCharacterHooks(getEffectiveCharacterId(state, player));
 }
 
 export function getEffectiveCharacterDefinition(state: GameState, player: PlayerState): CharacterDefinition | undefined {
-  return getCharacterDefinition(getEffectiveCharacterId(state, player));
+  const definition = getCharacterDefinition(getEffectiveCharacterId(state, player));
+  if (!definition) return undefined;
+  // Mở rộng High Noon, lá "Hangover" — LỌC BỎ mọi field khả năng tĩnh
+  // (bypassBangLimit/virtualBarrel/canSelfHeal/...), CHỈ GIỮ id/name/bullets
+  // (máu tối đa KHÔNG phải "khả năng đặc biệt", không đổi). Đơn giản hơn
+  // "liệt kê tay từng field cần lọc" (đề xuất gốc trong file spec) — build
+  // lại 1 object CHỈ CÓ 3 field này, tự động đúng với MỌI field khả năng
+  // hiện có LẪN thêm sau này (không cần cập nhật danh sách lọc khi thêm
+  // nhân vật/field mới).
+  if (isEventActive(state, "hangover")) {
+    return { id: definition.id, name: definition.name, bullets: definition.bullets, hooks: {} };
+  }
+  return definition;
 }
 
 // Mở rộng Dodge City, mục C nhóm B (Sean Mallory) — giới hạn số lá được GIỮ
@@ -851,6 +870,10 @@ export const EXPANSION_CHARACTER_IDS: Record<ExpansionId, string[]> = {
     "vera_custer",
   ],
   custom_characters: ["elena_noir", "marcel_marcelo", "mary_rose"],
+  // Mở rộng High Noon/A Fistful of Cards — CHỈ lá sự kiện (core/events.ts),
+  // không có nhân vật mới nào.
+  high_noon: [],
+  a_fistful_of_cards: [],
 };
 
 // ----- Hook/nhân vật còn lại, ĐỂ DÀNH cho các đợt 5.2 sau -----

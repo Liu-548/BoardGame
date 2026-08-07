@@ -21,6 +21,7 @@ import {
 } from "./characters";
 import { drawTopCard } from "./deck";
 import { computeDistance, getWeaponRange } from "./distance";
+import type { EventId } from "./events";
 import { giveCardToPlayer, transferDynamiteToNextPlayer } from "./equipment";
 import { nextRandom } from "./rng";
 import type { Action, GameEvent, GameState, PendingAction, PlayerState } from "./types";
@@ -2926,6 +2927,11 @@ function advanceTurn(next: GameState): GameEvent[] {
 // (người "cùng vào tù" của Marcel) — kéo theo 1 lần advanceTurn() đệ quy nữa,
 // y hệt cascade Elena Noir ở advanceTurn().
 export function applyTurnStartChecks(next: GameState): GameEvent[] {
+  // Mở rộng High Noon/A Fistful of Cards, mục 1.3 — ĐẦU TIÊN, TRƯỚC CẢ Marcel/
+  // Vera Custer/Dynamite/Jail (đã hỏi lại và chốt đúng thứ tự này với chủ dự
+  // án). Chỉ lật khi đang là lượt CHỦ TRÒ và không phải lượt đầu ván của họ —
+  // xem revealNextEventIfDue().
+  const eventEvents = revealNextEventIfDue(next);
   const player = next.players[next.currentPlayerIndex];
 
   // Bộ mở rộng "custom_characters" (Marcel Marcelo) — người "cùng vào tù" ăn
@@ -2936,18 +2942,114 @@ export function applyTurnStartChecks(next: GameState): GameEvent[] {
   // kiểm nữa (kể cả nếu người này CŨNG có Dynamite/Jail riêng của họ).
   if (next.marcelCompanionSkipNextTurn[player.id]) {
     delete next.marcelCompanionSkipNextTurn[player.id];
-    return [{ type: "MARCEL_COMPANION_TURN_SKIPPED", playerId: player.id }, ...advanceTurn(next)];
+    return [
+      ...eventEvents,
+      { type: "MARCEL_COMPANION_TURN_SKIPPED", playerId: player.id },
+      ...advanceTurn(next),
+    ];
   }
 
   if (getEffectiveCharacterDefinition(next, player)?.canBorrowCharacterAbilities === true) {
     const candidates = otherAlivePlayersInOrder(next, player.id).filter((p) => p.characterId !== null);
     if (candidates.length > 0) {
       next.pending.push({ kind: "NEED_PICK_BORROWED_CHARACTER", player: player.id });
-      return [];
+      return eventEvents;
     }
   }
   applyDynamiteAndJailChecks(next, player);
+  return eventEvents;
+}
+
+// "Chủ trò" (mục 1.3) — có Sheriff thì là Sheriff, không có (biến thể 2/3
+// người) thì là người ngồi ghế 0. setup.ts đã CHỐT để chủ trò luôn đi lượt
+// đầu tiên (firstPlayerIndex), nên chỉ số này cũng chính là "ghế xuất phát"
+// của vòng lượt.
+function getDealerIndex(state: GameState): number {
+  const sheriffIndex = state.players.findIndex((p) => p.role === "sheriff");
+  return sheriffIndex >= 0 ? sheriffIndex : 0;
+}
+
+// Mở rộng High Noon/A Fistful of Cards, mục 1.3 — lật lá sự kiện TRÊN CÙNG
+// (phần tử CUỐI eventDeck) khi: còn lá để lật, VÀ đang đúng lượt chủ trò,
+// VÀ không phải lượt đầu ván của họ ("lượt THỨ HAI trở đi"). Vì chủ trò LUÔN
+// đi lượt đầu ván (setup.ts), điều kiện "không phải lượt đầu ván" đơn giản
+// chỉ là turnNumber > 0 — hễ currentPlayerIndex quay lại đúng ghế chủ trò với
+// turnNumber > 0 thì chắc chắn đã đi hết 1 vòng, tự động là "lượt thứ 2 trở
+// đi" của họ, KHÔNG cần đếm số người chơi hay thêm field nhớ riêng (đơn giản
+// hơn đề xuất gốc trong file spec, vẫn đúng cả khi có người chết giữa vòng).
+//
+// LƯU Ý cho Vendetta (Fistful of Cards, chưa cài) — *dev đã chốt: lượt THÊM
+// do Vendetta cấp cho CHÍNH chủ trò không được lật lại lá sự kiện (chỉ lượt
+// "thật" mới lật). Nhớ xử lý khi cài lá đó (không gọi hàm này lần 2 trong
+// cùng 1 lượt Vendetta kéo dài).
+function revealNextEventIfDue(next: GameState): GameEvent[] {
+  if (next.eventDeck.length === 0) return [];
+  if (next.turnNumber === 0) return [];
+  if (next.currentPlayerIndex !== getDealerIndex(next)) return [];
+
+  const eventId = next.eventDeck.pop() as EventId;
+  if (next.activeEventId !== null) {
+    next.eventDiscard.push(next.activeEventId);
+  }
+  next.activeEventId = eventId;
+  return [{ type: "EVENT_REVEALED", eventId }, ...applyEventRevealEffect(next, eventId)];
+}
+
+// Hiệu ứng nhóm (A) — chạy ĐÚNG 1 LẦN ngay lúc lá được lật (mục 1.4). Điền
+// dần theo LO-TRINH.md/TaskList — CHƯA có Russian Roulette/Dead Man.
+function applyEventRevealEffect(next: GameState, eventId: EventId): GameEvent[] {
+  switch (eventId) {
+    case "the_doctor":
+      return applyTheDoctorEffect(next);
+    case "the_daltons":
+      return applyTheDaltonsEffect(next);
+    default:
+      return [];
+  }
+}
+
+// High Noon — "The Daltons": mỗi người có ít nhất 1 lá XANH DƯƠNG (kể cả
+// Jail/Dynamite — ĐÃ XÁC NHẬN qua bản dịch luật, KHÔNG tính lá VÀNG "trì
+// hoãn" của Dodge City) trước mặt TỰ CHỌN 1 lá để bỏ. Tái dùng NGUYÊN
+// NEED_DISCARD_FROM_ZONE (vốn làm cho Cat Balou) — chỉ khác `source.from:
+// null` (không ai "bắt" cả, xem [ĐỔI STATE] source.from ở types.ts) — nên
+// KHÔNG đi qua pushDiscardFromZoneReaction() (hàm đó kiểm miễn nhiễm Apache
+// Kid theo CHẤT 1 lá cụ thể, không áp dụng ở đây — giống Indians!, không có
+// lá bài thật nào để tra chất).
+function applyTheDaltonsEffect(next: GameState): GameEvent[] {
+  const alivePlayers = next.players.filter((p) => p.alive);
+  for (let i = alivePlayers.length - 1; i >= 0; i--) {
+    const player = alivePlayers[i];
+    const hasBlueEquipment = player.equipment.some((id) => !isDelayedEquipmentCardName(cardNameFromId(id)));
+    if (!hasBlueEquipment) continue;
+    next.pending.push({
+      kind: "NEED_DISCARD_FROM_ZONE",
+      player: player.id,
+      zone: "equipment",
+      source: { card: "the_daltons", from: null },
+    });
+  }
   return [];
+}
+
+// High Noon — "The Doctor": người ÍT MÁU NHẤT (trong số người CÒN SỐNG) được
+// +1 máu; bằng nhau thì MỖI NGƯỜI được +1 máu. KHÔNG qua modifyHealAmount
+// (hook đó CHỈ áp ở playBeer(), xem chú thích characterHooks.modifyHealAmount)
+// — Tequila Joe không được nhân đôi ở đây.
+function applyTheDoctorEffect(next: GameState): GameEvent[] {
+  const alivePlayers = next.players.filter((p) => p.alive);
+  if (alivePlayers.length === 0) return [];
+  const minHp = Math.min(...alivePlayers.map((p) => p.hp));
+
+  const events: GameEvent[] = [];
+  for (const player of alivePlayers) {
+    if (player.hp !== minHp) continue;
+    const restored = Math.min(1, player.maxHp - player.hp);
+    if (restored <= 0) continue;
+    player.hp += restored;
+    events.push({ type: "HP_RESTORED", playerId: player.id, amount: restored });
+  }
+  return events;
 }
 
 // Bước 0 đầu lượt (mục 4 file luật): Dynamite kiểm tra TRƯỚC (có thể giết luôn,
@@ -3030,5 +3132,10 @@ function cloneState(state: GameState): GameState {
     marcelJailCompanion: { ...state.marcelJailCompanion },
     marcelCompanionSkipNextTurn: { ...state.marcelCompanionSkipNextTurn },
     marcelJailBonusDrawThisTurn: { ...state.marcelJailBonusDrawThisTurn },
+    // Mở rộng High Noon/A Fistful of Cards — eventDeck/eventDiscard bị mutate
+    // TRỰC TIẾP bằng .pop()/.push() ở revealNextEventIfDue(), cần clone nông
+    // mỗi lần, cùng lý do deck/discardPile ở trên.
+    eventDeck: [...state.eventDeck],
+    eventDiscard: [...state.eventDiscard],
   };
 }
