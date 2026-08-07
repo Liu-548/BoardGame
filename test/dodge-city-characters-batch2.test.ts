@@ -243,7 +243,7 @@ describe("Elena Fuente — dùng BẤT KỲ lá nào trên tay như Missed!, k�
   });
 });
 
-describe("Apache Kid — miễn nhiễm với lá chất Rô do người khác đánh nhắm vào mình (trừ Duel)", () => {
+describe("Apache Kid — miễn nhiễm với lá chất Rô do người khác đánh nhắm vào mình (kể cả lá Duel khởi xướng, kể cả Indians!)", () => {
   it("Bang! chất Rô (bang_15 = Rô 2): miễn nhiễm, không mất máu, không có NEED_MISSED", () => {
     const state = makeState({
       players: [
@@ -311,7 +311,7 @@ describe("Apache Kid — miễn nhiễm với lá chất Rô do người khác �
     });
   });
 
-  it("Đấu tay đôi (Duel) chất Rô: KHÔNG miễn nhiễm — vẫn thua bình thường nếu không có Bang!", () => {
+  it("Đấu tay đôi (Duel) chất Rô (duel_3 = Rô 8): miễn nhiễm, huỷ ván đấu ngay từ đầu", () => {
     const state = makeState({
       players: [
         makePlayer("a", { hand: ["duel_3"] }), // duel_3 = Rô 8
@@ -320,10 +320,36 @@ describe("Apache Kid — miễn nhiễm với lá chất Rô do người khác �
       ],
     });
 
-    const played = reduce(state, { type: "PLAY_CARD", playerId: "a", cardId: "duel_3", targetId: "b" });
+    const { state: next, events } = reduce(state, {
+      type: "PLAY_CARD",
+      playerId: "a",
+      cardId: "duel_3",
+      targetId: "b",
+    });
+
+    expect(next.pending).toEqual([]);
+    expect(next.players[1].alive).toBe(true); // không phải bỏ Bang! gì cả, miễn nhiễm hẳn
+    expect(events).toContainEqual({
+      type: "APACHE_KID_IMMUNE",
+      playerId: "b",
+      fromPlayerId: "a",
+      cardId: "duel_3",
+    });
+  });
+
+  it("Đấu tay đôi (Duel) KHÔNG phải chất Rô (duel_1 = Cơ Q): ván đấu diễn ra bình thường, chất của TỪNG lá Bang! trao đổi trong lúc đấu không quan trọng", () => {
+    const state = makeState({
+      players: [
+        makePlayer("a", { hand: ["duel_1"] }), // duel_1 = Cơ Q, không phải Rô
+        makePlayer("b", { characterId: "apache_kid", hp: 1 }),
+        makePlayer("c"),
+      ],
+    });
+
+    const played = reduce(state, { type: "PLAY_CARD", playerId: "a", cardId: "duel_1", targetId: "b" });
     const { state: next } = reduce(played.state, { type: "RESPOND", playerId: "b" }); // không có Bang! -> thua
 
-    expect(next.players[1].alive).toBe(false); // vẫn chết bình thường, không miễn nhiễm
+    expect(next.players[1].alive).toBe(false); // vẫn thua bình thường — lá Duel không phải Rô
   });
 
   it("Buffalo Rifle chất Rô (trang bị trì hoãn): miễn nhiễm khi kích hoạt nhắm vào Apache Kid", () => {
@@ -367,7 +393,7 @@ describe("Apache Kid — miễn nhiễm với lá chất Rô do người khác �
     expect(next.players[1].equipment).toEqual(["jail_1"]);
   });
 
-  it("Indians! — KHÔNG tính là miễn nhiễm (khác cấu trúc Missed!, đã chốt với chủ dự án)", () => {
+  it("Indians! KHÔNG phải chất Rô (indians_1 = Cơ K): vẫn bị ảnh hưởng bình thường (bộ bài hiện không có bản Indians! chất Rô nào để test trực tiếp nhánh miễn nhiễm — cùng 1 hàm isImmuneToCard đã kiểm chứng qua Bang!/Cat Balou/Buffalo Rifle/Can Can ở trên)", () => {
     const state = makeState({
       players: [
         makePlayer("a", { hand: ["indians_1"] }),
@@ -378,7 +404,6 @@ describe("Apache Kid — miễn nhiễm với lá chất Rô do người khác �
 
     const { state: next } = reduce(state, { type: "PLAY_CARD", playerId: "a", cardId: "indians_1", targetId: "b" });
 
-    // Vẫn phải bỏ Bang! hoặc chịu mất máu như bình thường — không có miễn nhiễm.
     expect(next.pending).toContainEqual({
       kind: "NEED_DISCARD_BANG",
       player: "b",

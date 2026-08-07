@@ -408,7 +408,12 @@ field đã dùng cho 16 nhân vật bản gốc trong CharacterDefinition.)
 
 Apache Kid (3 máu)
   - Hiệu ứng: miễn nhiễm với các lá chất RÔ (Diamonds) do người khác
-    đánh nhắm vào mình. Trong Duel, khả năng này KHÔNG có tác dụng.
+    đánh nhắm vào mình. ĐÃ SỬA 2026-08-07 (khác bản mô tả gốc ở đây):
+    Duel VẪN áp dụng — chỉ tra chất của ĐÚNG lá Duel khởi xướng, Rô
+    thì miễn nhiễm hẳn, huỷ ván đấu ngay từ đầu; nếu lá Duel không
+    phải Rô thì ván đấu diễn ra bình thường và chất của TỪNG lá Bang!
+    hai bên trao đổi trong lúc đấu không quan trọng. Indians! cũng ĐÃ
+    áp dụng (trước đó từng chốt KHÔNG áp dụng, nay đổi lại).
   - Cách cài đặt: [CẦN HOOK MỚI] — 9 hook hiện có không có chỗ nào
     kiểm tra "chất của lá đang nhắm vào 1 người trước khi áp hiệu ứng".
     Cần 1 hook dạng isImmuneToCard(next, self, card, fromPlayer) trả

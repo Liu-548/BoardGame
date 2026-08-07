@@ -852,10 +852,10 @@ function pushMissedReaction(
   source: { card: string; from: string },
   attackCardId: string
 ): GameEvent[] {
-  // Mở rộng Dodge City, mục C nhóm B (Apache Kid) — lá chất Rô nhắm vào mình
-  // (KHÔNG áp dụng Duel — Duel không đi qua hàm này, xem playDuel()). Lá đã
-  // bị đánh/rời tay ở nơi gọi (handlePlayCard()) — chỉ riêng HIỆU ỨNG (đẩy
-  // NEED_MISSED/Barrel draw!) không xảy ra.
+  // Mở rộng Dodge City, mục C nhóm B (Apache Kid) — lá chất Rô nhắm vào mình.
+  // Duel có check RIÊNG ở playDuel() (chỉ tra lá Duel khởi xướng, không đi
+  // qua hàm này). Lá đã bị đánh/rời tay ở nơi gọi (handlePlayCard()) — chỉ
+  // riêng HIỆU ỨNG (đẩy NEED_MISSED/Barrel draw!) không xảy ra.
   if (getEffectiveCharacterHooks(next, target).isImmuneToCard?.(attackCardId) === true) {
     return [{ type: "APACHE_KID_IMMUNE", playerId: target.id, fromPlayerId: source.from, cardId: attackCardId }];
   }
@@ -922,21 +922,41 @@ function playGatling(
 }
 
 // Indians!: mỗi người chơi khác còn sống phải bỏ 1 lá Bang! hoặc mất 1 máu.
-// Cùng cơ chế thứ tự như Gatling, chỉ khác kind pending và lá cần bỏ.
+// Cùng cơ chế thứ tự như Gatling, chỉ khác kind pending và lá cần bỏ. Mở rộng
+// Dodge City, mục C nhóm B (Apache Kid) — ĐÃ SỬA LẠI theo yêu cầu chủ dự án
+// (khác quyết định cũ ghi trong CHANGELOG.md): lá Indians! chất Rô CŨNG miễn
+// nhiễm với Apache Kid, y hệt Bang!/Gatling — không còn là ngoại lệ. Bộ bài
+// hiện tại không có bản Indians! chất Rô nào (chỉ K♥/A♥/5♥) nên nhánh này
+// chưa thể kích hoạt được với dữ liệu bài thật, nhưng vẫn cài đúng chính sách
+// chung, giống Gatling/Punch/Jail/Panic! ở trên.
 function playIndians(
   next: GameState,
   player: PlayerState,
   action: Action & { type: "PLAY_CARD" }
 ): Result {
   const targets = otherAlivePlayersInOrder(next, player.id);
+  const immunityEvents: GameEvent[] = [];
   for (let i = targets.length - 1; i >= 0; i--) {
+    const target = targets[i];
+    if (getEffectiveCharacterHooks(next, target).isImmuneToCard?.(action.cardId) === true) {
+      immunityEvents.push({
+        type: "APACHE_KID_IMMUNE",
+        playerId: target.id,
+        fromPlayerId: player.id,
+        cardId: action.cardId,
+      });
+      continue;
+    }
     next.pending.push({
       kind: "NEED_DISCARD_BANG",
-      player: targets[i].id,
+      player: target.id,
       source: { card: "indians", from: player.id },
     });
   }
-  return { state: next, events: [{ type: "CARD_PLAYED", playerId: player.id, cardId: action.cardId }] };
+  return {
+    state: next,
+    events: [{ type: "CARD_PLAYED", playerId: player.id, cardId: action.cardId }, ...immunityEvents],
+  };
 }
 
 function playDuel(
@@ -953,6 +973,25 @@ function playDuel(
   const target = next.players.find((p) => p.id === action.targetId);
   if (!target || !target.alive) {
     throw new Error("Mục tiêu không hợp lệ");
+  }
+
+  // Mở rộng Dodge City, mục C nhóm B (Apache Kid) — ĐÃ SỬA LẠI theo yêu cầu
+  // chủ dự án (khác quyết định cũ ghi trong Luat_Bang_Mo_Rong_DodgeCity.txt/
+  // CHANGELOG.md, vốn nói "Duel không áp dụng miễn nhiễm"): CHỈ tra chất của
+  // ĐÚNG lá Duel khởi xướng (action.cardId) — Rô thì miễn nhiễm HẲN, huỷ toàn
+  // bộ ván đấu tay đôi ngay từ đầu, không đẩy pending gì cả. Nếu lá Duel
+  // KHÔNG phải Rô, ván đấu diễn ra bình thường — chất của TỪNG lá Bang! hai
+  // bên bỏ ra lần lượt trong lúc đấu (duelBangDrawPending) KHÔNG bị kiểm tra,
+  // vì Apache Kid chỉ miễn nhiễm với lá bài THẬT do người khác trực tiếp đánh
+  // nhắm vào mình — trong Duel đó là lá Duel, không phải từng lá Bang! trao đổi.
+  if (getEffectiveCharacterHooks(next, target).isImmuneToCard?.(action.cardId) === true) {
+    return {
+      state: next,
+      events: [
+        { type: "CARD_PLAYED", playerId: player.id, cardId: action.cardId, targetId: target.id },
+        { type: "APACHE_KID_IMMUNE", playerId: target.id, fromPlayerId: player.id, cardId: action.cardId },
+      ],
+    };
   }
 
   // Mở rộng Dodge City, mục C nhóm C (Molly Stark) — reset đầu mỗi ván Duel
@@ -2236,8 +2275,9 @@ function respondToMissed(
 // vào `attacker` (bỏ qua khoảng cách, LUÔN cần 2 Missed!). Cố tình KHÔNG dùng
 // chung pushMissedReaction()/pushMissedReactionUnconditional():
 // (1) KHÔNG qua Apache Kid isImmuneToCard() — đòn phản không gắn với lá bài
-//     thật nào để tra chất Rô, giống cách Duel/Indians! cũng không áp dụng
-//     luật miễn nhiễm này (xem ghi chú isImmuneToCard ở characters.ts).
+//     thật nào để tra chất Rô (khác Duel/Indians!, cả 2 đều ĐÃ có check chất
+//     Rô riêng — xem playDuel()/playIndians() — vì chúng có lá bài thật để
+//     tra; đòn phản Mary Rose thì không, đây là hiệu ứng "miễn phí").
 // (2) missesNeeded LUÔN LÀ 2 (đặc thù riêng của đòn phản này) — không tra
 //     onOutgoingBang() của Mary Rose, vì hook đó (nếu có) sẽ áp dụng SAI cho
 //     CẢ lượt Bang! chủ động bình thường của chính cô, không chỉ đòn phản.
