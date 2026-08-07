@@ -1129,3 +1129,47 @@ toàn hệ thống hook) + UI thật cho toàn bộ Dodge City.
 cho 5.4" đều xong. Chỉ còn ĐÚNG UI thật cho toàn bộ Dodge City (40 lá/trang bị
 trì hoãn/mục D/15 nhân vật) — đây là việc DUY NHẤT còn lại trước khi có thể
 deploy, kể cả bản beta.
+
+**SỬA LẠI luật miễn nhiễm Apache Kid (2026-08-07)** — đảo ngược 2 quyết định cũ
+(ghi ở mục "nhóm B" phía trên: "Indians! CỐ TÌNH không thêm check gì" và
+`Luat_Bang_Mo_Rong_DodgeCity.txt`: "Trong Duel, khả năng này KHÔNG có tác
+dụng"). Chủ dự án chốt lại: cả Đấu tay đôi (Duel) LẪN Indians! đều phải áp
+dụng miễn nhiễm chất Rô của Apache Kid, kể cả khi bộ bài hiện tại không có
+bản Indians! chất Rô nào để kích hoạt được (vẫn cần code đúng chính sách,
+phòng khi đổi bộ bài sau này — cùng logic đã áp dụng cho Gatling/Punch/Jail/
+Panic! ở trên).
+
+- **`playIndians()`** (`reduce.ts`) — trước khi đẩy `NEED_DISCARD_BANG` cho
+  từng mục tiêu, kiểm `isImmuneToCard(action.cardId)` y hệt `playGatling()`.
+  Miễn nhiễm thì bắn `APACHE_KID_IMMUNE` thay vì đẩy pending, không đụng thứ
+  tự đẩy pending của các mục tiêu còn lại.
+- **`playDuel()`** — thêm nhánh miễn nhiễm MỚI, đặt TRƯỚC đoạn reset
+  `duelBangDrawPending`/đẩy `NEED_DUEL_RESPONSE`: chỉ tra chất của ĐÚNG lá
+  Duel khởi xướng (`action.cardId`) — Rô thì miễn nhiễm HẲN, huỷ ván đấu ngay
+  từ đầu (không đẩy pending gì, y hệt Bang! Rô bắn vào Apache Kid: lá vẫn rời
+  tay/vào chồng bỏ nhưng vô hiệu). Nếu lá Duel KHÔNG phải Rô, ván đấu diễn ra
+  đúng luồng cũ — **cố tình KHÔNG tra chất của từng lá Bang! hai bên trao đổi
+  trong lúc đấu** (đúng lời chốt của chủ dự án: "lá Bang! có phải Rô hay
+  không hoàn toàn không quan trọng" một khi ván đấu đã bắt đầu) — miễn nhiễm
+  Apache Kid CHỈ áp dụng cho lá bài THẬT do người khác trực tiếp đánh nhắm vào
+  mình (ở đây là lá Duel), không áp dụng cho hiệu ứng trao đổi bên trong.
+- Cập nhật lại 3 chỗ comment cũ trong `reduce.ts` từng viện dẫn "Duel/Indians!
+  không áp dụng miễn nhiễm" làm ví dụ/lý do (ở `pushMissedReaction()` và ở
+  `pushMaryRoseReflection()`) — đòn "bang trả" của Mary Rose vẫn là ngoại lệ
+  DUY NHẤT còn lại (không gắn với lá bài thật nào để tra chất), không còn
+  dùng Duel/Indians! làm ví dụ đồng dạng nữa. Đồng bộ lại
+  `Luat_Bang_Mo_Rong_DodgeCity.txt` (mục 3, Apache Kid) và `House_Rule.txt`
+  (ghi chú đòn bang trả của Mary Rose).
+- Sửa lại 2 test cũ trong `test/dodge-city-characters-batch2.test.ts` từng
+  khẳng định hành vi ngược lại ("Đấu tay đôi (Duel) chất Rô: KHÔNG miễn
+  nhiễm" / "Indians! — KHÔNG tính là miễn nhiễm") — đổi thành đúng hành vi
+  mới, thêm 1 test mới xác nhận Duel KHÔNG phải Rô vẫn diễn ra bình thường
+  (tách riêng khỏi test miễn nhiễm). Test Indians! chỉ kiểm được nhánh KHÔNG
+  miễn nhiễm bằng dữ liệu bài thật (không có bản Indians! chất Rô nào trong
+  bộ bài để dựng test cho nhánh miễn nhiễm) — cùng tình trạng đã ghi chú cho
+  Gatling/Jail/Panic! ở trên, không phải thiếu sót.
+- Đã tự kiểm: `npx tsc --noEmit` sạch, 483 test đều pass (tách 1 test Duel cũ
+  thành 2 — miễn nhiễm/không miễn nhiễm — nên +1 so với trước khi sửa; không
+  test nào khác bị ảnh hưởng).
+- **Không đổi gì cần deploy riêng** — vẫn nằm trong batch "CHƯA deploy" chung
+  với phần còn lại của Dodge City.

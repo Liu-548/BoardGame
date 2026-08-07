@@ -133,8 +133,12 @@ mà không ảnh hưởng nhân vật *ex khác.
 	  - Đòn "bang trả" KHÔNG đi qua Apache Kid (isImmuneToCard) — đòn
 	    này không gắn với lá bài thật nào để tra chất Rô (nó là hiệu
 	    ứng "miễn phí", không phải 1 lá đang cầm trên tay đánh ra), nên
-	    cố tình bỏ qua bước kiểm tra đó — giống cách Đấu tay đôi/
-	    Indians! cũng không áp dụng luật miễn nhiễm này của Apache Kid.
+	    cố tình bỏ qua bước kiểm tra đó. (ĐÃ SỬA 2026-08-07: Đấu tay đôi
+	    và Indians! KHÔNG còn là ví dụ cho ca ngoại lệ này nữa — cả 2 giờ
+	    ĐÃ áp dụng miễn nhiễm Apache Kid với đúng lá Duel/Indians! chất
+	    Rô, xem playDuel()/playIndians() ở reduce.ts. Chỉ còn đòn "bang
+	    trả" là ngoại lệ thật sự, vì đây là hiệu ứng không gắn với 1 lá
+	    bài cụ thể nào để tra chất.)
 	    Vẫn tôn trọng Barrel thật/Jourdonnais ảo của người bị bắn trả
 	    như bình thường.
 	  - "CHỈ tính lá Bang! ĐƠN LẺ" được hiểu ĐÚNG NGHĨA ĐEN là lá tên
