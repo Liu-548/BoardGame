@@ -101,6 +101,14 @@ export interface PlayerView {
   // với ai, và ai sắp mất lượt kế tiếp, đều công khai (không liên quan bài úp).
   marcelJailCompanion: GameState["marcelJailCompanion"];
   marcelCompanionSkipNextTurn: GameState["marcelCompanionSkipNextTurn"];
+  // Mở rộng High Noon/A Fistful of Cards, mục 1.2 — CHỈ lộ lá ĐANG chạy + lá
+  // KẾ TIẾP (đã hỏi lại và chốt: đây là điểm bán-ẩn thứ 2 trong dự án, tiền lệ
+  // NEED_PICK_KEPT_CARDS của Kit Carlson) — phần CÒN LẠI của eventDeck (thứ tự
+  // các lá sau đó) bị ẩn hoàn toàn, không lộ qua field nào. eventDiscard KHÔNG
+  // bí mật gì (lịch sử các lá đã lật), giữ nguyên đầy đủ.
+  activeEventId: GameState["activeEventId"];
+  nextEventId: string | null;
+  eventDiscard: GameState["eventDiscard"];
 }
 
 function viewRole(player: PlayerState, viewerId: string): Role | null {
@@ -169,5 +177,8 @@ export function viewFor(state: GameState, viewerId: string): PlayerView {
     elenaNoirImmortalTurnsLeft: state.elenaNoirImmortalTurnsLeft,
     marcelJailCompanion: state.marcelJailCompanion,
     marcelCompanionSkipNextTurn: state.marcelCompanionSkipNextTurn,
+    activeEventId: state.activeEventId,
+    nextEventId: state.eventDeck.length > 0 ? state.eventDeck[state.eventDeck.length - 1] : null,
+    eventDiscard: [...state.eventDiscard],
   };
 }

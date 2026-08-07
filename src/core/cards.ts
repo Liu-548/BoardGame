@@ -243,6 +243,10 @@ export const EXPANSION_CARD_COUNTS: Record<ExpansionId, Partial<Record<CardName,
   // thêm nhân vật, KHÔNG thêm lá bài nào — object rỗng vẫn PHẢI có mặt vì
   // Record<ExpansionId, ...> bắt buộc đủ mọi key của union (ExpansionId).
   custom_characters: {},
+  // Mở rộng High Noon/A Fistful of Cards — CHỈ thêm lá SỰ KIỆN (core/events.ts),
+  // không đóng góp lá bài chơi thường nào.
+  high_noon: {},
+  a_fistful_of_cards: {},
 };
 
 // (suit, rank) IN THẬT trên từng lá của bộ bài cơ bản — tra từ danh sách bài

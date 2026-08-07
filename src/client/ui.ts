@@ -6,6 +6,8 @@
 import { cardNameFromId, cardSuitRankFromId, isDelayedEquipmentCardName, isSelfEquipBlueCardName, yellowCardActsAsMissed, WEAPON_RANGES } from "../core/cards";
 import type { CardName } from "../core/cards";
 import { CHARACTERS, computeStartingHp, getCharacterDefinition } from "../core/characters";
+import { EVENT_CARDS } from "../core/events";
+import type { EventId } from "../core/events";
 import type { CharacterChoice, ExpansionId, GameEvent, GameState, HouseRuleId, PendingAction, PlayerState, Rank, Role, Suit, Winner } from "../core/types";
 import type { CharacterChoiceView, PendingActionView, PlayerHandView, PlayerView } from "../core/view";
 import type { DeadlineInfo } from "../protocol";
@@ -645,6 +647,8 @@ const HOUSE_RULE_IDS: HouseRuleId[] = [
 const EXPANSION_LABELS: Record<ExpansionId, string> = {
   dodge_city: "Dodge City (mở rộng)",
   custom_characters: "Nhân vật tự chế (*ex)",
+  high_noon: "High Noon (mở rộng)",
+  a_fistful_of_cards: "A Fistful of Cards (mở rộng)",
 };
 const EXPANSION_DESCRIPTIONS: Record<ExpansionId, string> = {
   dodge_city:
@@ -661,6 +665,11 @@ const EXPANSION_DESCRIPTIONS: Record<ExpansionId, string> = {
   // 1". Tên hiển thị trong ván luôn có đuôi "*ex".
   custom_characters:
     "Thêm 3 nhân vật tự chế Elena Noir/Marcel Marcelo/Mary Rose *ex vào bộ bốc nhân vật (chỉ phát khi bật cơ chế chọn nhân vật) — không thêm lá bài nào.",
+  // Đang xây dựng — chỉ mới có nền tảng chồng sự kiện trong core/, CHƯA cài lá
+  // nào. Cố tình KHÔNG đưa vào EXPANSION_IDS bên dưới (chưa hiện checkbox cho
+  // người chơi bật) tới khi có ít nhất vài lá thật hoạt động được.
+  high_noon: "Bộ lá sự kiện High Noon — đang xây dựng, chưa dùng được.",
+  a_fistful_of_cards: "Bộ lá sự kiện A Fistful of Cards — đang xây dựng, chưa dùng được.",
 };
 const EXPANSION_IDS: ExpansionId[] = ["dodge_city", "custom_characters"];
 
@@ -810,7 +819,9 @@ export function describeEvent(event: GameEvent, nameOf: (id: string) => string):
     case "CARD_STOLEN":
       return `${nameOf(event.playerId)} cướp ${cardLabel(event.cardId)} của ${nameOf(event.fromPlayerId)}`;
     case "CARD_FORCE_DISCARDED":
-      return `${nameOf(event.byPlayerId)} bắt ${nameOf(event.playerId)} bỏ ${cardLabel(event.cardId)}`;
+      return event.byPlayerId
+        ? `${nameOf(event.byPlayerId)} bắt ${nameOf(event.playerId)} bỏ ${cardLabel(event.cardId)}`
+        : `${nameOf(event.playerId)} phải bỏ ${cardLabel(event.cardId)} (lá sự kiện)`;
     case "DRAW_CHECK_RESOLVED":
       return (
         `${nameOf(event.playerId)} lật bài kiểm tra: ${cardFaceLabel(event.cardId)} — ` +
@@ -882,6 +893,8 @@ export function describeEvent(event: GameEvent, nameOf: (id: string) => string):
       return `${nameOf(event.playerId)} (Mary Rose) bỏ thêm 1 lá Bang! (giá của kỹ năng)`;
     case "MARY_ROSE_REFLECTED":
       return `${nameOf(event.playerId)} (Mary Rose) bắn trả miễn phí vào ${nameOf(event.targetId)}, cần 2 Missed! mới né được`;
+    case "EVENT_REVEALED":
+      return `Lá sự kiện mới: ${EVENT_CARDS[event.eventId as EventId]?.name ?? event.eventId}`;
   }
 }
 

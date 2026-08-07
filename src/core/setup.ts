@@ -5,8 +5,10 @@ import type { CardName } from "./cards";
 import { buildDeck, EXPANSION_CARD_COUNTS } from "./cards";
 import { CHARACTERS, EXPANSION_CHARACTER_IDS, computeStartingHp, getCharacterDefinition } from "./characters";
 import { giveCardToPlayer } from "./equipment";
+import type { EventId } from "./events";
+import { EVENT_CARDS, EXPANSION_EVENT_IDS } from "./events";
 import { applyTurnStartChecks } from "./reduce";
-import { shuffle } from "./rng";
+import { nextRandom, shuffle } from "./rng";
 import type { CharacterChoice, ExpansionId, GameState, HouseRuleId, PlayerState, Role } from "./types";
 
 export interface RuleOptions {
@@ -34,6 +36,12 @@ export interface RuleOptions {
   // trên giao diện), nên ván hotseat/qua mạng thật KHÔNG đổi gì so với
   // trước. Chỉ dùng được qua code/test cho tới khi làm xong màn hình chọn.
   dealCharacterCards?: boolean;
+  // Mở rộng High Noon/A Fistful of Cards, mục 1.6 — CHỈ có ý nghĩa khi CẢ HAI
+  // bộ cùng bật: số lá "thường" (không tính 2 lá cuối) rút ngẫu nhiên từ 25 lá
+  // gộp chung để đưa vào ván (luật gốc đề xuất 12, chủ phòng chỉnh được để
+  // chơi dài/ngắn hơn). Mặc định 12. KHÔNG dùng khi chỉ bật 1 trong 2 bộ — lúc
+  // đó dùng ĐỦ toàn bộ lá thường của bộ đang bật, không cắt bớt.
+  eventDeckSize?: number;
 }
 
 // Danh sách vai theo số người chơi, đúng phân bổ luật gốc BANG! (4-8 người —
@@ -141,6 +149,49 @@ export function setupGame(
     );
   }
 
+  // Mở rộng High Noon/A Fistful of Cards, mục 1.6 — chuẩn bị chồng lá sự
+  // kiện. Chỉ 1 trong 2 bộ: dùng ĐỦ toàn bộ lá thường của bộ đó (không cắt),
+  // xáo rồi đặt lá cuối (isFinalCard) xuống ĐÁY mảng (= phần tử ĐẦU, vì phần
+  // tử CUỐI mới là "lá lật kế tiếp", xem GameState.eventDeck ở types.ts). Cả
+  // 2 bộ: gộp lá thường của cả 2 (2 lá cuối để riêng), xáo chung, cắt còn
+  // đúng eventDeckSize lá (mặc định 12), rồi RANDOM 1 trong 2 lá cuối — lá
+  // cuối còn lại KHÔNG dùng trong ván này.
+  const activeEventExpansions = activeExpansions.filter(
+    (id): id is "high_noon" | "a_fistful_of_cards" => id === "high_noon" || id === "a_fistful_of_cards"
+  );
+  let eventDeck: EventId[] = [];
+  let rngStateAfterEventDeck = rngStateAfterCharacterDeck;
+  if (activeEventExpansions.length > 0) {
+    const regularIds: EventId[] = [];
+    const finalIds: EventId[] = [];
+    for (const expansionId of activeEventExpansions) {
+      for (const eventId of EXPANSION_EVENT_IDS[expansionId]) {
+        if (EVENT_CARDS[eventId].isFinalCard) finalIds.push(eventId);
+        else regularIds.push(eventId);
+      }
+    }
+
+    const { result: shuffledRegular, nextState: stateAfterShuffle } = shuffle(regularIds, rngStateAfterCharacterDeck);
+    rngStateAfterEventDeck = stateAfterShuffle;
+    let chosenRegular = shuffledRegular;
+    if (activeEventExpansions.length > 1) {
+      chosenRegular = shuffledRegular.slice(0, options.eventDeckSize ?? 12);
+    }
+
+    let finalId: EventId;
+    if (finalIds.length > 1) {
+      const { value, nextState } = nextRandom(rngStateAfterEventDeck);
+      rngStateAfterEventDeck = nextState;
+      finalId = value < 0.5 ? finalIds[0] : finalIds[1];
+    } else {
+      finalId = finalIds[0];
+    }
+
+    // eventDeck[0] = lá cuối (lật SAU CÙNG); phần còn lại đảo ngược thứ tự đã
+    // xáo, để chosenRegular[0] (lá muốn lật ĐẦU TIÊN) nằm ở PHẦN TỬ CUỐI mảng.
+    eventDeck = [finalId, ...[...chosenRegular].reverse()];
+  }
+
   // Dựng đủ danh sách người chơi TRƯỚC (tay rỗng), rồi mới chia bài — cần vậy vì
   // Dynamite tự xuống sân ngay lúc chia (mục 8 file luật: "được phát lúc
   // setup" cũng tính), mà logic chuyển Dynamite khi đụng lá thứ 2 cần thấy
@@ -203,7 +254,7 @@ export function setupGame(
     pending: [],
     currentPlayerIndex: firstPlayerIndex, // Sheriff đi trước (4-8 người); ghế đầu đi trước (2 người, không có Sheriff)
     turnPhase: "draw",
-    rngState: rngStateAfterCharacterDeck,
+    rngState: rngStateAfterEventDeck,
     winner: null,
     bangUsedThisTurn: false,
     characterSelection,
@@ -221,6 +272,9 @@ export function setupGame(
     marcelJailCompanion: {},
     marcelCompanionSkipNextTurn: {},
     marcelJailBonusDrawThisTurn: {},
+    eventDeck,
+    activeEventId: null,
+    eventDiscard: [],
   };
 
   // Lượt đầu tiên cũng phải qua Bước 0 (mục 4): nếu Sheriff (hoặc ai đi lượt

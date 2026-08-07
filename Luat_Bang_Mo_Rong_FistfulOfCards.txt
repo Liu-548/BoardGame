@@ -1,0 +1,700 @@
+========================================================================
+BANG! A FISTFUL OF CARDS — ĐẶC TẢ MỞ RỘNG (input cho Claude Code)
+========================================================================
+
+Mục đích: đặc tả bộ mở rộng A Fistful of Cards để dùng làm cơ sở cài đặt
+trong core/. File CHƯA có gì được code — đây là spec đọc trước, không
+phải mô tả trạng thái hiện tại của repo.
+
+>>> ĐỌC Luat_Bang_Mo_Rong_HighNoon.txt TRƯỚC <<<
+Hai bộ này dùng CHUNG HOÀN TOÀN một cơ chế (chồng lá sự kiện, thời điểm
+lật, 3 nhóm hiệu ứng, hàm isEventActive, cách chuẩn bị chồng bài). Toàn
+bộ phần đó đặc tả ở mục 1 của file High Noon và KHÔNG lặp lại ở đây.
+File này chỉ khai báo 15 lá riêng của A Fistful of Cards.
+
+QUY ƯỚC ĐỌC FILE NÀY: y hệt file High Noon — mỗi lá tách "Hiệu ứng" và
+"Cách cài đặt"; các dấu [CẦN KIỂM CHỨNG] / [CẦN HOOK MỚI] / [ĐỔI STATE]
+/ [CẦN BÀN] / *dev mang đúng nghĩa như file đó.
+
+NHẮC LẠI 3 NHÓM (mục 1.4 file High Noon):
+  (A) chạy 1 lần lúc lật  (B) chạy mỗi lượt  (C) sửa luật nền
+
+Thành phần hộp (phần A Fistful of Cards): 15 lá sự kiện, không nhân vật
+mới, không lá bài chơi mới.
+
+CẢNH BÁO ĐỘ KHÓ so với High Noon: bộ này ÍT lá sửa-luật-nền hơn, nhưng
+lại có 4 lá cần PendingAction mới hoặc đổi kiểu Action (Peyote, Ranch,
+Ricochet, Blood Brothers) và 2 lá thuộc diện khó nhất cả dự án (Law of
+the West, Ghost-like Dead Man). Đổi lại có 2 lá gần như miễn phí nhờ hạ
+tầng Dodge City đã dựng sẵn (Lasso, Sniper) — xem bên dưới.
+
+Ghi chú luật CHÍNH THỨC áp cho cả 2 lá Ricochet và Russian Roulette
+(nguyên văn trong sách luật): "được dùng BẤT KỲ lá nào có ký hiệu
+Missed!". Trong code, đó chính xác là những gì actsAsMissed() và
+isEquipmentUsableAsMissed() (reduce.ts) đã trả về — tái dùng 2 hàm đó,
+KHÔNG so khớp cứng tên lá "missed".
+
+------------------------------------------------------------------------
+CẬP NHẬT (bản dịch luật + FAQ chính thức Davinci, chủ dự án cung cấp)
+------------------------------------------------------------------------
+Bản đầu của file này viết theo hiểu biết chung, còn nhiều [CẦN KIỂM
+CHỨNG]. Nay đã đối chiếu với bản dịch luật tiếng Việt có trích dẫn FAQ
+chính thức của Davinci Games (Q.04, Q.08, Q.11, Q.12, Q.16, Q.17 —
+Fistful FAQ). Kết quả:
+
+ĐÃ SỬA LẠI HẲN 5 lá vì bản đầu SAI:
+  · Russian Roulette — cơ chế hoàn toàn khác (rút 1 lá, ĐẾM theo giá trị
+    lá, chiều đếm theo MÀU chất). Bản đầu viết sai hoàn toàn.
+  · Peyote — chỉ đoán tối đa 2 lá, KHÔNG phải lặp vô hạn.
+  · Ranch — xảy ra ở BƯỚC 2 (sau khi đánh bài), không phải sau pha rút.
+  · Dead Man — hồi sinh xong CÒN rút thêm 2 lá ở bước 1 (tổng 4 lá).
+  · Ambush — các lá/khả năng đổi khoảng cách VẪN có tác dụng (FAQ Q17),
+    ngược với ghi chú *dev hiện tại — xem cảnh báo tại lá đó.
+
+ĐÃ XÁC NHẬN (gỡ dấu [CẦN KIỂM CHỨNG]): Lasso vô hiệu cả Jail/Dynamite;
+Ricochet không giới hạn khoảng cách; Abandoned Mine có lời giải đầy đủ;
+Sniper có luật Barrel riêng; A Fistful of Cards chạy TRƯỚC cả Dynamite/
+Jail; Vendetta chỉ thêm ĐÚNG 1 lượt và là lượt đầy đủ.
+
+Các dòng *dev do chủ dự án viết được GIỮ NGUYÊN, không sửa. Chỗ nào *dev
+mâu thuẫn với FAQ thì ghi rõ cả hai để chủ dự án tự chốt.
+
+
+========================================================================
+1. DANH SÁCH 15 LÁ SỰ KIỆN A FISTFUL OF CARDS
+========================================================================
+
+--- NHÓM (C): SỬA LUẬT NỀN ---
+
+Ambush — nhóm (C)
+  - Hiệu ứng (NGUYÊN VĂN bản dịch + FAQ Q17): "Khoảng cách của 2 người
+    chơi bất kì đều là 1, NHƯNG khoảng cách này vẫn có thể bị thay đổi
+    khi có những lá như Mustang, Appaloosa (Hideout), Binocular... và
+    đặc tính nhân vật như Rose Doolan, Paul Regret."
+    ⇒ Ambush đặt khoảng cách CƠ BẢN = 1 rồi VẪN cộng/trừ như bình
+    thường. KHÔNG phải "ép cứng bằng 1".
+  - Cách cài đặt:
+    → *** MÂU THUẪN CẦN CHỦ DỰ ÁN CHỐT — ĐỌC TRƯỚC KHI CODE ***
+      Ghi chú *dev bên dưới được viết KHI CHƯA CÓ FAQ Q17. Giờ FAQ đã
+      trả lời rõ và NGƯỢC với ghi chú đó. Hai phương án:
+        (a) THEO FAQ CHÍNH THỨC: khoảng cách cơ bản = 1, sau đó vẫn
+            cộng/trừ Scope/Binocular/Mustang/Hideout và vẫn gọi hook
+            modifyDistance (Rose Doolan/Paul Regret).
+        (b) THEO *dev: ép cứng = 1, bỏ qua tất cả.
+        - *dev theo FAQ: khoảng cách cơ bản = 1, nhưng vẫn cộng trừ trang bị và hook modifyDistance. Chốt 1 cái.
+      Chênh lệch THẬT: người cầm Mustang ở phương án (a) vẫn ở khoảng
+      cách 2 nên súng lục tầm 1 KHÔNG bắn tới; ở phương án (b) thì bắn
+      tới. Khác hẳn nhau, phải chốt 1 cái.
+      -> *dev: force bằng 1 luôn trong vòng chơi, không cộng hay trừ gì cả.
+    → Nếu chọn (a) — cắm ở distance.ts: thay giá trị khoảng cách vòng
+      tròn cơ bản bằng 1, rồi CHẠY TIẾP nguyên phần cộng/trừ trang bị và
+      hook modifyDistance đã có. Sửa đúng 1 dòng, không đụng gì khác.
+    → Nếu chọn (b) — cắm ở distance.ts, ngay đầu hàm:
+      if (isEventActive(state, "ambush")) return 1;  // trả về luôn
+    → House rule "extra_distance" (+1 khoảng cách vòng tròn): ở phương
+      án (a) thì [CẦN BÀN] nó cộng vào TRƯỚC hay SAU khi Ambush ép về 1
+      (đề xuất: Ambush ghi đè khoảng cách vòng tròn ⇒ house rule mất tác
+      dụng, vì cả hai cùng sửa đúng một đại lượng).
+      -> *dev: House rule vô hiệu hóa luôn trong vòng chơi Ambush.
+    → TẦM SÚNG không đổi trong cả 2 phương án. Súng tầm 1 vẫn là tầm 1.
+
+Lasso — nhóm (C)
+  - Hiệu ứng (NGUYÊN VĂN bản dịch): "Tất cả bài trước mặt đều không có
+    tác dụng. Nếu là Jail, Dynamite thì BỎ QUA, và tiếp tục lượt chơi
+    như bình thường."
+    ⇒ ĐÃ XÁC NHẬN: Jail và Dynamite CŨNG bị vô hiệu — không draw!, không
+    nổ, không giam, lượt chạy thẳng như không có 2 lá đó. Đúng y ghi chú
+    *dev bên dưới. Lá vẫn nằm trên sân, chỉ tạm ngưng tác dụng.
+  - Cách cài đặt: đây là lá RẺ NHẤT bộ, nhờ Belle Star (Dodge City) đã
+    gom sẵn getEffectiveEquipment() ở characters.ts.
+    → Trong getEffectiveEquipment(): nếu isEventActive(state, "lasso")
+      thì trả về [] cho MỌI người. Khác Belle Star ở đúng 1 điểm: Belle
+      Star chỉ tắt trang bị của NGƯỜI KHÁC, Lasso tắt của TẤT CẢ kể cả
+      chính người đang tới lượt.
+    → LƯU Ý ĐÃ PHÁT HIỆN TRONG CODE (không phải suy đoán):
+      applyDynamiteAndJailChecks() trong reduce.ts đọc THẲNG
+      `player.equipment`, KHÔNG qua getEffectiveEquipment(). Nghĩa là
+      nếu chỉ sửa getEffectiveEquipment() thì Dynamite vẫn nổ và Jail
+      vẫn giam dù Lasso đang chạy.
+      (a) ĐÃ XÁC NHẬN qua bản dịch luật: CÓ, Jail/Dynamite bị bỏ qua
+      hoàn toàn. (b) [CẦN BÀN] còn lại: sửa applyDynamiteAndJailChecks()
+      đi qua getEffectiveEquipment() thì cũng đổi luôn hành vi của Belle
+      Star đã cài xong (Belle Star sẽ vô hiệu cả Dynamite/Jail của người
+      khác) — thay đổi hồi tố, cần đồng ý. Cách tránh: truyền thêm tham
+      số phân biệt "vô hiệu do Lasso" (áp cho mọi người, gồm cả
+      Dynamite/Jail) với "vô hiệu do Belle Star" (giữ nguyên hành vi cũ).
+      - *dev: Vô hiệu hóa 100% tất cả bài trên sân trong vòng chơi Lasso, kể cả Dynamite/Jail. Hết vòng chơi tự động trả về trạng thái bình thường.
+    → Súng: tầm bắn về mặc định 1 (DEFAULT_WEAPON_RANGE) — tự đúng nếu
+      chỗ tra WEAPON_RANGES đọc qua getEffectiveEquipment().
+    → Lá VÀNG (delayKind "delayed", Dodge City) đang bày: [CẦN BÀN] có
+      còn bỏ ra để dùng/đỡ đòn được không? "Mất tác dụng" nghiêng về
+      KHÔNG. Ảnh hưởng isEquipmentUsableAsMissed().
+      - *dev: Vô hiệu hoàn toàn, bỏ ra được nhưng không kích hoạt được. (Bao gồm cả lá xanh dương)
+
+The Judge — nhóm (C)
+  - Hiệu ứng: không ai được đặt bài xuống trước mặt bất kỳ ai — kể cả
+    trước mặt chính mình. Cấm cả súng, cả Jail.
+  - Cách cài đặt:
+    → Chặn ở playEquipment() và playJail() (reduce.ts) — 2 chỗ, từ chối
+      action như mọi action không hợp lệ khác.
+    → KHÔNG cấm DÙNG lá đã bày sẵn từ trước: Barrel vẫn draw!, lá vàng
+      Dodge City vẫn bỏ ra để kích hoạt qua activateDelayedEquipment().
+      Đây là điểm phân biệt The Judge với Lasso — hai lá dễ lẫn.
+    → José Delgado (bỏ lá xanh dương TỪ TAY để rút bài) KHÔNG bị cấm —
+      anh ta bỏ vào chồng bỏ, không đặt ra sân.
+      - *dev: dynamite tự động xuống sân nên không ảnh hưởng.
+      - *dev: Lá vàng cũng không được đặt xuống (Vẫn được kích hoạt nếu đã đặt từ vòng chơi trước đó).
+
+Abandoned Mine — nhóm (C)
+  - Hiệu ứng (NGUYÊN VĂN bản dịch + FAQ Q.04 Davinci — đã hết mơ hồ):
+    CHỈ áp dụng cho NGƯỜI ĐANG TỚI LƯỢT. Mọi người khác chơi bình thường.
+      · Bước 1 (pha rút): rút 2 lá từ CHỒNG BÀI BỎ (thay vì chồng rút).
+        Nếu chồng rút chỉ còn 1 lá thì rút cả 2 lá từ chồng bỏ.
+      · Bài BỎ ĐI của bạn — bài dư cuối lượt, HOẶC lá Bang! bỏ ra khi bị
+        Duel — đặt lên CHỒNG RÚT.
+      · Bài ĐÁNH RA (Stagecoach, Wells Fargo, General Store, Gatling...)
+        vẫn vào CHỒNG BỎ như bình thường. ⇒ Chỉ bước 1 và bước 3 bị đổi.
+      · Khi đánh Stagecoach/Wells Fargo thì vẫn rút từ CHỒNG RÚT như
+        bình thường — KHÔNG đổi.
+      · KHÔNG áp dụng cho khả năng nhân vật: José Delgado vẫn bỏ bài vào
+        chồng bỏ như bình thường.
+  - Cách cài đặt:
+    → KHÔNG sửa drawTopCard() (deck.ts) — hàm đó dùng chung cho mọi kiểu
+      rút bài (Stagecoach, thưởng hạ Outlaw, Bart Cassidy, Chuck Wengam,
+      José Delgado...), mà luật chỉ đổi ĐÚNG pha rút bước 1. Sửa ở chỗ
+      GỌI trong handleDrawCards() thay vì sửa hàm dùng chung.
+    → Pha bỏ bài cuối lượt: handleDiscardCards() đẩy vào `deck` thay vì
+      `discardPile` — CHỈ khi đó là lượt của chính người đang bỏ.
+    → Lá Bang! bỏ ra khi bị Duel cũng vào `deck` — nhưng CHỈ nếu người
+      bỏ đang là người tới lượt (respondToDuel() phải phân biệt 2 phía
+      của Duel, đây là chỗ dễ sót nhất).
+    → Va chạm nhân vật: Pedro Ramirez (lấy lá đầu từ chồng bỏ) trở nên
+      thừa; Kit Carlson xem 3 lá đỉnh chồng nào? Cả 2 override
+      onDrawPhase nên KHÔNG tự tuân theo — xử lý chung một thể với
+      Thirst/Train Arrival (file High Noon).
+    → Hệ quả chiến thuật đúng luật: bỏ bài cuối lượt = biết trước bài
+      mình rút vòng sau. Không phải bug.
+    → GHI CHÚ BỔ SUNG (sau khi có FAQ Q.04): lý do "quá phức tạp" ban
+      đầu phần lớn là do KHÔNG BIẾT bài đánh ra đi đâu — nay đã rõ hoàn
+      toàn (xem phần Hiệu ứng ở trên). Lá này KHÔNG cần PendingAction
+      mới nào cả, chỉ cần rẽ nhánh ở 3 chỗ: handleDrawCards(),
+      handleDiscardCards(), respondToDuel(). Nếu sau này muốn làm lại
+      thì nó thuộc loại trung bình, không phải khó nhất. Quyết định bỏ
+      vẫn hợp lý (ít giá trị chơi so với công sức), chỉ là lý do đã đổi.
+      - *dev: Đã có FAQ nên cần bàn thêm.
+
+Hard Liquor — nhóm (C)
+  - Hiệu ứng: trong lượt của mình, người chơi CÓ THỂ bỏ qua pha rút bài
+    để hồi 1 máu. Chọn một trong hai, không được cả hai.
+  - Cách cài đặt:
+    → Cần lựa chọn ⇒ pending mới `NEED_PICK_HARD_LIQUOR` (khuôn y hệt
+      NEED_PICK_DRAW_SOURCE của Pedro Ramirez: đẩy ở đầu pha rút, RESPOND
+      không kèm gì = rút bài như thường/hết giờ). [ĐỔI STATE — thêm
+      PendingAction]
+    → Hồi máu KHÔNG qua hook modifyHealAmount (hook đó chỉ áp ở
+      playBeer(), xem chú thích tại characters.ts) — Tequila Joe không
+      được nhân đôi.
+    → Đã đầy máu vẫn cho chọn (hồi 0), giống cách Sid Ketchum không bị
+      chặn — nhất quán với tiền lệ đã có.
+    → [CẦN BÀN] va chạm với 7 nhân vật override onDrawPhase: hỏi TRƯỚC
+      hay SAU khi hook chạy? Đề xuất hỏi TRƯỚC (bỏ qua pha rút thì hook
+      rút bài cũng không chạy) — nhưng Pat Brennan/Jesse Jones/Kit
+      Carlson cũng đẩy pending ở đúng chỗ đó, phải chốt thứ tự để không
+      chồng 2 pending cùng lúc.
+      - *dev: Hỏi lá này trước đồng ý rút bài thì hỏi các nhân vật override onDrawPhase sau. Nếu chọn bỏ qua pha rút thì không hỏi các nhân vật override onDrawPhase.
+
+Law of the West — nhóm (C) — KHÓ
+  - Hiệu ứng (NGUYÊN VĂN bản dịch): "Khi rút 2 lá, đưa cho mọi người
+    thấy lá THỨ 2. Nếu có thể, bạn PHẢI dùng lá này ngay trong lượt chơi
+    của mình."
+  - Ngoại lệ đã có lời giải chính thức — Kit Carlson: anh ta xem 3 lá
+    trên cùng (đánh số 1,2,3 theo thứ tự rút), chọn giữ 2 lá (vd giữ 1
+    và 3). Lá phải lật ngửa là lá ĐỨNG SAU trong 2 lá giữ lại (ở ví dụ
+    trên là lá 3) — tức "lá thứ 2 của phần mình giữ", không phải lá số 2
+    của bộ bài. Và cũng bắt buộc phải dùng nếu có thể.
+  - Cách cài đặt:
+    → Phần "lật ngửa": đã có tiền lệ hoàn chỉnh — Black Jack và event
+      BLACK_JACK_REVEALED. Tạo event tương tự
+      `LAW_OF_THE_WEST_REVEALED`, KHÔNG tái dùng event của Black Jack
+      (khác nghĩa trong nhật ký, đúng lý do đã tách
+      KIT_CARLSON_DISCARDED khỏi CARDS_DISCARDED).
+    → Phần "bắt buộc đánh nếu có thể" là chỗ khó thật sự:
+      · Dự án HIỆN KHÔNG CÓ hàm trung tâm kiểu
+        `canPlayCard(state, player, cardId): boolean`. Điều kiện hợp lệ
+        của từng lá đang nằm rải trong handlePlayCard() và các hàm
+        play*() riêng, dưới dạng throw/từ chối — không phải dưới dạng
+        "hỏi trước xem có được không". [CẦN HÀM MỚI, thay đổi lớn]
+      · Cần thêm cơ chế ÉP: người chơi không được END_TURN (và có lẽ
+        không được đánh lá khác) khi lá bắt buộc còn trên tay và còn
+        đánh được. [ĐỔI STATE — cần nhớ lá nào đang bị ép, vd
+        `forcedPlayCardId: string | null`]
+      · Nhiều lá cần MỤC TIÊU (Bang!, Panic!, Cat Balou...) — "bắt buộc
+        đánh" thì ai chọn mục tiêu, và nếu người chơi cố tình chọn mục
+        tiêu vô hại thì có tính là đã tuân thủ không? Luật gốc không
+        nói. [CẦN KIỂM CHỨNG]
+      · Hết giờ (room.ts) phải tự đánh thay — cần biết mục tiêu mặc
+        định.
+    → ĐỀ XUẤT: để lá này LÀM SAU CÙNG của cả 2 bộ. Nó là lá duy nhất
+      đòi một khái niệm hoàn toàn mới ("nước đi bắt buộc") mà 27 lá còn
+      lại không cần.
+      - *dev: đổi luôn cơ chế, đánh dấu đặc biệt lá thứ 2 nếu kết thúc lượt mà chưa dùng thì mất luôn lá đó.
+
+Peyote — nhóm (C)
+  - Hiệu ứng (NGUYÊN VĂN bản dịch — SỬA LẠI so với bản đầu file này):
+    "Trong bước 1 của lượt, THAY VÌ rút 2 lá bài, bạn đoán màu của lá
+    bài là đen hoặc đỏ, sau đó rút 1 lá. Nếu đúng thì bạn lấy lá bài đó,
+    và làm TƯƠNG TỰ CHO LÁ THỨ 2. Nếu bạn đoán sai lá thứ 1 thì bạn
+    KHÔNG được rút tiếp lá thứ 2."
+    ⇒ TỐI ĐA 2 LƯỢT ĐOÁN, đúng bằng số lá rút bình thường. KHÔNG phải
+    "đoán đúng thì lặp vô hạn" như bản đầu file này viết.
+    ⇒ Đoán sai lá 1 ⇒ mất luôn lượt đoán thứ 2 ⇒ pha rút kết thúc với 0
+    lá. Đoán đúng lá 1, sai lá 2 ⇒ được 1 lá.
+    [CẦN KIỂM CHỨNG nhẹ] Lá đoán SAI đi đâu — vào chồng bỏ, hay trả lại
+    đỉnh bộ bài? Bản dịch không nói. Đề xuất: vào chồng bỏ (nhất quán
+    với draw! và với Kit Carlson trong dự án này).
+    - *dev: đoán sai thì lá đó vào chồng bỏ, đoán đúng thì rút lá đó vào tay.
+  - Cách cài đặt:
+    → Pending mới `NEED_GUESS_CARD_COLOR`, đẩy ở đầu pha rút, kèm field
+      `guessesLeft: number` (bắt đầu = 2). [ĐỔI STATE — thêm PendingAction]
+    → Action RESPOND hiện KHÔNG có chỗ chứa câu trả lời "đỏ/đen". Thêm
+      field `color?: "red" | "black"` vào RESPOND. [ĐỔI STATE] — có
+      tiền lệ: `armed?: boolean` của Elena Noir đã thêm y như vậy.
+    → Vòng lặp CÓ TRẦN: đoán đúng VÀ guessesLeft > 1 ⇒ pop rồi push lại
+      pending cùng loại với guessesLeft - 1. Đoán đúng mà guessesLeft
+      = 1, HOẶC đoán sai ⇒ pop, không đẩy lại, sang pha 2.
+    → Đọc chất PHẢI qua getEffectiveSuit() (xem file High Noon, lá
+      Blessing) — nếu không, chơi kết hợp 2 bộ sẽ ra kết quả sai.
+    → NGUY CƠ TREO VÁN ĐÃ BIẾN MẤT: bản đầu file này cảnh báo Blessing
+      (mọi lá chất Cơ) + Peyote ⇒ đoán "đỏ" luôn đúng ⇒ rút cạn bộ bài.
+      Vì trần là 2 lá, tình huống đó KHÔNG còn xảy ra — Blessing chỉ
+      khiến Peyote thành "rút 2 lá miễn phí". Bỏ mục cảnh báo tương ứng
+      ở mục 2 cuối file này và ở mục 1.7 file High Noon nếu đã chốt
+      theo bản dịch này.
+    → Hết giờ: đoán mặc định (đề xuất "red") hay kết thúc pha rút ngay?
+      Chốt trước, vì room.ts cần biết.
+    → Va chạm 7 nhân vật override onDrawPhase — cùng vấn đề với Thirst/
+      Hard Liquor, giải quyết một thể.
+      - *dev: (QUAN TRỌNG) Lá này ảnh hưởng rất nhiều nhân vật có khả năng số lượng bài khác 2, cần bàn xử lý kỹ hơn.
+
+Ranch — nhóm (C)
+  - Hiệu ứng (NGUYÊN VĂN bản dịch — SỬA LẠI so với bản đầu file này):
+    "SAU KHI ĐÁNH BÀI RA (bước 2 của lượt chơi), bạn có thể bỏ bao nhiêu
+    lá cầm trên tay cũng được, và rút lại bấy nhiêu lá từ bộ bài để rút
+    (CHỈ ĐƯỢC 1 LẦN)."
+    ⇒ Xảy ra ở BƯỚC 2, KHÔNG phải ngay sau pha rút như bản đầu viết. Và
+    mỗi lượt chỉ đổi được ĐÚNG 1 LẦN.
+  - Cách cài đặt:
+    → Pending mới `NEED_RANCH_EXCHANGE`, đẩy ở CUỐI bước 2 — cụ thể là
+      lúc người chơi gửi END_TURN, TRƯỚC khi chuyển sang pha bỏ bài dư.
+      Như vậy họ đã đánh xong mới đổi, đúng câu "sau khi đánh bài ra".
+      [ĐỔI STATE]
+      [CẦN BÀN] Cách khác: cho đổi bất cứ lúc nào TRONG bước 2 như một
+      nước đi tuỳ chọn (giống Ricochet/Sniper), kèm cờ
+      `ranchUsedThisTurn` để chặn lần 2. Linh hoạt hơn cho người chơi
+      nhưng tốn thêm 1 field state. Chốt 1 trong 2.
+    → Action RESPOND hiện chỉ có `cardId?: string` (một lá). Ranch cần
+      NHIỀU lá ⇒ thêm `cardIds?: string[]`. [ĐỔI STATE] — lưu ý
+      USE_ABILITY đã có `cardIds: string[]`, nên đây là khuôn đã quen
+      thuộc trong dự án, không phải khái niệm mới.
+    → Thứ tự BẮT BUỘC: bỏ hết N lá vào chồng bỏ TRƯỚC, rồi mới rút N lá
+      mới. Nếu rút trước thì có thể rút lại đúng lá vừa bỏ.
+    → Suzy Lafayette: nếu bỏ hết bài trên tay, tay về 0 giữa chừng ⇒
+      hook onHandEmpty sẽ chạy và cho cô rút 1 lá "miễn phí" TRƯỚC khi
+      rút bù. [CẦN BÀN] đúng hay sai — dự án đã gặp đúng vấn đề này ở
+      mục 1.2 Dodge City ("bỏ kèm 1 lá phụ") và chốt là gọi
+      triggerHandEmptyHook() SAU khi cả 2 lá đã rời tay. Áp cùng nguyên
+      tắc: gọi hook SAU khi đã rút bù xong.
+    → RESPOND với mảng rỗng = không đổi lá nào (mặc định/hết giờ).
+    - *dev: đổi lại cơ chế cho đơn giản hơn, ngay sau bước bốc bài sẽ cho người chơi 20s để chọn tất cả các lá muốn đổi, sau đó rút lại số lá tương ứng. Nếu hết giờ hoặc ấn "Không đổi" thì không đổi.
+
+--- NHÓM (A): CHẠY MỘT LẦN LÚC LẬT ---
+
+Russian Roulette — nhóm (A)  *** BẢN ĐẦU FILE NÀY VIẾT SAI HOÀN TOÀN ***
+  - Hiệu ứng (NGUYÊN VĂN bản dịch — cơ chế thật phức tạp hơn nhiều):
+    1. Chủ trò RÚT 1 LÁ BÀI (một lần draw!).
+    2. ĐẾM người, bắt đầu ĐẾM TỪ CHÍNH CHỦ TRÒ (chủ trò là số 1).
+       Chiều đếm phụ thuộc MÀU CHẤT của lá vừa rút:
+         · chất ĐỎ (Cơ/Rô)  ⇒ đếm THEO chiều kim đồng hồ
+         · chất ĐEN (Bích/Nhép) ⇒ đếm NGƯỢC chiều kim đồng hồ
+    3. Đếm tới đúng GIÁ TRỊ của lá vừa rút (A=1, J=11, Q=12, K=13). Đi
+       vòng tròn, quá 1 vòng thì đếm tiếp vòng nữa.
+       Ví dụ trong sách: rút 9 Rô ⇒ đếm từ chủ trò theo chiều kim đồng
+       hồ, chủ trò = 1, người kế = 2, ... ai rơi vào số 9 là người BẮT
+       ĐẦU.
+    4. Người đó phải bỏ ra 1 lá Missed!. Rồi những người TIẾP THEO lần
+       lượt cũng phải bỏ 1 lá Missed!.
+    5. Ai KHÔNG bỏ được thì "Roulette khai hoả": người đó vẫn còn cơ hội
+       tránh bằng Barrel hoặc khả năng nhân vật kiểu Jourdonnais; nếu
+       vẫn không tránh được thì MẤT 2 MÁU, và quá trình dừng tại đó.
+  - Cách cài đặt:
+    → Bước 1-3 (rút lá + đếm) KHÔNG cần pending — làm gọn ngay lúc lật
+      lá sự kiện. Nhưng nó là 1 lần draw! thật ⇒ Lucky Duke có áp dụng
+      không? [CẦN BÀN] Nghiêng về KHÔNG (đây không phải draw! của riêng
+      ai, mà là lá "chia bài" cho cả bàn) — chốt trước.
+      - *dev: KHÔNG áp dụng Lucky Duke, đây là draw! của lá sự kiện, không phải draw! của người chơi.
+    → Đọc CHẤT qua getEffectiveSuit() (Blessing/Curse của High Noon đổi
+      chất ⇒ đổi luôn CHIỀU đếm). Đọc GIÁ TRỊ qua cardSuitRankFromId()
+      như thường — Blessing/Curse không đổi rank.
+    → Công thức người bắt đầu, viết thẳng ra cho khỏi lệch off-by-one:
+        buoc = rank - 1   // vì chủ trò đã là số 1
+        chieu = mauDo ? +1 : -1
+        index = (indexChuTro + chieu * buoc) mod soNguoiCONSONG
+      CHÚ Ý: đếm theo NGƯỜI CÒN SỐNG hay TẤT CẢ ghế (kể cả người đã
+      chết)? [CẦN KIỂM CHỨNG] Bản dịch không nói. Đề xuất: chỉ đếm
+      người còn sống (nhất quán với nextAlivePlayerIndex() đang có).
+      - *dev: chỉ đếm người còn sống, người chết bỏ qua.
+    → Bước 4-5 (chuỗi bỏ Missed!): kind mới
+      `NEED_DISCARD_MISSED_OR_DAMAGE`. [ĐỔI STATE] KHÔNG tái dùng
+      NEED_DISCARD_BANG (Indians!) — Indians bắt MỌI người chịu hậu quả,
+      lá này chỉ 1 người rồi DỪNG.
+    → KHÔNG đẩy sẵn pending cho tất cả (khác playGatling()) — đẩy ĐÚNG 1
+      pending mỗi lần: bỏ được ⇒ pop rồi đẩy pending mới cho người kế
+      tiếp THEO ĐÚNG CHIỀU đã xác định ở bước 2; không bỏ ⇒ pop, trừ 2
+      máu, KHÔNG đẩy tiếp.
+    → Chiều đi của chuỗi phải LƯU LẠI giữa các lần reduce ⇒ nhét vào
+      chính pending (vd `direction: 1 | -1`) thay vì thêm field
+      GameState — pending vốn được phép mang dữ liệu riêng.
+    → "Bỏ 1 lá Missed!" ⇒ dùng actsAsMissed() +
+      isEquipmentUsableAsMissed(), KHÔNG so khớp tên "missed". Nghĩa là
+      Calamity Janet, lá Dodge (Dodge City), Elena Fuente (mọi lá), và
+      lá vàng Bible/Sombrero/Ten Gallon Hat/Iron Plate đang bày đều
+      dùng được.
+    → BARREL/JOURDONNAIS ĐƯỢC DÙNG (bản dịch nói rõ) — nghĩa là khi
+      người chơi KHÔNG bỏ Missed!, phải đẩy tiếp NEED_DRAW_CHECK của
+      Barrel y hệt luồng đỡ Bang! đã có, TRƯỚC khi kết luận là mất máu.
+      Đây là điểm dễ quên nhất của lá này.
+      - *dev: (QUAN TRỌNG) Nếu có Barrel/Jourdonnais thì người chơi cần draw! để kiểm tra trước khi hạ Missed!, nếu draw! thành công thì vẫn cần hạ thêm 1 lá Missed! nữa mới không mất máu.
+    → Chọn KHÔNG bỏ dù có Missed! phải là lựa chọn hợp lệ (đúng tiền lệ
+      NEED_DISCARD_BANG của Indians!, xem chú thích ở types.ts).
+    → Mất 2 máu: applyDamage với killerId = null + eliminateIfDead()
+      ⇒ onLoseLife chạy, onLoseLifeFromCard KHÔNG.
+    → "Chủ trò" trong biến thể 2/3 người: xem mục 1.3 file High Noon —
+      chốt players[0]. Vì lá chỉ lật vào đúng lượt chủ trò, dùng thẳng
+      người đang tới lượt cũng ra cùng kết quả.
+    → Gold Rush (High Noon, đảo chiều lượt) KHÔNG thể cùng lúc với lá
+      này — chỉ 1 lá sự kiện có hiệu lực tại một thời điểm. Chiều đếm ở
+      đây do MÀU LÁ quyết định, hoàn toàn độc lập với chiều đi lượt.
+
+Dead Man — nhóm (A) — KHÓ
+  - Hiệu ứng (NGUYÊN VĂN bản dịch + FAQ Q.11/Q.12 — SỬA LẠI so với bản
+    đầu file này): "Trong lượt của mình, nếu bạn là người ĐẦU TIÊN bị
+    giết thì được sống lại với 2 lá bài và 2 giọt máu (bị giết TRƯỚC
+    HOẶC SAU khi lá Dead Man xuất hiện đều được, miễn là bạn CHƯA CHƠI
+    lượt của mình). Như quy định, bước 1 của lượt chơi bạn RÚT THÊM 2 LÁ
+    (ngoài 2 lá bài được cho khi sống lại)."
+    ⇒ 3 điểm khác bản đầu:
+      · Tổng cộng vào tay 4 LÁ (2 lá hồi sinh + 2 lá rút bước 1 bình
+        thường), không phải 2.
+      · Điều kiện là "chưa chơi lượt kể từ khi chết", nên người chết SAU
+        khi lá Dead Man đã lật vẫn được hồi sinh — lá này không chỉ soi
+        về quá khứ.
+      · Quay lại VĨNH VIỄN (vẫn trong ván sau khi lá sự kiện bị đè).
+  - Cách cài đặt:
+    → [ĐỔI STATE] cần `firstEliminatedPlayerId: string | null`, ghi ĐÚNG
+      MỘT LẦN ở eliminatePlayer() (reduce.ts) nếu đang là null. Không
+      thể suy ra từ state hiện tại.
+    → Không hồi sinh ngay lúc lật — phải chờ tới đúng lượt của người
+      đó. Nhưng nextAlivePlayerIndex() bỏ qua người alive = false ⇒
+      lượt của họ sẽ không bao giờ tới. Cần một cờ kiểu
+      `pendingRevivalPlayerId` để nextAlivePlayerIndex() biết dừng ở
+      người này đúng 1 lần. [CẦN BÀN cách làm — đây là lần đầu dự án
+      cần "người chết vẫn được tính vào vòng lượt"]
+    → Hồi sinh: alive = true, hp = 2, rút 2 lá. maxHp giữ nguyên như
+      lúc đầu ván. Vai trò (role) giữ nguyên. characterId giữ nguyên.
+    → Bài của họ đã bị bỏ hết vào chồng bỏ lúc chết (eliminatePlayer())
+      — không lấy lại, chỉ rút 2 lá mới.
+    → Va chạm điều kiện thắng: checkWinCondition() (win.ts) ĐÃ chạy lúc
+      họ chết. Nếu ván đã kết thúc thì lá này không bao giờ được lật
+      (ván xong rồi) — an toàn. Nhưng nếu họ là Sheriff/police thì ván
+      đã kết thúc ngay lúc đó ⇒ trong thực tế lá này chỉ hồi sinh được
+      Outlaw/Deputy/Renegade. Ghi lại để không viết test sai kỳ vọng.
+    → Va chạm Elena Noir (Miễn Tử) và Bia hồi sinh: 2 cơ chế đó chặn
+      cái chết TRƯỚC khi eliminatePlayer() chạy ⇒ không ghi vào
+      firstEliminatedPlayerId. Đúng ý luật.
+    → Nếu chưa ai chết: lá không làm gì cả.
+    → Bắn event mới `DEAD_MAN_REVIVED`.
+    - *dev: (QUAN TRỌNG) Lá này ảnh hưởng rất nhiều nhân vật có khả năng hồi sinh, cần bàn xử lý kỹ hơn.
+
+--- NHÓM (B): CHẠY MỖI LƯỢT ---
+
+Blood Brothers — nhóm (B)
+  - Hiệu ứng (NGUYÊN VĂN bản dịch): "TRƯỚC KHI BẮT ĐẦU lượt chơi, bạn có
+    thể tặng DUY NHẤT 1 máu của mình (KHÔNG được là giọt cuối cùng) cho
+    1 người chơi bất kì."
+    ⇒ ĐÃ XÁC NHẬN: đúng 1 máu (không nhiều hơn), chặn khi còn 1 máu,
+    tặng cho ai cũng được, và là bước TRƯỚC khi lượt bắt đầu.
+  - Cách cài đặt:
+    → Pending mới `NEED_BLOOD_BROTHERS_GIFT`, đẩy ở applyTurnStartChecks()
+      — sau bước lật lá sự kiện, cùng khu với các bước đầu lượt khác.
+      [ĐỔI STATE]
+    → RESPOND kèm targetId = cho người đó; không kèm gì (mặc định/hết
+      giờ) = bỏ qua. Trường RESPOND.targetId ĐÃ CÓ SẴN (Jesse Jones) —
+      không cần thêm field.
+    → Điều kiện chặn: hp > 1 (không được dùng khi còn đúng 1 máu). Nếu
+      hp = 1 thì đừng đẩy pending, bỏ qua luôn.
+    → Người nhận đã đầy máu: [CẦN BÀN] chặn không cho chọn, hay cho
+      chọn rồi máu cho đi mất trắng? Đề xuất chặn — người chơi mới học
+      dễ bấm nhầm.
+    → [CẦN BÀN] Mất 1 máu này có kích hook onLoseLife (Bart Cassidy rút
+      bài) không? Đây là mất máu TỰ NGUYỆN. Dự án đã có tiền lệ đúng
+      tình huống này: Chuck Wengam (Dodge City) bắn event riêng
+      CHUCK_WENGAM_TRADED_LIFE thay vì DAMAGE_DEALT. Đề xuất theo đúng
+      tiền lệ đó: event riêng `BLOOD_BROTHERS_GIFT`, và chốt rõ có gọi
+      triggerLoseLifeHooks() hay không.
+      - *dev: Bart Cassidy vẫn rút bài nếu mất máu theo cách này, nhưng El Gringo không kích hoạt vì không có "người gây" (bản dịch không nói rõ, nhưng dự án đã chốt là không kích hoạt).
+    → Chỉ được dùng 1 lần mỗi lượt (đẩy pending đúng 1 lần ⇒ tự đúng).
+
+Vendetta — nhóm (B)
+  - Hiệu ứng (NGUYÊN VĂN bản dịch): "SAU KHI KẾT THÚC lượt chơi của
+    mình, bạn rút 1 lá; nếu là chất Cơ, bạn được chơi thêm DUY NHẤT 1
+    LƯỢT NỮA NHƯ BÌNH THƯỜNG (rút 2 lá, đánh bài, bỏ bài dư)."
+    ⇒ ĐÃ XÁC NHẬN 2 điểm: chỉ thêm ĐÚNG 1 lượt (không dây chuyền), và
+    lượt thêm là lượt ĐẦY ĐỦ (có đủ cả 3 bước).
+  - Cách cài đặt:
+    → Đẩy `NEED_DRAW_CHECK` với source.card = "vendetta",
+      matchSuits: ["hearts"] — kind này đã có sẵn, không cần kind mới.
+      Điểm đẩy: handleEndTurn(), TRƯỚC khi gọi advanceTurn().
+    → resolveDrawCheck() (reduce.ts) thêm nhánh cho source "vendetta":
+      khớp ⇒ KHÔNG gọi advanceTurn(), thay vào đó reset lượt cho CHÍNH
+      người đó (turnPhase về "draw", reset bangUsedThisTurn/
+      cardNamesPlayedThisTurn/joseDelgadoUsesThisTurn/
+      docHolydayUsedThisTurn — đúng danh sách advanceTurn() đang reset,
+      NHƯNG currentPlayerIndex GIỮ NGUYÊN và turnNumber vẫn +1).
+    → [ĐỔI STATE] cần `vendettaUsedThisTurn: boolean` để lượt thêm
+      không draw! lần nữa. Reset ở advanceTurn() như các cờ khác.
+    → Lucky Duke (lật 2 lá chọn 1) tự động áp dụng cho draw! này — đúng
+      luật, không cần xử lý riêng.
+    → [CẦN BÀN, TREO VÁN] Blessing (High Noon — mọi lá chất Cơ) +
+      Vendetta ⇒ draw! luôn khớp ⇒ vòng lặp vô hạn. Nhưng
+      vendettaUsedThisTurn ở trên ĐÃ tự chặn (lượt thêm không draw!
+      lại) ⇒ tối đa 2 lượt liên tiếp, an toàn. Ghi lại rõ điều này để
+      không ai "sửa" nhầm cờ đó về sau.
+    → Lượt thêm CÓ phải chạy lại applyTurnStartChecks() không (Dynamite/
+      Jail/High Noon mất máu)? [CẦN KIỂM CHỨNG] — theo luật nó là "một
+      lượt nữa" đầy đủ nên nghiêng về CÓ. Ảnh hưởng lớn nếu kết hợp với
+      lá High Noon.
+      - *dev: Các lá tình huống không bao giờ xảy ra cùng 1 lượt nên cần lo. Ngoài ra vẫn xét Jail/Dynamite ở lượt thêm, nhưng nếu là lượt của Sheriff thì không bốc lại lá tình huống trong lượt thêm này.
+
+A Fistful of Cards — nhóm (B) — LÁ CUỐI, hiệu lực tới hết ván
+  - Hiệu ứng (NGUYÊN VĂN bản dịch): "Khi bắt đầu lượt chơi (TRƯỚC TẤT CẢ
+    các hành động khác như so bài Dynamite, Jail, hoặc rút 2 lá bài quy
+    định...), mỗi người cầm trên tay bao nhiêu lá thì xem như bị bắn bấy
+    nhiêu phát Bang!."
+    ⇒ ĐÃ XÁC NHẬN thứ tự: chạy TRƯỚC CẢ draw!-check Dynamite/Jail, và
+    tất nhiên trước pha rút bài.
+  - Cách cài đặt:
+    → isFinalCard: true trong EVENT_CARDS. eventDeck[0].
+    → Cắm ở applyTurnStartChecks(), ĐẶT TRƯỚC applyDynamiteAndJailChecks()
+      — xem thứ tự các bước đầu lượt ở mục 1.3 file High Noon. Đếm
+      `player.hand.length` ngay tại đó.
+      [CẦN BÀN] còn lại: đứng trước hay sau bước "Vera Custer chọn mượn
+      nhân vật"? Bản dịch chỉ liệt kê Dynamite/Jail/rút bài (đều là luật
+      gốc, chưa có Dodge City). Đề xuất: SAU Vera Custer (cô cần biết
+      mượn ai trước khi ăn đạn), TRƯỚC Dynamite/Jail.
+      - *dev: Vera sẽ được mượn năng lực của người khác trước khi bị bắn, nên đặt sau Vera.
+    → Đẩy N pending NEED_MISSED liên tiếp — đúng khuôn playGatling()
+      đang làm. MỖI phát cần 1 lá Missed! RIÊNG; KHÔNG dùng
+      missesNeeded (field đó nghĩa là "1 phát cần nhiều Missed!", khác
+      hẳn "nhiều phát").
+    → `source.from`: không có người bắn. Dùng đúng quy ước đã chốt ở
+      mục 1.3 file High Noon (đề xuất cho phép null). Hệ quả dây chuyền
+      phải xử lý:
+        · El Gringo (onLoseLifeFromCard cần byPlayerId) ⇒ không kích
+          hoạt, vì không có "người gây". Nhất quán với Dynamite.
+        · Mary Rose (bắn trả người vừa bang cô, event
+          MARY_ROSE_REFLECTED) ⇒ bắn trả VÀO AI? [CẦN BÀN] Đề xuất:
+          không bắn trả (không có mục tiêu hợp lệ).
+        · Molly Stark (rút bài khi bỏ Missed! ngoài lượt) ⇒ đây là
+          TRONG lượt của chính cô ⇒ hook không chạy. Tự đúng.
+        · Barrel/Jourdonnais/Apache Kid vẫn hoạt động bình thường.
+    → N = 0 (tay rỗng) ⇒ không đẩy gì. Đây chính là chiến thuật sống
+      còn của lá này, không phải trường hợp biên cần chặn.
+    → Chết giữa chừng: eliminateIfDead() phải chạy sau MỖI phát, và các
+      pending NEED_MISSED còn lại của người đã chết phải được dọn.
+      [CẦN BÀN] — đọc lại cách playGatling() xử lý người chết giữa
+      chừng trước khi cài, có thể đã có sẵn cơ chế dọn.
+      - *dev: lá này sẽ bắn lần lượt từng phát Bang! nhằm cho phép người chơi dùng Beer để cứu mạng, Missed! hoặc các lá tương tự để né. Bart Cassidy vẫn rút bài nếu mất máu theo cách này, nhưng El Gringo không kích hoạt vì không có "người gây". Nếu chết giữa chừng thì dừng và chuyển sang lượt tiếp theo.
+
+--- NHÓM (C) BỔ SUNG: THÊM NƯỚC ĐI MỚI ---
+(Hai lá này không sửa luật nền mà MỞ THÊM một hành động chỉ tồn tại
+trong vòng của chúng — nhóm riêng vì chỗ cắm khác hẳn.)
+
+Sniper — nhóm (C)
+  - Hiệu ứng (NGUYÊN VĂN bản dịch + FAQ Q.08 Davinci): trong lượt của
+    mình, bỏ CÙNG LÚC 2 lá Bang! để bắn 1 người TRONG TẦM BẮN; người đó
+    phải né bằng 2 lá Missed!, không né được thì mất 1 máu.
+    · Dùng được BAO NHIÊU LẦN CŨNG ĐƯỢC, bắn cùng 1 người hay nhiều
+      người khác nhau đều được.
+    · NGOÀI Sniper, bạn vẫn được bắn thêm 1 phát Bang! thường theo quy
+      định. Không dùng Sniper thì đánh Bang! bình thường.
+    · LUẬT BARREL RIÊNG (Q.08): người bị Sniper bắn mà có Barrel thì chỉ
+      được so 1 lá (draw! ĐÚNG 1 LẦN, không phải 2). Khớp Cơ ⇒ chỉ cần
+      bỏ THÊM 1 lá Missed!. Không khớp ⇒ phải bỏ đủ 2 lá Missed!.
+  - Cách cài đặt: lá RẺ THỨ HAI của bộ, nhờ Slab the Killer đã dựng sẵn
+    `missesNeeded` trong NEED_MISSED.
+    → Gọi pushMissedReactionUnconditional() (reduce.ts) với
+      missesNeeded = 2. KHÔNG viết luồng Missed! riêng.
+    → Cách gửi action: tái dùng khuôn "bỏ kèm 1 lá phụ" của Dodge City
+      (PLAY_CARD + extraDiscardCardId, xem discardExtraCard()) — chỉ
+      khác là lá phụ BẮT BUỘC cũng phải là Bang!. Không cần Action mới.
+    → KHÔNG tính vào giới hạn Bang!/lượt.
+    → Tầm bắn: theo súng đang cầm, như Bang! thường.
+    → LUẬT BARREL: tin tốt — luồng Barrel hiện có ĐÃ ĐÚNG SẴN. Xem chú
+      thích NEED_MISSED ở types.ts: "Mỗi lần bỏ đúng 1 Missed!/1 lượt
+      draw! Barrel khớp Cơ chỉ tính là 1, chưa đủ thì pending được đẩy
+      lại với số còn thiếu giảm 1". Đó CHÍNH XÁC là luật Q.08 (Barrel
+      draw! 1 lần, khớp thì trừ 1 trong 2 Missed! cần thiết). Không phải
+      viết gì thêm — chỉ cần đảm bảo virtualBarrel của Jourdonnais cũng
+      đi qua đúng luồng đó.
+    → [CẦN BÀN] Slab the Killer (onOutgoingBang trả 2) đánh Sniper ⇒
+      cần 2 hay 4 Missed!? Đề xuất: 2 (không cộng dồn), nhưng phải chốt
+      vì code sẽ tự cộng nếu không chặn.
+      - *dev: Nếu bắn theo cách này thì cứ để 4 lá Missed! mới né được.
+    → [CẦN BÀN] Apache Kid (miễn nhiễm chất Rô) — xét chất của lá nào
+      trong 2 lá? Dự án đã gặp y hệt câu hỏi này với Doc Holyday và
+      CHỐT: miễn nhiễm chỉ khi CẢ 2 lá đều chất Rô. Áp cùng quy tắc.
+      - *dev: Apache Kid miễn nhiễm nếu cả 2 lá Bang! đều là Rô, nếu 1 lá là Rô và 1 lá khác thì vẫn bị bắn.
+
+Ricochet — nhóm (C)
+  - Hiệu ứng (NGUYÊN VĂN bản dịch + FAQ Q.16): "Bạn có thể bỏ 1 lá Bang!
+    để bắn 1 lá TRANG BỊ trước mặt người khác, BẤT KỂ KHOẢNG CÁCH (làm
+    bao nhiêu lần cũng được, đối với bao nhiêu người cũng được). Nếu
+    người đó không muốn mất lá đó thì phải dùng lá Missed!. Ngoài những
+    lá Bang! bỏ ra khi dùng Ricochet, bạn vẫn được bắn 1 lá Bang! như
+    quy định."
+    ⇒ ĐÃ XÁC NHẬN: không giới hạn khoảng cách, không giới hạn số lần,
+    không tính vào giới hạn 1 Bang!/lượt.
+  - Cách cài đặt:
+    → Pending mới `NEED_MISSED_FOR_EQUIPMENT`. KHÔNG tái dùng
+      NEED_MISSED — hậu quả khác hẳn (mất LÁ BÀI, không mất máu), và
+      respondToMissed() hiện đang gắn cứng với applyDamage(). [ĐỔI STATE]
+    → Pending cần nhớ lá bị nhắm ⇒ thêm field `targetCardId: string`.
+    → Cách gửi action: PLAY_CARD với targetId (chủ lá) + targetCardId
+      (lá bị nhắm) — 2 field ĐÃ CÓ SẴN trong Action (Panic! đang dùng).
+      Không cần đổi Action.
+    → Lá đỡ: actsAsMissed() + isEquipmentUsableAsMissed() (ghi chú luật
+      chính thức ở đầu file). Nghịch lý cần lưu ý: chủ lá có thể bỏ
+      CHÍNH lá vàng đang bị nhắm để tự cứu nó — vô nghĩa, nhưng hợp lệ
+      về mặt code. [CẦN BÀN] có chặn không.
+    → KHÔNG tính vào giới hạn Bang!/lượt; không giới hạn số lần trong
+      lượt.
+    → Tầm: ĐÃ XÁC NHẬN không giới hạn khoảng cách (FAQ Q.16) — không
+      gọi distance.ts, không kiểm tầm súng.
+    → Bắn được lá của CHÍNH mình không? Nguyên văn nói "of another
+      player" ⇒ không. Chặn ở khâu kiểm tra action.
+    → Belle Star/Lasso: lá đang "mất tác dụng" vẫn bắn được — nó vẫn
+      nằm trên sân. Đọc `player.equipment` THẬT ở đây, KHÔNG dùng
+      getEffectiveEquipment().
+
+
+========================================================================
+2. KẾT HỢP VỚI HIGH NOON
+========================================================================
+Xem mục 1.6 và 1.7 của Luat_Bang_Mo_Rong_HighNoon.txt.
+
+CẬP NHẬT sau khi có bản dịch luật: 2 trong 3 "tổ hợp treo ván" cảnh báo ở
+bản đầu file này thực ra KHÔNG tồn tại.
+  · Blessing + Vendetta — KHÔNG treo. vendettaUsedThisTurn đã chặn, và
+    bản dịch xác nhận luật gốc vốn chỉ cho thêm ĐÚNG 1 lượt. Đừng bỏ cờ
+    đó đi.
+  · Blessing + Peyote — KHÔNG treo. Bản dịch xác nhận Peyote chỉ đoán
+    tối đa 2 lá, không lặp vô hạn. Blessing chỉ biến Peyote thành "rút 2
+    lá miễn phí".
+  · Curse + Dynamite/Jail — vẫn đúng: nổ/giam gần như chắc chắn (Dynamite
+    còn phải khớp cả rank 2-9). Đúng luật, chỉ cần biết trước, không cần
+    chặn.
+
+
+========================================================================
+NGUỒN THAM KHẢO
+========================================================================
+- Luật chính thức High Noon / A Fistful of Cards (PDF, dV Giochi):
+  https://www.dvgiochi.com/giochi/highnoon/download/Fistful_of_Cards-High_Noon_ENG.pdf
+- Luật gộp trong BANG! Expansion Pack (PDF, dV Giochi):
+  https://www.dvgiochi.com/giochi/BangExpansionPack/download/BANG-Expansion-Pack-ENG-Rules_WEB.pdf
+- Danh sách lá chính thức (đã dùng để đối chiếu đủ 15 lá):
+  https://bang.dvgiochi.com/cardslist.php?id=5&lang=en
+- BoardGameGeek — BANG! A Fistful of Cards:
+  https://boardgamegeek.com/boardgame/20237/bang-a-fistful-of-cards
+- Bang! cardgame Wiki (Fandom) — A FISTFUL OF CARDS:
+  https://bang-cardgame.fandom.com/wiki/A_FISTFUL_OF_CARDS
+- Thảo luận về Abandoned Mine (bài đánh ra đi đâu) — Board & Card Games
+  Stack Exchange / BGG thread "Abandoned Mine Question":
+  https://boardgamegeek.com/thread/455959/abandoned-mine-question
+- *** NGUỒN CHÍNH cho các đoạn "NGUYÊN VĂN bản dịch" trong file này ***
+  Bản dịch luật tiếng Việt có trích dẫn FAQ chính thức Davinci Games
+  (Enjoy Boardgame / BoardgameVN), chủ dự án cung cấp. Các câu FAQ được
+  dẫn: Q.04, Q.08, Q.11, Q.12, Q.16, Q.17 (Fistful FAQ).
+  ĐỘ TIN CẬY: cao hơn hẳn mọi nguồn khác trong danh sách này vì có dẫn
+  số hiệu FAQ chính thức. Khi mâu thuẫn, ƯU TIÊN nguồn này.
+
+
+========================================================================
+CẦN TRA / XÁC NHẬN TRƯỚC KHI CODE
+========================================================================
+(Chưa tính các mục chung ở file High Noon — phải chốt hết bên đó trước.)
+
+THÊM VÀO STATE / ACTION (mỗi dòng đều phải hỏi trước, quy tắc CLAUDE.md):
+  ☐ PendingAction mới: NEED_PICK_HARD_LIQUOR, NEED_GUESS_CARD_COLOR,
+    NEED_RANCH_EXCHANGE, NEED_DISCARD_MISSED_OR_DAMAGE,
+    NEED_BLOOD_BROTHERS_GIFT, NEED_MISSED_FOR_EQUIPMENT (6 kind).
+  ☐ RESPOND thêm `color?: "red" | "black"` (Peyote) và
+    `cardIds?: string[]` (Ranch).
+  ☐ GameState thêm `firstEliminatedPlayerId` (Dead Man) và
+    `vendettaUsedThisTurn` (Vendetta), + cách để nextAlivePlayerIndex()
+    dừng ở người sắp hồi sinh (Dead Man).
+
+*** ƯU TIÊN SỐ 1 — MÂU THUẪN GIỮA *dev VÀ FAQ CHÍNH THỨC ***
+  ☒ Ambush — ghi chú *dev nói "ép cứng bằng 1, không cộng trừ gì cả",
+    nhưng FAQ Q.17 nói RÕ là Mustang/Hideout/Binocular/Rose Doolan/
+    Paul Regret VẪN có tác dụng (khoảng cách CƠ BẢN = 1 rồi vẫn cộng
+    trừ). Ghi chú *dev viết khi CHƯA có FAQ này. Chủ dự án duyệt lại:
+    giữ *dev (đơn giản hơn, dễ code hơn) hay theo FAQ (đúng luật gốc)?
+
+TỪNG LÁ (đã gỡ các mục bản dịch luật trả lời xong):
+  ☐ Law of the West — cần hàm canPlayCard() trung tâm (CHƯA CÓ) + cơ
+    chế "nước đi bắt buộc" (CHƯA CÓ); ai chọn mục tiêu; hết giờ xử lý
+    sao. ĐỀ XUẤT LÀM SAU CÙNG. (Phần Kit Carlson đã có lời giải.)
+  ☐ Peyote — hết giờ đoán gì; lá đoán SAI vào chồng bỏ hay trả lại đỉnh
+    bộ bài (bản dịch không nói).
+  ☐ Ranch — chốt 1 trong 2 cách cắm (lúc END_TURN, hay nước đi tuỳ chọn
+    trong bước 2 kèm cờ ranchUsedThisTurn); thứ tự gọi
+    triggerHandEmptyHook() (Suzy Lafayette).
+  ☐ Russian Roulette — đếm theo người CÒN SỐNG hay tất cả ghế; lần rút
+    lá để đếm có áp dụng Lucky Duke không.
+  ☐ Dead Man — cách cho nextAlivePlayerIndex() dừng ở người đã chết
+    đúng 1 lần; xác nhận chỉ hồi sinh được Outlaw/Deputy/Renegade.
+  ☐ Blood Brothers — có kích onLoseLife không; có chặn khi người nhận
+    đã đầy máu không.
+  ☐ Vendetta — lượt thêm có chạy lại applyTurnStartChecks() không
+    (bản dịch nói "như bình thường" nhưng chỉ liệt kê 3 bước rút/đánh/
+    bỏ, không nhắc Dynamite/Jail).
+  ☐ A Fistful of Cards — đứng trước hay sau bước Vera Custer; Mary Rose
+    bắn trả vào ai; dọn pending NEED_MISSED còn thừa khi người chơi
+    chết giữa chừng.
+
+ĐÃ ĐƯỢC BẢN DỊCH LUẬT TRẢ LỜI, KHÔNG CẦN HỎI NỮA:
+  ☒ Ambush — cơ chế (nhưng còn mâu thuẫn *dev ở trên).
+  ☒ Lasso — CÓ vô hiệu Dynamite/Jail. Chỉ còn việc chọn cách cài sao
+    cho không đổi hành vi Belle Star (xem lá đó).
+  ☒ Abandoned Mine — đã rõ hoàn toàn (FAQ Q.04). Chủ dự án vẫn quyết
+    định TẠM BỎ lá này khỏi bộ bài.
+  ☒ Hard Liquor — *dev đã chốt thứ tự với hook onDrawPhase.
+  ☒ Peyote — tối đa 2 lá, không lặp vô hạn ⇒ hết nguy cơ treo ván.
+  ☒ Ricochet — không giới hạn khoảng cách (FAQ Q.16).
+  ☒ Sniper — luật Barrel riêng (FAQ Q.08), khớp đúng cơ chế
+    missesNeeded đã có sẵn.
+  ☐ Sniper — Slab the Killer cộng dồn thành 4 Missed! hay giữ 2; Apache
+    Kid xét chất của 1 hay cả 2 lá.
+  ☐ Ricochet — có giới hạn khoảng cách không; có cho bỏ chính lá đang
+    bị nhắm để cứu nó không.
+
+THỨ TỰ LÀM ĐỀ XUẤT: Lasso → Sniper (2 lá gần như miễn phí, kiểm chứng
+hạ tầng) → Ambush → The Judge → Blood Brothers → Vendetta →
+A Fistful of Cards → Russian Roulette → Hard Liquor → Ranch → Peyote →
+Ricochet → Abandoned Mine → Dead Man → Law of the West (khó nhất).
+
+
+========================================================================
+HẾT FILE
+========================================================================
