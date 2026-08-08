@@ -176,6 +176,575 @@ mà không ảnh hưởng nhân vật *ex khác.
 	  bình thường. Không đủ 2 lá Bang! trên tay thì không đánh Bang!
 	  được lượt đó, dù chỉ có 1 lá.
 
+	- The Nobody 3 máu — ⬜ CHƯA CODE (mới là đặc tả, chủ dự án đã chốt
+	GIỮ NGUYÊN thiết kế gốc "draw! mỗi lần bị nhắm tới", KHÔNG đổi sang
+	phương án rút-trước — phương án đó tách ra làm nhân vật riêng, xem
+	The Drifter bên dưới). Đánh giá sức mạnh ở mục IV.
+	  Tên hiệu ứng: "chẳng ai nhắm trúng kẻ vô danh".
+
+	  Khả năng: nếu The Nobody BỊ NHẮM TỚI vì bất cứ lý do gì (Bang!,
+	  Panic!, Cat Balou, Đấu tay đôi, Indians!, Gatling, Cửa hàng tổng
+	  hợp, Saloon, Jail, Tequila...), anh ta draw! 1 lá. Ra BÍCH thì lá
+	  đó bị VÔ HIỆU HOÀN TOÀN với riêng anh ta. (22,9% khi bật Dodge
+	  City — xem bảng tỉ lệ chất ở mục IV.)
+
+	  - Với lá nhắm 1 người: không mất máu, không bị cướp bài, không bị
+	    bắt bỏ bài, không bị nhốt tù. (Bao gồm cả khả năng nhốt tù của Marcel)
+	  - Với lá nhắm CẢ BÀN (Gatling, Indians!, Cửa hàng tổng hợp,
+	    Saloon...): draw! xảy ra MỘT LẦN, TRƯỚC KHI hiệu ứng lá bài
+	    chính thức kích hoạt. Ra BÍCH thì anh ta bị BỎ QUA hoàn toàn —
+	    không cần bỏ Bang!/Missed!, NHƯNG cũng KHÔNG được phát bài thêm
+	    và KHÔNG được hồi máu.
+	  - BẮT BUỘC, không được chọn: áp dụng cho MỌI pending nhắm tới anh
+	    ta, dù bất lợi hay CÓ LỢI. Đây là cái giá của khả năng — ra Cơ
+	    đúng lúc Saloon hồi máu hay Cửa hàng tổng hợp phát bài thì anh
+	    ta mất phần.
+
+	  GHI CHÚ KHI CODE (đọc kỹ TRƯỚC KHI bắt đầu — đây là nhân vật *ex
+	  tốn công nhất từ trước tới nay, KHÔNG phải "thêm 1 hook"):
+
+	  - KHÔNG dùng được hook isImmuneToCard có sẵn. Hook đó THUẦN và
+	    ĐỒNG BỘ (xem chú thích ở characters.ts), trong khi khả năng này
+	    cần 1 lần draw! — mà draw! trong kiến trúc này là đẩy
+	    NEED_DRAW_CHECK lên pending rồi KẾT THÚC HÀM chờ trả lời (quy
+	    tắc 4 CLAUDE.md cấm await). Hai thứ không tương thích.
+
+	  - CÁCH CÀI ĐỀ XUẤT — TẬN DỤNG CHÍNH NGĂN XẾP PENDING, không cần
+	    dựng cơ chế "continuation" tổng quát:
+	    Vì pending là STACK và luôn xử lý phần tử CUỐI, ta có thể đẩy
+	    "việc sẽ xảy ra" xuống trước, rồi đẩy NEED_DRAW_CHECK của The
+	    Nobody LÊN TRÊN. Khi draw! giải quyết xong:
+	      · ra Cơ  -> POP LUÔN mục nằm ngay dưới (huỷ hiệu ứng)
+	      · không  -> để nó tự chạy như bình thường
+	    Đây chính là mẫu Barrel đã có sẵn (xem chú thích dòng ~844
+	    reduce.ts: "đẩy thêm 1 NEED_DRAW_CHECK lên TRÊN nó").
+
+	  - PHÂN LOẠI 2 NHÓM ĐIỂM CẮM (đã rà code, không phải suy đoán):
+	    NHÓM A — hiệu ứng VỐN ĐÃ là 1 pending, dùng được mẹo stack ở
+	    trên, gần như không phải sửa cấu trúc:
+	      · Bang!/Gatling/Punch/Springfield/Derringer/... -> NEED_MISSED
+	        (qua pushMissedReaction())
+	      · Indians!            -> NEED_DISCARD_BANG
+	      · Đấu tay đôi         -> NEED_DUEL_RESPONSE
+	      · Cat Balou/Can Can/Brawl -> NEED_DISCARD_FROM_ZONE
+	      · Cửa hàng tổng hợp   -> NEED_PICK_STORE_CARD
+	    NHÓM B — hiệu ứng áp dụng NGAY LẬP TỨC, KHÔNG có pending để huỷ.
+	    Bắt buộc phải viết lại thành "hoãn lại rồi mới áp dụng" cho
+	    riêng trường hợp mục tiêu là The Nobody:
+	      · Panic!/Rag Time/Conestoga -> applyPanicEffect()
+	      · Jail                      -> playJail()
+	      · Saloon                    -> playSaloon()
+	      · Tequila                   -> playTequila()
+	      · Marcel "cùng vào tù"      -> respondToPickMarcelCompanion()
+	    ⇒ Chỉ 5 chỗ phải sửa thật, không phải cả 12. Bắt đầu từ nhóm A
+	    để có cái chạy được sớm, nhóm B làm sau.
+
+	  - *** BẪY BLESSING/CURSE — PHẢI CHỐT TRƯỚC KHI CODE ***
+	    Lá Curse (High Noon) biến MỌI lá thành chất Bích ⇒ nếu draw!
+	    của nhân vật này đọc chất qua getEffectiveSuit() thì suốt vòng
+	    Curse anh ta MIỄN NHIỄM 100% MỌI THỨ. (Đổi từ Cơ sang Bích chỉ
+	    dời cái bẫy từ lá Blessing sang lá Curse, KHÔNG gỡ được nó.)
+	    ĐỀ XUẤT (chờ chủ dự án duyệt): draw! của The Nobody LUÔN đọc
+	    CHẤT THẬT của lá — gọi thẳng cardSuitRankFromId(), KHÔNG qua
+	    getEffectiveSuit(). Blessing/Curse vẫn áp bình thường cho mọi
+	    draw! khác (Barrel, Jail, Dynamite), chỉ riêng khả năng này
+	    miễn trừ. Nếu KHÔNG chốt gì thì mặc định sẽ dính bẫy.
+
+	  - CỬA HÀNG TỔNG HỢP có ràng buộc THỨ TỰ BẮT BUỘC: số lá lật ra =
+	    số người tham gia. Nếu The Nobody bị bỏ qua thì phải lật N-1 lá.
+	    Nghĩa là draw! của anh ta phải xong TRƯỚC khi lật bài, nên
+	    playGeneralStore() phải tách làm 2 giai đoạn (hiện đang gộp
+	    trong 1 lần reduce()). Đây là lá khó nhất trong cả nhóm A.
+
+	  - THỨ TỰ VỚI BARREL (và Jourdonnais ảo): anh ta có thể vừa có
+	    khả năng này vừa đang cầm Barrel -> 2 lần draw! liên tiếp cho
+	    cùng 1 phát Bang!. [CẦN BÀN] Đề xuất: draw! của The Nobody
+	    TRƯỚC (đúng câu luật "trước khi lá bài chính thức kích hoạt"),
+	    ra Bích thì huỷ luôn, khỏi cần Barrel. Phải chốt rõ vì nó đổi
+	    xác suất tổng: 22,9% + 77,1%*29,6% ~= 45% né được 1 phát Bang!.
+
+	  - KHÔNG cần field GameState nào (khả năng hoàn toàn "tính lại mỗi
+	    lần", không lưu trạng thái theo thời gian) ⇒ KHÔNG có xung đột
+	    Vera Custer nào phải lo, giống Mary Rose và khác Elena Noir/
+	    Marcel Marcelo.
+
+	  - UX: vì khả năng là BẮT BUỘC (không có lựa chọn), đừng bắt người
+	    chơi bấm nút cho từng lần draw!. NEED_DRAW_CHECK hiện được giải
+	    quyết qua action RESPOND (xem handleRespond() trong reduce.ts) —
+	    nên để server/UI tự gửi RESPOND ngay, chỉ hiện kết quả. Nếu
+	    không, một ván 8 người có Gatling sẽ thành tra tấn.
+
+	- The Drifter 3 máu — ⬜ CHƯA CODE. Tên gọi chỉ là đề xuất, đổi
+	thoải mái. Đánh giá sức mạnh ở mục IV.
+	  - *dev đã chốt: hạ từ 4 xuống 3 máu, GIỮ 2 chất đỏ (Cơ hoặc Rô),
+	    và lá chắn huỷ TRỌN đòn Dynamite (cả 3 máu).
+	  - *dev đã chốt: điều kiện kích hoạt đổi từ "lá ĐẦU TIÊN nhắm vào
+	    anh ta" sang "khi BỊ MẤT MÁU vì bất cứ lý do gì". Bản mô tả cũ
+	    (bắt buộc, mọi lá nhắm tới, kể cả lá có lợi) ĐÃ BỎ HẲN — hai
+	    luật đó đá nhau, chỉ giữ bản *dev.
+
+	  Tên hiệu ứng: "linh cảm kẻ lang thang".
+
+	  Khả năng: ĐẦU MỖI LƯỢT của chính mình, The Drifter draw! 1 lá
+	  NGẦM (chỉ mình anh ta thấy kết quả).
+	  - Ra CƠ hoặc RÔ (tức chất ĐỎ — 55,3% khi bật Dodge City): anh ta
+	    được 1 "lá chắn".
+	  - Ra ĐEN: lượt đó không có lá chắn.
+	  - Khi anh ta SẮP BỊ MẤT MÁU vì BẤT CỨ lý do gì (Bang! và mọi lá
+	    tương tự, Đấu tay đôi, Indians!, Gatling, Dynamite, đòn bắn của
+	    Doc Holyday/Mary Rose, lá High Noon...), anh ta CÓ THỂ chọn
+	    kích hoạt lá chắn để VÔ HIỆU TRỌN đòn đó.
+	  - "TRỌN đòn" nghĩa là huỷ CẢ CỤM sát thương, không phải 1 máu:
+	    Dynamite nổ 3 máu -> chặn cả 3.
+	  - TỰ CHỌN, không bắt buộc — được để dành trong cùng vòng.
+	  - Lá chắn dùng xong là hết. HẾT HẠN vào đầu lượt kế tiếp của
+	    chính anh ta (không tích luỹ, không giữ 2 lá chắn cùng lúc).
+
+	  GHI CHÚ KHI CODE:
+
+	  - Lúc DÙNG, lá chắn chỉ là đọc 1 field boolean ⇒ KHÔNG vướng vấn
+	    đề "hook thuần không draw! được" như The Nobody. Nhưng vì giờ
+	    điều kiện là MẤT MÁU (không phải "bị nhắm tới"), điểm cắm KHÔNG
+	    phải isImmuneToCard nữa mà là applyDamage() — chỗ duy nhất mọi
+	    nguồn sát thương đi qua. Gọn hơn hẳn: 1 điểm cắm.
+	  - Vì là TỰ CHỌN nên cần hỏi người chơi ⇒ pending mới
+	    NEED_USE_DRIFTER_SHIELD (RESPOND không kèm gì = không dùng).
+	    [ĐỔI STATE]
+	  - draw! đầu lượt: NEED_DRAW_CHECK ở applyTurnStartChecks(),
+	    source.card = "the_drifter", matchSuits = ["hearts","diamonds"].
+	  - [ĐỔI STATE] `drifterShield: Record<string, boolean>` — PHẢI
+	    theo playerId (Record) chứ không phải field đơn, ĐÚNG lý do đã
+	    ghi ở elenaNoirArmed: Vera Custer có thể mượn khả năng này.
+	  - GIẤU KẾT QUẢ: điểm thiết kế quan trọng nhất, đừng bỏ. Đối
+	    phương không biết anh ta có khiên hay không nên phải đoán.
+	    CẢNH BÁO: view.ts hiện gửi elenaNoirArmed NGUYÊN VẸN cho mọi
+	    người (dòng ~176) — dự án CHƯA có tiền lệ lọc field kiểu này,
+	    phải viết mới: viewFor() chỉ giữ entry của chính người xem.
+	  - THỨ TỰ so với Barrel/Missed!: lá chắn xét SAU CÙNG (nó chặn sát
+	    thương, còn Barrel/Missed! chặn từ khâu "trúng đòn"). Chỉ hỏi
+	    dùng khiên khi đòn ĐÃ chắc chắn gây mất máu.
+	  - Đây cũng là 1 cơ chế CHẶN CÁI CHẾT nữa (chặn đòn chí mạng) —
+	    xem ghi chú thứ tự tập trung ở The Sentinel bên dưới.
+	  - Hết hạn: xoá key ở advanceTurn() khi tới lượt của chính người
+	    đó (KHÔNG reset mỗi lượt của bất kỳ ai — lá chắn phải sống sót
+	    qua lượt người khác xen giữa).
+
+	- The Dealer 4 máu — ⬜ CHƯA CODE.
+	  - *dev đã chốt: BỎ HẲN lựa chọn "thương lượng 1 lá cần người đánh
+	    đồng ý" (tốn công gấp bội mà giá trị thấp — nó cần 1 pending hỏi
+	    NGƯỢC về phía kẻ tấn công, hướng chưa từng có trong dự án). Chỉ
+	    giữ 1 lựa chọn duy nhất. Áp dụng được cho CẢ Gatling và mọi lá
+	    tương tự Bang!.
+
+	  Khả năng: mỗi khi bị nhắm bởi 1 lá có hiệu ứng Bang! (Bang!,
+	  Gatling, Punch, Springfield, Derringer, Knife, Pepperbox, Buffalo
+	  Rifle, Howitzer, đòn của Doc Holyday...), The Dealer được hỏi có
+	  muốn bỏ 2 lá NGẪU NHIÊN trên tay để VÔ HIỆU đòn đó với riêng anh
+	  ta hay không. Không giới hạn số lần, miễn còn đủ 2 lá.
+
+	  - [CẦN CHỐT] 2 lá đó ĐI ĐÂU: vào chồng bài bỏ, hay SANG TAY KẺ
+	    TẤN CÔNG? Bản gốc chủ dự án viết là "đưa cho người đánh". Đây
+	    KHÔNG phải chi tiết nhỏ — nó là toàn bộ phần cân bằng của nhân
+	    vật (xem đánh giá ở mục IV). Nếu chỉ bỏ vào chồng bỏ thì đây
+	    gần như là Sid Ketchum phiên bản chống Bang!.
+	    Với Gatling (nhiều mục tiêu) thì "đưa cho người đánh" vẫn hợp
+	    lý — người đánh là 1 người duy nhất.
+	  - Ngẫu nhiên chứ không tự chọn ⇒ tái dùng RNG của Panic!
+	    (applyPanicEffect()).
+	  - Suzy Lafayette: nếu bỏ 2 lá cuối thì tay về 0 ⇒ gọi
+	    triggerHandEmptyHook() SAU KHI cả 2 lá đã rời tay (đúng nguyên
+	    tắc đã chốt ở Dodge City mục 1.2).
+	  - Không cần field GameState nào ⇒ không có xung đột Vera Custer.
+	  - Điểm cắm: pushMissedReaction() — cùng chỗ Barrel/Missed!. Thứ
+	    tự đề xuất: Barrel trước, rồi Missed!, rồi mới hỏi Dealer (để
+	    anh ta không phí 2 lá khi đã đỡ được bằng 1 lá Missed!).
+		- *dev: Xét 3 trường hợp sau trường hợp nào cần bằng và phù hợp nhất:
+								+ Đưa cho người đánh 1 lá để vô hiệu Bang!
+								+ Đưa cho người đánh 2 lá để vô hiệu Bang!
+								+ Đưa vào bộ bài bỏ 2 lá để vô hiệu Bang!
+
+	- The Drunker 4 máu — ⬜ CHƯA CODE.
+	  - *dev đã chốt: nâng từ 3 lên 4 máu, GIỮ nguyên điều kiện chỉ-Beer
+	    (không mở rộng sang mọi nguồn hồi máu như đề xuất ban đầu).
+
+	  Khả năng: mỗi khi BẤT KỲ ai dùng lá Beer để hồi máu, The Drunker
+	  hồi 1 máu ngay lập tức.
+	  - Không vượt quá máu tối đa của The Drunker.
+	  - CHỈ lá Beer. Saloon/Tequila/Canteen/Whisky/Sid Ketchum/lá The
+	    Doctor (High Noon) đều KHÔNG kích hoạt.
+	  - Beer dùng để CỨU MẠNG (hồi sinh tự động lúc máu về 0, event
+	    BEER_SAVED_FROM_DEATH) KHÔNG kích hoạt.
+	  - [CẦN CHỐT] Beer do CHÍNH The Drunker đánh có kích hoạt không?
+	    Nếu CÓ thì Beer hồi anh ta 2 máu — trùng hệt Tequila Joe (Dodge
+	    City) cộng thêm phần ăn theo người khác, tức mạnh hơn hẳn
+	    Tequila Joe. Đề xuất: KHÔNG (chỉ ăn theo Beer của NGƯỜI KHÁC).
+		- *dev: Chỉ tính Beer ăn theo, Beer tự đánh vẫn chỉ được hồi 1 máu
+	  - Điểm cắm: playBeer() trong reduce.ts, ở đúng nhánh hồi máu chủ
+	    động — KHÔNG cắm ở eliminateIfDead() (đó là nhánh cứu mạng).
+	  - [CẦN HOOK MỚI] hook kiểu onOtherPlayerHealedByBeer(next, self).
+	    Khác modifyHealAmount đã có (hook đó sửa LƯỢNG máu của CHÍNH
+	    người uống, còn đây là hồi cho NGƯỜI KHÁC).
+	  - Không cần field GameState nào ⇒ không có xung đột Vera Custer.
+
+	- The Gambler 3 máu — ⬜ CHƯA CODE.
+	  - *dev đã chốt: đổi sang phương án "bỏ 2 lá để draw!" — bản gốc
+	    "bỏ 2 rút 1" là lỗ bài thuần tuý, gần như không ai bấm.
+
+	  Khả năng: trong lượt của mình, bỏ 2 lá bất kỳ trên tay rồi draw!
+	  - Ra ĐỎ (Cơ/Rô — 55,3%): rút 3 lá.
+	  - Ra ĐEN (Nhép/Bích — 44,7%): rút 1 lá.
+	  - Kỳ vọng ≈ 2,11 lá cho 2 lá bỏ ra ⇒ lời nhẹ, có nhịp cược thật.
+	  - Không giới hạn số lần trong lượt, miễn còn đủ 2 lá.
+
+	  GHI CHÚ KHI CODE:
+	  - Dùng chung action USE_ABILITY (cardIds = đúng 2 lá), đúng khuôn
+	    Sid Ketchum/Chuck Wengam/José Delgado đã có.
+	  - Thứ tự BẮT BUỘC: bỏ 2 lá vào chồng bỏ TRƯỚC, rồi draw!, rồi mới
+	    rút bài. Suzy Lafayette: gọi triggerHandEmptyHook() SAU khi đã
+	    rút xong, không phải giữa chừng.
+	  - Chỉ trong lượt của chính mình (assertCurrentPlayer()) — khác
+	    Sid Ketchum dùng được mọi lúc.
+	  - Không cần field GameState nào (không giới hạn số lần) ⇒ không
+	    có xung đột Vera Custer.
+	  - Lucky Duke áp dụng cho draw! này ⇒ lật 2 lá chọn lá có lợi. Tự
+	    đúng nếu đi qua resolveDrawCheck().
+
+	- The Sentinel 3 máu — ⬜ CHƯA CODE. (Chính tả: "Sentinel", bản gốc
+	  ghi "Sentinal".)
+	  - *dev đã chốt: Chỉ được dùng khả năng ĐÚNG 1 LẦN CẢ VÁN. Như vậy
+		3 máu tối đa -> còn 1, vẫn chơi tiếp được thay vì gần như chết theo.
+
+	  Khả năng: bất kỳ lúc nào có 1 người chơi sắp bị ghi nhận CHẾT
+	  (máu về 0 và ngăn xếp pending đã rỗng), TRƯỚC KHI ghi nhận chết,
+	  hỏi The Sentinel có muốn trả 2 MÁU TỐI ĐA VĨNH VIỄN để hồi sinh
+	  người đó ngay lập tức không.
+	  - Người được hồi sinh sống lại với ĐÚNG 1 máu.
+	  - "2 máu tối đa vĩnh viễn" = giảm maxHp, KHÔNG phải máu hiện tại,
+	    KHÔNG hồi lại được bằng bất cứ cách nào. Máu hiện tại bị kẹp
+	    xuống theo maxHp mới nếu đang cao hơn.
+	  - Dùng được kể cả khi đang 1/3 máu (thành 1/1). Bia cứu mạng vẫn
+	    dùng được bình thường sau đó.
+	  - ĐÚNG 1 LẦN CẢ VÁN.
+	  - Vera Custer mượn khả năng này: phần giảm maxHp là VĨNH VIỄN với
+	    chính cô, không trả lại được kể cả khi đã thôi mượn. (Đúng —
+	    đây là đổi CHỈ SỐ chứ không phải hook, nên tự động không cần
+	    code riêng.)
+	  - Elena Noir được hồi sinh bằng cách này thì KHÔNG kích hoạt được
+	    khả năng Miễn Tử của cô.
+
+	  GHI CHÚ KHI CODE:
+	  - [ĐỔI STATE] `sentinelUsed: Record<string, boolean>` (theo
+	    playerId vì Vera Custer có thể mượn).
+	  - ĐÂY LÀ LẦN ĐẦU DỰ ÁN SỬA `maxHp` GIỮA VÁN. Phải rà mọi chỗ đang
+	    ngầm coi maxHp là bất biến: getHandLimit() (giới hạn bỏ bài cuối
+	    lượt tính theo máu HIỆN TẠI nên không sao), UI vẽ viên đạn
+	    (bullet-full/empty — số ô phải giảm theo), computeStartingHp()
+	    (chỉ chạy lúc setup, không sao).
+	  - *** THỨ TỰ CÁC CƠ CHẾ CHẶN CÁI CHẾT — CHỐT TẬP TRUNG 1 CHỖ ***
+	    Dự án giờ có tới 5 thứ can thiệp vào cái chết, chưa kể 3 lá hồi
+	    sinh của các bộ sự kiện:
+	      1. Bia hồi sinh tự động   (BEER_SAVED_FROM_DEATH)
+	      2. Elena Noir — Miễn Tử   (*ex)
+	      3. Teren Kill — draw! né chết (Wild West Show)
+	      4. The Drifter — lá chắn chặn đòn chí mạng (*ex)
+	      5. The Sentinel — hồi sinh NGƯỜI KHÁC (*ex)
+	    Cộng thêm Ghost Town (High Noon), Dead Man + Bone Orchard
+	    (A Fistful of Cards / Wild West Show).
+	    KHÔNG được cài từng cái rời rạc. Phải viết MỘT danh sách thứ tự
+	    ưu tiên duy nhất trong eliminateIfDead() và ghi lại ở đây. Lưu ý
+	    (5) khác hẳn 4 cái trên: nó do NGƯỜI KHÁC quyết định, và chạy
+	    SAU CÙNG (khi mọi cách tự cứu đã thất bại).
+	  - [CẦN CHỐT] Người được hồi sinh có GIỮ BÀI TRÊN TAY không? Nếu
+	    chặn TRƯỚC eliminatePlayer() thì bài họ CHƯA bị bỏ ⇒ giữ nguyên
+	    cả tay lẫn trang bị. Đề xuất: GIỮ — như vậy mới xứng cái giá 2
+	    máu vĩnh viễn. Nếu chọn "mất hết bài" thì khả năng này gần như
+	    vô dụng.
+	  - Pending mới NEED_SENTINEL_REVIVE (hỏi The Sentinel, không phải
+	    hỏi người sắp chết). [ĐỔI STATE]
+	  - checkWinCondition() KHÔNG được chạy trước khi hỏi xong.
+
+	- Fairy The Killer 4 máu — ⬜ CHƯA CODE. (Tên lệch khuôn "The X" của cả
+	  nhóm, cân nhắc đổi thành "The Fair Killer".)
+	  - *dev đã chốt: MẤT MÁU kể cả khi đòn bị đỡ bằng Missed!. Và CHẶN
+	    không cho dùng khi chỉ còn 1 máu (không cho tự sát).
+
+	  Khả năng: mỗi lượt 1 lần, tự mất 1 máu để bắn 1 phát Bang! vào
+	  BẤT KỲ ai.
+	  - Không giới hạn khoảng cách, bỏ qua tầm súng hoàn toàn.
+	  - Không tính vào giới hạn 1 Bang!/lượt.
+	  - Mất 1 máu NGAY khi kích hoạt, KHÔNG hoàn lại dù mục tiêu đỡ
+	    được bằng Missed!/Barrel.
+	  - Chặn khi máu hiện tại = 1 (cùng điều kiện Chuck Wengam đã có).
+
+	  GHI CHÚ KHI CODE:
+	  - Dùng chung action USE_ABILITY (cardIds = mảng RỖNG, targetId =
+	    mục tiêu), đúng khuôn Chuck Wengam (mảng rỗng) + Doc Holyday
+	    (có targetId).
+	  - [ĐỔI STATE] `fairKillerUsedThisTurn: boolean`, reset ở
+	    advanceTurn() như docHolydayUsedThisTurn.
+	  - Mất máu TỰ NGUYỆN ⇒ bắn event RIÊNG (vd FAIR_KILLER_TRADED_LIFE)
+	    thay vì DAMAGE_DEALT, đúng tiền lệ CHUCK_WENGAM_TRADED_LIFE.
+	    [CẦN CHỐT] có gọi triggerLoseLifeHooks() không (Bart Cassidy có
+	    rút bài không) — cùng câu hỏi đã đặt ra ở Blood Brothers.
+	  - KHÔNG đi qua Apache Kid (isImmuneToCard): đây là kỹ năng, không
+	    gắn với lá bài thật nào để tra chất. ĐÃ CÓ TIỀN LỆ — xem ghi
+	    chú "đòn bang trả" của Mary Rose ở trên, chép lại nguyên tắc.
+	  - VẪN tôn trọng Barrel/Jourdonnais/Missed! của mục tiêu như đòn
+	    Bang! bình thường (qua pushMissedReaction()).
+
+	- Jeff The Clown 3 máu — ⬜ CHƯA CODE. Nhân vật *ex PHỨC TẠP NHẤT
+	  từ trước tới nay — đọc HẾT mục này trước khi gõ dòng code đầu
+	  tiên. Đánh giá sức mạnh ở mục IV.
+
+	  Tên hiệu ứng: "úp bài".
+
+	  Khả năng: MỖI LƯỢT 1 LẦN, trong lượt của chính mình, Jeff đánh 1
+	  lá bài bất kỳ từ tay xuống ÚP MẶT và TUYÊN BỐ nó là 1 trong 4 lá:
+	  Bang!, Gatling, Indians!, Đấu tay đôi.
+	  - Cả bàn CHỈ thấy TÊN ĐƯỢC TUYÊN BỐ, không thấy lá thật.
+	  - Ván bài chạy y như lá được tuyên bố là thật: đẩy pending bình
+	    thường, mọi người phản ứng bình thường.
+	  - Sau khi chuỗi phản ứng đi hết bàn, LẬT NGỬA lá thật:
+	      · Đúng như tuyên bố  -> hiệu ứng xảy ra THẬT.
+	      · Không đúng          -> KHÔNG có hiệu ứng gì (không ai mất
+	        máu), nhưng bài mọi người đã bỏ ra để phản ứng thì MẤT
+	        LUÔN, không thu hồi.
+
+	  *dev ĐÃ CHỐT 4 ĐIỂM (bàn ngày 2026-08-08):
+
+	  1. ĐƯỢC PHÉP NÓI THẬT. Jeff có thể tuyên bố đúng tên lá thật —
+	     lúc đó hiệu ứng xảy ra bình thường. ĐÂY LÀ ĐIỂM SỐNG CÒN của
+	     nhân vật: nếu "úp bài" luôn đồng nghĩa với "nói dối" thì sau
+	     vài ván cả bàn học được luật "Jeff úp bài là Jeff xạo, không
+	     ai đỡ" và khả năng chết hẳn. Cho nói thật thì đối thủ KHÔNG
+	     suy ra được gì từ việc anh ta úp bài, buộc phải đoán thật.
+	  2. MỞ ĐỦ CẢ 4 LÁ ngay từ bản đầu (không thu hẹp còn mỗi Bang!).
+	     Xem cảnh báo cân bằng ở mục IV — Gatling/Indians! là 2 lá đáng
+	     theo dõi nhất khi chơi thử.
+	  3. Lá tuyên bố là "Bang!" CÓ TÍNH vào giới hạn 1 Bang!/lượt.
+	  4. VẪN XÉT CHẤT THẬT cho miễn nhiễm Apache Kid, nhưng KHÔNG CÔNG
+	     KHAI (xem mục "chống rò rỉ" bên dưới). The Nobody vẫn hoạt
+	     động bình thường, và draw! của anh ta xảy ra TRƯỚC khi lá bài
+	     thật sự kích hoạt.
+
+	  NGUYÊN TẮC VÀNG KHI CODE: **TÊN ĐƯỢC TUYÊN BỐ quyết định MỌI luật
+	  chơi** (khoảng cách, tầm súng, giới hạn 1 Bang!/lượt, house rule
+	  no_duplicate_card_names, đếm số lá đánh ra cho lá Miss Susanna của
+	  Wild West Show...). Lá THẬT chỉ còn dùng cho ĐÚNG 2 việc: (a) tra
+	  CHẤT cho miễn nhiễm Apache Kid, (b) so khớp lúc lật để biết thật
+	  hay giả. Ngoài 2 việc đó, coi như lá thật không tồn tại.
+
+	  THỨ TỰ XỬ LÝ (chốt rõ, đừng đảo):
+	    1. Jeff đánh lá úp + tuyên bố tên. Kiểm tra hợp lệ theo TÊN
+	       TUYÊN BỐ (mục tiêu có trong tầm không, còn suất Bang! không...).
+	    2. The Nobody (nếu có mặt và bị nhắm): draw! của anh ta chạy
+	       NGAY ĐÂY, trước khi đẩy pending cho ai. Ra Bích thì anh ta bị
+	       loại khỏi danh sách mục tiêu luôn.
+	    3. Đẩy pending phản ứng cho mọi mục tiêu còn lại, y hệt lá thật.
+	    4. Chuỗi phản ứng chạy hết (bỏ Missed!/Bang!, Barrel draw!,
+	       Molly Stark rút bài... TẤT CẢ ĐỀU THẬT).
+	    5. LẬT lá thật. Bắn event công bố.
+	    6. Áp dụng hậu quả cuối: CHỈ khi lá thật đúng như tuyên bố.
+
+	  CHỈ CHẶN ĐÚNG BƯỚC CUỐI: đây KHÔNG phải chế độ "chạy thử toàn bộ".
+	  Mọi thứ ở bước 4 xảy ra thật — nạn nhân bỏ Missed! là mất thật,
+	  Barrel lật bài thật, Molly Stark rút bài thật. Chỉ 1 dòng
+	  applyDamage() ở bước 6 bị bỏ qua. Nhờ vậy độ khó thấp hơn nhiều
+	  so với tưởng tượng ban đầu.
+
+	  CHỐNG RÒ RỈ THÔNG TIN — phần tinh tế nhất, đọc kỹ:
+	  - Vấn đề: Apache Kid hiện được xử lý bằng cách CHẶN NGAY, không
+	    đẩy pending (xem reduce.ts dòng ~860, ~1081...). Nếu giữ nguyên
+	    cách đó, cả bàn sẽ thấy "Apache Kid không bị hỏi" và suy ra
+	    ngay lá úp là chất Rô — lộ mất 1/4 thông tin.
+	  - Lời giải: HOÃN việc xét miễn nhiễm xuống BƯỚC 6. Cụ thể, khi
+	    nguồn tấn công là lá úp của Jeff thì pushMissedReaction() KHÔNG
+	    short-circuit theo isImmuneToCard nữa — cứ đẩy pending cho
+	    Apache Kid như mọi người. Tới bước 6 mới xét: lá giả -> không ai
+	    mất máu; lá thật + chất Rô + mục tiêu là Apache Kid -> riêng anh
+	    ta không mất máu.
+	  - Nhờ vậy trong suốt bước 3-4 KHÔNG có tín hiệu nào lộ ra, mà chất
+	    vẫn được xét đúng — thoả cả 2 yêu cầu của *dev điểm 4.
+	  - HỆ QUẢ CHẤP NHẬN ĐƯỢC: Apache Kid có thể bỏ phí 1 lá Missed! cho
+	    một đòn mà anh ta vốn miễn nhiễm. Đúng tinh thần "bài đã bỏ ra
+	    không thu hồi", và hợp lý về mặt hình dung: lá úp thì nhìn đâu
+	    ra chất mà tránh.
+	  - Barrel/Jourdonnais KHÔNG rò rỉ gì (draw! lấy từ bộ bài, không
+	    đọc lá tấn công) -> chạy bình thường ở bước 4, không phải hoãn.
+	  - The Nobody cũng KHÔNG rò rỉ (draw! của anh ta độc lập với lá
+	    Jeff) -> chạy ở bước 2 như bình thường.
+
+	  GHI CHÚ KHI CODE — CHI PHÍ THẬT:
+
+	  - [ĐỔI STATE] Cần VÙNG BÀI ÚP MỚI. Lá không được vào discardPile
+	    (chồng bỏ để ngửa, ai cũng thấy ngay). Đề xuất:
+	      faceDownPlay: { playerId; realCardId; declaredName;
+	                      targetId?; isFake: boolean } | null
+	    Xoá về null ngay sau bước 5.
+	  - [QUY TẮC 6] viewFor() phải gửi `declaredName` và GIẤU
+	    `realCardId`. ĐÂY LÀ LẦN ĐẦU dự án CỐ Ý gửi thông tin SAI SỰ
+	    THẬT cho client. Không vi phạm quy tắc 6 (vẫn là state đã lọc,
+	    không phải state đầy đủ), nhưng là tiền lệ kiến trúc lớn — ghi
+	    comment rõ ngay tại chỗ để người đọc sau không tưởng là bug.
+	  - Cờ `fake` phải đi kèm suốt chuỗi pending để bước 6 biết đường.
+	    Đề xuất: KHÔNG nhét vào từng pending (dễ sót), mà tra 1 chỗ duy
+	    nhất là state.faceDownPlay.
+	  - Đấu tay đôi giả: nạn nhân bỏ Bang! TRƯỚC, Jeff bỏ sau. Jeff có
+	    thể chủ động "thua" ngay (không bỏ Bang!) — lá giả nên anh ta
+	    không mất máu, còn nạn nhân đã mất 1 lá Bang! thật. Đây là cú
+	    lừa lời nhất trong 4 lá, ghi lại để không tưởng là bug.
+	  - Chỉ dùng TRONG LƯỢT CỦA CHÍNH MÌNH, chỉ với 4 lá tấn công đã
+	    liệt kê. KHÔNG có bản "úp bài phòng thủ" (giả vờ Missed!) —
+	    phức tạp gấp bội mà không thêm gì.
+	  - [ĐỔI STATE] `jeffUsedThisTurn: boolean`, reset ở advanceTurn().
+	    Theo playerId nếu muốn an toàn với Vera Custer mượn.
+	  - BOT: test/bot-simulation.test.ts sẽ gặp action mới này. Bot chỉ
+	    cần biết "không bao giờ dùng" là đủ để không treo test, nhưng
+	    phải kiểm tra chắc chắn nó không sinh action không hợp lệ rồi
+	    ném lỗi lạ.
+	  - Lá thật sau khi lật: vào chồng bài bỏ như bình thường.
+
+	- The Beggar 4 máu — ⬜ CHƯA CODE. (Chủ dự án viết "The Begga";
+	  chính tả đúng là "Beggar".) Đánh giá sức mạnh ở mục IV.
+	  - *dev đã chốt: TÁCH ĐÔI ý tưởng gốc "The Thief". Hiệu ứng "ăn
+	    theo người đánh nhiều bài" ở lại đây; hiệu ứng "cướp bài đầu
+	    lượt" chuyển sang The Thief bên dưới.
+
+	  Tên hiệu ứng: "nhặt của người vung tay".
+
+	  Khả năng: mỗi khi 1 NGƯỜI CHƠI KHÁC đánh HƠN 4 LÁ trong lượt của
+	  họ, thì từ lá thứ 5 trở đi, MỖI lá làm The Beggar được draw! 1
+	  lần. Ra CƠ hoặc RÔ (đỏ) thì lá đó về tay The Beggar thay vì vào
+	  chồng bài bỏ.
+
+	  - Lá VẪN PHÁT TÁC BÌNH THƯỜNG. The Beggar chỉ NHẶT lá đã dùng
+	    xong, KHÔNG chặn hiệu ứng. (Hiểu theo hướng "chặn" thì cần cơ
+	    chế ngắt giữa chừng mà dự án chưa có — đã loại.)
+	  - KHÔNG tính lượt của chính The Beggar.
+	  - [CẦN CHỐT] Lá thứ 5 là TRANG BỊ (nằm trên sân, không vào chồng
+	    bỏ) thì có nhặt được không? Đề xuất: CÓ, gỡ khỏi sân về tay.
+	    Trang bị vốn công khai nên không rò rỉ thông tin gì.
+
+	  - *** CẢNH BÁO TẦN SUẤT — [CẦN CHỐT] TRƯỚC KHI CODE ***
+	    Đánh hơn 4 lá trong 1 lượt là chuyện HIẾM (hay gặp nhất là lượt
+	    xả trang bị: súng + Barrel + Scope + Mustang + Bang! = 5). Ước
+	    lượng ~5% số lượt chạm mốc, mỗi lần dư ~1,5 lá, nhân 55,3%
+	    ⇒ CHỈ ~1,7 LÁ CẢ VÁN. Có ván khả năng không kích hoạt lần nào.
+	    Hai cần gạt rẻ nhất nếu chơi thử thấy nhạt:
+	      (a) Hạ ngưỡng xuống 3 (ăn từ lá thứ 4) -> ~4,3 lá/ván.
+	      (b) Giữ ngưỡng 4 nhưng BỎ draw!, ăn chắc 100% -> ~3 lá/ván.
+	    Nghiêng (a). Bản ghi ở trên là NGUYÊN VĂN chủ dự án (ngưỡng 4 +
+	    draw!), chưa áp dụng cần gạt nào.
+
+	  GHI CHÚ KHI CODE:
+	  - [ĐỔI STATE] cần `cardsPlayedThisTurn: number` — TIN TỐT: lá
+	    Miss Susanna (Wild West Show) cũng cần ĐÚNG field này. Làm 1
+	    lần dùng cho cả hai. KHÔNG tái dùng `cardNamesPlayedThisTurn`
+	    (chỉ ghi lá NÂU, và chỉ có nghĩa khi bật house rule
+	    no_duplicate_card_names).
+	  - Điểm cắm: cuối handlePlayCard(), sau khi đã tăng bộ đếm.
+	  - THỨ TỰ với hiệu ứng của chính lá đó: lá có thể đẩy pending riêng
+	    (Bang! -> NEED_MISSED). [CẦN BÀN] Đề xuất đẩy draw! của Beggar
+	    XUỐNG DƯỚI pending của lá (giải quyết SAU), để không có cảnh lá
+	    Bang! nằm trong tay Beggar trong lúc nạn nhân đang bị hỏi
+	    Missed!.
+	  - Kỹ năng BẮT BUỘC, không có lựa chọn ⇒ để server/UI tự gửi
+	    RESPOND cho draw!, đừng bắt bấm nút (giống The Nobody).
+	  - Không cần field theo playerId ⇒ không xung đột Vera Custer.
+	  - Không xung đột Vulture Sam (nhặt bài người CHẾT) hay Gary Looter
+	    (Wild West Show, nhặt bài BỎ DƯ cuối lượt) — 3 nguồn khác hẳn
+	    nhau, cùng tồn tại được.
+
+	- The Thief 4 máu — ⬜ CHƯA CODE. Đánh giá sức mạnh ở mục IV.
+	  - *dev đã chốt: dùng hướng "cướp bài đầu lượt", nhắm 2 NGƯỜI TỰ
+	    CHỌN (khác đề xuất ban đầu là "người đang nhiều bài nhất").
+
+	  Tên hiệu ứng: "hai túi một lúc".
+
+	  Khả năng: ĐẦU LƯỢT của mình, The Thief draw! 1 lần. Ra CƠ hoặc RÔ
+	  (đỏ — 55,3%) thì THAY VÌ rút 2 lá từ bộ bài, anh ta chọn 2 người
+	  chơi khác còn sống và lấy NGẪU NHIÊN 1 lá từ tay MỖI người.
+	  - Ra ĐEN: rút 2 lá từ bộ bài như bình thường.
+	  - Người bị chọn mà tay RỖNG: không lấy được gì từ người đó, rút
+	    bù 1 lá từ bộ bài thay thế (đúng tiền lệ Jesse Jones — xem
+	    respondToPickDrawTarget() trong reduce.ts).
+	  - Bàn chỉ còn đúng 1 người khác còn sống: lấy 1 lá, rút bù 1 lá.
+
+	  - *** ĐIỂM QUAN TRỌNG NHẤT — "THAY VÌ RÚT" chứ KHÔNG PHẢI "RÚT
+	    THÊM" *** [CẦN CHỐT]
+	    Bản chủ dự án chỉ nói "draw đầu lượt để rút bài từ tay 2 người",
+	    không nói rõ có thay thế pha rút hay không. Hai cách hiểu lệch
+	    nhau RẤT XA:
+	      · THAY THẾ (đang ghi ở trên): 55,3% số lượt đổi 2 lá bộ bài
+	        lấy 2 lá của đối thủ. Giá trị ròng = phần TƯỚC ĐOẠT
+	        (~1,1 lá/lượt). Gần ĐÚNG BẰNG Jesse Jones (tước ~1 lá/lượt,
+	        100% số lượt) — cùng 4 máu. CÂN BẰNG TỐT.
+	      · CỘNG THÊM: 2 + 1,1 = 3,1 lá/lượt VÀ vẫn tước của đối thủ.
+	        Mạnh hơn Pixie Pete lại còn kèm tước đoạt — QUÁ MẠNH.
+	    Chốt tạm phương án THAY THẾ vì nó khớp neo Jesse Jones. Nếu chủ
+	    dự án muốn CỘNG THÊM thì phải hạ xuống 3 máu VÀ bỏ bớt 1 mục
+	    tiêu.
+
+	  GHI CHÚ KHI CODE:
+	  - Dùng lại gần như NGUYÊN hạ tầng Jesse Jones đã có — đây là nhân
+	    vật *ex RẺ NHẤT trong cả 2 đợt.
+	  - Hook onDrawPhase (thay thế hoàn toàn pha rút mặc định), đúng
+	    khuôn Jesse Jones/Pedro Ramirez/Kit Carlson.
+	  - Luồng: đẩy NEED_DRAW_CHECK (source.card = "the_thief",
+	    matchSuits = ["hearts","diamonds"]) -> ra đỏ thì đẩy tiếp
+	    pending hỏi chọn 2 mục tiêu; ra đen thì rút 2 lá, kết thúc.
+	  - [ĐỔI STATE] pending mới NEED_PICK_TWO_STEAL_TARGETS, và RESPOND
+	    cần chỗ chứa 2 mục tiêu ⇒ thêm `targetIds?: string[]`.
+	  - Lấy NGẪU NHIÊN (không cho tự chọn lá) ⇒ tái dùng RNG của Panic!
+	    (applyPanicEffect()). KHÔNG có tuỳ chọn `letTargetChoose` như
+	    Jesse Jones — giữ đơn giản.
+	  - Sacagaway (Wild West Show, mở bài cả bàn) đang chạy thì VẪN lấy
+	    ngẫu nhiên (FAQ Q17 bộ đó) — cùng nguyên tắc đã ghi cho Flint
+	    Westwood.
+	  - Suzy Lafayette: 2 nạn nhân đều có thể về tay 0 ⇒ gọi
+	    triggerHandEmptyHook() cho CẢ HAI, SAU KHI lấy xong hết.
+	  - Hết giờ (room.ts): tự chọn ngẫu nhiên 2 người còn sống có bài.
+	  - Không cần field theo lượt ⇒ không xung đột Vera Custer.
+
+
+
+
+
+
+
+
+	  GHI CHÚ KHI CODE:
+
+	  - Đây là lý do tách thành nhân vật riêng: lúc DÙNG, lá chắn chỉ
+	    là đọc 1 field boolean ⇒ CẮM THẲNG được vào hook isImmuneToCard
+	    có sẵn (thuần, đồng bộ), KHÔNG phải sửa 4 chỗ nhóm B như The
+	    Nobody. Toàn bộ phần khó của The Nobody biến mất.
+	  - draw! đầu lượt: đẩy NEED_DRAW_CHECK ở applyTurnStartChecks(),
+	    source.card = "the_drifter", matchSuits = ["hearts"]. Đúng 1
+	    lần mỗi vòng thay vì mỗi đòn ⇒ không có vấn đề nhịp độ.
+	  - [ĐỔI STATE] cần `drifterShield: Record<string, boolean>` —
+	    PHẢI theo playerId (Record) chứ không phải field đơn, ĐÚNG lý
+	    do đã ghi ở elenaNoirArmed: Vera Custer có thể mượn khả năng
+	    này, lúc đó 2 người cùng cần trạng thái riêng.
+	  - GIẤU KẾT QUẢ: đây là điểm THIẾT KẾ QUAN TRỌNG NHẤT của nhân
+	    vật, đừng bỏ. Đối phương không biết anh ta có khiên hay không
+	    ⇒ phải đoán ⇒ có đất cho bluff. Nếu công khai thì đối phương
+	    chỉ việc đợi 1 lượt, khả năng mất gần hết giá trị.
+	    CẢNH BÁO: view.ts hiện đang gửi elenaNoirArmed/
+	    elenaNoirImmortalTurnsLeft NGUYÊN VẸN cho mọi người (xem dòng
+	    ~176 view.ts) — tức là dự án CHƯA có tiền lệ lọc field kiểu
+	    này. Phải viết mới: viewFor() chỉ giữ entry của chính người
+	    xem, xoá entry của người khác.
+	  - Thứ tự với Barrel: lá chắn xét TRƯỚC (nó vô hiệu cả lá bài),
+	    Barrel chỉ dùng tới khi không có lá chắn. Nhất quán với đề
+	    xuất ở The Nobody.
+	  - Lá chắn tiêu vào lá ĐẦU TIÊN, kể cả lá có lợi ⇒ nhớ gọi cùng
+	    một đường code với lá bất lợi, đừng lọc "chỉ lá gây hại".
+	  - Hết hạn: xoá key ở advanceTurn() khi tới lượt của chính người
+	    đó (KHÔNG reset vô điều kiện mỗi lượt của bất kỳ ai — đúng lý
+	    do đã ghi ở elenaNoirArmed, lá chắn phải sống sót qua lượt
+	    người khác xen giữa).
+
 II. Luật bổ sung khác (house rules) — không phải nhân vật, mà là
 chỉnh luật gốc, chọn theo phòng cho 1 ván cụ thể. Xem code ở
 core/types.ts (HouseRuleId), core/distance.ts, core/reduce.ts.
@@ -359,3 +928,175 @@ chủ dự án là người quyết định cuối cùng có giữ nguyên hay c
 
 	✅ CHỐT CUỐI: giữ nguyên như đã thiết kế, KHÔNG áp dụng giới hạn
 	1 lần/lượt — chủ dự án xác nhận chấp nhận mức sức mạnh này.
+
+	SỐ LIỆU NỀN dùng cho 2 đánh giá bên dưới (đếm THẬT từ cards.ts,
+	không phải ước lượng — bộ bài KHÔNG đều, đừng dùng giả định 25%):
+
+	  Tỉ lệ chất        | Cơ bản (80 lá) | Cơ bản + Dodge (179 lá)
+	  Cơ    ♥           | 22 — 27,5%     | 53 — 29,6%
+	  Rô    ♦           | 20 — 25,0%     | 46 — 25,7%
+	  Nhép  ♣           | 18 — 22,5%     | 39 — 21,8%
+	  Bích  ♠           | 20 — 25,0%     | 41 — 22,9%
+	  Đỏ / Đen          | 52,5 / 47,5%   | 55,3 / 44,7%
+	  Bích 2-9 (nổ mìn) | 10 — 12,5%     | 22 — 12,3%
+
+	  Lá nhắm tới người khác | Cơ bản | Cơ bản + Dodge
+	  hại, 1 mục tiêu        | 39     | 87
+	  hại, cả bàn            | 3      | 8
+	  LỢI, 1 mục tiêu        | 0      | 1  (Tequila)
+	  LỢI, cả bàn            | 3      | 6  (Cửa hàng tổng hợp, Saloon)
+	  tỉ lệ hại : lợi        | 14 : 1 | 13,6 : 1
+
+	  Ba điều quan trọng rút ra:
+	  - CƠ LÀ CHẤT NHIỀU NHẤT, Nhép ít nhất, chênh gần 8 điểm phần
+	    trăm. Chọn "ra Cơ" là chọn điều kiện RỘNG RÃI NHẤT có thể.
+	  - Dodge City lệch về Cơ nặng hơn (31,3% nếu tính riêng bộ đó)
+	    ⇒ bật mở rộng là mọi khả năng "draw! ra Cơ" TỰ ĐỘNG MẠNH LÊN.
+	    Đây là cái bẫy kín, nhớ khi cân bằng.
+	  - Cần gạt cân bằng RẺ NHẤT cho mọi khả năng dạng này: đổi CHẤT
+	    kích hoạt, không đổi câu luật. Cơ 29,6% -> Rô 25,7% (-13%)
+	    -> Bích 22,9% (-23%) -> Nhép 21,8% (-26%).
+
+	The Nobody *ex — theo tôi TRÊN MẶT BẰNG CHUNG, ở mức cần chỉnh số
+	chứ chưa tới mức phải thiết kế lại:
+
+	- Nhân vật gần nhất để so là Apache Kid (Dodge City): cũng 3 máu,
+	  cũng miễn nhiễm theo chất. Nhưng Apache Kid miễn nhiễm lá chất
+	  Rô (25,7%) và CHỈ với lá nhắm 1 người, KHÔNG áp dụng Duel/
+	  Indians!. The Nobody ăn 29,6%, phủ MỌI thứ kể cả Duel/Indians!/
+	  Gatling/Jail. Mọi khác biệt đều theo hướng mạnh hơn.
+	- Quy ra máu hiệu dụng chỉ tính sát thương: 3 / (1 - 0,296) ~= 4,2
+	  máu. Cộng thêm ~30% chống Panic!/Cat Balou (không nhân vật nào
+	  có) và ~30% chống Jail (lá tempo mạnh nhất game).
+	- So với Jourdonnais (4 máu, Barrel ảo 27,5% chỉ chống Bang!): đây
+	  là đổi 1 máu lấy việc mở rộng vùng phủ gấp ba. Vẫn lời, nhưng
+	  cùng một hạng — không phải phá vỡ cân bằng.
+	- PHẦN AoE THIẾT KẾ TỐT, không cần sửa: 8 lá AoE hại so với 6 lá
+	  AoE lợi (gần 50-50). Ra Cơ lúc bị Gatling là né được, ra Cơ lúc
+	  có Saloon là mất máu hồi. Đối xứng thật sự.
+	- CHỖ LỆCH THẬT nằm ở lá nhắm 1 người: 87 hại so với 1 lợi. Ở đây
+	  khả năng gần như thuần lợi, điều khoản "bắt buộc, kể cả lá có
+	  lợi" gần như không thu được gì. Nó là flavour, KHÔNG phải đối
+	  trọng cân bằng — đừng tính nó vào ngân sách sức mạnh.
+	- ĐIỂM YẾU THIẾT KẾ (quan trọng hơn con số): KHÔNG CÓ ĐỐI PHÓ.
+	  Khả năng của Apache Kid làm đối thủ ĐỔI QUYẾT ĐỊNH (nhìn bài,
+	  giữ lá Rô lại). Khả năng này chỉ làm họ TUNG XÚC XẮC SAU KHI đã
+	  quyết. Trong game suy luận xã hội, cái sau luôn kém hơn dù tỉ lệ
+	  thắng có bằng nhau. Đây là lý do The Drifter được tách ra làm
+	  nhân vật riêng — cùng ý tưởng nhưng CÓ đất bluff.
+
+	Đề xuất (tham khảo, chủ dự án quyết): nếu chơi thử thấy quá mạnh,
+	chỉnh theo thứ tự rẻ -> đắt:
+	  1. Đổi chất kích hoạt Cơ -> Nhép (-26% sức mạnh, sửa 1 từ).
+	  2. Giới hạn 1 lần/lượt của mỗi người chơi (chặn cú Gatling ăn
+	     nhiều lần liên tiếp).
+	  3. Bỏ phần AoE, chỉ giữ lá nhắm 1 người (nhưng mất phần thiết kế
+	     đẹp nhất — không khuyến khích).
+	KHÔNG nên hạ máu: 3 đã là mức thấp nhất trong toàn bộ BANG!.
+
+	The Drifter *ex — theo tôi Ở MỨC TRUNG BÌNH, an toàn hơn The
+	Nobody khá nhiều, và là nhân vật THIẾT KẾ TỐT HƠN dù yếu hơn:
+
+	- Số lần vô hiệu kỳ vọng: 0,296 lần/vòng (tối đa 1). So với
+	  Jourdonnais gặp 2 phát Bang!/vòng thì được ~0,55 lần. Tức là
+	  ÍT HƠN Jourdonnais về số lượng, nhưng phủ rộng hơn hẳn (Jail,
+	  Panic!, Cat Balou, Duel...). Để 4 máu là hợp lý.
+	- Có ĐỐI PHÓ THẬT qua bluff: đối phương không biết anh ta có khiên
+	  hay không. Người chơi The Drifter cũng có thể "diễn" — hành xử
+	  như đang có khiên để răn đe. Đây là thứ The Nobody hoàn toàn
+	  thiếu, và là lý do chính đáng để 2 nhân vật cùng tồn tại.
+	- RỦI RO NGƯỢC LẠI — có thể HƠI YẾU: nếu lỡ để lộ kết quả (UI vẽ
+	  sai, hoặc người chơi tự nói ra), đối phương chỉ việc đợi 1 lượt
+	  là khả năng mất gần hết giá trị. Toàn bộ sức mạnh nằm ở chỗ
+	  GIẤU ĐƯỢC. Nếu chơi thử thấy yếu, cần gạt theo thứ tự:
+	    1. Cho lá chắn GIỮ TỚI KHI DÙNG thay vì hết hạn mỗi vòng
+	       (mạnh lên đáng kể — trạng thái ổn định sẽ gần như luôn có
+	       khiên, cân nhắc kỹ).
+	    2. Hạ xuống 3 máu thì KHÔNG phải buff — đó là nerf. Đừng nhầm.
+	- Lá chắn tiêu cả vào lá CÓ LỢI là điểm trừ thật (mất Saloon/Cửa
+	  hàng tổng hợp), nhưng cũng chỉ ~1-2 lần/ván như đã phân tích ở
+	  The Nobody — giữ vì flavour, không tính vào ngân sách.
+
+	CÁCH ĐO THỰC TẾ (khuyến nghị làm trước khi chốt số cho cả 2 nhân
+	vật): dự án đã có sẵn test/bot-simulation.test.ts chạy 1000 ván 4
+	người, deterministic theo seed. Sửa nó GHI LẠI người thắng thay vì
+	chỉ kiểm tra không crash, rồi chạy ~2000 ván có/không nhân vật
+	này, so tỉ lệ thắng theo TỪNG VAI. Biên chấp nhận được ~±3-5% so
+	với trung bình. Bot đánh ngẫu nhiên nên không đo được kỹ năng,
+	nhưng đo lệch thô thì rất tốt — và rẻ hơn nhiều so với ngồi đoán
+	trên giấy.
+
+	--- 6 NHÂN VẬT *ex ĐỢT 2 (sau khi đã áp dụng chỉnh sửa của *dev) ---
+
+	The Drifter *ex (3 máu, 2 chất đỏ, huỷ trọn đòn kể cả Dynamite) —
+	MẠNH nhưng chấp nhận được ở 3 máu. Đổi 1 máu lấy 55,3% số vòng có
+	"1 lá Missed! vạn năng, tự chọn thời điểm, không bao giờ bị phí"
+	là cuộc trao đổi hời, nhưng 3 máu khiến anh ta chết rất nhanh
+	những vòng không ra đỏ. Tự cân bằng theo hoả lực: bị dồn 3 đòn
+	trong 1 vòng thì chỉ chặn được 1, càng bị tập trung càng ít giá
+	trị — ngược hẳn Mary Rose. Điểm đáng theo dõi: chặn TRỌN Dynamite
+	(3 máu) là cú swing rất lớn, hơn nửa số vòng anh ta coi như miễn
+	nhiễm mìn.
+
+	The Dealer *ex (4 máu) — CÂN BẰNG, thiết kế tốt nhất đợt này, VỚI
+	ĐIỀU KIỆN 2 lá bỏ ra ĐI SANG TAY KẺ TẤN CÔNG. Lúc đó tỉ giá "2 lá
+	đổi 1 lần né" gần y hệt Sid Ketchum, nhưng có thêm cái giá thật là
+	tự vũ trang cho đối thủ — chính khoản đó giữ cho việc "không giới
+	hạn số lần" không thành vấn đề. NẾU đổi thành bỏ vào chồng bỏ thì
+	nhân vật mạnh lên rõ rệt và mất luôn nét riêng. Đây là lý do mục
+	[CẦN CHỐT] ở phần đặc tả không phải chi tiết nhỏ.
+
+	The Drunker *ex (4 máu) — YẾU, và điểm yếu nằm ở CHỖ KHÁC chứ
+	không phải con số máu. Bộ bài chỉ có 8 lá Beer (6 cơ bản + 2 Dodge
+	City), mà phần lớn Beer được giữ tới lúc nguy cấp — tức dùng để
+	cứu mạng, mà cứu mạng thì đã loại trừ. Thực tế 1-3 lần kích hoạt
+	mỗi ván, hoàn toàn phụ thuộc người khác. Có ván anh ta là 4 máu
+	trần trụi không kỹ năng. Nâng lên 4 máu đã đỡ, nhưng nếu chơi thử
+	vẫn thấy nhạt thì cần gạt tiếp theo là MỞ RỘNG ĐIỀU KIỆN (mọi
+	nguồn hồi máu của người khác, không riêng Beer) chứ không phải
+	tăng máu nữa.
+
+	The Gambler *ex (4 máu, bỏ 2 lá + draw!) — CÂN BẰNG. Kỳ vọng 2,11
+	lá cho 2 lá bỏ ra: lời nhẹ, đủ để đáng bấm, không đủ để phá game.
+	Bản gốc "bỏ 2 rút 1" là lỗ bài thuần tuý nên gần như không ai
+	dùng — bản này sửa đúng vấn đề đó. Điểm cộng: không giới hạn số
+	lần nhưng tự giới hạn bằng chính số bài trên tay, và mỗi lần bấm
+	đều có rủi ro thật.
+
+	The Sentinel *ex (4 máu, 1 lần/ván) — TRUNG BÌNH, thiên về ÍT ĐẤT
+	DIỄN giống Marcel Marcelo. 4 máu trả 2 còn 2 là cái giá nặng nhưng
+	sống được, đúng mức để người chơi phải cân nhắc thật chứ không
+	loại trừ thẳng như bản 3 máu. Giá trị thật phụ thuộc HOÀN TOÀN vào
+	câu [CẦN CHỐT] "người hồi sinh có giữ bài không": giữ bài thì đây
+	là nước lật kèo cuối ván rất mạnh; mất hết bài thì hồi sinh 1 máu
+	tay trắng gần như vô nghĩa và khả năng sẽ không bao giờ được dùng.
+
+	Fair Killer *ex (4 máu) — CÂN BẰNG, hơi thiên YẾU, không cần chỉnh.
+	1 máu đổi 1 phát Bang! CÓ THỂ BỊ ĐỠ là tỉ giá đắt (Chuck Wengam
+	trả cùng 1 máu lấy 2 lá, thường giá trị hơn). Giá trị thật nằm ở
+	TẦM BẮN VÔ HẠN — bắn tỉa Sheriff từ đầu kia bàn, hoặc kết liễu mục
+	tiêu máu thấp ngoài tầm. Đó là thứ độc nhất, đáng giữ nguyên.
+
+	Jeff The Clown *ex (3 máu) — KHÔNG ĐO ĐƯỢC BẰNG BOT, và đây là
+	điều quan trọng nhất cần biết về nhân vật này. Toàn bộ sức mạnh
+	nằm ở tâm lý người thật: bot đánh ngẫu nhiên không biết nghi ngờ,
+	nên phương pháp đo ở trên MÙ HOÀN TOÀN với anh ta. Chỉ có chơi thử
+	mới biết.
+
+	- Thế cờ lệch về phía Jeff. Không đỡ lá giả thì mất gì? Không mất
+	  gì. Đỡ lá giả thì mất 1 lá thật. Nhưng không đỡ lá THẬT thì mất
+	  1 máu — mà 1 máu đắt hơn 1 lá bài. Nên người chơi lý trí sẽ
+	  NGHIÊNG VỀ ĐỠ, và Jeff ăn không phần lớn thời gian.
+	- ĐÁNG THEO DÕI NHẤT LÀ GATLING VÀ INDIANS!: bàn 8 người, 1 lá rác
+	  úp xuống hô "Gatling" có thể vắt tới 7 lá Missed! của cả bàn.
+	  Bang! đơn lẻ thì lành (1 lá rác đổi 1 Missed! của 1 người), Đấu
+	  tay đôi cũng lời nhưng chỉ 1 nạn nhân. Chủ dự án đã CHỐT mở đủ 4
+	  lá ngay từ đầu — nếu chơi thử thấy quá mạnh thì cần gạt rẻ nhất
+	  là RÚT GATLING/INDIANS! khỏi danh sách được phép tuyên bố, giữ
+	  Bang! + Đấu tay đôi.
+	- Có 2 khoản tự hãm sẵn: 1 lần/lượt, và lá tuyên bố "Bang!" ăn mất
+	  suất Bang! thật trong lượt đó (*dev điểm 3) — muốn lừa thì phải
+	  hy sinh nước bắn thật.
+	- 3 máu là hợp lý cho bản đầu. Nếu chơi thấy nhạt thì lên 4, nhưng
+	  ĐỪNG tăng máu trước khi biết chắc — rất dễ thành nhân vật vừa
+	  khó chịu vừa khó giết.
