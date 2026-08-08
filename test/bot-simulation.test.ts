@@ -252,6 +252,23 @@ function chooseRespondAction(state: GameState): Action {
         ? { type: "RESPOND", playerId: top.player, targetId: candidates[0].id }
         : { type: "RESPOND", playerId: top.player };
     }
+    case "NEED_BLOOD_BROTHERS_GIFT":
+      // Mở rộng A Fistful of Cards (Blood Brothers) — bot cứ bỏ qua, không
+      // tặng ai (an toàn, luôn hợp lệ).
+      return { type: "RESPOND", playerId: top.player };
+    case "NEED_PICK_HARD_LIQUOR":
+      // Mở rộng A Fistful of Cards (Hard Liquor) — bot cứ rút bài như bình
+      // thường (an toàn, luôn hợp lệ).
+      return { type: "RESPOND", playerId: top.player };
+    case "NEED_MISSED_FOR_EQUIPMENT":
+      // Mở rộng A Fistful of Cards (Ricochet) — bot cứ chịu mất lá trang bị
+      // (an toàn, luôn hợp lệ, giống cách bot xử lý NEED_MISSED khi không có
+      // Missed! phù hợp).
+      return { type: "RESPOND", playerId: top.player };
+    case "NEED_RANCH_EXCHANGE":
+      // Mở rộng A Fistful of Cards (Ranch) — bot cứ bỏ qua, không đổi lá nào
+      // (an toàn, luôn hợp lệ).
+      return { type: "RESPOND", playerId: top.player };
     default: {
       const neverKind: never = top;
       throw new Error(`Bot chưa biết cách phản hồi: ${JSON.stringify(neverKind)}`);

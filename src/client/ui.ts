@@ -895,6 +895,12 @@ export function describeEvent(event: GameEvent, nameOf: (id: string) => string):
       return `${nameOf(event.playerId)} (Mary Rose) bắn trả miễn phí vào ${nameOf(event.targetId)}, cần 2 Missed! mới né được`;
     case "EVENT_REVEALED":
       return `Lá sự kiện mới: ${EVENT_CARDS[event.eventId as EventId]?.name ?? event.eventId}`;
+    case "BLOOD_BROTHERS_GIFT":
+      return `${nameOf(event.playerId)} tặng 1 máu cho ${nameOf(event.targetId)} (Blood Brothers)`;
+    case "RICOCHET_EQUIPMENT_DESTROYED":
+      return `${nameOf(event.playerId)} mất ${cardLabel(event.cardId)} vì đòn Ricochet`;
+    case "RANCH_EXCHANGED":
+      return `${nameOf(event.playerId)} đổi ${event.cardIds.length} lá (Ranch), rút lại ${event.count} lá mới`;
   }
 }
 
@@ -2011,6 +2017,14 @@ function pendingDescription(state: GameState, item: PendingAction): string {
       return `${player} (Elena Noir) chọn vũ trang khả năng Miễn Tử cho lượt này hay không`;
     case "NEED_PICK_MARCEL_COMPANION":
       return `${player} (Marcel Marcelo) chọn 1 người cùng vào tù`;
+    case "NEED_BLOOD_BROTHERS_GIFT":
+      return `${player} chọn tặng 1 máu cho ai đó (hoặc bỏ qua)`;
+    case "NEED_PICK_HARD_LIQUOR":
+      return `${player} chọn bỏ qua pha rút để hồi 1 máu, hay rút bài như thường`;
+    case "NEED_MISSED_FOR_EQUIPMENT":
+      return `${player} đỡ đòn Ricochet bằng Missed! (hoặc mất lá trang bị)`;
+    case "NEED_RANCH_EXCHANGE":
+      return `${player} chọn đổi bài (hoặc bỏ qua)`;
     default: {
       const neverKind: never = item;
       throw new Error(`Chưa biết mô tả cho pending: ${JSON.stringify(neverKind)}`);
@@ -3290,6 +3304,14 @@ function networkRenderPendingPanel(
         return `${name} (Elena Noir) chọn vũ trang khả năng Miễn Tử cho lượt này hay không`;
       case "NEED_PICK_MARCEL_COMPANION":
         return `${name} (Marcel Marcelo) chọn 1 người cùng vào tù`;
+      case "NEED_BLOOD_BROTHERS_GIFT":
+        return `${name} chọn tặng 1 máu cho ai đó (hoặc bỏ qua)`;
+      case "NEED_PICK_HARD_LIQUOR":
+        return `${name} chọn bỏ qua pha rút để hồi 1 máu, hay rút bài như thường`;
+      case "NEED_MISSED_FOR_EQUIPMENT":
+        return `${name} đỡ đòn Ricochet bằng Missed! (hoặc mất lá trang bị)`;
+      case "NEED_RANCH_EXCHANGE":
+        return `${name} chọn đổi bài (hoặc bỏ qua)`;
       default: {
         const neverKind: never = item;
         throw new Error(`Chưa biết mô tả cho pending: ${JSON.stringify(neverKind)}`);

@@ -1258,3 +1258,97 @@ Panic! ở trên).
 - Đã tự kiểm: `npx tsc --noEmit` sạch, 557 test đều pass (tăng từ 520 —
   9 file test mới, mỗi lá 1 file riêng). CHƯA tự kiểm bằng trình duyệt thật
   (chỉ code+test, đúng như đợt 1 — UI bật bộ mở rộng vẫn chưa có).
+
+**Mở rộng A Fistful of Cards — đợt 1 (9/13 lá "dễ" — bỏ qua Abandoned Mine đã
+chốt loại; còn lại A Fistful of Cards (lá cuối)/Russian Roulette/Peyote để dành
+đợt sau, Law of the West/Dead Man để cuối cùng):**
+
+- **Lasso** (vô hiệu 100% mọi trang bị mọi người, kể cả Dynamite/Jail):
+  `getEffectiveEquipment()` (characters.ts) trả `[]` khi active — ÁP DỤNG CHO
+  CẢ người đang tới lượt (khác Belle Star, chỉ tắt của người khác). Sửa
+  `getWeaponRange()` (distance.ts) nhận thêm `state`, đọc qua
+  `getEffectiveEquipment()` — phát hiện hàm này TRƯỚC ĐÓ không hề tôn trọng
+  Belle Star (không ảnh hưởng gì hành vi cũ vì `player` luôn là người đang tới
+  lượt, tự vệ không bao giờ tự vô hiệu chính mình). `applyDynamiteAndJailChecks()`
+  chặn thẳng bằng `isEventActive` (không đi qua `getEffectiveEquipment` — tránh
+  đổi hành vi Belle Star đã cài). `activateDelayedEquipment()` chặn kích hoạt lá
+  vàng khi Lasso đang chạy.
+- **Sniper** (bỏ CÙNG LÚC 2 lá Bang! bắn 1 người, cần 2 Missed!, không giới hạn
+  số lần, không tính bangCountThisTurn): `playSniperShot()` mới, kích hoạt qua
+  `action.extraDiscardCardId` kèm cardName "bang" (Bang! thường không bao giờ
+  có field này). `pushMissedReactionUnconditional()` thêm tham số
+  `missesMultiplier` (mặc định 1, không đổi mọi chỗ gọi cũ) — Sniper truyền 2,
+  Slab the Killer đánh Sniper thành 4 (2×2, *dev đã chốt). Apache Kid miễn nhiễm
+  CHỈ khi CẢ 2 lá đều Rô (khuôn Doc Holyday). Luật Barrel riêng (draw! 1 lần) tự
+  đúng nhờ cơ chế `missesNeeded` có sẵn.
+- **Ambush** (khoảng cách vòng tròn cơ bản = 1): **mâu thuẫn *dev cũ (ép cứng
+  =1) vs FAQ Q17 chính thức (cơ bản=1 rồi vẫn cộng/trừ trang bị/hook) — đã hỏi
+  lại chủ dự án, CHỐT theo FAQ**. `computeDistance()` (distance.ts) đặt khoảng
+  cách vòng tròn = 1 khi active rồi CHẠY TIẾP nguyên phần Scope/Mustang/
+  Binocular/Hideout/modifyDistance. House rule `extra_distance` bị ghi đè, mất
+  tác dụng cùng lúc.
+- **The Judge** (cấm ĐẶT trang bị/Jail mới xuống sân, không cấm DÙNG lá đã bày
+  sẵn): chặn đầu `playEquipment()`/`playJail()`. Khác Lasso ở đúng điểm này —
+  Barrel vẫn draw!, lá vàng vẫn kích hoạt được qua `activateDelayedEquipment()`.
+- **Blood Brothers** (tặng ĐÚNG 1 máu, không được giọt cuối, cho 1 người bất kỳ
+  TRƯỚC KHI lượt bắt đầu): `NEED_BLOOD_BROTHERS_GIFT` mới. Refactor
+  `applyTurnStartChecks()`: tách `continueTurnStartAfterVeraCuster()` (Blood
+  Brothers rồi mới Dynamite/Jail) để cả nhánh Vera Custer VÀ nhánh thường đều đi
+  qua đúng 1 chỗ, không bỏ sót Blood Brothers khi Vera Custer đang mượn khả
+  năng. Người nhận đã đầy máu bị chặn chọn (đề xuất trong đặc tả). Event riêng
+  `BLOOD_BROTHERS_GIFT` (không tái dùng DAMAGE_DEALT/HP_RESTORED) — Bart Cassidy
+  vẫn rút bài, El Gringo không kích hoạt (*dev đã chốt).
+- **Vendetta** (draw! SAU KHI kết thúc lượt, ra Cơ chơi thêm ĐÚNG 1 lượt nữa
+  cho CHÍNH mình): `finishTurn()` mới thay `advanceTurn()` trực tiếp ở
+  `handleEndTurn()`/`handleDiscardCards()`. `applyTurnStartChecks()` thêm tham
+  số `skipEventReveal` (Vendetta gọi lại chính hàm này cho lượt thêm nhưng
+  KHÔNG lật lại lá sự kiện — currentPlayerIndex giữ nguyên nên chủ trò không bị
+  lật nhầm 2 lần). `vendettaUsedThisTurn` (GameState field mới, bulk-thêm vào
+  41 file test) chặn dây chuyền dù Blessing (mọi lá là Cơ) đang chạy cùng lúc.
+  *dev đã chốt: vẫn xét Dynamite/Jail của chính mình ở lượt thêm.
+- **Hard Liquor** (bỏ qua pha rút để hồi 1 máu, KHÔNG được cả hai): tách
+  `continueDrawCardsAfterHardLiquor()` khỏi `handleDrawCards()` để dùng lại
+  được từ `respondToPickHardLiquor()`. `NEED_PICK_HARD_LIQUOR` hỏi TRƯỚC mọi
+  nhân vật override `onDrawPhase` (*dev đã chốt thứ tự) — chọn hồi máu thì các
+  hook đó không chạy; chọn rút thì được hỏi tiếp ngay sau. RESPOND thêm
+  `skipDrawForHardLiquor?: boolean`. Đã đầy máu vẫn cho chọn (hồi 0).
+- **Ricochet** (bỏ 1 Bang! bắn 1 lá TRANG BỊ cụ thể, bất kể khoảng cách, không
+  giới hạn số lần): kích hoạt qua `action.targetCardId` kèm cardName "bang".
+  `NEED_MISSED_FOR_EQUIPMENT` mới (KHÔNG tái dùng NEED_MISSED — hậu quả mất LÁ,
+  không mất máu). Đọc `target.equipment` THẬT (không qua
+  `getEffectiveEquipment()`) — lá đang bị Lasso/Belle Star vô hiệu vẫn bắn
+  được, nhưng CHỦ lá cũng KHÔNG tự cứu được bằng chính lá đó (đã kiểm bằng
+  test riêng Belle Star). Apache Kid miễn nhiễm theo luật chung "1 lá Rô là
+  đủ" (khác Sniper/Doc Holyday — chỉ 1 lá Bang! bỏ ra ở đây, không phải 2).
+- **Ranch** (*dev đã đổi hẳn cơ chế so với bản dịch gốc "sau bước đánh bài":
+  NGAY SAU bước rút bài, 20s chọn đổi bất kỳ số lá nào lấy lại đúng bấy nhiêu lá
+  mới, CHỈ 1 LẦN): thêm hàm trung tâm `completeDrawPhase()` — TẤT CẢ 12 điểm
+  "vừa rút xong, chuyển turnPhase sang play" trong `reduce.ts` (rút thường,
+  Pedro Ramirez/Jesse Jones/Kit Carlson/Pat Brennan/Elena Noir, Marcel bonus
+  draw, Hard Liquor hồi máu) đều đổi sang gọi hàm này thay vì tự set
+  `turnPhase` — tránh rải kiểm tra Ranch ở từng nơi, dễ sót. `NEED_RANCH_EXCHANGE`
+  mới, RESPOND tái dùng `cardIds?: string[]` đã có sẵn (Kit Carlson). Event
+  riêng `RANCH_EXCHANGED` (không tái dùng CARDS_DISCARDED — event đó gắn nghĩa
+  "bỏ bài THỪA cuối lượt"). Suzy Lafayette: `triggerHandEmptyHook()` gọi SAU
+  KHI đã rút bù xong (đặc tả đã chốt) — tự nhiên tránh được combo "đổi bài ăn
+  thêm 1 lá miễn phí giữa chừng" vì tay hiếm khi thật sự về 0 sau khi rút lại
+  đủ số đã đổi.
+- Mọi lá trên đều thêm case xử lý ở CẢ 4 chỗ "exhaustive switch" bắt buộc theo
+  TypeScript khi thêm `PendingAction`/`GameEvent` mới: `ui.ts` (2 bản mô tả
+  pending — trạng thái đầy đủ server-side lẫn `PlayerView`, cộng 1 bản mô tả
+  event cho nhật ký), `room.ts` (hành động mặc định khi hết giờ), và
+  `test/bot-simulation.test.ts` (bot phải biết phản hồi để không treo mô
+  phỏng 1000 ván) — tất cả đều chọn lựa chọn AN TOÀN NHẤT (bỏ qua/không làm gì)
+  khi hết giờ hoặc bot gặp phải, không tự ý hành động thay người chơi.
+- Đã tự kiểm: `npx tsc --noEmit` sạch, 633 test đều pass (tăng từ 557 — 9 file
+  test mới `test/fistful-*.test.ts`, mỗi lá 1 file riêng, cộng vài test sửa lại
+  ở `distance.test.ts` do đổi chữ ký `getWeaponRange()`). CHƯA tự kiểm bằng
+  trình duyệt thật (chỉ code+test — UI bật bộ mở rộng "a_fistful_of_cards" qua
+  checkbox vẫn CHƯA có, giống nếp High Noon đợt 1/2 ở trên; nút bấm riêng cho
+  từng nước đi mới — Sniper/Ricochet/Hard Liquor/Ranch/Blood Brothers — cũng
+  chưa có, để dành đợt UI sau khi đủ cả bộ). **Còn lại của bộ A Fistful of
+  Cards**: A Fistful of Cards (lá cuối, bắn theo số bài trên tay), Russian
+  Roulette (đếm vòng theo chất/giá trị), Peyote (còn 1 câu hỏi chưa chốt: va
+  chạm với nhân vật rút khác 2 lá — Pixie Pete/Bill Noface/Kit Carlson/Pat
+  Brennan/Jesse Jones/Pedro Ramirez) — để dành đợt sau. Law of the West/Dead
+  Man (2 lá khó nhất, cố tình để cuối) chưa động tới.

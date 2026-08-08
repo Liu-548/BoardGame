@@ -111,7 +111,14 @@ export function getHandLimit(state: GameState, player: PlayerState): number {
 // TÍNH HIỆU ỨNG (khoảng cách, Barrel, Missed! trì hoãn...) — KHÔNG dùng cho
 // các nơi chỉ cần biết trang bị có TỒN TẠI VẬT LÝ hay không (cướp/bắt bỏ bài
 // — Panic!/Cat Balou vẫn thấy và lấy được bình thường, chỉ HIỆU ỨNG tắt tạm thời).
+//
+// Mở rộng A Fistful of Cards, lá "Lasso" — *dev đã chốt: vô hiệu hoá 100% MỌI
+// trang bị của MỌI người (kể cả chính người đang tới lượt — khác Belle Star ở
+// đúng điểm này), tự động trả lại bình thường ngay khi lá sự kiện bị đè lên.
+// Kiểm TRƯỚC Belle Star (không quan trọng thứ tự thật vì cả 2 cùng trả `[]`,
+// nhưng đặt trước cho rõ ý "Lasso áp đảo mọi ngoại lệ").
 export function getEffectiveEquipment(state: GameState, player: PlayerState): string[] {
+  if (isEventActive(state, "lasso")) return [];
   const currentPlayer = state.players[state.currentPlayerIndex];
   if (getEffectiveCharacterDefinition(state, currentPlayer)?.disablesOthersEquipment === true && player.id !== currentPlayer.id) {
     return [];

@@ -339,16 +339,14 @@ mà không ảnh hưởng nhân vật *ex khác.
 	  Khả năng: mỗi khi bị nhắm bởi 1 lá có hiệu ứng Bang! (Bang!,
 	  Gatling, Punch, Springfield, Derringer, Knife, Pepperbox, Buffalo
 	  Rifle, Howitzer, đòn của Doc Holyday...), The Dealer được hỏi có
-	  muốn bỏ 2 lá NGẪU NHIÊN trên tay để VÔ HIỆU đòn đó với riêng anh
-	  ta hay không. Không giới hạn số lần, miễn còn đủ 2 lá.
+	  muốn bỏ 2 lá NGẪU NHIÊN trên tay, ĐƯA CHO NGƯỜI ĐÁNH LÁ ĐÓ, để VÔ
+	  HIỆU đòn đó với riêng anh ta hay không. Không giới hạn số lần,
+	  miễn còn đủ 2 lá.
 
-	  - [CẦN CHỐT] 2 lá đó ĐI ĐÂU: vào chồng bài bỏ, hay SANG TAY KẺ
-	    TẤN CÔNG? Bản gốc chủ dự án viết là "đưa cho người đánh". Đây
-	    KHÔNG phải chi tiết nhỏ — nó là toàn bộ phần cân bằng của nhân
-	    vật (xem đánh giá ở mục IV). Nếu chỉ bỏ vào chồng bỏ thì đây
-	    gần như là Sid Ketchum phiên bản chống Bang!.
-	    Với Gatling (nhiều mục tiêu) thì "đưa cho người đánh" vẫn hợp
-	    lý — người đánh là 1 người duy nhất.
+	  - ✅ CHỐT: 2 lá đó SANG TAY KẺ TẤN CÔNG (không phải vào chồng bài
+	    bỏ) — xem lý do so sánh 3 phương án ở *dev bên dưới. Với Gatling
+	    (nhiều mục tiêu) thì người nhận vẫn là người ĐÁNH lá đó — 1
+	    người duy nhất, không chia cho nạn nhân khác.
 	  - Ngẫu nhiên chứ không tự chọn ⇒ tái dùng RNG của Panic!
 	    (applyPanicEffect()).
 	  - Suzy Lafayette: nếu bỏ 2 lá cuối thì tay về 0 ⇒ gọi
@@ -362,6 +360,23 @@ mà không ảnh hưởng nhân vật *ex khác.
 								+ Đưa cho người đánh 1 lá để vô hiệu Bang!
 								+ Đưa cho người đánh 2 lá để vô hiệu Bang!
 								+ Đưa vào bộ bài bỏ 2 lá để vô hiệu Bang!
+			- *dev: Chọn phương án 2 — đưa cho người đánh ĐÚNG 2 lá. Lý do
+			  loại 2 phương án kia:
+			    · 1 lá cho người đánh: cùng giá 1 lá như tự có sẵn Missed!,
+			      nhưng KHÔNG cần đúng là lá Missed! (lá nào cũng dùng
+			      được) và còn chặn được cả Gatling/Howitzer (thứ Missed!
+			      thường không chặn nổi). Không giới hạn số lần ⇒ gần như
+			      miễn nhiễm mọi đòn kiểu Bang! suốt ván, quá rẻ.
+			    · 2 lá vào chồng bỏ: đúng tỉ giá Sid Ketchum (2 lá đổi 1
+			      lợi ích) nhưng không có cái giá phụ nào cả ⇒ cũng thành
+			      "Sid Ketchum bản chống Bang!, không giới hạn số lần" —
+			      mạnh hơn hẳn Sid Ketchum gốc.
+			    · 2 lá cho người đánh giữ được tỉ giá 2-lá-đổi-1 của Sid
+			      Ketchum, CỘNG THÊM cái giá thật: mỗi lần né là 1 lần tự
+			      vũ trang thêm cho đối thủ (có thể là Bang!/Missed!/trang
+			      bị mạnh) — cái giá này tăng dần theo số lần dùng, nên
+			      "không giới hạn số lần" không biến thành bất tử trước
+			      Bang!. Khớp đúng đánh giá đã ghi sẵn ở mục IV.
 
 	- The Drunker 4 máu — ⬜ CHƯA CODE.
 	  - *dev đã chốt: nâng từ 3 lên 4 máu, GIỮ nguyên điều kiện chỉ-Beer
@@ -604,8 +619,7 @@ mà không ảnh hưởng nhân vật *ex khác.
 	    ném lỗi lạ.
 	  - Lá thật sau khi lật: vào chồng bài bỏ như bình thường.
 
-	- The Beggar 4 máu — ⬜ CHƯA CODE. (Chủ dự án viết "The Begga";
-	  chính tả đúng là "Beggar".) Đánh giá sức mạnh ở mục IV.
+	- The Beggar 4 máu — ⬜ CHƯA CODE. Đánh giá sức mạnh ở mục IV.
 	  - *dev đã chốt: TÁCH ĐÔI ý tưởng gốc "The Thief". Hiệu ứng "ăn
 	    theo người đánh nhiều bài" ở lại đây; hiệu ứng "cướp bài đầu
 	    lượt" chuyển sang The Thief bên dưới.
@@ -635,6 +649,7 @@ mà không ảnh hưởng nhân vật *ex khác.
 	      (b) Giữ ngưỡng 4 nhưng BỎ draw!, ăn chắc 100% -> ~3 lá/ván.
 	    Nghiêng (a). Bản ghi ở trên là NGUYÊN VĂN chủ dự án (ngưỡng 4 +
 	    draw!), chưa áp dụng cần gạt nào.
+		- *dev: Hạ xuống 3.
 
 	  GHI CHÚ KHI CODE:
 	  - [ĐỔI STATE] cần `cardsPlayedThisTurn: number` — TIN TỐT: lá
@@ -1046,6 +1061,10 @@ chủ dự án là người quyết định cuối cùng có giữ nguyên hay c
 	nhân vật mạnh lên rõ rệt và mất luôn nét riêng. Đây là lý do mục
 	[CẦN CHỐT] ở phần đặc tả không phải chi tiết nhỏ.
 
+	✅ CHỐT: chọn đúng phương án "2 lá sang tay kẻ tấn công" sau khi so
+	3 trường hợp (1 lá cho người đánh / 2 lá cho người đánh / 2 lá vào
+	chồng bỏ) — xem *dev ở phần đặc tả.
+
 	The Drunker *ex (4 máu) — YẾU, và điểm yếu nằm ở CHỖ KHÁC chứ
 	không phải con số máu. Bộ bài chỉ có 8 lá Beer (6 cơ bản + 2 Dodge
 	City), mà phần lớn Beer được giữ tới lúc nguy cấp — tức dùng để
@@ -1100,3 +1119,31 @@ chủ dự án là người quyết định cuối cùng có giữ nguyên hay c
 	- 3 máu là hợp lý cho bản đầu. Nếu chơi thấy nhạt thì lên 4, nhưng
 	  ĐỪNG tăng máu trước khi biết chắc — rất dễ thành nhân vật vừa
 	  khó chịu vừa khó giết.
+
+	The Beggar *ex (4 máu) — YẾU vì TẦN SUẤT, không phải vì con số.
+	Ước lượng ~1,7 lá cả ván (xem tính toán ở phần đặc tả), có ván
+	khả năng không kích hoạt lần nào. So với Jesse Jones ~10 lá/ván
+	thì đây gần như là nhân vật 4 máu không kỹ năng.
+	Điểm trừ thiết kế thứ hai, tinh hơn: nó ĐÁNH NHẦM ĐỐI TƯỢNG. Người
+	xả 5 lá trong 1 lượt là người đang dốc sạch tay bài, vốn đã đi vào
+	thế thiếu; còn kẻ ÔM BÀI — mối đe doạ thật — thì không bao giờ bị
+	đụng tới.
+	Bù lại, việc tách tên ra là RẤT ĐÚNG: "kẻ ăn mày nhặt thứ người
+	giàu vung ra" khớp cơ chế hơn hẳn so với gọi nó là trộm, và biện
+	minh được cho tính bị động của khả năng. Chỉ cần chỉnh tần suất
+	(hạ ngưỡng xuống 3) là thành một nhân vật tốt.
+
+	The Thief *ex (4 máu, bản THAY THẾ pha rút) — CÂN BẰNG TỐT, neo
+	gần như trùng khít Jesse Jones:
+	  · Jesse Jones: tước ~1 lá/lượt, 100% số lượt, 4 máu.
+	  · The Thief:   tước ~1,1 lá/lượt (2 x 55,3%), 4 máu.
+	Cùng giá trị kỳ vọng, khác ở HÌNH DẠNG rủi ro: Jesse Jones đều đặn
+	và chắc chắn; The Thief bấp bênh nhưng khi trúng thì đánh vào 2
+	người cùng lúc — giá trị chiến thuật cao hơn (chia đều áp lực, hoặc
+	dồn vào 2 mối nguy). Đổi lại 44,7% số lượt anh ta không có gì đặc
+	biệt. Đây là kiểu đánh đổi lành mạnh, không cần chỉnh.
+	CẢNH BÁO: toàn bộ đánh giá trên CHỈ đúng với bản THAY THẾ. Nếu chốt
+	bản CỘNG THÊM thì nhân vật vọt lên trên đường cong ngay, xem mục
+	[CẦN CHỐT] ở phần đặc tả.
+	Ghi chú vui: đây là nhân vật *ex RẺ NHẤT để code trong cả 2 đợt —
+	hạ tầng Jesse Jones đã lo gần hết.
