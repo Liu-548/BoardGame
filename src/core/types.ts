@@ -131,12 +131,15 @@ export type PendingAction =
   // đã rút — cards[2] là lá rút SAU CÙNG). ĐÂY LÀ PENDING DUY NHẤT CHỨA THÔNG
   // TIN ẨN (khác mọi kind khác — xem ghi chú "LUÔN công khai" ở view.ts) —
   // viewFor() (quy tắc 6) PHẢI thay `cards` bằng null với người xem KHÔNG PHẢI
-  // `player`. RESPOND kèm cardId = 1 trong 3 lá -> lá đó bị bỏ, 2 lá còn lại
-  // vào tay; không kèm cardId (mặc định/timeout) -> bỏ đúng cards[2] (giữ 2 lá
-  // ĐẦU) — ĐÂY LÀ HOUSE RULE, khác bản gốc BANG! (bản gốc đặt lá thứ 3 TRỞ LẠI
-  // lên đỉnh bộ bài, bản này bỏ vào chồng bài bỏ) — xem respondToPickKeptCards()
-  // trong reduce.ts.
-  | { kind: "NEED_PICK_KEPT_CARDS"; player: string; cards: string[] }
+  // `player`. `keepCount` = số lá được GIỮ trong 3 lá này — mặc định 2, nhưng
+  // mở rộng High Noon (lá "Thirst"/"Train Arrival") đổi thành 1/3 (FAQ Q6
+  // Davinci: Kit Carlson VẪN xem đủ 3 lá, chỉ đổi SỐ LÁ ĐƯỢC GIỮ). RESPOND kèm
+  // `cardIds` = ĐÚNG `keepCount` lá (trong số 3 lá `cards`) muốn GIỮ, phần còn
+  // lại bị bỏ; không kèm `cardIds` (mặc định/timeout) -> giữ ĐÚNG `keepCount`
+  // lá ĐẦU (cards[0..keepCount-1]) — ĐÂY LÀ HOUSE RULE, khác bản gốc BANG!
+  // (bản gốc đặt lá KHÔNG giữ TRỞ LẠI lên đỉnh bộ bài, bản này bỏ vào chồng
+  // bài bỏ) — xem respondToPickKeptCards() trong reduce.ts.
+  | { kind: "NEED_PICK_KEPT_CARDS"; player: string; cards: string[]; keepCount: number }
   // Mở rộng Dodge City, mục C nhóm A (Pat Brennan, xem core/characters.ts) —
   // đẩy đầu lượt THAY VÌ rút bài ngay, y hệt khuôn Pedro Ramirez/Jesse Jones:
   // rút 2 lá như bình thường, HAY lấy đúng 1 lá trang bị bất kỳ (kể cả "delayed"
@@ -221,6 +224,11 @@ export type Action =
       // true = vũ trang (rút 1 lá lượt này); bỏ trống/false = không vũ trang
       // (rút 2 lá bình thường). Xem respondToPickArmed() trong reduce.ts.
       armed?: boolean;
+      // Kit Carlson (đợt 6) — trả lời NEED_PICK_KEPT_CARDS: ĐÚNG `keepCount`
+      // lá (trong `cards`) muốn GIỮ. Tách riêng khỏi `cardId` (đơn) ở trên vì
+      // mở rộng High Noon (Thirst/Train Arrival) đổi keepCount thành 1 hoặc 3
+      // — 1 lá không diễn đạt được. Xem respondToPickKeptCards() trong reduce.ts.
+      cardIds?: string[];
     }
   // Kỹ năng CHỦ ĐỘNG dùng chung cho 3 nhân vật khác nhau — `cardIds` đổi ý
   // nghĩa/độ dài tuỳ nhân vật đang dùng (xem handleUseAbility() trong
@@ -305,7 +313,9 @@ export type GameEvent =
   // riêng, bỏ vào chồng bài bỏ. KHÔNG tái dùng CARDS_DISCARDED — event đó đã
   // gắn nghĩa "bỏ bài thừa cuối lượt" trong nhật ký ván đấu (ui.ts), dùng lại
   // ở đây sẽ gây hiểu nhầm.
-  | { type: "KIT_CARLSON_DISCARDED"; playerId: string; cardId: string }
+  // Mở rộng High Noon (Thirst/Train Arrival) — có thể bỏ NHIỀU HƠN 1 lá (giữ
+  // 1 thay vì 2 -> bỏ 2), nên `cardIds` là MẢNG (đổi từ `cardId` đơn).
+  | { type: "KIT_CARLSON_DISCARDED"; playerId: string; cardIds: string[] }
   // Giai đoạn 5 (Sid Ketchum, đợt 7) — dùng kỹ năng chủ động: bỏ đúng 2 lá
   // (cardIds), hồi `amount` máu (có thể là 0 nếu đã đầy máu — vẫn cho dùng,
   // không chặn). Gộp 1 event thay vì tách CARDS_DISCARDED + HP_RESTORED —
@@ -433,9 +443,12 @@ export interface GameState {
   // Chuẩn bị cho Giai đoạn 5 (Willy the Kid/Calamity Janet, xem
   // NHAN-VAT-BANG-CO-BAN.txt): luật gốc chỉ cho đánh 1 lá Bang!/lượt, trừ khi
   // đang cầm súng Volcanic — luật này bị THIẾU từ Giai đoạn 1, bổ sung ở đây
-  // (không phải hook nhân vật, là luật nền ai cũng áp dụng). Reset về false
-  // mỗi khi sang lượt mới (advanceTurn() trong reduce.ts).
-  bangUsedThisTurn: boolean;
+  // (không phải hook nhân vật, là luật nền ai cũng áp dụng). Reset về 0
+  // mỗi khi sang lượt mới (advanceTurn() trong reduce.ts). Mở rộng High Noon,
+  // lá "Shootout" — nâng giới hạn lên 2/lượt — cần ĐẾM (không chỉ boolean),
+  // đổi tên từ `bangUsedThisTurn` (giữ Volcanic bỏ qua giới hạn hoàn toàn,
+  // không đổi).
+  bangCountThisTurn: number;
   // Giai đoạn 5, cơ chế "phát 2 lá nhân vật, chọn giữ 1" (xem CharacterChoice
   // ở trên + setup.ts's RuleOptions.dealCharacterCards) — null nghĩa là
   // KHÔNG (hoặc chưa xong) ở giai đoạn chọn nhân vật: ván bình thường như

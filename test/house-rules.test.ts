@@ -34,7 +34,7 @@ function makeState(players: PlayerState[], houseRules: HouseRuleId[], overrides:
     turnPhase: "play",
     rngState: 1,
     winner: null,
-    bangUsedThisTurn: false,
+    bangCountThisTurn: 0,
     characterSelection: null,
     turnNumber: 0,
     equipmentPlayedTurn: {},

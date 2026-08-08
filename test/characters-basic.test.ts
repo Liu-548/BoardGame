@@ -34,7 +34,7 @@ function makeState(overrides: Partial<GameState> = {}): GameState {
     turnPhase: "play",
     rngState: 1,
     winner: null,
-    bangUsedThisTurn: false,
+    bangCountThisTurn: 0,
     characterSelection: null,
     turnNumber: 0,
     equipmentPlayedTurn: {},
@@ -261,7 +261,7 @@ describe("Willy the Kid — bỏ giới hạn 1 Bang!/lượt dù không cầm V
         makePlayer("b"),
         makePlayer("c"),
       ],
-      bangUsedThisTurn: true, // đã đánh 1 lá Bang! trước đó trong lượt này
+      bangCountThisTurn: 1, // đã đánh 1 lá Bang! trước đó trong lượt này
     });
 
     const { state: next } = reduce(state, { type: "PLAY_CARD", playerId: "a", cardId: "bang_2", targetId: "b" });
@@ -272,7 +272,7 @@ describe("Willy the Kid — bỏ giới hạn 1 Bang!/lượt dù không cầm V
   it("người KHÔNG phải Willy vẫn bị chặn như thường", () => {
     const state = makeState({
       players: [makePlayer("a", { hand: ["bang_2"] }), makePlayer("b"), makePlayer("c")],
-      bangUsedThisTurn: true,
+      bangCountThisTurn: 1,
     });
 
     expect(() =>
@@ -941,18 +941,22 @@ describe("Kit Carlson — xem riêng 3 lá trên cùng bộ bài, chọn giữ 2
 
     const drawn = reduce(state, { type: "DRAW_CARDS", playerId: "a" });
     expect(drawn.state.pending).toEqual([
-      { kind: "NEED_PICK_KEPT_CARDS", player: "a", cards: ["saloon_1", "saloon_2", "saloon_3"] },
+      { kind: "NEED_PICK_KEPT_CARDS", player: "a", cards: ["saloon_1", "saloon_2", "saloon_3"], keepCount: 2 },
     ]);
     expect(drawn.state.turnPhase).toBe("draw"); // chưa xong lượt rút
     expect(drawn.state.players[0].hand).toEqual([]); // chưa vào tay ai cả
 
-    const { state: next, events } = reduce(drawn.state, { type: "RESPOND", playerId: "a", cardId: "saloon_2" });
+    const { state: next, events } = reduce(drawn.state, {
+      type: "RESPOND",
+      playerId: "a",
+      cardIds: ["saloon_1", "saloon_3"],
+    });
 
     expect(next.players[0].hand).toEqual(["saloon_1", "saloon_3"]);
     expect(next.discardPile).toEqual(["saloon_2"]);
     expect(next.turnPhase).toBe("play");
     expect(events).toContainEqual({ type: "CARDS_DRAWN", playerId: "a", count: 2 });
-    expect(events).toContainEqual({ type: "KIT_CARLSON_DISCARDED", playerId: "a", cardId: "saloon_2" });
+    expect(events).toContainEqual({ type: "KIT_CARLSON_DISCARDED", playerId: "a", cardIds: ["saloon_2"] });
   });
 
   it("không chọn (mặc định/timeout): giữ 2 lá ĐẦU, bỏ lá thứ 3", () => {
@@ -967,7 +971,7 @@ describe("Kit Carlson — xem riêng 3 lá trên cùng bộ bài, chọn giữ 2
 
     expect(next.players[0].hand).toEqual(["saloon_1", "saloon_2"]);
     expect(next.discardPile).toEqual(["saloon_3"]);
-    expect(events).toContainEqual({ type: "KIT_CARLSON_DISCARDED", playerId: "a", cardId: "saloon_3" });
+    expect(events).toContainEqual({ type: "KIT_CARLSON_DISCARDED", playerId: "a", cardIds: ["saloon_3"] });
   });
 
   it("gửi lá không nằm trong 3 lá vừa xem thì báo lỗi", () => {
@@ -979,8 +983,21 @@ describe("Kit Carlson — xem riêng 3 lá trên cùng bộ bài, chọn giữ 2
 
     const drawn = reduce(state, { type: "DRAW_CARDS", playerId: "a" });
     expect(() =>
-      reduce(drawn.state, { type: "RESPOND", playerId: "a", cardId: "khong_ton_tai" })
+      reduce(drawn.state, { type: "RESPOND", playerId: "a", cardIds: ["khong_ton_tai", "saloon_1"] })
     ).toThrow(/không nằm trong 3 lá/);
+  });
+
+  it("gửi sai SỐ LƯỢNG lá giữ thì báo lỗi", () => {
+    const state = makeState({
+      players: [makePlayer("a", { characterId: "kit_carlson" }), makePlayer("b"), makePlayer("c")],
+      turnPhase: "draw",
+      deck: ["saloon_3", "saloon_2", "saloon_1"],
+    });
+
+    const drawn = reduce(state, { type: "DRAW_CARDS", playerId: "a" });
+    expect(() =>
+      reduce(drawn.state, { type: "RESPOND", playerId: "a", cardIds: ["saloon_1"] })
+    ).toThrow(/đúng 2 lá/);
   });
 
   it("bộ bài + chồng bỏ không đủ 3 lá: giữ hết những gì rút được, khỏi hỏi", () => {
@@ -1037,7 +1054,7 @@ describe("Calamity Janet — Bang! và Missed! hoán đổi cho nhau", () => {
     });
 
     expect(next.pending).toEqual([{ kind: "NEED_MISSED", player: "b", source: { card: "bang", from: "a" } }]);
-    expect(next.bangUsedThisTurn).toBe(true);
+    expect(next.bangCountThisTurn).toBe(1);
     expect(events).toContainEqual({ type: "CARD_PLAYED", playerId: "a", cardId: "missed_1", targetId: "b" });
   });
 

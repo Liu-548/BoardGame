@@ -33,7 +33,7 @@ function makeState(overrides: Partial<GameState> = {}): GameState {
     turnPhase: "play",
     rngState: 1,
     winner: null,
-    bangUsedThisTurn: false,
+    bangCountThisTurn: 0,
     characterSelection: null,
     turnNumber: 0,
     equipmentPlayedTurn: {},
@@ -206,7 +206,7 @@ describe("Doc Holyday — bỏ 2 lá bất kỳ để bắn Bang!, 1 lần/lư�
       cardIds: ["beer_1", "saloon_1"],
       targetId: "b",
     });
-    expect(used.state.bangUsedThisTurn).toBe(false);
+    expect(used.state.bangCountThisTurn).toBe(0);
 
     const respondedFirst = reduce(used.state, { type: "RESPOND", playerId: "b" }); // chịu mất máu
     const { state: next } = reduce(respondedFirst.state, {

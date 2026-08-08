@@ -28,7 +28,7 @@
 // công qua `RuleOptions.characterAssignments` khi gọi setupGame() (xem
 // setup.ts), chỉ để có nhân vật thật mà thử/test.
 
-import { cardSuitRankFromId } from "./cards";
+import { getEffectiveSuit } from "./cards";
 import { giveCardToPlayer } from "./equipment";
 import { drawTopCard } from "./deck";
 import { isEventActive } from "./events";
@@ -187,15 +187,17 @@ export interface CharacterHooks {
   // Mở rộng Dodge City, mục C nhóm B (Apache Kid) — `cardId` là lá CỤ THỂ
   // (có chất/số thật) đang gây hiệu ứng NHẮM VÀO người có nhân vật này. Trả
   // true thì hiệu ứng KHÔNG áp dụng (lá vẫn bị đánh/rời tay/vào chồng bỏ bình
-  // thường ở nơi gọi — chỉ riêng HIỆU ỨNG bị chặn). PURE — chỉ tra chất/số lá,
-  // không cần biết `self`/`fromPlayer` (caller đã biết đang tra hook của AI).
-  // CHỈ gọi ở hiệu ứng TỨC THỜI nhắm 1 người cụ thể (Bang!-like qua
-  // pushMissedReaction(), Cat Balou-like qua pushDiscardFromZoneReaction(),
-  // Panic!-like qua applyPanicEffect(), và playJail() chặn NGAY LÚC ĐÁNH nếu
-  // lá Jail là chất Rô) — KHÔNG áp dụng cho Duel (không đi qua 3 hàm trên,
-  // tự động loại trừ) hay Indians! (cơ chế khác hẳn Missed!, đã hỏi chủ dự án
-  // và CHỐT không tính "tương đương Bang!" cho miễn nhiễm này).
-  isImmuneToCard?(cardId: string): boolean;
+  // thường ở nơi gọi — chỉ riêng HIỆU ỨNG bị chặn). Nhận thêm `state` (mở rộng
+  // High Noon, lá "Blessing"/"Curse" — *dev đã chốt: xét theo CHẤT ĐÃ ĐỔI qua
+  // getEffectiveSuit(), không đọc thẳng chất thật) — vẫn PURE theo nghĩa
+  // không mutate gì, chỉ ĐỌC thêm state.activeEventId. CHỈ gọi ở hiệu ứng TỨC
+  // THỜI nhắm 1 người cụ thể (Bang!-like qua pushMissedReaction(), Cat
+  // Balou-like qua pushDiscardFromZoneReaction(), Panic!-like qua
+  // applyPanicEffect(), và playJail() chặn NGAY LÚC ĐÁNH nếu lá Jail là chất
+  // Rô) — KHÔNG áp dụng cho Duel (không đi qua 3 hàm trên, tự động loại trừ)
+  // hay Indians! (cơ chế khác hẳn Missed!, đã hỏi chủ dự án và CHỐT không
+  // tính "tương đương Bang!" cho miễn nhiễm này).
+  isImmuneToCard?(state: GameState, cardId: string): boolean;
 
   // Mở rộng Dodge City, mục C nhóm C (Molly Stark) — gọi ngay khi CHÍNH `self`
   // chủ động chơi/bỏ 1 lá Missed!/Beer/Bang! (`cardName`) LÚC KHÔNG PHẢI lượt
@@ -452,7 +454,9 @@ export const CHARACTERS: Record<string, CharacterDefinition> = {
           drawnCount++;
           events.push({ type: "BLACK_JACK_REVEALED", playerId: player.id, cardId: secondCard });
 
-          const { suit } = cardSuitRankFromId(secondCard);
+          // Mở rộng High Noon, lá "Blessing"/"Curse" — đọc chất ĐÃ ĐỔI, đúng
+          // luật gốc "chất của MỌI lá bài" (không chỉ riêng draw!/Apache Kid).
+          const suit = getEffectiveSuit(next, secondCard);
           if (suit === "hearts" || suit === "diamonds") {
             const thirdCard = drawTopCard(next);
             if (thirdCard) {
@@ -641,8 +645,12 @@ export const CHARACTERS: Record<string, CharacterDefinition> = {
     bullets: 3,
     hooks: {
       onDrawPhase: (next, player) => {
+        // Mở rộng High Noon, lá "Thirst"/"Train Arrival" — FAQ Q13 Dodge City
+        // xác nhận rõ: 3 lá gốc của Pixie Pete ±1, không phải ép cứng.
+        const adjustment = isEventActive(next, "thirst") ? -1 : isEventActive(next, "train_arrival") ? 1 : 0;
+        const count = Math.max(0, 3 + adjustment);
         let drawnCount = 0;
-        for (let i = 0; i < 3; i++) {
+        for (let i = 0; i < count; i++) {
           const card = drawTopCard(next);
           if (!card) break;
           giveCardToPlayer(next.players, player, card);
@@ -659,7 +667,10 @@ export const CHARACTERS: Record<string, CharacterDefinition> = {
     bullets: 4,
     hooks: {
       onDrawPhase: (next, player) => {
-        const count = 1 + (player.maxHp - player.hp);
+        // Mở rộng High Noon, lá "Thirst"/"Train Arrival" — FAQ Q13 Dodge City
+        // xác nhận rõ: công thức "1 + số máu đã mất" ±1, không phải ép cứng.
+        const adjustment = isEventActive(next, "thirst") ? -1 : isEventActive(next, "train_arrival") ? 1 : 0;
+        const count = Math.max(0, 1 + (player.maxHp - player.hp) + adjustment);
         let drawnCount = 0;
         for (let i = 0; i < count; i++) {
           const card = drawTopCard(next);
@@ -767,7 +778,7 @@ export const CHARACTERS: Record<string, CharacterDefinition> = {
     name: "Apache Kid",
     bullets: 3,
     hooks: {
-      isImmuneToCard: (cardId) => cardSuitRankFromId(cardId).suit === "diamonds",
+      isImmuneToCard: (state, cardId) => getEffectiveSuit(state, cardId) === "diamonds",
     },
   },
 

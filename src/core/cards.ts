@@ -383,3 +383,19 @@ export function cardSuitRankFromId(id: string): { suit: Suit; rank: Rank } {
   const [suit, rank] = table[orderInType % table.length];
   return { suit, rank };
 }
+
+// Mở rộng High Noon, lá "Blessing"/"Curse" (mục 1.5 — hàm trung tâm DUY NHẤT
+// để đọc CHẤT của 1 lá, thay cardSuitRankFromId() ở MỌI nơi chỉ cần chất —
+// chỗ nào chỉ cần RANK thì giữ nguyên cardSuitRankFromId(), Blessing/Curse
+// không đổi rank). Nhận `state` kiểu tối thiểu (chỉ cần `activeEventId`) để
+// dùng được cho CẢ GameState (core/) LẪN PlayerView (client/, xem view.ts) —
+// tránh core/ phải phụ thuộc kiểu của client và ngược lại (quy tắc 1
+// CLAUDE.md). *dev đã chốt: Apache Kid xét MIỄN NHIỄM theo chất ĐÃ ĐỔI (Cơ
+// dưới Blessing = không ai là Rô nữa; Bích dưới Curse = luôn là Rô... không,
+// luôn là Bích — nghĩa là Apache Kid vẫn xét đúng logic "=== diamonds" của nó,
+// chỉ là input đầu vào đã bị thay).
+export function getEffectiveSuit(state: { activeEventId: string | null }, cardId: string): Suit {
+  if (state.activeEventId === "blessing") return "hearts";
+  if (state.activeEventId === "curse") return "spades";
+  return cardSuitRankFromId(cardId).suit;
+}

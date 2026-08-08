@@ -1173,3 +1173,88 @@ Panic! ở trên).
   test nào khác bị ảnh hưởng).
 - **Không đổi gì cần deploy riêng** — vẫn nằm trong batch "CHƯA deploy" chung
   với phần còn lại của Dodge City.
+
+**Mở rộng High Noon — đợt 1 (hạ tầng chồng sự kiện + 3 lá đầu tiên):**
+
+- `core/events.ts` (MỚI): `EventId`, `EVENT_CARDS` (dữ liệu tĩnh, khuôn
+  `CHARACTERS`), `EXPANSION_EVENT_IDS` (đóng góp lá sự kiện theo từng bộ mở
+  rộng — rỗng cho `dodge_city`/`custom_characters`), `isEventActive()` (hàm
+  trung tâm DUY NHẤT để hỏi "lá X có đang chạy không").
+- `ExpansionId` (types.ts) thêm `"high_noon"` + `"a_fistful_of_cards"`.
+  `GameState` thêm `eventDeck`/`activeEventId`/`eventDiscard` — tráo ở
+  `setup.ts` (trộn cả High Noon lẫn A Fistful of Cards nếu bật cả 2, chọn
+  ngẫu nhiên 1 trong 2 lá cuối làm lá thật, lá còn lại không dùng ván đó).
+- `applyTurnStartChecks()` (reduce.ts) lật lá sự kiện ĐÚNG thời điểm/thứ tự
+  đã chốt với chủ dự án: đầu lượt CHỦ TRÒ (có Sheriff thì là Sheriff, không
+  thì `players[0]`), từ lượt thứ 2 trở đi, TRƯỚC CẢ Marcel companion/Vera
+  Custer/Dynamite/Jail. `viewFor()` chỉ lộ lá đang chạy + lá kế tiếp, giấu
+  hoàn toàn phần còn lại của `eventDeck` (đúng luật gốc + quy tắc 6).
+- 3 lá đầu tiên xong core+test: **Hangover** (mọi người mất khả năng đặc biệt
+  nhân vật — tận dụng 3 hàm trung tâm `getEffectiveCharacterHooks()`/
+  `getEffectiveCharacterDefinition()` đã có sẵn từ Vera Custer), **The
+  Doctor** (người ít máu nhất +1, bằng nhau thì mỗi người +1, chỉ tính người
+  còn sống), **The Daltons** (mỗi người có ít nhất 1 lá xanh dương — kể cả
+  Jail/Dynamite, KHÔNG tính lá vàng Dodge City — tự chọn 1 lá bỏ, tái dùng
+  nguyên `NEED_DISCARD_FROM_ZONE` đã có cho Cat Balou).
+- `PendingAction.source` đổi `from: string` thành `from: string | null` (quy
+  ước dùng chung cho MỌI hiệu ứng không có "người gây" — The Daltons, High
+  Noon, A Fistful of Cards, Russian Roulette).
+- Đã tự kiểm: `npx tsc --noEmit` sạch, test đều pass. UI checkbox bật bộ mở
+  rộng "high_noon" CHƯA có — 3 lá này chỉ chạy được qua code/test, không bật
+  được thật ở ván chơi cho tới khi có UI (đợt sau).
+
+**Mở rộng High Noon — đợt 2 (9 lá còn lại, ĐỦ 12/13 — chỉ còn Ghost Town):**
+
+- **High Noon** (lá cuối, hiệu lực tới hết ván): người TỚI LƯỢT mất 1 máu vô
+  điều kiện, cắm ngay đầu `applyTurnStartChecks()` (TRƯỚC CẢ Marcel
+  companion/Vera Custer/Dynamite/Jail — nhờ vậy người bị Jail/Marcel bỏ qua
+  lượt vẫn ăn đủ sát thương mà không cần code riêng). Chết ngay đầu lượt thì
+  tự chuyển lượt qua cascade `eliminatePlayer()`→`advanceTurn()` sẵn có (khuôn
+  Elena Noir).
+- **Gold Rush** (chỉ đảo chiều LƯỢT, KHÔNG đảo hiệu ứng lá bài): tách
+  `nextAlivePlayerIndex()` cũ thành 2 hàm — `nextSeatIndex()` (chiều gốc
+  KHÔNG BAO GIỜ đảo, dùng cho `otherAlivePlayersInOrder()` — Gatling/Indians!/
+  Brawl — và General Store) và `nextTurnPlayerIndex()` (đảo khi Gold Rush
+  đang chạy, CHỈ dùng cho `advanceTurn()`). Dynamite chuyền qua hàm riêng ở
+  `equipment.ts`, không đụng gì.
+- **Shootout** (2 lá Bang!/lượt thay vì 1): đổi `bangUsedThisTurn: boolean`
+  thành `bangCountThisTurn: number` (đổi tên xuyên suốt `core/`+test),
+  Volcanic/Willy the Kid vẫn bỏ giới hạn hoàn toàn.
+- **The Reverend** (cấm đánh Beer CẢ trong lẫn ngoài lượt): chặn ngay đầu
+  `playBeer()`; *dev đã chốt CÓ chặn luôn cơ chế "Bia hồi sinh tự động" ở
+  `eliminateIfDead()` — theo đúng nguyên văn "players cannot play Beer".
+- **The Sermon** (cấm CHƠI lá Bang! trong lượt mình): chặn ngay đầu
+  `playBang()` — vì Calamity Janet đánh Missed! làm Bang! cũng đi qua đúng
+  hàm này (`dispatchCardName` remap có sẵn) nên tự động đúng luôn "Calamity
+  Janet không được bắn bằng Missed!" theo bản dịch, KHÔNG cần động tới
+  `actsAsBang()`. Không cấm bỏ Bang! để đỡ (đi qua RESPOND, không qua
+  `playBang()`), không cấm 7 lá tương đương Bang! của Dodge City hay Doc
+  Holyday (hàm riêng `useDocHolydayShot()`).
+- **Thirst/Train Arrival** (số lá rút đầu lượt ±1 — chủ dự án chốt theo FAQ,
+  KHÔNG phải ép cứng 1 lá): `getDrawCount()`/`getDrawCountAdjustment()` mới,
+  áp dụng cho pha rút thường + Pixie Pete + Bill Noface (đủ ví dụ FAQ Q13
+  Dodge City dẫn chứng) + Kit Carlson (FAQ Q6 Davinci: vẫn xem đủ 3 lá, chỉ
+  đổi SỐ LÁ GIỮ — 1/3 thay vì luôn 2). **CỐ TÌNH CHƯA áp dụng cho Black
+  Jack/Pedro Ramirez/Jesse Jones** (không có ví dụ FAQ, tự suy diễn công
+  thức là vi phạm quy tắc "luật không rõ ràng thì hỏi" — để dành hỏi sau nếu
+  cần). Kit Carlson đổi kiểu dữ liệu: `NEED_PICK_KEPT_CARDS` thêm
+  `keepCount`, `RESPOND` đổi từ `cardId` (lá muốn BỎ) sang `cardIds[]` (các
+  lá muốn GIỮ) — đã hỏi chủ dự án trước khi đổi. `KIT_CARLSON_DISCARDED`
+  event đổi `cardId` thành `cardIds: string[]` (có thể bỏ 2 lá cùng lúc).
+- **Blessing/Curse** (chất mọi lá bài đều là Cơ/Bích): hàm trung tâm MỚI
+  `getEffectiveSuit(state, cardId)` ở `cards.ts` — thay TOÀN BỘ chỗ đọc chất
+  cho mục đích LUẬT (không phải chỗ chỉ cần rank): draw! (`resolveDrawCheck()`
+  — ảnh hưởng Barrel/Jail/Dynamite), Black Jack (lật lá thứ 3), và Apache Kid
+  (miễn nhiễm Rô — *dev đã chốt xét theo CHẤT ĐÃ ĐỔI, nên dưới Blessing/Curse
+  anh ta KHÔNG miễn nhiễm gì cả vì không còn lá nào là Rô). Đổi chữ ký hook
+  `isImmuneToCard` thêm tham số `state` (6+1 chỗ gọi trong `reduce.ts`).
+  **CHƯA đụng UI** (badge chất lá trên `ui.ts` vẫn hiện chất THẬT, chưa hiện
+  chất đã đổi theo *dev đề xuất) — cần thêm 1 đợt riêng vì phải xuyên tham số
+  state qua nhiều hàm vẽ lá dùng chung (`cardButton()`/`cardChip()`), để dành
+  đợt sau, không ảnh hưởng tính đúng luật.
+- Ghost Town (lá khó nhất bộ) CỐ TÌNH chưa cài — dùng chung cơ chế "người
+  chết vẫn vào vòng lượt" với Dead Man bên A Fistful of Cards, làm riêng rẽ
+  sẽ phải sửa lại, để dành làm chung 1 lần.
+- Đã tự kiểm: `npx tsc --noEmit` sạch, 557 test đều pass (tăng từ 520 —
+  9 file test mới, mỗi lá 1 file riêng). CHƯA tự kiểm bằng trình duyệt thật
+  (chỉ code+test, đúng như đợt 1 — UI bật bộ mở rộng vẫn chưa có).
