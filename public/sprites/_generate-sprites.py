@@ -1,5 +1,11 @@
-import json, os
+import json, os, sys
 import cairosvg
+
+# Chạy KHÔNG tham số  -> sinh lại TẤT CẢ (lá bài + nhân vật + sự kiện + mặt lưng + viên đạn).
+# Chạy `python _generate-sprites.py events` -> CHỈ sinh lại thư mục events/.
+# (Dùng lúc chỉ đổi icon 1 nhóm, khỏi ghi đè hàng trăm file không đổi nội dung
+#  — bản cairosvg khác nhau có thể cho ra byte khác nhau, làm git diff bẩn.)
+ONLY = sys.argv[1] if len(sys.argv) > 1 else None
 
 # Thư mục chứa chính script này (public/sprites) — ảnh sinh ra ghi thẳng vào đây.
 OUT = os.path.dirname(os.path.abspath(__file__))
@@ -19,6 +25,7 @@ SET_W = ICONS.get('width', 512); SET_H = ICONS.get('height', 512)
 
 os.makedirs(OUT, exist_ok=True)
 os.makedirs(OUT + '/characters', exist_ok=True)
+os.makedirs(OUT + '/events', exist_ok=True)
 
 PARCH   = '#f0e3c8'   # nền giấy da
 PARCH2  = '#e2d0ac'
@@ -28,6 +35,12 @@ INK_CH  = '#3d3a52'   # màu nét cho lá nhân vật (tím than, phân biệt v
 PARCH_CH  = '#dfe3ee'
 PARCH_CH2 = '#c8cfe2'
 BORDER_CH = '#8d94ad'
+# Lá sự kiện — tông TÍM, cố tình khớp `.card-box--event` trong public/style.css
+# (border-color: #7d4fb3). Nhìn 1 phát biết ngay "không phải lá cầm trên tay".
+INK_EV    = '#4a2a6b'
+PARCH_EV  = '#ece2f6'
+PARCH_EV2 = '#d6c4ea'
+BORDER_EV = '#7d4fb3'
 
 def icon_svg(name):
     ic = ICONS['icons'].get(name)
@@ -35,6 +48,11 @@ def icon_svg(name):
     w = ic.get('width', SET_W); h = ic.get('height', SET_H)
     return ic['body'], w, h
 
+# LƯU Ý (sửa 2026-08-08): body icon của iconify dùng `fill="currentColor"` —
+# đặt fill="..." trên thẻ <g> cha KHÔNG đè được lên nó (thuộc tính fill của con
+# thắng), nên trước đây mọi ảnh sinh ra đều là nét ĐEN, 3 hằng INK/INK_CH/
+# INK_EV coi như vô tác dụng. Phải đặt THÊM `color="..."` để currentColor có
+# giá trị thật thì màu nét mới ăn.
 def make_png(icon_name, out_path, ink=INK, bg=PARCH, bg2=PARCH2, border=BORDER, size=256):
     body, w, h = icon_svg(icon_name)
     scale = 300.0 / max(w, h)          # icon chiếm ~59% khung 512
@@ -45,7 +63,7 @@ def make_png(icon_name, out_path, ink=INK, bg=PARCH, bg2=PARCH2, border=BORDER, 
 <stop offset="0" stop-color="{bg}"/><stop offset="1" stop-color="{bg2}"/></linearGradient></defs>
 <rect x="18" y="18" width="476" height="476" rx="54" ry="54" fill="url(#g)" stroke="{border}" stroke-width="10"/>
 <rect x="42" y="42" width="428" height="428" rx="38" ry="38" fill="none" stroke="{border}" stroke-width="4" opacity="0.55"/>
-<g transform="translate({tx:.2f},{ty:.2f}) scale({scale:.5f})" fill="{ink}">{body}</g>
+<g transform="translate({tx:.2f},{ty:.2f}) scale({scale:.5f})" fill="{ink}" color="{ink}">{body}</g>
 </svg>'''
     cairosvg.svg2png(bytestring=svg.encode(), write_to=out_path,
                      output_width=size, output_height=size)
@@ -90,20 +108,81 @@ CHARS = {
   'elena_noir':'hooded-figure', 'marcel_marcelo':'manacles', 'mary_rose':'gun-rose',
 }
 
+# ---------- 28 lá sự kiện (High Noon 13 + A Fistful of Cards 15) ----------
+# Icon chọn theo HIỆU ỨNG lúc chơi (giống cách chọn icon nhân vật), không phải
+# theo nghĩa đen của cái tên — vd Gold Rush là mũi tên xoay ngược (đảo chiều
+# lượt) chứ không phải cục vàng, vì lúc đang chơi cái người ta cần nhớ là
+# "đang đi ngược chiều". Xem bảng tra + lý do từng lá trong README.md.
+EVENTS = {
+  # 13 High Noon
+  'blessing':'card-ace-hearts',          # mọi lá thành chất Cơ
+  'curse':'card-ace-spades',             # mọi lá thành chất Bích
+  'hangover':'knocked-out-stars',        # mất khả năng nhân vật (choáng váng)
+  'shootout':'bullet-impacts',           # 2 lá Bang!/lượt (nhiều vết đạn hơn)
+  'the_reverend':'church',               # cấm Bia
+  'the_sermon':'prayer',                 # cấm chơi Bang!
+  'thirst':'desert',                     # rút ít hơn 1 lá
+  'train_arrival':'steam-locomotive',    # rút nhiều hơn 1 lá
+  'gold_rush':'anticlockwise-rotation',  # đảo chiều lượt chơi
+  'the_daltons':'bandit',                # ai có trang bị phải bỏ 1 lá
+  'the_doctor':'stethoscope',            # người ít máu nhất +1 máu
+  'ghost_town':'ghost',
+  'high_noon':'sunbeams',                # lá cuối: đầu lượt mất 1 máu
+  # 15 A Fistful of Cards
+  'ambush':'wolf-trap',                  # khoảng cách mọi người = 1
+  'lasso':'lasso',                       # vô hiệu mọi trang bị
+  'the_judge':'gavel',                   # cấm đặt trang bị mới
+  'abandoned_mine':'gold-mine',
+  'hard_liquor':'glass-shot',            # bỏ pha rút bài để hồi 1 máu
+  'law_of_the_west':'law-star',
+  # CỐ TÌNH không dùng 'cactus' cho Peyote dù đúng nghĩa đen: 'desert' (lá
+  # Thirst ngay trên) cũng vẽ cây xương rồng -> 2 lá nhìn na ná nhau giữa bàn.
+  'peyote':'magic-swirl',                # đoán màu chất lá (ảo giác)
+  'ranch':'ranch-gate',                  # đổi lá trên tay
+  'russian_roulette':'reload-gun-barrel',# ổ quay súng lục
+  'dead_man':'tombstone',
+  'blood_brothers':'shaking-hands',      # tặng 1 máu cho người khác
+  'vendetta':'extra-time',               # rút ra Cơ thì được chơi thêm 1 lượt
+  'sniper':'dead-eye',                   # 2 Bang! -> cần đỡ 2 Missed!
+  'ricochet':'ricochet',                 # bắn rụng trang bị
+  'a_fistful_of_cards':'card-random',    # lá cuối: ăn Bang! bằng số lá trên tay
+}
+
+# Ngoại lệ màu nét: Blessing/Curse là "mọi lá thành chất Cơ/Bích" — vẽ đúng
+# màu đỏ/đen của chất thì liếc 1 cái là biết ngay lá nào, tím than trung tính
+# làm 2 lá này gần như giống hệt nhau.
+EVENT_INK = {
+  'blessing': '#b0342c',   # đỏ chất Cơ
+  'curse':    '#241d33',   # đen chất Bích
+}
+
 def fallback(name, alts):
     for a in [name] + alts:
         if a in ICONS['icons']: return a
     return None
 
 missing = []
-for card, icon in CARDS.items():
-    if icon not in ICONS['icons']: missing.append(('card', card, icon)); continue
-    make_png(icon, f'{OUT}/{card}.png')
+if ONLY in (None, 'cards'):
+    for card, icon in CARDS.items():
+        if icon not in ICONS['icons']: missing.append(('card', card, icon)); continue
+        make_png(icon, f'{OUT}/{card}.png')
 
-for cid, icon in CHARS.items():
-    if icon not in ICONS['icons']: missing.append(('char', cid, icon)); continue
-    make_png(icon, f'{OUT}/characters/{cid}.png',
-             ink=INK_CH, bg=PARCH_CH, bg2=PARCH_CH2, border=BORDER_CH)
+if ONLY in (None, 'chars'):
+    for cid, icon in CHARS.items():
+        if icon not in ICONS['icons']: missing.append(('char', cid, icon)); continue
+        make_png(icon, f'{OUT}/characters/{cid}.png',
+                 ink=INK_CH, bg=PARCH_CH, bg2=PARCH_CH2, border=BORDER_CH)
+
+if ONLY in (None, 'events'):
+    for eid, icon in EVENTS.items():
+        if icon not in ICONS['icons']: missing.append(('event', eid, icon)); continue
+        make_png(icon, f'{OUT}/events/{eid}.png',
+                 ink=EVENT_INK.get(eid, INK_EV), bg=PARCH_EV, bg2=PARCH_EV2, border=BORDER_EV)
+
+if ONLY is not None:
+    print('THIẾU ICON:', missing if missing else 'không có')
+    print('chỉ sinh nhóm:', ONLY)
+    sys.exit(0)
 
 # ---------- mặt lưng lá bài ----------
 back = '''<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
@@ -135,4 +214,4 @@ bullet(f'{OUT}/bullet-full.png', True)
 bullet(f'{OUT}/bullet-empty.png', False)
 
 print('THIẾU ICON:', missing if missing else 'không có')
-print('cards:', len(CARDS), 'chars:', len(CHARS))
+print('cards:', len(CARDS), 'chars:', len(CHARS), 'events:', len(EVENTS))

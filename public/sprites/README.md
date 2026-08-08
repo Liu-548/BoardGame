@@ -1,16 +1,32 @@
-# Ảnh lá bài & nhân vật
+# Ảnh lá bài & nhân vật & lá sự kiện
 
-## Trạng thái: ĐÃ CÓ ẢNH TẠM cho toàn bộ 44 lá bài + 34 nhân vật
+## Trạng thái: ĐÃ CÓ ẢNH TẠM cho toàn bộ 44 lá bài + 34 nhân vật + 28 lá sự kiện
 
 Client tự ghép đường dẫn, không cần khai báo gì thêm:
 
 - Lá bài  → `/sprites/<tên lá>.png`            (xem `cardImageUrl()` trong `src/client/ui.ts`)
 - Nhân vật → `/sprites/characters/<characterId>.png`  (xem `characterImageUrl()`)
+- Lá sự kiện → `/sprites/events/<EventId>.png`       (xem `eventImageUrl()`)
 - Mặt lưng → `/sprites/card-back.png`
 - Viên đạn → `/sprites/bullet-full.png`, `/sprites/bullet-empty.png`
 
+Lá sự kiện để THƯ MỤC RIÊNG `events/` chứ không nằm chung gốc `sprites/`:
+`EventId` và `CardName` là 2 không gian tên tách biệt, để chung thì lúc nào đó
+trùng tên nhau là ghi đè nhau mà không ai biết.
+
 Ảnh 256×256 PNG nền trong suốt, phần minh hoạ nằm trong một ô "giấy da" bo góc.
 KHÔNG vẽ tên lá/số/chất trong ảnh — client đã đè chữ lên sẵn.
+
+3 nhóm khác nhau ở TÔNG MÀU khung, liếc 1 cái là biết đang nhìn loại gì:
+
+| Nhóm | Nền | Viền | Nét vẽ |
+|---|---|---|---|
+| Lá bài | giấy da `#f0e3c8` | `#b99b6b` | nâu `#4a3728` |
+| Nhân vật | xanh xám `#dfe3ee` | `#8d94ad` | tím than `#3d3a52` |
+| Lá sự kiện | tím nhạt `#ece2f6` | `#7d4fb3` | tím `#4a2a6b` |
+
+Màu viền lá sự kiện CỐ TÌNH trùng `.card-box--event` trong `public/style.css` —
+sửa 1 chỗ thì nhớ sửa chỗ kia.
 
 Thiếu ảnh nào thì lá đó vẫn hiển thị bình thường bằng chữ (không vỡ giao diện).
 
@@ -70,8 +86,23 @@ về hiển thị bằng chữ.
 ## Sinh lại toàn bộ ảnh
 
 `_generate-sprites.py` là script đã dùng để sinh bộ ảnh này (cần `cairosvg` và
-gói npm `@iconify-json/game-icons`). Sửa bảng `CARDS`/`CHARS` trong đó rồi chạy
-lại nếu muốn đổi icon cho một lá cụ thể.
+gói npm `@iconify-json/game-icons`). Sửa bảng `CARDS`/`CHARS`/`EVENTS` trong đó
+rồi chạy lại nếu muốn đổi icon cho một lá cụ thể.
+
+```
+pip install cairosvg
+npm install --no-save @iconify-json/game-icons   # chạy ở gốc dự án
+python _generate-sprites.py            # sinh lại TẤT CẢ
+python _generate-sprites.py events     # CHỈ thư mục events/ (cards | chars | events)
+```
+
+**Lưu ý khi chạy lại toàn bộ:** tới 2026-08-08 mới phát hiện lỗi trong script —
+body icon của iconify dùng `fill="currentColor"`, thuộc tính `fill` đặt trên thẻ
+`<g>` cha KHÔNG đè được lên nó, nên 78 ảnh lá bài/nhân vật sinh ra trước đó đều
+là **nét ĐEN**, 2 hằng `INK`/`INK_CH` coi như vô tác dụng. Script đã sửa (đặt
+thêm `color="..."`), nhưng ảnh cũ CHƯA sinh lại — chạy `python
+_generate-sprites.py` không tham số sẽ đổi màu nét 78 file đó sang đúng tông
+nâu/tím than như bảng trên. Không chạy cũng không sao, đen vẫn đọc tốt.
 
 ## Bảng tra: lá bài → tên icon gốc trên game-icons.net
 
@@ -165,4 +196,47 @@ giấy da).
 | `elena_noir.png` | `hooded-figure` |
 | `marcel_marcelo.png` | `manacles` |
 | `mary_rose.png` | `gun-rose` |
+
+## Bảng tra: lá sự kiện → tên icon gốc
+
+Giống icon nhân vật, chọn theo **HIỆU ỨNG lúc chơi** chứ không phải nghĩa đen
+của cái tên — vd Gold Rush là mũi tên xoay ngược (đảo chiều lượt) chứ không
+phải cục vàng, vì giữa ván cái người ta cần nhớ là "đang đi ngược chiều".
+Cột cuối ghi lý do những lá chọn không hiển nhiên.
+
+| File (trong `events/`) | Icon game-icons.net | Vì sao |
+|---|---|---|
+| `blessing.png` | `card-ace-hearts` | mọi lá thành chất Cơ — vẽ nét ĐỎ (ngoại lệ, xem `EVENT_INK`) |
+| `curse.png` | `card-ace-spades` | mọi lá thành chất Bích — vẽ nét ĐEN |
+| `hangover.png` | `knocked-out-stars` | choáng váng = mất khả năng nhân vật |
+| `shootout.png` | `bullet-impacts` | 2 lá Bang!/lượt — nhiều vết đạn hơn |
+| `the_reverend.png` | `church` | cấm Bia |
+| `the_sermon.png` | `prayer` | cấm chơi Bang! |
+| `thirst.png` | `desert` | rút ít hơn 1 lá |
+| `train_arrival.png` | `steam-locomotive` | rút nhiều hơn 1 lá |
+| `gold_rush.png` | `anticlockwise-rotation` | đảo chiều lượt chơi |
+| `the_daltons.png` | `bandit` | ai có trang bị phải bỏ 1 lá |
+| `the_doctor.png` | `stethoscope` | người ít máu nhất +1 máu |
+| `ghost_town.png` | `ghost` | |
+| `high_noon.png` | `sunbeams` | lá cuối: đầu lượt mất 1 máu |
+| `ambush.png` | `wolf-trap` | khoảng cách mọi người tạm tính là 1 |
+| `lasso.png` | `lasso` | vô hiệu mọi trang bị |
+| `the_judge.png` | `gavel` | cấm đặt trang bị mới |
+| `abandoned_mine.png` | `gold-mine` | |
+| `hard_liquor.png` | `glass-shot` | bỏ pha rút bài để hồi 1 máu |
+| `law_of_the_west.png` | `law-star` | |
+| `peyote.png` | `magic-swirl` | ảo giác — KHÔNG dùng `cactus` vì `desert` (Thirst) cũng vẽ xương rồng, 2 lá nhìn na ná nhau |
+| `ranch.png` | `ranch-gate` | đổi lá trên tay |
+| `russian_roulette.png` | `reload-gun-barrel` | ổ quay súng lục |
+| `dead_man.png` | `tombstone` | |
+| `blood_brothers.png` | `shaking-hands` | tặng 1 máu cho người khác |
+| `vendetta.png` | `extra-time` | ra Cơ thì được chơi thêm 1 lượt |
+| `sniper.png` | `dead-eye` | 2 Bang! → phải đỡ 2 Missed! |
+| `ricochet.png` | `ricochet` | bắn rụng trang bị |
+| `a_fistful_of_cards.png` | `card-random` | lá cuối: ăn Bang! bằng số lá trên tay |
+
+Có ảnh cho ĐỦ 28 lá, kể cả 5 lá đang tạm loại khỏi bộ bốc (`ghost_town`,
+`law_of_the_west`, `peyote`, `dead_man`, `abandoned_mine` — xem
+`EXPANSION_EVENT_IDS` trong `src/core/events.ts`): cài xong logic là hiện được
+ngay, khỏi phải quay lại chạy script.
 

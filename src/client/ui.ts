@@ -441,7 +441,7 @@ const CHARACTER_DESCRIPTIONS: Record<string, string> = {
   // Bộ mở rộng "custom_characters" (xem House_Rule.txt mục I) — nhân vật TỰ
   // CHẾ, soạn theo ĐÚNG logic đã cài trong core/reduce.ts/characters.ts.
   elena_noir:
-    "Đòn lẽ ra giết mình (Bia không cứu được) sẽ kích hoạt Miễn Tử 2 lượt: không thể bị nhắm bởi bất kỳ lá nào (trừ Thuốc nổ vẫn nổ nhưng không giết được) và không thể bị Jail — chết chắc chắn khi hết 2 lượt. Đầu mỗi lượt (khi không Miễn Tử) được chọn vũ trang trước (rút 1 lá) hoặc rút 2 lá bình thường (không vũ trang thì không kích hoạt Miễn Tử nếu chết trong lượt đó).",
+    "Đòn lẽ ra giết mình (Bia không cứu được) sẽ kích hoạt Miễn Tử 2 lượt: KHÔNG thể chết (máu giữ ở 0) dù vẫn bị mọi lá bài nhắm tới và gây sát thương bình thường (Bang!, Đấu tay đôi, Người da đỏ, Cat Balou, Panic!, Thuốc nổ...) — ngoại lệ DUY NHẤT là không thể bị nhốt tù (Jail) trong lúc này. Chết chắc chắn khi hết 2 lượt. Đầu mỗi lượt (khi không Miễn Tử) được chọn vũ trang trước (rút 1 lá) hoặc rút 2 lá bình thường (không vũ trang thì không kích hoạt Miễn Tử nếu chết trong lượt đó).",
   marcel_marcelo:
     "Bị nhốt tù thì lập tức chỉ định 1 người khác 'cùng vào tù' (ăn theo kết quả, không tự rút). Đầu lượt được rút tối đa 2 lá để tìm Cơ thoát tù; thoát thành công thì lượt đó rút 3 lá thay vì 2.",
   mary_rose:
@@ -566,15 +566,42 @@ function renderDeckPileBox(): HTMLSpanElement {
   return el;
 }
 
-// Mở rộng High Noon/A Fistful of Cards — khung nhỏ hiện TÊN lá sự kiện, dùng
-// CHUNG cho cả "đang chạy" lẫn "kế tiếp" (chỉ khác nhãn/kiểu chữ). Không có
-// ảnh thật riêng cho lá sự kiện (khác hẳn 40 lá bài thường) — chỉ hiện chữ,
-// đơn giản hơn cardChip()/cardBox() vì lá sự kiện không có suit/rank/id thật
-// (EventId là chuỗi tĩnh, không phải cardId gắn với 1 lá vật lý trong deck).
+// Ảnh lá sự kiện — thư mục RIÊNG `events/` (không trộn với 44 lá bài thường ở
+// gốc `sprites/`) vì EventId và CardName là 2 không gian tên tách biệt, trùng
+// tên nhau lúc nào không biết. Quy ước y hệt cardImageUrl(): thiếu file thì
+// <img> bắn "error", chỗ gọi tự ẩn nó đi, quay về hiện CHỈ chữ.
+function eventImageUrl(eventId: string): string {
+  return `/sprites/events/${eventId}.png`;
+}
+
+// Mở rộng High Noon/A Fistful of Cards — khung nhỏ hiện lá sự kiện, dùng CHUNG
+// cho cả "đang chạy" lẫn "kế tiếp" (chỉ khác nhãn/kiểu chữ). KHÔNG dùng
+// cardChip()/cardBox() vì lá sự kiện không có suit/rank/id thật (EventId là
+// chuỗi tĩnh, không phải cardId gắn với 1 lá vật lý trong deck) — tự ghép ảnh
+// + tên, đơn giản hơn hẳn.
+//
+// Bổ sung: gắn attachDescriptionReveal() y như lá bài thường — rê chuột/nhấn
+// giữ vào khung này là đọc được hiệu ứng lá đang chạy, khỏi phải mở Thư viện
+// bài giữa ván.
 function renderEventPileBox(eventId: string, modifierClass: string): HTMLElement {
   const el = document.createElement("div");
   el.className = `table-center__event-box ${modifierClass}`;
-  el.textContent = EVENT_CARDS[eventId as EventId]?.name ?? eventId;
+
+  const img = document.createElement("img");
+  img.className = "table-center__event-image";
+  img.alt = "";
+  img.src = eventImageUrl(eventId);
+  img.addEventListener("error", () => {
+    img.style.display = "none"; // thiếu ảnh -> chỉ còn tên chữ, không vỡ giao diện
+  });
+  el.appendChild(img);
+
+  const nameEl = document.createElement("span");
+  nameEl.className = "table-center__event-name";
+  nameEl.textContent = EVENT_CARDS[eventId as EventId]?.name ?? eventId;
+  el.appendChild(nameEl);
+
+  attachDescriptionReveal(el, EVENT_CARD_DESCRIPTIONS[eventId]);
   return el;
 }
 
@@ -732,7 +759,7 @@ const HOUSE_RULE_IDS: HouseRuleId[] = [
 // này mà không lẫn vào khối "Luật bổ sung".
 const EXPANSION_LABELS: Record<ExpansionId, string> = {
   dodge_city: "Dodge City (mở rộng)",
-  custom_characters: "Nhân vật tự chế (*ex)",
+  custom_characters: "Nhân vật *ex",
   high_noon: "High Noon (mở rộng)",
   a_fistful_of_cards: "A Fistful of Cards (mở rộng)",
 };
@@ -2793,9 +2820,9 @@ function renderEventReferenceGroup(container: HTMLElement, query: string): boole
   const list = document.createElement("div");
   list.className = "card-ref-list";
   for (const id of matched) {
-    // Chưa có ảnh riêng cho lá sự kiện — quy ước đường dẫn TRƯỚC (giống mọi
-    // sprite khác trong dự án), <img> lỗi tự ẩn, chỉ còn nền xám + tên chữ.
-    renderCardRefListItem(list, `/sprites/events/${id}.png`, "card-box--event", EVENT_CARDS[id].name, EVENT_CARD_DESCRIPTIONS[id] ?? "");
+    // Ảnh lấy qua eventImageUrl() — CÙNG 1 hàm với khung sự kiện giữa bàn, đổi
+    // quy ước đường dẫn 1 chỗ là cả 2 nơi cùng theo.
+    renderCardRefListItem(list, eventImageUrl(id), "card-box--event", EVENT_CARDS[id].name, EVENT_CARD_DESCRIPTIONS[id] ?? "");
   }
   container.appendChild(list);
   return true;
