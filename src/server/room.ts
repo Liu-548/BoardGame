@@ -607,6 +607,29 @@ export class Room {
         const target = candidates[Math.floor(Math.random() * candidates.length)];
         return { type: "RESPOND", playerId: top.player, targetId: target.id };
       }
+
+      // Mở rộng A Fistful of Cards (Blood Brothers) — hết giờ thì mặc định bỏ
+      // qua, không tặng ai (không kèm targetId) — an toàn hơn tự ý chọn người
+      // nhận thay người chơi.
+      case "NEED_BLOOD_BROTHERS_GIFT":
+        return { type: "RESPOND", playerId: top.player };
+
+      // Mở rộng A Fistful of Cards (Hard Liquor) — hết giờ thì mặc định rút
+      // bài như bình thường (không kèm skipDrawForHardLiquor) — an toàn hơn
+      // tự ý hồi máu thay người chơi (họ có thể muốn giữ bài trên tay).
+      case "NEED_PICK_HARD_LIQUOR":
+        return { type: "RESPOND", playerId: top.player };
+
+      // Mở rộng A Fistful of Cards (Ricochet) — có lựa chọn "không đỡ" (mất
+      // lá trang bị), giống hệt NEED_MISSED — RESPOND không kèm cardId.
+      case "NEED_MISSED_FOR_EQUIPMENT":
+        return { type: "RESPOND", playerId: top.player };
+
+      // Mở rộng A Fistful of Cards (Ranch) — hết giờ thì mặc định không đổi
+      // lá nào (không kèm cardIds) — an toàn hơn tự ý chọn lá đổi thay người
+      // chơi.
+      case "NEED_RANCH_EXCHANGE":
+        return { type: "RESPOND", playerId: top.player };
     }
   }
 

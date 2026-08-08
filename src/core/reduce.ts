@@ -174,10 +174,77 @@ function handleDrawCards(
   if (next.marcelJailBonusDrawThisTurn[player.id]) {
     delete next.marcelJailBonusDrawThisTurn[player.id];
     const drawnCount = drawCardsForPlayer(next, player, 3);
-    next.turnPhase = "play";
-    return { state: next, events: [{ type: "CARDS_DRAWN", playerId: player.id, count: drawnCount }] };
+    return completeDrawPhase(next, player, [{ type: "CARDS_DRAWN", playerId: player.id, count: drawnCount }]);
   }
 
+  // Mở rộng A Fistful of Cards, lá "Hard Liquor" — HỎI trước khi rút gì cả:
+  // bỏ qua pha rút để hồi 1 máu, hay rút bài như bình thường? *dev đã chốt
+  // thứ tự: hỏi lá này TRƯỚC các nhân vật override onDrawPhase bên dưới —
+  // chọn bỏ qua pha rút thì các hook đó KHÔNG chạy nữa; chọn rút bình thường
+  // thì mới xét tiếp Pedro Ramirez/Jesse Jones/Kit Carlson/Pat Brennan/Elena
+  // Noir (xem continueDrawCardsAfterHardLiquor()/respondToPickHardLiquor()).
+  if (isEventActive(next, "hard_liquor")) {
+    next.pending.push({ kind: "NEED_PICK_HARD_LIQUOR", player: player.id });
+    return { state: next, events: [] };
+  }
+
+  return continueDrawCardsAfterHardLiquor(next, player);
+}
+
+// Mở rộng A Fistful of Cards, lá "Ranch" — chốt ĐÚNG 1 chỗ "vừa xong bước rút
+// bài, chuyển turnPhase sang play" dùng CHUNG cho MỌI điểm kết thúc pha rút
+// trong file này (rút thường, Pedro Ramirez/Jesse Jones/Kit Carlson/Pat
+// Brennan/Elena Noir, Marcel bonus draw, Hard Liquor hồi máu thay vì rút) —
+// thay vì rải kiểm tra Ranch ở từng nơi. *dev đã đổi cơ chế (khác bản dịch
+// gốc "sau bước đánh bài"): hỏi NGAY tại đây.
+function completeDrawPhase(next: GameState, player: PlayerState, events: GameEvent[]): Result {
+  next.turnPhase = "play";
+  if (isEventActive(next, "ranch")) {
+    next.pending.push({ kind: "NEED_RANCH_EXCHANGE", player: player.id });
+  }
+  return { state: next, events };
+}
+
+// Mở rộng A Fistful of Cards, lá "Ranch" — trả lời NEED_RANCH_EXCHANGE. Kèm
+// `cardIds` (mảng, có thể rỗng) = bỏ ĐÚNG các lá đó vào chồng bỏ TRƯỚC, rồi
+// rút lại ĐÚNG bấy nhiêu lá mới (thứ tự bắt buộc — bỏ trước để không rút lại
+// chính lá vừa bỏ theo cách "nhìn thấy trước"). Không kèm/mảng rỗng/hết giờ =
+// không đổi lá nào, không làm gì cả. Suzy Lafayette: triggerHandEmptyHook()
+// gọi SAU KHI đã rút bù xong (đã chốt trong đặc tả) — nếu đổi hết bài rồi rút
+// lại đủ số đó thì tay hiếm khi thật sự về 0 ở thời điểm kiểm tra, tự nhiên
+// tránh được combo "đổi bài ăn thêm 1 lá miễn phí giữa chừng".
+function respondToRanchExchange(state: GameState, action: Action & { type: "RESPOND" }): Result {
+  const next = cloneState(state);
+  next.pending.pop();
+  const player = next.players.find((p) => p.id === action.playerId)!;
+
+  const cardIds = action.cardIds ?? [];
+  if (cardIds.length === 0) {
+    return { state: next, events: [] };
+  }
+
+  for (const cardId of cardIds) {
+    const index = player.hand.indexOf(cardId);
+    if (index === -1) {
+      throw new Error(`Người chơi ${player.id} không có lá bài ${cardId} trong tay`);
+    }
+    player.hand.splice(index, 1);
+    next.discardPile.push(cardId);
+  }
+
+  const drawnCount = drawCardsForPlayer(next, player, cardIds.length);
+  const events: GameEvent[] = [{ type: "RANCH_EXCHANGED", playerId: player.id, cardIds, count: drawnCount }];
+  events.push(...triggerHandEmptyHook(next, player)); // Giai đoạn 5 (Suzy Lafayette) — xem ghi chú ở trên
+
+  return { state: next, events };
+}
+
+// Phần "rút bài thật sự" của pha rút — TÁCH RIÊNG (mở rộng A Fistful of
+// Cards, lá "Hard Liquor") để respondToPickHardLiquor() dùng lại được khi
+// người chơi chọn rút bài thay vì hồi máu, không lặp code với
+// handleDrawCards(). Y HỆT phần thân cũ của handleDrawCards() sau bước Marcel
+// bonus draw.
+function continueDrawCardsAfterHardLiquor(next: GameState, player: PlayerState): Result {
   // Giai đoạn 5 (Pedro Ramirez, đợt 4) — HỎI trước khi rút gì cả: lấy lá 1 từ
   // đỉnh chồng bỏ, hay rút thẳng bộ bài như bình thường? Chỉ hỏi khi chồng bỏ
   // còn bài (rỗng thì rút thẳng bộ bài, khỏi cần hỏi). Đẩy pending rồi TRẢ VỀ
@@ -211,8 +278,7 @@ function handleDrawCards(
     const keepCount = Math.max(0, Math.min(peeked.length, 2 + getDrawCountAdjustment(next)));
     if (keepCount >= peeked.length) {
       for (const cardId of peeked) giveCardToPlayer(next.players, player, cardId);
-      next.turnPhase = "play";
-      return { state: next, events: [{ type: "CARDS_DRAWN", playerId: player.id, count: peeked.length }] };
+      return completeDrawPhase(next, player, [{ type: "CARDS_DRAWN", playerId: player.id, count: peeked.length }]);
     }
     next.pending.push({ kind: "NEED_PICK_KEPT_CARDS", player: player.id, cards: peeked, keepCount });
     return { state: next, events: [] };
@@ -239,8 +305,7 @@ function handleDrawCards(
   if (getEffectiveCharacterDefinition(next, player)?.canArmImmortality === true) {
     if (next.elenaNoirImmortalTurnsLeft[player.id] !== undefined) {
       const drawnCount = drawCardsForPlayer(next, player, 3);
-      next.turnPhase = "play";
-      return { state: next, events: [{ type: "CARDS_DRAWN", playerId: player.id, count: drawnCount }] };
+      return completeDrawPhase(next, player, [{ type: "CARDS_DRAWN", playerId: player.id, count: drawnCount }]);
     }
     next.pending.push({ kind: "NEED_PICK_ARMED", player: player.id });
     return { state: next, events: [] };
@@ -261,9 +326,29 @@ function handleDrawCards(
     events = [{ type: "CARDS_DRAWN", playerId: player.id, count }];
   }
 
-  next.turnPhase = "play";
+  return completeDrawPhase(next, player, events);
+}
 
-  return { state: next, events };
+// Mở rộng A Fistful of Cards, lá "Hard Liquor" — trả lời NEED_PICK_HARD_LIQUOR.
+// `skipDrawForHardLiquor: true` -> hồi 1 máu (không vượt maxHp — đã đầy máu
+// vẫn cho chọn, hồi 0), turnPhase chuyển thẳng "play", KHÔNG rút bài gì cả
+// (các nhân vật override onDrawPhase không được hỏi). Không kèm/false (mặc
+// định/hết giờ) -> tiếp tục ĐÚNG luồng rút bài gốc qua
+// continueDrawCardsAfterHardLiquor() (Pedro Ramirez/Jesse Jones/Kit Carlson/
+// Pat Brennan/Elena Noir được hỏi tiếp từ đây, y hệt khi Hard Liquor không
+// bật). KHÔNG qua hook modifyHealAmount (hook đó chỉ áp ở playBeer()).
+function respondToPickHardLiquor(state: GameState, action: Action & { type: "RESPOND" }): Result {
+  const next = cloneState(state);
+  next.pending.pop();
+  const player = next.players.find((p) => p.id === action.playerId)!;
+
+  if (action.skipDrawForHardLiquor) {
+    const restored = Math.min(1, player.maxHp - player.hp);
+    if (restored > 0) player.hp += restored;
+    return completeDrawPhase(next, player, restored > 0 ? [{ type: "HP_RESTORED", playerId: player.id, amount: restored }] : []);
+  }
+
+  return continueDrawCardsAfterHardLiquor(next, player);
 }
 
 // Giai đoạn 5 (Pedro Ramirez, đợt 4) — trả lời NEED_PICK_DRAW_SOURCE. Gửi kèm
@@ -292,9 +377,8 @@ function respondToPickDrawSource(
   const secondCard = drawTopCard(next);
   if (secondCard) giveCardToPlayer(next.players, player, secondCard);
 
-  next.turnPhase = "play";
   const drawnCount = (firstCard ? 1 : 0) + (secondCard ? 1 : 0);
-  return { state: next, events: [{ type: "CARDS_DRAWN", playerId: player.id, count: drawnCount }] };
+  return completeDrawPhase(next, player, [{ type: "CARDS_DRAWN", playerId: player.id, count: drawnCount }]);
 }
 
 // Giai đoạn 5 (Jesse Jones, đợt 5) — trả lời NEED_PICK_DRAW_TARGET. Không kèm
@@ -350,9 +434,8 @@ function respondToPickDrawTarget(
   const secondCard = drawTopCard(next);
   if (secondCard) giveCardToPlayer(next.players, player, secondCard);
 
-  next.turnPhase = "play";
   events.push({ type: "CARDS_DRAWN", playerId: player.id, count: (firstCard ? 1 : 0) + (secondCard ? 1 : 0) });
-  return { state: next, events };
+  return completeDrawPhase(next, player, events);
 }
 
 // Giai đoạn 5 (Jesse Jones, đợt 5) — trả lời NEED_GIVE_CARD_TO_PLAYER: nạn
@@ -401,9 +484,8 @@ function respondToGiveCardToPlayer(
   const secondCard = drawTopCard(next);
   if (secondCard) giveCardToPlayer(next.players, jesse, secondCard);
 
-  next.turnPhase = "play";
   events.push({ type: "CARDS_DRAWN", playerId: jesse.id, count: (givenCardId ? 1 : 0) + (secondCard ? 1 : 0) });
-  return { state: next, events };
+  return completeDrawPhase(next, jesse, events);
 }
 
 // Giai đoạn 5 (Kit Carlson, đợt 6) — trả lời NEED_PICK_KEPT_CARDS. Gửi kèm
@@ -440,12 +522,11 @@ function respondToPickKeptCards(
   next.discardPile.push(...discardedCardIds);
   for (const cardId of keptCardIds) giveCardToPlayer(next.players, player, cardId);
 
-  next.turnPhase = "play";
   const events: GameEvent[] = [{ type: "CARDS_DRAWN", playerId: player.id, count: keptCardIds.length }];
   if (discardedCardIds.length > 0) {
     events.push({ type: "KIT_CARLSON_DISCARDED", playerId: player.id, cardIds: discardedCardIds });
   }
-  return { state: next, events };
+  return completeDrawPhase(next, player, events);
 }
 
 // Mở rộng Dodge City, mục C nhóm A (Pat Brennan) — trả lời
@@ -481,16 +562,13 @@ function respondToPickDrawOrEquipment(
     delete next.equipmentPlayedTurn[action.cardId]; // dọn rác Dodge City nếu là lá "delayed"
     giveCardToPlayer(next.players, player, action.cardId);
 
-    next.turnPhase = "play";
-    return {
-      state: next,
-      events: [{ type: "CARD_STOLEN", playerId: player.id, fromPlayerId: target.id, cardId: action.cardId }],
-    };
+    return completeDrawPhase(next, player, [
+      { type: "CARD_STOLEN", playerId: player.id, fromPlayerId: target.id, cardId: action.cardId },
+    ]);
   }
 
   const drawnCount = drawCardsForPlayer(next, player, DRAW_COUNT);
-  next.turnPhase = "play";
-  return { state: next, events: [{ type: "CARDS_DRAWN", playerId: player.id, count: drawnCount }] };
+  return completeDrawPhase(next, player, [{ type: "CARDS_DRAWN", playerId: player.id, count: drawnCount }]);
 }
 
 // Bộ mở rộng "custom_characters" (Elena Noir, xem House_Rule.txt mục I) — trả
@@ -514,8 +592,7 @@ function respondToPickArmed(state: GameState, action: Action & { type: "RESPOND"
     delete next.elenaNoirArmed[player.id];
   }
   const drawnCount = drawCardsForPlayer(next, player, armed ? 1 : 2);
-  next.turnPhase = "play";
-  return { state: next, events: [{ type: "CARDS_DRAWN", playerId: player.id, count: drawnCount }] };
+  return completeDrawPhase(next, player, [{ type: "CARDS_DRAWN", playerId: player.id, count: drawnCount }]);
 }
 
 // Mở rộng Dodge City, mục C nhóm C (Vera Custer) — trả lời
@@ -548,7 +625,11 @@ function respondToPickBorrowedCharacter(
   }
 
   next.veraCusterBorrowedCharacterId = target.characterId;
-  applyDynamiteAndJailChecks(next, player);
+  // Mở rộng A Fistful of Cards, lá "Blood Brothers" — xem ghi chú ở
+  // continueTurnStartAfterVeraCuster()/applyTurnStartChecks(): phần còn lại
+  // của Bước 0 (Blood Brothers rồi mới tới Dynamite/Jail), KHÔNG gọi thẳng
+  // applyDynamiteAndJailChecks() nữa (sẽ bỏ sót Blood Brothers).
+  continueTurnStartAfterVeraCuster(next, player);
 
   return {
     state: next,
@@ -590,6 +671,63 @@ function respondToPickMarcelCompanion(
   };
 }
 
+// Mở rộng A Fistful of Cards, lá "Blood Brothers" — trả lời
+// NEED_BLOOD_BROTHERS_GIFT. Kèm targetId = tặng ĐÚNG 1 máu cho người đó
+// (không kèm gì/hết giờ = bỏ qua, không tặng ai). Người nhận đã đầy máu bị
+// CHẶN chọn (đề xuất trong đặc tả — người chơi mới học dễ bấm nhầm, tặng máu
+// mà không ai nhận được thì vô nghĩa). *dev đã chốt: Bart Cassidy vẫn rút bài
+// (byPlayerId null -> chỉ onLoseLife chạy), El Gringo KHÔNG kích hoạt.
+function respondToBloodBrothersGift(
+  state: GameState,
+  action: Action & { type: "RESPOND" }
+): Result {
+  const next = cloneState(state);
+  next.pending.pop();
+  const donor = next.players.find((p) => p.id === action.playerId)!;
+
+  if (!action.targetId) {
+    // Bỏ qua, không tặng ai — vẫn phải tiếp tục nốt Bước 0 (Dynamite/Jail).
+    applyDynamiteAndJailChecks(next, donor);
+    return { state: next, events: [] };
+  }
+  const recipient = next.players.find((p) => p.id === action.targetId);
+  if (!recipient || !recipient.alive) {
+    throw new Error("Mục tiêu không hợp lệ");
+  }
+  if (recipient.hp >= recipient.maxHp) {
+    throw new Error("Người chơi này đã đầy máu, không thể tặng");
+  }
+
+  donor.hp -= 1;
+  recipient.hp += 1;
+  const events: GameEvent[] = [
+    { type: "BLOOD_BROTHERS_GIFT", playerId: donor.id, targetId: recipient.id },
+    ...triggerLoseLifeHooks(next, donor, 1, null),
+  ];
+  applyDynamiteAndJailChecks(next, donor);
+
+  return { state: next, events };
+}
+
+// Mở rộng A Fistful of Cards, lá "Vendetta" — SAU KHI kết thúc lượt của
+// mình (đủ điều kiện: không còn bài thừa cần bỏ), đẩy draw! này TRƯỚC KHI
+// thật sự chuyển lượt. Dùng CHUNG cho cả handleEndTurn() (không cần bỏ bài
+// thừa) LẪN handleDiscardCards() (đã bỏ xong bài thừa) — cả 2 đều là đúng
+// thời điểm "lượt vừa kết thúc". Không active (hoặc đã dùng lượt thêm rồi)
+// -> chuyển lượt bình thường như trước giờ.
+function finishTurn(next: GameState, player: PlayerState): GameEvent[] {
+  if (isEventActive(next, "vendetta") && !next.vendettaUsedThisTurn) {
+    next.pending.push({
+      kind: "NEED_DRAW_CHECK",
+      player: player.id,
+      source: { card: "vendetta" },
+      matchSuits: ["hearts"],
+    });
+    return [];
+  }
+  return advanceTurn(next);
+}
+
 function handleEndTurn(state: GameState, action: Action & { type: "END_TURN" }): Result {
   assertCurrentPlayer(state, action.playerId);
   assertPhase(state, "play");
@@ -607,7 +745,7 @@ function handleEndTurn(state: GameState, action: Action & { type: "END_TURN" }):
     return { state: next, events: [] };
   }
 
-  const advanceEvents = advanceTurn(next);
+  const advanceEvents = finishTurn(next, player);
   return { state: next, events: [{ type: "TURN_ENDED", playerId: player.id }, ...advanceEvents] };
 }
 
@@ -642,7 +780,7 @@ function handleDiscardCards(
   events.push(...triggerHandEmptyHook(next, player)); // Giai đoạn 5 (Suzy Lafayette)
 
   events.push({ type: "TURN_ENDED", playerId: player.id });
-  events.push(...advanceTurn(next));
+  events.push(...finishTurn(next, player));
   return { state: next, events };
 }
 
@@ -723,7 +861,21 @@ function handlePlayCard(state: GameState, action: Action & { type: "PLAY_CARD" }
         // phải PLAY_CARD.
         throw new Error("Không thể chủ động đánh Missed! — chỉ dùng để phản ứng khi bị Bang!/Gatling");
       case "bang":
-        result = playBang(next, player, action);
+        // Mở rộng A Fistful of Cards, lá "Sniper" — nước đi MỚI: bỏ CÙNG LÚC
+        // 2 lá Bang! (extraDiscardCardId bắt buộc là lá Bang! thứ 2) để bắn 1
+        // người cần ĐỦ 2 Missed!. Bang! thường không bao giờ có
+        // extraDiscardCardId, nên chỉ cần rẽ nhánh theo field này.
+        // Lá "Ricochet" — bỏ 1 lá Bang! để bắn 1 lá TRANG BỊ cụ thể
+        // (targetCardId, khác Panic! chỉ dùng field này khi tay mục tiêu
+        // rỗng — ở đây LUÔN bắt buộc, kể cả tay còn bài). Bang! thường không
+        // bao giờ kèm targetCardId, nên chỉ cần rẽ nhánh theo field này.
+        if (action.extraDiscardCardId) {
+          result = playSniperShot(next, player, action);
+        } else if (action.targetCardId) {
+          result = playRicochetShot(next, player, action);
+        } else {
+          result = playBang(next, player, action);
+        }
         break;
       case "beer":
         result = playBeer(next, player, action.cardId);
@@ -840,7 +992,7 @@ function playBang(
     }
   }
 
-  const range = getWeaponRange(player);
+  const range = getWeaponRange(next, player);
   const extraDistance = next.houseRules.includes("extra_distance") ? 1 : 0;
   const distance = computeDistance(next, player.id, target.id, extraDistance);
   if (distance > range) {
@@ -885,6 +1037,108 @@ function playBang(
   return { state: next, events };
 }
 
+// Mở rộng A Fistful of Cards, lá "Sniper" (nhóm C bổ sung — thêm nước đi mới,
+// KHÔNG phải lá bài riêng): trong lượt của mình, bỏ CÙNG LÚC 2 lá Bang! để
+// bắn 1 người TRONG TẦM SÚNG ĐANG CẦM; người đó cần ĐỦ 2 Missed! mới né được.
+// Dùng được bao nhiêu lần cũng được, KHÔNG tính vào bangCountThisTurn — vẫn
+// còn nguyên suất Bang! thường của lượt. Kích hoạt qua handlePlayCard() khi
+// cardName "bang" VÀ có kèm extraDiscardCardId (Bang! thường không bao giờ có
+// field này). Luật Barrel riêng (FAQ Q.08 — draw! đúng 1 lần) KHÔNG cần code
+// gì thêm: cơ chế missesNeeded/Barrel có sẵn ở resolveDrawCheck() đã đúng.
+function playSniperShot(
+  next: GameState,
+  player: PlayerState,
+  action: Action & { type: "PLAY_CARD" }
+): Result {
+  if (!isEventActive(next, "sniper")) {
+    throw new Error('Chỉ bắn được kiểu Sniper (bỏ 2 lá Bang!) khi lá sự kiện "Sniper" đang chạy');
+  }
+  const target = findLivingTarget(next, player, action.targetId, "Bắn Sniper cần chọn mục tiêu", "Không thể tự bắn Sniper vào chính mình");
+
+  const extraCardId = action.extraDiscardCardId!;
+  if (cardNameFromId(extraCardId) !== "bang") {
+    throw new Error("Bắn Sniper cần bỏ kèm ĐÚNG 1 lá Bang! phụ, không phải lá khác");
+  }
+
+  const range = getWeaponRange(next, player);
+  const extraDistance = next.houseRules.includes("extra_distance") ? 1 : 0;
+  const distance = computeDistance(next, player.id, target.id, extraDistance);
+  if (distance > range) {
+    throw new Error(`Mục tiêu ngoài tầm bắn (khoảng cách ${distance}, tầm súng ${range})`);
+  }
+
+  const extraEvents = discardExtraCard(next, player, "sniper", extraCardId);
+
+  // Mở rộng Dodge City, mục C nhóm B (Apache Kid) — miễn nhiễm CHỈ khi CẢ 2 lá
+  // Bang! bỏ ra đều chất Rô (đã chốt riêng, y hệt Doc Holyday — xem
+  // useDocHolydayShot()), KHÔNG áp dụng luật chung "1 lá Rô là đủ" của
+  // pushMissedReaction().
+  const immuneHook = getEffectiveCharacterHooks(next, target).isImmuneToCard;
+  const immune = immuneHook !== undefined && immuneHook(next, action.cardId) && immuneHook(next, extraCardId);
+  const shotEvents: GameEvent[] = immune
+    ? [{ type: "APACHE_KID_IMMUNE", playerId: target.id, fromPlayerId: player.id, cardId: action.cardId }]
+    : pushMissedReactionUnconditional(next, target, { card: "sniper", from: player.id }, 2);
+
+  return {
+    state: next,
+    events: [
+      { type: "CARD_PLAYED", playerId: player.id, cardId: action.cardId, targetId: target.id },
+      ...extraEvents,
+      ...shotEvents,
+    ],
+  };
+}
+
+// Mở rộng A Fistful of Cards, lá "Ricochet" (nhóm C bổ sung — thêm nước đi
+// mới, KHÔNG phải lá bài riêng): bỏ 1 lá Bang! để bắn 1 lá TRANG BỊ cụ thể
+// (action.targetCardId) trước mặt người khác, BẤT KỂ KHOẢNG CÁCH, không giới
+// hạn số lần, KHÔNG tính vào bangCountThisTurn. Đọc target.equipment THẬT
+// (không qua getEffectiveEquipment) — lá đang bị Lasso/Belle Star vô hiệu vẫn
+// bắn được, vẫn nằm trên sân. Không bắn được trang bị của chính mình.
+function playRicochetShot(
+  next: GameState,
+  player: PlayerState,
+  action: Action & { type: "PLAY_CARD" }
+): Result {
+  if (!isEventActive(next, "ricochet")) {
+    throw new Error('Chỉ bắn trang bị kiểu Ricochet khi lá sự kiện "Ricochet" đang chạy');
+  }
+  if (!action.targetId) {
+    throw new Error("Bắn Ricochet cần chọn người sở hữu trang bị");
+  }
+  if (action.targetId === player.id) {
+    throw new Error("Không thể tự bắn Ricochet vào trang bị của chính mình");
+  }
+  const target = next.players.find((p) => p.id === action.targetId);
+  if (!target || !target.alive) {
+    throw new Error("Mục tiêu không hợp lệ");
+  }
+  const targetCardId = action.targetCardId!;
+  if (!target.equipment.includes(targetCardId)) {
+    throw new Error(`Người chơi ${target.id} không có trang bị "${targetCardId}" trên sân`);
+  }
+
+  const events: GameEvent[] = [
+    { type: "CARD_PLAYED", playerId: player.id, cardId: action.cardId, targetId: target.id },
+  ];
+
+  // Mở rộng Dodge City, mục C nhóm B (Apache Kid) — cùng luật chung "1 lá Rô
+  // là đủ" của pushMissedReaction() (khác Sniper/Doc Holyday — 2 lá).
+  if (getEffectiveCharacterHooks(next, target).isImmuneToCard?.(next, action.cardId) === true) {
+    events.push({ type: "APACHE_KID_IMMUNE", playerId: target.id, fromPlayerId: player.id, cardId: action.cardId });
+    return { state: next, events };
+  }
+
+  next.pending.push({
+    kind: "NEED_MISSED_FOR_EQUIPMENT",
+    player: target.id,
+    source: { card: "ricochet", from: player.id },
+    targetCardId,
+  });
+
+  return { state: next, events };
+}
+
 // Đẩy NEED_MISSED cho mục tiêu; với MỖI nguồn Barrel mục tiêu có (Barrel thật
 // trên sân, VÀ/HOẶC Barrel ảo của Jourdonnais — Giai đoạn 5, xem
 // core/characters.ts), đẩy thêm 1 NEED_DRAW_CHECK lên TRÊN nó — Barrel tự
@@ -914,13 +1168,20 @@ function pushMissedReaction(
 // khi TỰ tính miễn nhiễm Apache Kid theo luật RIÊNG của mình (miễn nhiễm khi
 // CẢ 2 lá bỏ ra đều chất Rô — khác luật chung "1 lá Rô là đủ" của
 // pushMissedReaction() ở trên, nên không thể tái dùng nguyên hàm đó).
+// `missesMultiplier` (mở rộng A Fistful of Cards, lá "Sniper") — nhân THÊM
+// vào số Missed! cần thiết (mặc định 1, không đổi gì so với trước — MỌI chỗ
+// gọi cũ đều không truyền, giữ nguyên hành vi). Sniper truyền 2: người thường
+// cần 2 (1 * 2), Slab the Killer (onOutgoingBang trả 2) cần 4 (2 * 2) — đúng
+// *dev đã chốt trong Luat_Bang_Mo_Rong_FistfulOfCards.txt.
 function pushMissedReactionUnconditional(
   next: GameState,
   target: PlayerState,
-  source: { card: string; from: string }
+  source: { card: string; from: string },
+  missesMultiplier: number = 1
 ): GameEvent[] {
   const attacker = next.players.find((p) => p.id === source.from);
-  const missesNeeded = (attacker ? getEffectiveCharacterHooks(next, attacker).onOutgoingBang?.() : undefined) ?? 1;
+  const missesNeeded =
+    ((attacker ? getEffectiveCharacterHooks(next, attacker).onOutgoingBang?.() : undefined) ?? 1) * missesMultiplier;
 
   next.pending.push(
     missesNeeded > 1
@@ -1439,6 +1700,14 @@ function playEquipment(
   cardId: string,
   cardName: CardName
 ): Result {
+  // Mở rộng A Fistful of Cards, lá "The Judge" — cấm ĐẶT bài trang bị mới
+  // xuống trước mặt BẤT KỲ ai, kể cả trước mặt chính mình (cả lá xanh lẫn lá
+  // vàng "trì hoãn" — *dev đã chốt). KHÔNG cấm DÙNG lá đã bày sẵn từ trước
+  // (Barrel vẫn draw!, lá vàng vẫn kích hoạt qua activateDelayedEquipment() —
+  // đây là điểm phân biệt The Judge với Lasso, xem ghi chú ở đó).
+  if (isEventActive(next, "the_judge")) {
+    throw new Error('Lá sự kiện "The Judge" đang chạy — không được đặt bài trang bị xuống trước mặt bất kỳ ai');
+  }
   const events: GameEvent[] = [{ type: "CARD_PLAYED", playerId: player.id, cardId }];
 
   if (isWeaponCardName(cardName)) {
@@ -1482,6 +1751,12 @@ function activateDelayedEquipment(
   const cardId = action.cardId;
   if (yellowCardActsAsMissed(cardName)) {
     throw new Error(`"${cardName}" chỉ dùng được để đỡ Bang!/Gatling (như Missed!), không thể tự đánh ra`);
+  }
+  // Mở rộng A Fistful of Cards, lá "Lasso" — *dev đã chốt: vô hiệu hoàn toàn
+  // MỌI trang bị trên sân, kể cả lá vàng "trì hoãn" (khác The Judge — lá đó
+  // chỉ cấm ĐẶT bài mới, không cấm DÙNG bài đã bày sẵn).
+  if (isEventActive(next, "lasso")) {
+    throw new Error('Lá sự kiện "Lasso" đang chạy — mọi trang bị trên sân đều mất tác dụng, không thể kích hoạt');
   }
   if (next.equipmentPlayedTurn[cardId] === next.turnNumber) {
     throw new Error(`Chưa thể dùng "${cardName}" — phải chờ ít nhất 1 lượt sau khi đánh ra mới được kích hoạt`);
@@ -1539,7 +1814,7 @@ function activateDelayedEquipment(
       // Đúng TẦM SÚNG đang cầm (khác Buffalo Rifle — bỏ qua tầm hoàn toàn) —
       // đây là điểm phân biệt 2 lá súng "delayed" này (đã chốt với chủ dự án).
       const target = findLivingTarget(next, player, action.targetId, "Kích hoạt Pepperbox cần chọn mục tiêu", "Không thể tự đánh Pepperbox vào chính mình");
-      const range = getWeaponRange(player);
+      const range = getWeaponRange(next, player);
       const distance = computeDistance(next, player.id, target.id, extraDistance);
       if (distance > range) {
         throw new Error(`Mục tiêu ngoài tầm bắn của Pepperbox (khoảng cách ${distance}, tầm súng ${range})`);
@@ -1606,6 +1881,10 @@ function playJail(
   player: PlayerState,
   action: Action & { type: "PLAY_CARD" }
 ): Result {
+  // Mở rộng A Fistful of Cards, lá "The Judge" — xem ghi chú ở playEquipment().
+  if (isEventActive(next, "the_judge")) {
+    throw new Error('Lá sự kiện "The Judge" đang chạy — không được đặt Jail xuống trước mặt bất kỳ ai');
+  }
   const target = findLivingTarget(next, player, action.targetId, "Đánh Jail cần chọn mục tiêu", "Không thể tự đánh Jail lên chính mình");
 
   if (target.role === "sheriff") {
@@ -1978,7 +2257,7 @@ function useDocHolydayShot(
   if (!target || !target.alive) {
     throw new Error("Mục tiêu không hợp lệ");
   }
-  const range = getWeaponRange(player);
+  const range = getWeaponRange(state, player);
   const extraDistance = state.houseRules.includes("extra_distance") ? 1 : 0;
   const distance = computeDistance(state, player.id, target.id, extraDistance);
   if (distance > range) {
@@ -2145,6 +2424,14 @@ function handleRespond(state: GameState, action: Action & { type: "RESPOND" }): 
       return respondToPickArmed(state, action);
     case "NEED_PICK_MARCEL_COMPANION":
       return respondToPickMarcelCompanion(state, action);
+    case "NEED_BLOOD_BROTHERS_GIFT":
+      return respondToBloodBrothersGift(state, action);
+    case "NEED_PICK_HARD_LIQUOR":
+      return respondToPickHardLiquor(state, action);
+    case "NEED_MISSED_FOR_EQUIPMENT":
+      return respondToMissedForEquipment(state, action, top);
+    case "NEED_RANCH_EXCHANGE":
+      return respondToRanchExchange(state, action);
     default: {
       const neverKind: never = top;
       throw new Error(`Chưa hỗ trợ phản hồi loại việc: ${JSON.stringify(neverKind)}`);
@@ -2234,6 +2521,11 @@ function respondToMissed(
         if (cardName === "dynamite") {
           throw new Error("Thuốc nổ không bao giờ dùng được như Missed!");
         }
+        // Mở rộng A Fistful of Cards, lá "Lasso" — phân biệt rõ với "chưa đủ 1
+        // lượt"/Belle Star bên dưới (3 lý do khác hẳn nhau).
+        if (isEventActive(next, "lasso")) {
+          throw new Error(`Lá sự kiện "Lasso" đang chạy — "${cardName}" mất tác dụng, không dùng được như Missed!`);
+        }
         // Mở rộng Dodge City, mục C nhóm C (Belle Star) — phân biệt rõ "đang
         // bị vô hiệu hoá tạm thời" với "chưa đủ 1 lượt" (2 lý do khác hẳn
         // nhau, dùng chung 1 thông báo dễ gây hiểu nhầm là bug).
@@ -2321,6 +2613,70 @@ function respondToMissed(
   }
 
   return { state: next, events: damageEvents };
+}
+
+// Mở rộng A Fistful of Cards, lá "Ricochet" — trả lời NEED_MISSED_FOR_EQUIPMENT.
+// RESPOND kèm cardId hợp lệ (Missed! thật/alias Janet/Dodge, HOẶC lá vàng
+// dùng-như-Missed! đã bày sẵn ≥1 lượt, đọc qua isEquipmentUsableAsMissed() —
+// tự động tôn trọng Lasso/Belle Star/Dynamite loại trừ) -> cứu được, lá đỡ
+// rời tay/sân vào chồng bỏ, bắn MISSED_PLAYED. KHÔNG có khái niệm
+// missesNeeded > 1 ở đây (khác NEED_MISSED) — Ricochet luôn chỉ cần ĐÚNG 1
+// lá. Không kèm cardId (hoặc hết giờ) -> lá trang bị `top.targetCardId` bị
+// bắn mất, rời sân vào chồng bỏ.
+function respondToMissedForEquipment(
+  state: GameState,
+  action: Action & { type: "RESPOND" },
+  top: PendingAction & { kind: "NEED_MISSED_FOR_EQUIPMENT" }
+): Result {
+  const next = cloneState(state);
+  next.pending.pop();
+  const player = next.players.find((p) => p.id === action.playerId)!;
+
+  if (action.cardId) {
+    const cardName = cardNameFromId(action.cardId);
+    const inHand = player.hand.includes(action.cardId);
+    const fromEquipment = !inHand && isEquipmentUsableAsMissed(next, player, action.cardId);
+
+    if (!fromEquipment && (!inHand || !actsAsMissed(next, action.cardId, player))) {
+      throw new Error(`Lá "${cardName}" không dùng được để đỡ đòn Ricochet`);
+    }
+
+    if (fromEquipment) {
+      const equipIndex = player.equipment.indexOf(action.cardId);
+      player.equipment.splice(equipIndex, 1);
+      delete next.equipmentPlayedTurn[action.cardId];
+    } else {
+      const cardIndex = player.hand.indexOf(action.cardId);
+      player.hand.splice(cardIndex, 1);
+    }
+    next.discardPile.push(action.cardId);
+
+    const events: GameEvent[] = [{ type: "MISSED_PLAYED", playerId: player.id }];
+    if (cardName === "bible" || cardName === "dodge") {
+      const drawnCount = drawCardsForPlayer(next, player, 1);
+      if (drawnCount > 0) {
+        events.push({ type: "CARDS_DRAWN", playerId: player.id, count: drawnCount });
+      }
+    }
+    if (!fromEquipment) {
+      events.push(...triggerHandEmptyHook(next, player)); // Giai đoạn 5 (Suzy Lafayette)
+    }
+    events.push(...triggerVoluntaryOutOfTurnHook(next, player, cardName, "immediate"));
+    return { state: next, events };
+  }
+
+  // Không đỡ được (hoặc không chọn đỡ) -> lá trang bị bị bắn mất. Nếu vì lý
+  // do nào đó lá đã không còn trên sân (không nên xảy ra — Ricochet đã kiểm
+  // tồn tại lúc đánh, không có đường nào khác lấy lá KHỎI equipment giữa
+  // chừng vì pending đang chiếm đỉnh stack) thì không làm gì cả, an toàn.
+  const equipIndex = player.equipment.indexOf(top.targetCardId);
+  if (equipIndex === -1) {
+    return { state: next, events: [] };
+  }
+  const [cardId] = player.equipment.splice(equipIndex, 1);
+  delete next.equipmentPlayedTurn[cardId];
+  next.discardPile.push(cardId);
+  return { state: next, events: [{ type: "RICOCHET_EQUIPMENT_DESTROYED", playerId: player.id, cardId }] };
 }
 
 // Bộ mở rộng "custom_characters" (Mary Rose) — đẩy NEED_MISSED miễn phí nhắm
@@ -2691,6 +3047,33 @@ function resolveDrawCheck(
     return { state: next, events };
   }
 
+  // Mở rộng A Fistful of Cards, lá "Vendetta" — SAU KHI kết thúc lượt của
+  // mình, đẩy draw! này (xem finishTurn()). Ra Cơ -> chơi thêm ĐÚNG 1 lượt
+  // NỮA NHƯ BÌNH THƯỜNG: reset y hệt advanceTurn() (turnPhase/bangCountThisTurn/
+  // cardNamesPlayedThisTurn/turnNumber+1/joseDelgadoUsesThisTurn/
+  // docHolydayUsedThisTurn), NHƯNG currentPlayerIndex GIỮ NGUYÊN, rồi CHẠY
+  // TIẾP applyTurnStartChecks() (Marcel companion/Vera Custer/Blood Brothers/
+  // Dynamite/Jail của CHÍNH người này — *dev đã chốt vẫn xét đủ), bỏ qua bước
+  // lật lá sự kiện (skipEventReveal — xem ghi chú ở applyTurnStartChecks()).
+  // vendettaUsedThisTurn = true chặn lượt thêm này lại đẩy draw! Vendetta lần
+  // nữa (đúng luật "chỉ thêm ĐÚNG 1 lượt", không dây chuyền dù Blessing đang
+  // chạy cùng lúc khiến Cơ luôn khớp). Ra ĐEN -> chuyển lượt bình thường.
+  if (top.source.card === "vendetta") {
+    if (matched) {
+      next.turnPhase = "draw";
+      next.bangCountThisTurn = 0;
+      next.cardNamesPlayedThisTurn = [];
+      next.turnNumber += 1;
+      next.joseDelgadoUsesThisTurn = 0;
+      next.docHolydayUsedThisTurn = false;
+      next.vendettaUsedThisTurn = true;
+      events.push(...applyTurnStartChecks(next, { skipEventReveal: true }));
+    } else {
+      events.push(...advanceTurn(next));
+    }
+    return { state: next, events };
+  }
+
   return { state: next, events };
 }
 
@@ -2970,6 +3353,7 @@ function advanceTurn(next: GameState): GameEvent[] {
   next.turnNumber += 1; // mở rộng Dodge City, mục 1.1 (xem GameState.turnNumber ở types.ts)
   next.joseDelgadoUsesThisTurn = 0; // mở rộng Dodge City, mục C nhóm A (José Delgado)
   next.docHolydayUsedThisTurn = false; // mở rộng Dodge City, mục C nhóm C (Doc Holyday)
+  next.vendettaUsedThisTurn = false; // mở rộng A Fistful of Cards (Vendetta)
   return applyTurnStartChecks(next);
 }
 
@@ -2985,12 +3369,17 @@ function advanceTurn(next: GameState): GameEvent[] {
 // (Marcel Marcelo) có thể khiến lượt này bị BỎ QUA HOÀN TOÀN ngay từ đầu
 // (người "cùng vào tù" của Marcel) — kéo theo 1 lần advanceTurn() đệ quy nữa,
 // y hệt cascade Elena Noir ở advanceTurn().
-export function applyTurnStartChecks(next: GameState): GameEvent[] {
+// `skipEventReveal` (mở rộng A Fistful of Cards, lá "Vendetta") — true khi
+// đây là LƯỢT THÊM do Vendetta cấp cho CHÍNH chủ trò: currentPlayerIndex
+// KHÔNG đổi so với lượt "thật" vừa lật lá sự kiện, nên revealNextEventIfDue()
+// sẽ tưởng nhầm là "vòng mới của chủ trò" nếu gọi lại — phải bỏ qua bước lật
+// lá CHỈ trong lượt thêm này (xem resolveDrawCheck() nhánh source "vendetta").
+export function applyTurnStartChecks(next: GameState, options: { skipEventReveal?: boolean } = {}): GameEvent[] {
   // Mở rộng High Noon/A Fistful of Cards, mục 1.3 — ĐẦU TIÊN, TRƯỚC CẢ Marcel/
   // Vera Custer/Dynamite/Jail (đã hỏi lại và chốt đúng thứ tự này với chủ dự
   // án). Chỉ lật khi đang là lượt CHỦ TRÒ và không phải lượt đầu ván của họ —
   // xem revealNextEventIfDue().
-  const eventEvents = revealNextEventIfDue(next);
+  const eventEvents = options.skipEventReveal ? [] : revealNextEventIfDue(next);
   const player = next.players[next.currentPlayerIndex];
 
   // Mở rộng High Noon, lá "High Noon" (nhóm B, mục 1.4) — MỖI ĐẦU LƯỢT của
@@ -3032,8 +3421,23 @@ export function applyTurnStartChecks(next: GameState): GameEvent[] {
       return [...eventEvents, ...highNoonEvents];
     }
   }
-  applyDynamiteAndJailChecks(next, player);
+  continueTurnStartAfterVeraCuster(next, player);
   return [...eventEvents, ...highNoonEvents];
+}
+
+// Phần CÒN LẠI của Bước 0 sau khi Vera Custer (nếu có) đã chọn xong mượn ai —
+// TÁCH RIÊNG để cả applyTurnStartChecks() (không phải Vera Custer/không có ai
+// để mượn) LẪN respondToPickBorrowedCharacter() (Vera Custer vừa chọn xong)
+// đều gọi chung, không lặp code. Mở rộng A Fistful of Cards, lá "Blood
+// Brothers" (nhóm B) — hỏi TRƯỚC Dynamite/Jail: có muốn tặng ĐÚNG 1 máu
+// (không được là giọt cuối) cho 1 người chơi bất kỳ không. Bỏ qua hẳn (không
+// hỏi) nếu chỉ còn 1 máu.
+function continueTurnStartAfterVeraCuster(next: GameState, player: PlayerState): void {
+  if (isEventActive(next, "blood_brothers") && player.hp > 1) {
+    next.pending.push({ kind: "NEED_BLOOD_BROTHERS_GIFT", player: player.id });
+    return;
+  }
+  applyDynamiteAndJailChecks(next, player);
 }
 
 // "Chủ trò" (mục 1.3) — có Sheriff thì là Sheriff, không có (biến thể 2/3
@@ -3138,6 +3542,15 @@ function applyTheDoctorEffect(next: GameState): GameEvent[] {
 // applyTurnStartChecks() (sẽ hỏi lại vô hạn vì Vera Custer vẫn còn
 // canBorrowCharacterAbilities).
 function applyDynamiteAndJailChecks(next: GameState, player: PlayerState): void {
+  // Mở rộng A Fistful of Cards, lá "Lasso" — ĐÃ XÁC NHẬN qua bản dịch luật:
+  // Dynamite/Jail CŨNG bị vô hiệu trong lúc Lasso đang chạy — không draw!,
+  // không nổ, không giam, lượt chạy thẳng như không có 2 lá đó (2 lá vẫn nằm
+  // nguyên trên sân, chỉ tạm ngưng tác dụng, tự động trở lại khi Lasso bị đè).
+  // Cố tình KHÔNG đi qua getEffectiveEquipment() ở đây (khác ý tưởng ban đầu
+  // trong Luat_Bang_Mo_Rong_FistfulOfCards.txt) — chặn thẳng bằng isEventActive
+  // để không phải truyền thêm tham số phân biệt "vô hiệu do Lasso" với "vô
+  // hiệu do Belle Star" (2 lá không liên quan gì nhau, không cần chung 1 đường).
+  if (isEventActive(next, "lasso")) return;
   if (player.equipment.some((id) => cardNameFromId(id) === "dynamite")) {
     next.pending.push({
       kind: "NEED_DRAW_CHECK",

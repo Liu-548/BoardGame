@@ -12,12 +12,19 @@
 
 import { cardNameFromId, DEFAULT_WEAPON_RANGE, isWeaponCardName, WEAPON_RANGES } from "./cards";
 import { getEffectiveCharacterHooks, getEffectiveEquipment } from "./characters";
+import { isEventActive } from "./events";
 import type { GameState, PlayerState } from "./types";
 
 // Tầm bắn của súng người chơi đang trang bị. Không có súng nào thì trả về
-// DEFAULT_WEAPON_RANGE (súng ngầm định).
-export function getWeaponRange(player: PlayerState): number {
-  for (const cardId of player.equipment) {
+// DEFAULT_WEAPON_RANGE (súng ngầm định). Đọc qua getEffectiveEquipment() (mở
+// rộng A Fistful of Cards, lá "Lasso") — không đổi hành vi Belle Star hiện có:
+// cả 3 nơi gọi hàm này (playBang()/Pepperbox/Doc Holyday trong reduce.ts) đều
+// truyền CHÍNH người đang tới lượt, mà Belle Star không bao giờ tự vô hiệu hoá
+// trang bị của chính mình — chỉ Lasso (vô hiệu MỌI người, kể cả người đang tới
+// lượt) mới thật sự đổi kết quả ở đây.
+export function getWeaponRange(state: GameState, player: PlayerState): number {
+  const equipment = getEffectiveEquipment(state, player);
+  for (const cardId of equipment) {
     const name = cardNameFromId(cardId);
     if (isWeaponCardName(name)) {
       return WEAPON_RANGES[name];
@@ -74,7 +81,14 @@ export function computeDistance(
 
   const targetEquipment = getEffectiveEquipment(state, target);
 
-  let distance = seatDistance(state.players, fromId, toId) + extraBaseDistance;
+  // Mở rộng A Fistful of Cards, lá "Ambush" — ĐÃ XÁC NHẬN qua FAQ Q17 chính
+  // thức (KHÁC ghi chú *dev cũ trong Luat_Bang_Mo_Rong_FistfulOfCards.txt,
+  // chủ dự án đã duyệt lại và chọn theo FAQ): khoảng cách vòng tròn CƠ BẢN =
+  // 1, rồi VẪN chạy tiếp toàn bộ phần cộng/trừ Scope/Mustang/Binocular/
+  // Hideout/hook nhân vật bên dưới như bình thường — KHÔNG ép cứng bằng 1.
+  // House rule "extra_distance" bị GHI ĐÈ (không cộng thêm) — cả 2 cùng sửa
+  // đúng 1 đại lượng, Ambush đang chạy thì house rule mất tác dụng.
+  let distance = isEventActive(state, "ambush") ? 1 : seatDistance(state.players, fromId, toId) + extraBaseDistance;
   if (hasEquipment(attacker, "scope")) distance -= 1;
   if (targetEquipment.some((id) => cardNameFromId(id) === "mustang")) distance += 1;
   // Mở rộng Dodge City — Binocular (bản sao vật lý thứ 2 của Scope) và Hideout

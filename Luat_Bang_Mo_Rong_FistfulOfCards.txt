@@ -74,29 +74,19 @@ Ambush — nhóm (C)
     ⇒ Ambush đặt khoảng cách CƠ BẢN = 1 rồi VẪN cộng/trừ như bình
     thường. KHÔNG phải "ép cứng bằng 1".
   - Cách cài đặt:
-    → *** MÂU THUẪN CẦN CHỦ DỰ ÁN CHỐT — ĐỌC TRƯỚC KHI CODE ***
-      Ghi chú *dev bên dưới được viết KHI CHƯA CÓ FAQ Q17. Giờ FAQ đã
-      trả lời rõ và NGƯỢC với ghi chú đó. Hai phương án:
-        (a) THEO FAQ CHÍNH THỨC: khoảng cách cơ bản = 1, sau đó vẫn
-            cộng/trừ Scope/Binocular/Mustang/Hideout và vẫn gọi hook
-            modifyDistance (Rose Doolan/Paul Regret).
-        (b) THEO *dev: ép cứng = 1, bỏ qua tất cả.
-        - *dev theo FAQ: khoảng cách cơ bản = 1, nhưng vẫn cộng trừ trang bị và hook modifyDistance. Chốt 1 cái.
-      Chênh lệch THẬT: người cầm Mustang ở phương án (a) vẫn ở khoảng
-      cách 2 nên súng lục tầm 1 KHÔNG bắn tới; ở phương án (b) thì bắn
-      tới. Khác hẳn nhau, phải chốt 1 cái.
-      -> *dev: force bằng 1 luôn trong vòng chơi, không cộng hay trừ gì cả.
-    → Nếu chọn (a) — cắm ở distance.ts: thay giá trị khoảng cách vòng
-      tròn cơ bản bằng 1, rồi CHẠY TIẾP nguyên phần cộng/trừ trang bị và
-      hook modifyDistance đã có. Sửa đúng 1 dòng, không đụng gì khác.
-    → Nếu chọn (b) — cắm ở distance.ts, ngay đầu hàm:
-      if (isEventActive(state, "ambush")) return 1;  // trả về luôn
-    → House rule "extra_distance" (+1 khoảng cách vòng tròn): ở phương
-      án (a) thì [CẦN BÀN] nó cộng vào TRƯỚC hay SAU khi Ambush ép về 1
-      (đề xuất: Ambush ghi đè khoảng cách vòng tròn ⇒ house rule mất tác
-      dụng, vì cả hai cùng sửa đúng một đại lượng).
-      -> *dev: House rule vô hiệu hóa luôn trong vòng chơi Ambush.
-    → TẦM SÚNG không đổi trong cả 2 phương án. Súng tầm 1 vẫn là tầm 1.
+    → ✅ CHỐT (chủ dự án duyệt lại 2026-08-08, ghi đè ghi chú *dev cũ bên
+      dưới — cũ nói "ép cứng = 1, bỏ qua tất cả", nay đổi theo FAQ):
+      PHƯƠNG ÁN (a) — khoảng cách cơ bản = 1, sau đó vẫn CHẠY TIẾP cộng/
+      trừ Scope/Binocular/Mustang/Hideout và vẫn gọi hook modifyDistance
+      (Rose Doolan/Paul Regret) như bình thường. Người cầm Mustang vẫn ở
+      khoảng cách 2 dưới Ambush — súng lục tầm 1 KHÔNG bắn tới.
+      ĐÃ CÀI: distance.ts's computeDistance() — thay giá trị khoảng cách
+      vòng tròn cơ bản bằng 1 khi isEventActive(state, "ambush"), rồi
+      chạy tiếp nguyên phần cộng/trừ trang bị/hook đã có, đúng 1 dòng.
+    → House rule "extra_distance" (+1 khoảng cách vòng tròn) — ĐÃ CHỐT:
+      Ambush ghi đè khoảng cách vòng tròn ⇒ house rule mất tác dụng khi
+      Ambush đang chạy (cả hai cùng sửa đúng một đại lượng).
+    → TẦM SÚNG không đổi. Súng tầm 1 vẫn là tầm 1.
 
 Lasso — nhóm (C)
   - Hiệu ứng (NGUYÊN VĂN bản dịch): "Tất cả bài trước mặt đều không có
@@ -644,12 +634,11 @@ THÊM VÀO STATE / ACTION (mỗi dòng đều phải hỏi trước, quy tắc C
     `vendettaUsedThisTurn` (Vendetta), + cách để nextAlivePlayerIndex()
     dừng ở người sắp hồi sinh (Dead Man).
 
-*** ƯU TIÊN SỐ 1 — MÂU THUẪN GIỮA *dev VÀ FAQ CHÍNH THỨC ***
-  ☒ Ambush — ghi chú *dev nói "ép cứng bằng 1, không cộng trừ gì cả",
-    nhưng FAQ Q.17 nói RÕ là Mustang/Hideout/Binocular/Rose Doolan/
-    Paul Regret VẪN có tác dụng (khoảng cách CƠ BẢN = 1 rồi vẫn cộng
-    trừ). Ghi chú *dev viết khi CHƯA có FAQ này. Chủ dự án duyệt lại:
-    giữ *dev (đơn giản hơn, dễ code hơn) hay theo FAQ (đúng luật gốc)?
+*** ƯU TIÊN SỐ 1 — MÂU THUẪN GIỮA *dev VÀ FAQ CHÍNH THỨC (ĐÃ CHỐT) ***
+  ☒ Ambush — chủ dự án đã duyệt lại (2026-08-08): chọn theo FAQ Q.17
+    (khoảng cách CƠ BẢN = 1, vẫn cộng/trừ Mustang/Hideout/Binocular/
+    Rose Doolan/Paul Regret), KHÔNG giữ ghi chú *dev cũ "ép cứng = 1".
+    Đã cài ở distance.ts's computeDistance() + test/fistful-ambush.test.ts.
 
 TỪNG LÁ (đã gỡ các mục bản dịch luật trả lời xong):
   ☐ Law of the West — cần hàm canPlayCard() trung tâm (CHƯA CÓ) + cơ

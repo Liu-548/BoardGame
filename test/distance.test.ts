@@ -36,6 +36,7 @@ function makeState(players: PlayerState[], overrides: Partial<GameState> = {}): 
     equipmentPlayedTurn: {},
     joseDelgadoUsesThisTurn: 0,
     docHolydayUsedThisTurn: false,
+    vendettaUsedThisTurn: false,
     duelBangDrawPending: null,
     veraCusterBorrowedCharacterId: null,
     elenaNoirArmed: {},
@@ -142,15 +143,21 @@ describe("computeDistance — Scope và Mustang", () => {
 
 describe("getWeaponRange", () => {
   it("không trang bị súng nào: tầm mặc định 1", () => {
-    expect(getWeaponRange(makePlayer("a"))).toBe(1);
+    const player = makePlayer("a");
+    expect(getWeaponRange(makeState([player]), player)).toBe(1);
   });
 
   it("trả đúng tầm bắn từng khẩu súng", () => {
-    expect(getWeaponRange(makePlayer("a", { equipment: ["volcanic_1"] }))).toBe(1);
-    expect(getWeaponRange(makePlayer("a", { equipment: ["schofield_1"] }))).toBe(2);
-    expect(getWeaponRange(makePlayer("a", { equipment: ["remington_1"] }))).toBe(3);
-    expect(getWeaponRange(makePlayer("a", { equipment: ["rev_carabine_1"] }))).toBe(4);
-    expect(getWeaponRange(makePlayer("a", { equipment: ["winchester_1"] }))).toBe(5);
+    const volcanic = makePlayer("a", { equipment: ["volcanic_1"] });
+    expect(getWeaponRange(makeState([volcanic]), volcanic)).toBe(1);
+    const schofield = makePlayer("a", { equipment: ["schofield_1"] });
+    expect(getWeaponRange(makeState([schofield]), schofield)).toBe(2);
+    const remington = makePlayer("a", { equipment: ["remington_1"] });
+    expect(getWeaponRange(makeState([remington]), remington)).toBe(3);
+    const revCarabine = makePlayer("a", { equipment: ["rev_carabine_1"] });
+    expect(getWeaponRange(makeState([revCarabine]), revCarabine)).toBe(4);
+    const winchester = makePlayer("a", { equipment: ["winchester_1"] });
+    expect(getWeaponRange(makeState([winchester]), winchester)).toBe(5);
   });
 });
 

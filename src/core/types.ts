@@ -176,7 +176,43 @@ export type PendingAction =
   // vừa đánh Jail) để "cùng vào tù": người này sẽ ăn theo ĐÚNG kết quả thoát
   // tù của chính Marcel sau này, không tự rút bài riêng (xem
   // GameState.marcelJailCompanion, resolveDrawCheck() trong reduce.ts).
-  | { kind: "NEED_PICK_MARCEL_COMPANION"; player: string };
+  | { kind: "NEED_PICK_MARCEL_COMPANION"; player: string }
+  // Mở rộng A Fistful of Cards, lá "Blood Brothers" (nhóm B — chạy mỗi lượt)
+  // — đẩy TRƯỚC KHI lượt của `player` thật sự bắt đầu (applyTurnStartChecks(),
+  // sau High Noon nếu có, TRƯỚC Marcel companion/Vera Custer/Dynamite/Jail).
+  // CHỈ đẩy khi player.hp > 1 (không được tặng giọt máu cuối cùng — bỏ qua
+  // hẳn bước này nếu chỉ còn 1 máu, không cần hỏi). RESPOND kèm targetId =
+  // tặng 1 máu cho người đó (không tự chọn "giọt cuối" vì luôn có ĐÚNG 1 máu
+  // được tặng, không phải chọn số lượng); không kèm targetId (mặc định/hết
+  // giờ) = bỏ qua, không tặng ai. Xem respondToBloodBrothersGift() trong
+  // reduce.ts.
+  | { kind: "NEED_BLOOD_BROTHERS_GIFT"; player: string }
+  // Mở rộng A Fistful of Cards, lá "Hard Liquor" — đẩy ĐẦU pha rút, THAY thế
+  // hoàn toàn bước rút bài (khuôn NEED_PICK_DRAW_SOURCE của Pedro Ramirez).
+  // RESPOND kèm `skipDrawForHardLiquor: true` = bỏ qua pha rút, hồi 1 máu
+  // (không vượt maxHp — đã đầy máu vẫn cho chọn, hồi 0); không kèm/false
+  // (mặc định/hết giờ) = rút bài như bình thường, các nhân vật override
+  // onDrawPhase (Pedro Ramirez/Jesse Jones/Kit Carlson/Pat Brennan/Elena
+  // Noir) được hỏi tiếp NGAY SAU. Xem respondToPickHardLiquor() trong
+  // reduce.ts.
+  | { kind: "NEED_PICK_HARD_LIQUOR"; player: string }
+  // Mở rộng A Fistful of Cards, lá "Ricochet" — bỏ 1 lá Bang! để bắn 1 lá
+  // TRANG BỊ cụ thể (`targetCardId`) trước mặt `player`. KHÔNG tái dùng
+  // NEED_MISSED — hậu quả khác hẳn (mất LÁ TRANG BỊ, không mất máu). RESPOND
+  // kèm cardId (Missed! thật/alias/lá vàng đã bày sẵn) = cứu được, lá đó rời
+  // tay/sân vào chồng bỏ; không kèm cardId = lá trang bị bị bắn mất luôn
+  // (targetCardId rời equipment vào chồng bỏ). Xem
+  // respondToMissedForEquipment() trong reduce.ts.
+  | { kind: "NEED_MISSED_FOR_EQUIPMENT"; player: string; source: { card: string; from: string }; targetCardId: string }
+  // Mở rộng A Fistful of Cards, lá "Ranch" — *dev đã đổi cơ chế (khác bản
+  // dịch gốc "sau bước đánh bài"): đẩy NGAY SAU bước rút bài (xem
+  // completeDrawPhase() trong reduce.ts, dùng chung cho MỌI điểm "vừa rút
+  // xong" — rút thường lẫn mọi nhân vật đặc biệt). RESPOND kèm `cardIds`
+  // (mảng, có thể rỗng) = bỏ đúng các lá đó vào chồng bỏ TRƯỚC rồi rút lại
+  // ĐÚNG bấy nhiêu lá mới; không kèm/mảng rỗng/hết giờ = không đổi lá nào.
+  // CHỈ ĐƯỢC 1 LẦN/lượt (đẩy pending đúng 1 lần ⇒ tự đúng, không cần cờ
+  // riêng). Xem respondToRanchExchange() trong reduce.ts.
+  | { kind: "NEED_RANCH_EXCHANGE"; player: string };
 
 // ----- Hành động -----
 // Các hành động cho vòng lượt (việc 1.5) và đánh bài (việc 1.7/1.8, hiện chỉ hỗ
@@ -229,6 +265,9 @@ export type Action =
       // mở rộng High Noon (Thirst/Train Arrival) đổi keepCount thành 1 hoặc 3
       // — 1 lá không diễn đạt được. Xem respondToPickKeptCards() trong reduce.ts.
       cardIds?: string[];
+      // Mở rộng A Fistful of Cards, lá "Hard Liquor" — trả lời
+      // NEED_PICK_HARD_LIQUOR: true = bỏ qua pha rút để hồi 1 máu.
+      skipDrawForHardLiquor?: boolean;
     }
   // Kỹ năng CHỦ ĐỘNG dùng chung cho 3 nhân vật khác nhau — `cardIds` đổi ý
   // nghĩa/độ dài tuỳ nhân vật đang dùng (xem handleUseAbility() trong
@@ -422,6 +461,27 @@ export type GameEvent =
   // MIỄN PHÍ vào `targetId` (người vừa bang cô), bỏ qua khoảng cách, cần 2
   // Missed! mới né được (xem pushMaryRoseReflection() trong reduce.ts).
   | { type: "MARY_ROSE_REFLECTED"; playerId: string; targetId: string }
+  // Mở rộng A Fistful of Cards, lá "Blood Brothers" — `playerId` tặng ĐÚNG 1
+  // máu (tự nguyện, KHÔNG được là giọt cuối) cho `targetId`. Event RIÊNG,
+  // KHÔNG tái dùng DAMAGE_DEALT/HP_RESTORED — đây là 1 hành động TỰ NGUYỆN
+  // của người tặng, không phải "bị tấn công"/"được hồi máu" (đúng tiền lệ
+  // CHUCK_WENGAM_TRADED_LIFE — cùng lý do, xem chú thích ở đó). *dev đã chốt:
+  // Bart Cassidy (onLoseLife) vẫn rút bài, El Gringo (onLoseLifeFromCard)
+  // KHÔNG kích hoạt vì không có "người gây" (byPlayerId null khi gọi
+  // triggerLoseLifeHooks(), đúng khuôn Dynamite/High Noon).
+  | { type: "BLOOD_BROTHERS_GIFT"; playerId: string; targetId: string }
+  // Mở rộng A Fistful of Cards, lá "Ricochet" — `playerId` không đỡ được (hoặc
+  // chọn không đỡ) đòn Ricochet, lá trang bị `cardId` rời sân vào chồng bỏ.
+  // Đỡ được thì bắn MISSED_PLAYED như bình thường (không cần event riêng).
+  | { type: "RICOCHET_EQUIPMENT_DESTROYED"; playerId: string; cardId: string }
+  // Mở rộng A Fistful of Cards, lá "Ranch" — `playerId` đổi `cardIds` (bỏ vào
+  // chồng bỏ) lấy `count` lá mới từ bộ bài (thường bằng cardIds.length, có
+  // thể ít hơn nếu deck+chồng bỏ cạn giữa chừng). Event RIÊNG, KHÔNG tái dùng
+  // CARDS_DISCARDED — event đó đã gắn nghĩa "bỏ bài THỪA cuối lượt" trong
+  // nhật ký (ui.ts), dùng lại ở đây (đổi bài TỰ NGUYỆN giữa lượt) dễ hiểu
+  // nhầm — đúng lý do KIT_CARLSON_DISCARDED/CHUCK_WENGAM_TRADED_LIFE tách
+  // riêng khỏi các event dùng chung khác.
+  | { type: "RANCH_EXCHANGED"; playerId: string; cardIds: string[]; count: number }
   // Mở rộng High Noon/A Fistful of Cards — lá sự kiện `eventId` (kiểu string,
   // cùng lý do GameState.eventDeck ở trên) vừa được lật lên, đè lên lá cũ (nếu
   // có). Hiệu ứng THẬT của lá (nếu thuộc nhóm A — chạy 1 lần lúc lật, xem mục
@@ -509,6 +569,13 @@ export interface GameState {
   // lượt của chính mình. Reset về false mỗi khi sang lượt mới (advanceTurn(),
   // giống bangUsedThisTurn).
   docHolydayUsedThisTurn: boolean;
+  // Mở rộng A Fistful of Cards, lá "Vendetta" — CHỈ có ý nghĩa trong LƯỢT
+  // THÊM do chính lá này cấp (xem resolveDrawCheck() trong reduce.ts): true =
+  // lượt hiện tại LÀ lượt thêm, không draw! lại nữa dù Vendetta vẫn đang
+  // chạy (chặn dây chuyền vô hạn — đúng luật gốc "chỉ thêm ĐÚNG 1 lượt").
+  // Reset về false ở advanceTurn() (mỗi khi sang lượt mới của BẤT KỲ ai),
+  // giống bangCountThisTurn/docHolydayUsedThisTurn.
+  vendettaUsedThisTurn: boolean;
   // Mở rộng Dodge City, mục C nhóm C — Molly Stark: dồn số lần bỏ Bang! TỰ
   // NGUYỆN trong 1 ván Đấu tay đôi (Duel) ĐANG diễn ra, CHỈ rút bài khi Duel
   // THẬT SỰ kết thúc (xem onVoluntaryPlayOutOfTurn ở characters.ts +
