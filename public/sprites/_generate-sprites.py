@@ -1,10 +1,22 @@
-import json, os, subprocess, sys
+import json, os
 import cairosvg
 
-ICONS = json.load(open('/tmp/icons/node_modules/@iconify-json/game-icons/icons.json'))
+# Thư mục chứa chính script này (public/sprites) — ảnh sinh ra ghi thẳng vào đây.
+OUT = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.dirname(os.path.dirname(OUT))  # public/sprites -> public -> gốc dự án
+
+# Cần cài gói npm @iconify-json/game-icons trước (KHÔNG phải dependency của dự
+# án — chỉ dùng lúc chạy script này, xem README.md). Ví dụ:
+#   npm install --no-save @iconify-json/game-icons
+# chạy ở gốc dự án sẽ đặt icons.json vào node_modules như mặc định bên dưới.
+# Nếu cài ở chỗ khác thì trỏ qua biến môi trường ICONIFY_GAME_ICONS_JSON.
+ICONS_JSON_PATH = os.environ.get(
+    'ICONIFY_GAME_ICONS_JSON',
+    os.path.join(PROJECT_ROOT, 'node_modules', '@iconify-json', 'game-icons', 'icons.json'),
+)
+ICONS = json.load(open(ICONS_JSON_PATH, encoding='utf-8'))
 SET_W = ICONS.get('width', 512); SET_H = ICONS.get('height', 512)
 
-OUT = '/sessions/determined-stoic-cori/mnt/BoardGame/public/sprites'
 os.makedirs(OUT, exist_ok=True)
 os.makedirs(OUT + '/characters', exist_ok=True)
 
