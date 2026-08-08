@@ -1352,3 +1352,94 @@ chốt loại; còn lại A Fistful of Cards (lá cuối)/Russian Roulette/Peyot
   chạm với nhân vật rút khác 2 lá — Pixie Pete/Bill Noface/Kit Carlson/Pat
   Brennan/Jesse Jones/Pedro Ramirez) — để dành đợt sau. Law of the West/Dead
   Man (2 lá khó nhất, cố tình để cuối) chưa động tới.
+
+**Mở rộng A Fistful of Cards — đợt 2 (2026-08-08, "A Fistful of Cards" + "Russian
+Roulette" — 11/13 lá, chỉ còn Dead Man/Law of the West):**
+
+- **"A Fistful of Cards" (lá cuối, hiệu lực tới hết ván)**: đầu lượt (SAU Vera
+  Custer, TRƯỚC Dynamite/Jail — chung nhánh với Blood Brothers ở
+  `continueTurnStartAfterVeraCuster()`, 2 lá KHÔNG BAO GIỜ active cùng lúc vì
+  chỉ 1 `activeEventId` chung cho cả High Noon lẫn Fistful), người tới lượt bị
+  bắn bấy nhiêu phát Bang! bằng đúng số lá trên tay lúc đó (0 lá = không có gì
+  xảy ra). Vướng điểm thiết kế: Gatling bắn N NGƯỜI KHÁC nên đẩy N pending
+  `NEED_MISSED` cùng lúc là an toàn, nhưng lá này bắn CÙNG 1 người N LẦN — đẩy
+  cả N pending cùng lúc cho 1 người sẽ phá vỡ giả định "1 người chỉ có 1
+  `NEED_MISSED` tại 1 thời điểm" của đoạn code Barrel-decrement sẵn có
+  (`findIndex` tìm nhầm phát khác). Giải quyết bằng field MỚI `shotsRemaining?:
+  number` trên `NEED_MISSED` (giống hệt khuôn `missesNeeded` đã có) — chỉ đẩy
+  ĐÚNG 1 phát 1 lúc, phát kế tiếp chỉ được đẩy SAU KHI phát hiện tại resolve
+  xong (hàm mới `continueAfterMissedResolved()`, gọi ở cả 2 nhánh
+  `respondToMissed()` — đỡ được/mất máu — LẪN nhánh Barrel-tự-dodge trong
+  `resolveDrawCheck()`). Tác dụng phụ hay: cách này TỰ ĐỘNG giải quyết luôn vấn
+  đề "dọn pending thừa khi chết giữa chừng" nêu trong file luật — không bao giờ
+  có quá 1 pending của lá này tồn tại cùng lúc, nên chết giữa chừng thì
+  `eliminatePlayer()` advance lượt bình thường, không còn gì để dọn. Không có
+  "người bắn" (`source.from: null`, field đã có sẵn từ trước) → El Gringo không
+  kích hoạt (tự nhiên, `byPlayerId` null), Mary Rose không bắn trả (tự nhiên,
+  check `top.source.card === "bang"` không khớp `"a_fistful_of_cards"`), Apache
+  Kid không tự miễn nhiễm (không có chất bài thật để tra). Đổi chữ ký
+  `pushMissedReactionUnconditional()`: `source.from` giờ `string | null`, thêm
+  tham số `shotsRemaining` (mặc định 0, mọi lời gọi cũ không đổi hành vi). Đổi
+  `continueTurnStartAfterVeraCuster()` từ `void` sang trả `GameEvent[]` (bắn
+  `A_FISTFUL_OF_CARDS_TRIGGERED` — event MỚI chỉ để giải thích trong nhật ký vì
+  sao `NEED_MISSED` xuất hiện mà không có `CARD_PLAYED` đi trước, khác Bang!
+  thường) — cả 2 nơi gọi hàm này (`applyTurnStartChecks()`/
+  `respondToPickBorrowedCharacter()`) đều cập nhật theo.
+- **"Russian Roulette" (nhóm A, chạy 1 lần lúc lật)**: rút 1 lá (KHÔNG áp dụng
+  Lucky Duke — đây là draw! của lá sự kiện cho cả bàn, không phải của riêng
+  ai), đếm từ "chủ trò" (dealer) theo GIÁ TRỊ lá vừa rút (A=1...K=13), CHIỀU do
+  MÀU CHẤT quyết định (đỏ = kim đồng hồ, đen = ngược lại — đọc qua
+  `getEffectiveSuit()` nên Blessing/Curse đổi chất là tự đổi luôn chiều đếm),
+  CHỈ đếm người CÒN SỐNG. Người bị đếm trúng phải bỏ 1 Missed!, người KẾ TIẾP
+  (đúng chiều) cũng vậy — ai KHÔNG bỏ được (không có/không muốn, đều hợp lệ,
+  đúng tiền lệ `NEED_DISCARD_BANG` của Indians!) thì mất 2 máu (sàn 0), chuỗi
+  DỪNG hẳn tại đó. `Rank` là kiểu chuỗi ("A".."K") trong dự án này — thêm bảng
+  tra `RANK_NUMERIC_VALUE` cục bộ trong `reduce.ts` để tính bước đếm. PendingAction
+  MỚI `NEED_DISCARD_MISSED_OR_DAMAGE` (không tái dùng `NEED_DISCARD_BANG` — hậu
+  quả không bỏ được khác hẳn: mất 2 máu, không phải Bang!), mang `direction: 1 |
+  -1` NGAY TRONG pending (đúng khuyến nghị "pending được phép mang dữ liệu
+  riêng" đã ghi sẵn trong file luật, không phải field `GameState` mới). Barrel/
+  Jourdonnais dùng được y hệt Missed! thật — đoạn code Barrel-decrement dùng
+  chung với `NEED_MISSED` (`resolveDrawCheck()`) được sửa để nhận diện CẢ 2
+  kind, và khi né trọn vẹn qua Barrel thì tự đẩy tiếp pending cho người kế tiếp
+  (dễ quên nhất của lá này, đúng cảnh báo trong file luật). 2 helper MỚI
+  `prevSeatIndex()`/`seatIndexInDirection()` (độc lập hoàn toàn với
+  `nextTurnPlayerIndex()`/Gold Rush — 2 khái niệm "chiều" khác nhau, không dùng
+  chung). Sự kiện MỚI `RUSSIAN_ROULETTE_STARTED`/`RUSSIAN_ROULETTE_FIRED`.
+- Refactor đi kèm: tách phần validate+rút 1 lá Missed! (equipment vàng/Lasso/
+  Belle Star/Dynamite/Slab the Killer...) khỏi `respondToMissed()` thành hàm
+  dùng chung `resolveMissedCardChoice()` — cả `respondToMissed()` (Bang!/
+  Gatling/Sniper/A Fistful of Cards) LẪN `respondToRussianRouletteChain()` đều
+  gọi, tránh lặp ~50 dòng logic validate giống hệt nhau.
+- Cả 2 lá đều thêm case xử lý ở đủ 4 chỗ "exhaustive switch" bắt buộc khi thêm
+  `PendingAction`/`GameEvent` mới: `ui.ts` (2 bản mô tả pending + 1 bản mô tả
+  event cho nhật ký, cộng các chỗ gate nút "Chịu mất máu"/lá vàng trên sân dùng
+  như Missed!), `room.ts` (mặc định hết giờ — cả 2 lá đều dùng "chịu hậu quả",
+  giống `NEED_MISSED`), `test/bot-simulation.test.ts` (bot thử dùng Missed! nếu
+  có, không thì chịu hậu quả).
+- Test mới: `test/fistful-a-fistful-of-cards.test.ts` (12 test — đẩy pending
+  đúng số phát, đỡ/mất máu từng phát, phát cuối chuyển tiếp Dynamite/Jail, chết
+  giữa chừng không sót pending, Bart Cassidy/El Gringo/Mary Rose, Barrel tự
+  dodge vẫn tiếp tục chuỗi) và `test/fistful-russian-roulette.test.ts` (12 test
+  — đếm chiều đỏ/đen, chỉ đếm người sống, không áp dụng Lucky Duke, chuỗi bỏ
+  Missed! cả 2 chiều, mất máu/sàn 0, El Gringo/Bart Cassidy, Barrel tự dodge,
+  chọn không bỏ dù có Missed!).
+- Đã tự kiểm: `npx tsc --noEmit` sạch, 657 test đều pass (tăng từ 633). CHƯA tự
+  kiểm bằng trình duyệt thật — chỉ code+test, giống nếp đợt 1. UI bật bộ mở
+  rộng qua checkbox vẫn để dành đợt sau.
+- **Peyote TẠM DỪNG theo yêu cầu chủ dự án** (giữa phiên làm việc) — thiết kế
+  ĐÃ CHỐT ĐỦ (lưu trong `Luat_Bang_Mo_Rong_FistfulOfCards.txt` mục Peyote, ghi
+  chú `*dev (2026-08-08, TẠM DỪNG)`): hết giờ tự đoán "đỏ" (không phải từ chối/
+  rút thường); va chạm 8 nhân vật override bước rút bài (Pedro Ramirez/Jesse
+  Jones/Kit Carlson/Pat Brennan/Elena Noir/Black Jack/Pixie Pete/Bill Noface)
+  giải quyết bằng ĐÚNG 1 cổng `NEED_GUESS_CARD_COLOR` chèn đầu
+  `continueDrawCardsAfterHardLiquor()` (trước cả Pedro Ramirez) — vì chỉ 1
+  `activeEventId` chung, Peyote không bao giờ active cùng Hard Liquor/Thirst/
+  Train Arrival/Blessing/Curse nên không cần xử lý tổ hợp riêng cho từng người.
+  CHƯA VIẾT CODE — làm tiếp khi chủ dự án quay lại.
+- **Còn lại của bộ A Fistful of Cards**: Peyote (thiết kế xong, tạm dừng), Dead
+  Man (CỐ TÌNH làm CHUNG với Ghost Town bên High Noon — 2 lá cùng cần cơ chế
+  "người chết vẫn vào vòng lượt"), Law of the West (khó nhất, cần kiến trúc
+  "nước đi bắt buộc" hoàn toàn mới — `canPlayCard()` trung tâm chưa có). Cả 3
+  để dành phiên sau, cần bàn kỹ nhiều điểm luật trước khi code (quy tắc 5
+  CLAUDE.md).

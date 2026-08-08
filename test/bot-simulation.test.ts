@@ -180,8 +180,9 @@ function chooseRespondAction(state: GameState): Action {
 
   switch (top.kind) {
     case "NEED_MISSED":
+    case "NEED_DISCARD_MISSED_OR_DAMAGE":
     case "NEED_DISCARD_BANG": {
-      const requiredName = top.kind === "NEED_MISSED" ? "missed" : "bang";
+      const requiredName = top.kind === "NEED_DISCARD_BANG" ? "bang" : "missed";
       const player = state.players.find((p) => p.id === top.player)!;
       const cardId = player.hand.find((id) => cardNameFromId(id) === requiredName);
       return cardId

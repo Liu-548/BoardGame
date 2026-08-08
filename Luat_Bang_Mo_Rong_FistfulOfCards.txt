@@ -265,6 +265,36 @@ Peyote — nhóm (C)
     → Va chạm 7 nhân vật override onDrawPhase — cùng vấn đề với Thirst/
       Hard Liquor, giải quyết một thể.
       - *dev: (QUAN TRỌNG) Lá này ảnh hưởng rất nhiều nhân vật có khả năng số lượng bài khác 2, cần bàn xử lý kỹ hơn.
+      - *dev (2026-08-08, TẠM DỪNG — chưa code, giữ lại quyết định để làm
+        tiếp đợt sau): ĐÃ chốt 2 điểm còn treo ở trên.
+        (1) Hết giờ (30s) chưa đoán màu -> TỰ ĐỘNG đoán "đỏ" (KHÔNG PHẢI
+            coi như từ chối/rút bài thường — Peyote không có lựa chọn
+            "từ chối", xem điểm (2) ngay dưới).
+        (2) Va chạm 8 nhân vật override bước rút bài (Pedro Ramirez/Jesse
+            Jones/Kit Carlson/Pat Brennan/Elena Noir/Black Jack/Pixie
+            Pete/Bill Noface) — đã rà TỪNG người: KHÔNG ai tương thích
+            được với cơ chế "đoán màu" (Pedro/Jesse mất khái niệm "lá
+            đầu" để chọn nguồn; Kit Carlson xung khắc bản chất "biết
+            trước" >< "đoán mù"; Pat Brennan/Elena Noir cùng tầng "thay
+            vì rút bài" nên chỉ 1 trong 3 được chọn; Black Jack/Pixie
+            Pete/Bill Noface là hook TỰ ĐỘNG, phải chèn hỏi TRƯỚC khi
+            hook chạy). Vì Peyote đã xác nhận là THAY THẾ BẮT BUỘC bước
+            rút (không phải lựa chọn kiểu Hard Liquor — xem điểm (1)
+            trên), cách cài ĐƠN GIẢN NHẤT: chèn `NEED_GUESS_CARD_COLOR`
+            làm điều kiện ĐẦU TIÊN trong handleDrawCards()/
+            continueDrawCardsAfterHardLiquor() — TRƯỚC CẢ Pedro Ramirez
+            — y hệt vị trí cổng Hard Liquor. Vì hệ thống chỉ có ĐÚNG 1
+            `activeEventId` dùng chung cho cả High Noon lẫn Fistful (xem
+            mục 1.6 file High Noon), Peyote KHÔNG BAO GIỜ chạy đồng thời
+            với Hard Liquor/Thirst/Train Arrival/Blessing/Curse — không
+            cần xử lý tổ hợp, không cần hỏi riêng từng nhân vật, chỉ 1
+            gate chung là đủ cho cả 8 người.
+        PendingAction mới: `NEED_GUESS_CARD_COLOR` — `{ player: string;
+        guessesLeft: number }` (bắt đầu 2). RESPOND thêm `color?: "red" |
+        "black"`. Đoán đúng + guessesLeft > 1 -> rút lá vào tay, đẩy lại
+        pending guessesLeft - 1. Đoán đúng mà guessesLeft = 1 HOẶC đoán
+        sai -> kết thúc pha rút qua completeDrawPhase() (lá đoán sai vào
+        discardPile, không vào tay). Đọc chất qua getEffectiveSuit().
 
 Ranch — nhóm (C)
   - Hiệu ứng (NGUYÊN VĂN bản dịch — SỬA LẠI so với bản đầu file này):
@@ -625,14 +655,18 @@ CẦN TRA / XÁC NHẬN TRƯỚC KHI CODE
 (Chưa tính các mục chung ở file High Noon — phải chốt hết bên đó trước.)
 
 THÊM VÀO STATE / ACTION (mỗi dòng đều phải hỏi trước, quy tắc CLAUDE.md):
-  ☐ PendingAction mới: NEED_PICK_HARD_LIQUOR, NEED_GUESS_CARD_COLOR,
-    NEED_RANCH_EXCHANGE, NEED_DISCARD_MISSED_OR_DAMAGE,
-    NEED_BLOOD_BROTHERS_GIFT, NEED_MISSED_FOR_EQUIPMENT (6 kind).
-  ☐ RESPOND thêm `color?: "red" | "black"` (Peyote) và
-    `cardIds?: string[]` (Ranch).
+  ☒ PendingAction: NEED_PICK_HARD_LIQUOR, NEED_RANCH_EXCHANGE,
+    NEED_DISCARD_MISSED_OR_DAMAGE (Russian Roulette),
+    NEED_BLOOD_BROTHERS_GIFT, NEED_MISSED_FOR_EQUIPMENT — ĐÃ CÓ ĐỦ.
+    NEED_MISSED thêm field `shotsRemaining?: number` (A Fistful of Cards,
+    2026-08-08) — xem continueAfterMissedResolved() trong reduce.ts.
+  ☐ CÒN THIẾU: PendingAction `NEED_GUESS_CARD_COLOR` (Peyote — thiết kế
+    đã chốt, xem ghi chú *dev 2026-08-08 ở mục Peyote bên dưới, TẠM DỪNG
+    code) và RESPOND thêm `color?: "red" | "black"` (Peyote).
+  ☒ RESPOND `cardIds?: string[]` (Ranch) — ĐÃ CÓ.
   ☐ GameState thêm `firstEliminatedPlayerId` (Dead Man) và
-    `vendettaUsedThisTurn` (Vendetta), + cách để nextAlivePlayerIndex()
-    dừng ở người sắp hồi sinh (Dead Man).
+    `vendettaUsedThisTurn` (Vendetta — ĐÃ CÓ) + cách để
+    nextAlivePlayerIndex() dừng ở người sắp hồi sinh (Dead Man — CHƯA).
 
 *** ƯU TIÊN SỐ 1 — MÂU THUẪN GIỮA *dev VÀ FAQ CHÍNH THỨC (ĐÃ CHỐT) ***
   ☒ Ambush — chủ dự án đã duyệt lại (2026-08-08): chọn theo FAQ Q.17
@@ -644,23 +678,27 @@ TỪNG LÁ (đã gỡ các mục bản dịch luật trả lời xong):
   ☐ Law of the West — cần hàm canPlayCard() trung tâm (CHƯA CÓ) + cơ
     chế "nước đi bắt buộc" (CHƯA CÓ); ai chọn mục tiêu; hết giờ xử lý
     sao. ĐỀ XUẤT LÀM SAU CÙNG. (Phần Kit Carlson đã có lời giải.)
-  ☐ Peyote — hết giờ đoán gì; lá đoán SAI vào chồng bỏ hay trả lại đỉnh
-    bộ bài (bản dịch không nói).
-  ☐ Ranch — chốt 1 trong 2 cách cắm (lúc END_TURN, hay nước đi tuỳ chọn
-    trong bước 2 kèm cờ ranchUsedThisTurn); thứ tự gọi
-    triggerHandEmptyHook() (Suzy Lafayette).
-  ☐ Russian Roulette — đếm theo người CÒN SỐNG hay tất cả ghế; lần rút
-    lá để đếm có áp dụng Lucky Duke không.
+  ☐ Peyote — TẠM DỪNG (2026-08-08), thiết kế đã chốt đủ (xem ghi chú
+    *dev ở mục Peyote), chưa code.
+  ☒ Ranch — ĐÃ XONG từ đợt trước (đợt 1/2).
+  ☒ Russian Roulette — ĐÃ XONG (2026-08-08): chỉ đếm người CÒN SỐNG,
+    KHÔNG áp dụng Lucky Duke cho lần rút đếm. Xem
+    applyRussianRouletteEffect()/respondToRussianRouletteChain() trong
+    reduce.ts, test/fistful-russian-roulette.test.ts.
   ☐ Dead Man — cách cho nextAlivePlayerIndex() dừng ở người đã chết
-    đúng 1 lần; xác nhận chỉ hồi sinh được Outlaw/Deputy/Renegade.
-  ☐ Blood Brothers — có kích onLoseLife không; có chặn khi người nhận
-    đã đầy máu không.
-  ☐ Vendetta — lượt thêm có chạy lại applyTurnStartChecks() không
-    (bản dịch nói "như bình thường" nhưng chỉ liệt kê 3 bước rút/đánh/
-    bỏ, không nhắc Dynamite/Jail).
-  ☐ A Fistful of Cards — đứng trước hay sau bước Vera Custer; Mary Rose
-    bắn trả vào ai; dọn pending NEED_MISSED còn thừa khi người chơi
-    chết giữa chừng.
+    đúng 1 lần; xác nhận chỉ hồi sinh được Outlaw/Deputy/Renegade. CỐ
+    TÌNH làm CHUNG với Ghost Town (High Noon) — xem LO-TRINH.md.
+  ☒ Blood Brothers — ĐÃ XONG từ đợt trước.
+  ☒ Vendetta — ĐÃ XONG từ đợt trước.
+  ☒ A Fistful of Cards — ĐÃ XONG (2026-08-08): đứng SAU Vera Custer,
+    TRƯỚC Dynamite/Jail (cùng nhánh với Blood Brothers, không bao giờ
+    active cùng lúc vì chung 1 activeEventId). Mary Rose KHÔNG bắn trả
+    (source.card = "a_fistful_of_cards", khác literal "bang"). Không
+    còn vấn đề "dọn pending thừa khi chết giữa chừng" — mỗi lần chỉ đẩy
+    ĐÚNG 1 phát (field mới `shotsRemaining` trên NEED_MISSED), phát kế
+    tiếp chỉ được đẩy SAU KHI phát hiện tại đã resolve xong (xem
+    continueAfterMissedResolved() trong reduce.ts,
+    test/fistful-a-fistful-of-cards.test.ts).
 
 ĐÃ ĐƯỢC BẢN DỊCH LUẬT TRẢ LỜI, KHÔNG CẦN HỎI NỮA:
   ☒ Ambush — cơ chế (nhưng còn mâu thuẫn *dev ở trên).
@@ -682,6 +720,13 @@ THỨ TỰ LÀM ĐỀ XUẤT: Lasso → Sniper (2 lá gần như miễn phí, ki
 hạ tầng) → Ambush → The Judge → Blood Brothers → Vendetta →
 A Fistful of Cards → Russian Roulette → Hard Liquor → Ranch → Peyote →
 Ricochet → Abandoned Mine → Dead Man → Law of the West (khó nhất).
+
+TRẠNG THÁI (2026-08-08): 11/13 xong (Lasso/Sniper/Ambush/The Judge/Blood
+Brothers/Vendetta/Hard Liquor/Ricochet/Ranch/A Fistful of Cards/Russian
+Roulette). Peyote thiết kế xong, TẠM DỪNG chưa code. Còn Dead Man (làm
+CHUNG với Ghost Town bên High Noon) và Law of the West (khó nhất, cần
+kiến trúc "nước đi bắt buộc" mới) — cả 2 để dành phiên sau, cần bàn kỹ
+từng điểm luật trước khi code (xem CLAUDE.md quy tắc 5).
 
 
 ========================================================================

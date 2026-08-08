@@ -901,6 +901,12 @@ export function describeEvent(event: GameEvent, nameOf: (id: string) => string):
       return `${nameOf(event.playerId)} mất ${cardLabel(event.cardId)} vì đòn Ricochet`;
     case "RANCH_EXCHANGED":
       return `${nameOf(event.playerId)} đổi ${event.cardIds.length} lá (Ranch), rút lại ${event.count} lá mới`;
+    case "A_FISTFUL_OF_CARDS_TRIGGERED":
+      return `${nameOf(event.playerId)} bị bắn ${event.shotCount} phát Bang! (A Fistful of Cards)`;
+    case "RUSSIAN_ROULETTE_STARTED":
+      return `Russian Roulette: ${cardFaceLabel(event.cardId)} — ${nameOf(event.startPlayerId)} phải bỏ Missed! đầu tiên (chiều ${event.direction === 1 ? "kim đồng hồ" : "ngược kim đồng hồ"})`;
+    case "RUSSIAN_ROULETTE_FIRED":
+      return `${nameOf(event.playerId)} không né được Russian Roulette, mất ${event.amount} máu`;
   }
 }
 
@@ -1484,6 +1490,7 @@ function cardMatchesRespondable(cardId: string, characterId: string | null, resp
 function respondableCardName(pendingKind: string): CardName | null {
   switch (pendingKind) {
     case "NEED_MISSED":
+    case "NEED_DISCARD_MISSED_OR_DAMAGE":
       return "missed";
     case "NEED_DISCARD_BANG":
     case "NEED_DUEL_RESPONSE":
@@ -1543,7 +1550,7 @@ function hasEnoughMissedToRespond(
   equipmentPlayedTurn: Record<string, number>,
   turnNumber: number
 ): boolean {
-  if (top.kind !== "NEED_MISSED") return true;
+  if (top.kind !== "NEED_MISSED" && top.kind !== "NEED_DISCARD_MISSED_OR_DAMAGE") return true;
   const needed = top.missesNeeded ?? 1;
   const eligibleFromHand = hand.filter((id) => cardActsAsMissed(id, characterId)).length;
   const eligibleFromEquipment = equipment.filter((id) =>
@@ -1669,7 +1676,10 @@ function renderEquipmentSection(
   // Mở rộng Dodge City, mục 1.1 — đang chờ ĐÚNG người này đỡ Bang!/Gatling
   // (NEED_MISSED): lá vàng trên sân dùng được như Missed! bấm được luôn, y
   // hệt lá trên tay (xem respondableCardName()/hasEnoughMissedToRespond() ở trên).
-  const isRespondingWithMissed = top !== undefined && top.player === player.id && top.kind === "NEED_MISSED";
+  const isRespondingWithMissed =
+    top !== undefined &&
+    top.player === player.id &&
+    (top.kind === "NEED_MISSED" || top.kind === "NEED_DISCARD_MISSED_OR_DAMAGE");
   // Mở rộng Dodge City, mục 1.1 — đang chính lượt CHƠI của người này, không có
   // pending/selection nào khác đang dở dang -> lá vàng "trì hoãn" đã qua đủ 1
   // lượt bấm được để KÍCH HOẠT (activateDelayedEquipment() ở reduce.ts).
@@ -1851,7 +1861,8 @@ function renderPlayer(
     (topPending !== undefined &&
       topPending.player === player.id &&
       ((topPending.kind === "NEED_DISCARD_FROM_ZONE" && topPending.zone === "equipment") ||
-        topPending.kind === "NEED_MISSED")) ||
+        topPending.kind === "NEED_MISSED" ||
+        topPending.kind === "NEED_DISCARD_MISSED_OR_DAMAGE")) ||
     (selection.step === "picking-panic-equipment" && selection.targetId === player.id);
   renderPlayerEquipmentArea(
     el,
@@ -2025,6 +2036,8 @@ function pendingDescription(state: GameState, item: PendingAction): string {
       return `${player} đỡ đòn Ricochet bằng Missed! (hoặc mất lá trang bị)`;
     case "NEED_RANCH_EXCHANGE":
       return `${player} chọn đổi bài (hoặc bỏ qua)`;
+    case "NEED_DISCARD_MISSED_OR_DAMAGE":
+      return `${player} bỏ 1 lá Missed! (Russian Roulette, hoặc chịu mất 2 máu)`;
     default: {
       const neverKind: never = item;
       throw new Error(`Chưa biết mô tả cho pending: ${JSON.stringify(neverKind)}`);
@@ -2083,7 +2096,12 @@ function renderPendingPanel(container: HTMLElement, state: GameState, handlers: 
     panel.appendChild(wrapper);
   } else if (top.kind === "NEED_DRAW_CHECK") {
     panel.appendChild(button("Lật bài", () => handlers.onRespondTakeConsequence()));
-  } else if (top.kind === "NEED_MISSED" || top.kind === "NEED_DISCARD_BANG" || top.kind === "NEED_DUEL_RESPONSE") {
+  } else if (
+    top.kind === "NEED_MISSED" ||
+    top.kind === "NEED_DISCARD_BANG" ||
+    top.kind === "NEED_DUEL_RESPONSE" ||
+    top.kind === "NEED_DISCARD_MISSED_OR_DAMAGE"
+  ) {
     panel.appendChild(button("Chịu mất máu (không đỡ)", () => handlers.onRespondTakeConsequence()));
   } else if (top.kind === "NEED_PICK_DRAW_SOURCE") {
     const topOfDiscard = state.discardPile[state.discardPile.length - 1];
@@ -2957,7 +2975,10 @@ function networkRenderEquipmentSection(
   // Mở rộng Dodge City, mục 1.1 — xem ghi chú y hệt ở renderEquipmentSection()
   // (hotseat). player.id === view.viewerId: chỉ CHÍNH nạn nhân mới bấm được.
   const isRespondingWithMissed =
-    top !== undefined && top.player === player.id && player.id === view.viewerId && top.kind === "NEED_MISSED";
+    top !== undefined &&
+    top.player === player.id &&
+    player.id === view.viewerId &&
+    (top.kind === "NEED_MISSED" || top.kind === "NEED_DISCARD_MISSED_OR_DAMAGE");
   const isMyTurnToActivate =
     player.id === view.viewerId &&
     view.pending.length === 0 &&
@@ -3312,6 +3333,8 @@ function networkRenderPendingPanel(
         return `${name} đỡ đòn Ricochet bằng Missed! (hoặc mất lá trang bị)`;
       case "NEED_RANCH_EXCHANGE":
         return `${name} chọn đổi bài (hoặc bỏ qua)`;
+      case "NEED_DISCARD_MISSED_OR_DAMAGE":
+        return `${name} bỏ 1 lá Missed! (Russian Roulette, hoặc chịu mất 2 máu)`;
       default: {
         const neverKind: never = item;
         throw new Error(`Chưa biết mô tả cho pending: ${JSON.stringify(neverKind)}`);

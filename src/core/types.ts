@@ -73,7 +73,21 @@ export type PendingAction =
   // Luat_Bang_Mo_Rong_HighNoon.txt, ví dụ lá "A Fistful of Cards"). MỌI nguồn
   // cũ (Bang!/Gatling/Punch/...) vẫn luôn truyền `from` là 1 playerId THẬT —
   // chỉ các hàm push MỚI (chưa cài) mới thật sự dùng `null`.
-  | { kind: "NEED_MISSED"; player: string; source: { card: string; from: string | null }; missesNeeded?: number }
+  // Mở rộng A Fistful of Cards, lá "A Fistful of Cards" (lá cuối) — mỗi người
+  // bị bắn bấy nhiêu Bang! bằng số lá trên tay lúc đầu lượt, TỪNG PHÁT MỘT
+  // (không đẩy cả loạt cùng lúc — xem ghi chú ở pushMissedReactionUnconditional()
+  // trong reduce.ts, lý do: đẩy cả loạt cho CÙNG 1 người sẽ phá vỡ giả định
+  // "1 người chỉ có 1 NEED_MISSED tại 1 thời điểm" của luồng Barrel bên dưới).
+  // `shotsRemaining` = số phát CÒN LẠI SAU phát này (bỏ qua/undefined = đây là
+  // phát cuối). Phát hiện tại resolve xong (né được hay mất máu) mới đẩy phát
+  // kế tiếp — xem continueAfterMissedResolved() trong reduce.ts.
+  | {
+      kind: "NEED_MISSED";
+      player: string;
+      source: { card: string; from: string | null };
+      missesNeeded?: number;
+      shotsRemaining?: number;
+    }
   // Indians!: người chơi phải bỏ 1 lá Bang! hoặc mất 1 máu. Có thể chọn KHÔNG bỏ
   // dù có Bang! trong tay (RESPOND không kèm cardId) — chịu mất máu là lựa chọn hợp lệ.
   | { kind: "NEED_DISCARD_BANG"; player: string; source: { card: string; from: string } }
@@ -212,7 +226,25 @@ export type PendingAction =
   // ĐÚNG bấy nhiêu lá mới; không kèm/mảng rỗng/hết giờ = không đổi lá nào.
   // CHỈ ĐƯỢC 1 LẦN/lượt (đẩy pending đúng 1 lần ⇒ tự đúng, không cần cờ
   // riêng). Xem respondToRanchExchange() trong reduce.ts.
-  | { kind: "NEED_RANCH_EXCHANGE"; player: string };
+  | { kind: "NEED_RANCH_EXCHANGE"; player: string }
+  // Mở rộng A Fistful of Cards, lá "Russian Roulette" (nhóm A — chạy 1 lần lúc
+  // lật, xem applyRussianRouletteEffect() trong reduce.ts). Chuỗi bỏ Missed!
+  // đi qua từng người CÒN SỐNG, `direction` (1 = theo chiều kim đồng hồ, ứng
+  // với lá đỏ vừa lật; -1 = ngược chiều, lá đen) LƯU LẠI NGAY TRONG pending vì
+  // chuỗi kéo dài qua nhiều lần reduce() — không phải field GameState riêng
+  // (đúng khuyến nghị đã ghi ở đầu file — pending vốn được phép mang dữ liệu
+  // riêng). KHÔNG tái dùng NEED_DISCARD_BANG (Indians!) — hậu quả không bỏ
+  // được khác hẳn (mất 2 máu, KHÔNG áp dụng vào giới hạn/không phải Bang!).
+  // `missesNeeded` chỉ để dùng CHUNG được đúng 1 đoạn code Barrel-decrement
+  // với NEED_MISSED (xem resolveDrawCheck() trong reduce.ts) — Roulette trong
+  // thực tế LUÔN là 1 (không có "người bắn" nào để tra onOutgoingBang), field
+  // này không bao giờ thật sự vượt quá 1, giữ lại chỉ để 2 kind dùng chung code.
+  // RESPOND kèm cardId hợp lệ (Missed! thật/alias/lá vàng đã bày sẵn) = né
+  // được, đẩy tiếp pending mới cho người KẾ TIẾP theo đúng `direction`; không
+  // kèm cardId (không có/không muốn dùng, đều là lựa chọn hợp lệ) = mất 2 máu,
+  // DỪNG chuỗi tại đây (KHÔNG đẩy tiếp cho ai nữa). Xem
+  // respondToRussianRouletteChain() trong reduce.ts.
+  | { kind: "NEED_DISCARD_MISSED_OR_DAMAGE"; player: string; direction: 1 | -1; missesNeeded?: number };
 
 // ----- Hành động -----
 // Các hành động cho vòng lượt (việc 1.5) và đánh bài (việc 1.7/1.8, hiện chỉ hỗ
@@ -487,6 +519,23 @@ export type GameEvent =
   // có). Hiệu ứng THẬT của lá (nếu thuộc nhóm A — chạy 1 lần lúc lật, xem mục
   // 1.4) báo qua các event khác ngay sau event này trong cùng mảng events[].
   | { type: "EVENT_REVEALED"; eventId: string }
+  // Mở rộng A Fistful of Cards, lá "A Fistful of Cards" — bắn `shotCount` phát
+  // Bang! liên tiếp vào CHÍNH `playerId` (đúng số lá trên tay lúc đầu lượt).
+  // Bắn 1 LẦN DUY NHẤT lúc bắt đầu loạt đạn (không lặp lại mỗi phát) — chỉ để
+  // giải thích trong nhật ký vì sao NEED_MISSED xuất hiện mà không có
+  // CARD_PLAYED nào đi trước (khác Bang!/Gatling thường). Từng phát sau đó vẫn
+  // báo MISSED_PLAYED/DAMAGE_DEALT như bình thường, không lặp lại event này.
+  | { type: "A_FISTFUL_OF_CARDS_TRIGGERED"; playerId: string; shotCount: number }
+  // Mở rộng A Fistful of Cards, lá "Russian Roulette" — hiệu ứng chạy 1 lần lúc
+  // lật (nhóm A): rút `cardId` để đếm, xác định `startPlayerId` (người phải bỏ
+  // Missed! đầu tiên) và `direction` (1 = theo chiều kim đồng hồ ứng với lá đỏ,
+  // -1 = ngược chiều ứng với lá đen) — xem applyRussianRouletteEffect().
+  | { type: "RUSSIAN_ROULETTE_STARTED"; cardId: string; startPlayerId: string; direction: 1 | -1 }
+  // Mở rộng A Fistful of Cards, lá "Russian Roulette" — `playerId` không bỏ
+  // được (hoặc chọn không bỏ) Missed!, chuỗi DỪNG tại đây, mất `amount` máu
+  // (luôn 2, trừ khi hp không đủ 2 thì mất hết chỗ còn lại — xem sàn 0 ở
+  // eliminateIfDead()). Không có "người bắn" (killerId null, giống Dynamite).
+  | { type: "RUSSIAN_ROULETTE_FIRED"; playerId: string; amount: number }
   | { type: "GAME_ENDED"; winner: Winner };
 
 // ----- State tổng -----
