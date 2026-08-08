@@ -665,13 +665,32 @@ const EXPANSION_DESCRIPTIONS: Record<ExpansionId, string> = {
   // 1". Tên hiển thị trong ván luôn có đuôi "*ex".
   custom_characters:
     "Thêm 3 nhân vật tự chế Elena Noir/Marcel Marcelo/Mary Rose *ex vào bộ bốc nhân vật (chỉ phát khi bật cơ chế chọn nhân vật) — không thêm lá bài nào.",
-  // Đang xây dựng — chỉ mới có nền tảng chồng sự kiện trong core/, CHƯA cài lá
-  // nào. Cố tình KHÔNG đưa vào EXPANSION_IDS bên dưới (chưa hiện checkbox cho
-  // người chơi bật) tới khi có ít nhất vài lá thật hoạt động được.
-  high_noon: "Bộ lá sự kiện High Noon — đang xây dựng, chưa dùng được.",
-  a_fistful_of_cards: "Bộ lá sự kiện A Fistful of Cards — đang xây dựng, chưa dùng được.",
+  // 11/13 lá High Noon + 11/14 lá A Fistful of Cards đã hoạt động được
+  // (2026-08-08) — CÒN THIẾU Ghost Town/Dead Man/Law of the West/Peyote,
+  // core CHƯA cài nên bị loại tạm khỏi bộ bốc (xem EXPANSION_EVENT_IDS ở
+  // events.ts). Cố tình KHÔNG đưa 2 id này riêng lẻ vào EXPANSION_IDS bên
+  // dưới — gộp chung thành 1 nút duy nhất (xem EVENT_CARDS_EXPANSION_LABEL/
+  // renderExpansionCheckboxes()) vì tách riêng từng bộ sẽ để lộ bộ bài quá ít
+  // lá (12-13 lá thường mỗi bộ) so với gộp chung (21 lá thường).
+  high_noon: "Bộ lá sự kiện High Noon — 11/13 lá đã hoạt động (thiếu Ghost Town).",
+  a_fistful_of_cards: "Bộ lá sự kiện A Fistful of Cards — 11/14 lá đã hoạt động (thiếu Dead Man/Law of the West/Peyote/Abandoned Mine).",
 };
 const EXPANSION_IDS: ExpansionId[] = ["dodge_city", "custom_characters"];
+
+// Mở rộng High Noon + A Fistful of Cards — TẠM GỘP thành 1 nút duy nhất (thay
+// vì 2 checkbox riêng như EXPANSION_IDS ở trên) vì mỗi bộ RIÊNG LẺ còn thiếu
+// khá nhiều lá (Ghost Town/Dead Man/Law of the West/Peyote CHƯA cài, xem
+// EXPANSION_EVENT_IDS ở events.ts) — gộp chung cho bộ bài đủ dày (21 lá
+// thường) để chơi thật thay vì để riêng từng bộ mỏng. Bật nút này = bật CẢ 2
+// id "high_noon" VÀ "a_fistful_of_cards" cùng lúc trong `expansions` — luật
+// "random 1 trong 2 lá cuối khi cả 2 bộ cùng bật" đã có sẵn từ trước
+// (setup.ts) không đổi gì. Xem toggleEventCardExpansions() ở main.ts.
+const EVENT_CARDS_EXPANSION_LABEL = "Lá sự kiện — High Noon + A Fistful of Cards (mở rộng, gộp chung)";
+const EVENT_CARDS_EXPANSION_DESCRIPTION =
+  "Gộp chung 2 bộ lá sự kiện thành 1 (tạm thời, vì mỗi bộ riêng còn thiếu vài lá): High Noon (11/13 lá, thiếu Ghost " +
+  "Town) + A Fistful of Cards (11/14 lá, thiếu Dead Man/Law of the West/Peyote/Abandoned Mine). Vẫn giữ đúng luật " +
+  "gốc khi chơi kết hợp 2 bộ: 26 lá thường gộp chung, xáo, cắt còn 12 lá (mặc định), rồi CHỌN NGẪU NHIÊN 1 trong 2 lá " +
+  "cuối 'High Noon'/'A Fistful of Cards' để dùng — lá còn lại không xuất hiện trong ván đó.";
 
 function renderHouseRuleCheckboxes(
   container: HTMLElement,
@@ -738,6 +757,20 @@ function renderExpansionCheckboxes(
     wrapper.appendChild(label);
     wrapper.appendChild(document.createElement("br"));
   }
+
+  // Nút GỘP High Noon + A Fistful of Cards — xem ghi chú ở
+  // EVENT_CARDS_EXPANSION_LABEL. Gọi onToggle("high_noon") làm đại diện — hàm
+  // toggleEventCardExpansions() ở main.ts đã tự bật/tắt CẢ 2 id cùng lúc.
+  const eventLabel = document.createElement("label");
+  eventLabel.title = EVENT_CARDS_EXPANSION_DESCRIPTION;
+  const eventCheckbox = document.createElement("input");
+  eventCheckbox.type = "checkbox";
+  eventCheckbox.checked = selected.includes("high_noon") && selected.includes("a_fistful_of_cards");
+  eventCheckbox.addEventListener("change", () => onToggle("high_noon"));
+  eventLabel.appendChild(eventCheckbox);
+  eventLabel.append(" " + EVENT_CARDS_EXPANSION_LABEL);
+  wrapper.appendChild(eventLabel);
+  wrapper.appendChild(document.createElement("br"));
 
   container.appendChild(wrapper);
 }

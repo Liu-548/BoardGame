@@ -1443,3 +1443,45 @@ Roulette" — 11/13 lá, chỉ còn Dead Man/Law of the West):**
   "nước đi bắt buộc" hoàn toàn mới — `canPlayCard()` trung tâm chưa có). Cả 3
   để dành phiên sau, cần bàn kỹ nhiều điểm luật trước khi code (quy tắc 5
   CLAUDE.md).
+
+**UI cho High Noon + A Fistful of Cards — gộp chung thành 1 nút (2026-08-08):**
+
+- Chủ dự án yêu cầu: vì mỗi bộ RIÊNG LẺ vẫn còn thiếu vài lá (Ghost Town/Dead
+  Man/Law of the West/Peyote chưa cài), tạm gộp 2 bộ thành 1 (mặc định bật cùng
+  lúc) thay vì để 2 checkbox riêng biệt mỏng lá, vẫn giữ nguyên luật "random 1
+  trong 2 lá cuối khi cả 2 bộ cùng bật" đã có sẵn (`setup.ts`, không đổi gì),
+  và thêm nút bấm thật ở màn hình thiết lập ván.
+- `core/events.ts` — loại tạm 4 lá CHƯA CÀI (`ghost_town`/`dead_man`/
+  `law_of_the_west`/`peyote`) khỏi `EXPANSION_EVENT_IDS`, ĐÚNG cơ chế đã dùng
+  cho `abandoned_mine` trước đó: `EventDefinition` vẫn khai báo đủ ở
+  `EVENT_CARDS`, chỉ không đưa vào bộ bốc thật — lý do: nếu không loại, bật bộ
+  mở rộng cho ván thật có thể lật trúng 1 trong 4 lá này, `activeEventId` đổi,
+  tên lá hiện trong nhật ký, NHƯNG không có hiệu ứng gì (chưa có nhánh xử lý ở
+  bất kỳ đâu) — trông như bug dù không phải. Cập nhật lại 2 test đếm số lá
+  trong `test/events.test.ts` (High Noon riêng: 13→12 lá; A Fistful of Cards
+  riêng: 14→11 lá — test "bật CẢ HAI bộ" không đổi vì vẫn bị cắt bởi
+  `eventDeckSize` mặc định 12, tổng pool 21 lá vẫn dư).
+- `src/client/ui.ts` — `renderExpansionCheckboxes()` (dùng chung cho CẢ hotseat
+  lẫn qua mạng, không cần sửa 2 nơi) thêm 1 checkbox riêng "Lá sự kiện — High
+  Noon + A Fistful of Cards (mở rộng, gộp chung)" — KHÔNG đưa 2 id
+  `"high_noon"`/`"a_fistful_of_cards"` vào mảng `EXPANSION_IDS` (vòng lặp
+  checkbox độc lập thường), mà render RIÊNG 1 checkbox gọi `onToggle("high_noon")`
+  làm đại diện, `checked` = cả 2 id cùng có mặt trong mảng `expansions`.
+- `src/client/main.ts` — hàm mới `toggleExpansionId()`: nhận diện id
+  `"high_noon"`/`"a_fistful_of_cards"` thì bật/tắt CẢ 2 CÙNG LÚC (bộ khác vẫn
+  bật/tắt độc lập như cũ) — dùng chung cho cả `onToggleExpansion()` (hotseat)
+  lẫn `onNetworkToggleExpansion()` (qua mạng), tránh lặp code.
+- Đã tự kiểm bằng trình duyệt thật (`npm run dev`, hotseat 4 người): tick nút
+  "Lá sự kiện...", bắt đầu ván, chơi qua nhiều lượt — nhật ký ghi đúng "Lá sự
+  kiện mới: The Reverend" (lá High Noon) xuất hiện ĐÚNG lúc chủ trò vào lượt
+  thứ 2, xác nhận 2 bộ đã gộp/xáo chung đúng thiết kế. Không lỗi console trong
+  suốt quá trình.
+- **Hạn chế đã biết, để dành đợt sau**: `ui.ts` CHƯA có khu vực hiển thị RIÊNG
+  lá sự kiện đang chạy/lá kế tiếp ngay trên bàn (mục 1.2 file luật dự tính) —
+  `viewFor()` đã lộ `activeEventId`/`nextEventId` qua `PlayerView` từ lâu, chỉ
+  là chưa có chỗ vẽ ra; hiện người chơi chỉ biết qua dòng nhật ký lúc lật lá
+  mới. Nút bấm riêng cho từng nước đi mới của A Fistful of Cards (Sniper/
+  Ricochet/Hard Liquor/Ranch/Blood Brothers/A Fistful of Cards/Russian
+  Roulette) vẫn CHƯA có, giống nếp High Noon.
+- `npx tsc --noEmit` sạch, 657 test đều pass (không đổi count vì chỉ sửa lại 2
+  giá trị mong đợi trong test cũ, không thêm/bớt test nào).

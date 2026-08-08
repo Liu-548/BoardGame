@@ -60,21 +60,25 @@ function makeState(overrides: Partial<GameState> = {}): GameState {
 }
 
 describe("setupGame() — tráo chồng sự kiện (mục 1.6)", () => {
-  it("chỉ bật High Noon: đủ 13 lá (12 thường + 1 lá cuối), lá cuối luôn ở eventDeck[0]", () => {
+  it("chỉ bật High Noon: đủ 12 lá (11 thường, Ghost Town tạm bị loại + 1 lá cuối), lá cuối luôn ở eventDeck[0]", () => {
     const state = setupGame(["a", "b", "c", "d"], 42, { expansions: ["high_noon"] });
-    expect(state.eventDeck.length).toBe(13);
+    expect(state.eventDeck.length).toBe(12);
     expect(state.eventDeck[0]).toBe("high_noon");
     expect(state.activeEventId).toBeNull();
     expect(state.eventDiscard).toEqual([]);
+    expect(state.eventDeck).not.toContain("ghost_town");
     // Không lẫn lá của Fistful of Cards.
     expect(state.eventDeck).not.toContain("a_fistful_of_cards");
   });
 
-  it("chỉ bật A Fistful of Cards: đủ 14 lá (13 thường, Abandoned Mine bị loại + 1 lá cuối)", () => {
+  it("chỉ bật A Fistful of Cards: đủ 11 lá (10 thường, Abandoned Mine/Dead Man/Law of the West/Peyote tạm bị loại + 1 lá cuối)", () => {
     const state = setupGame(["a", "b", "c", "d"], 42, { expansions: ["a_fistful_of_cards"] });
-    expect(state.eventDeck.length).toBe(14);
+    expect(state.eventDeck.length).toBe(11);
     expect(state.eventDeck[0]).toBe("a_fistful_of_cards");
     expect(state.eventDeck).not.toContain("abandoned_mine");
+    expect(state.eventDeck).not.toContain("dead_man");
+    expect(state.eventDeck).not.toContain("law_of_the_west");
+    expect(state.eventDeck).not.toContain("peyote");
   });
 
   it("bật CẢ HAI bộ: cắt còn eventDeckSize (mặc định 12) lá thường + ĐÚNG 1 trong 2 lá cuối", () => {
