@@ -6,7 +6,7 @@
 import { cardNameFromId, cardSuitRankFromId, isDelayedEquipmentCardName, isSelfEquipBlueCardName, yellowCardActsAsMissed, WEAPON_RANGES } from "../core/cards";
 import type { CardName } from "../core/cards";
 import { CHARACTERS, computeStartingHp, getCharacterDefinition } from "../core/characters";
-import { EVENT_CARDS } from "../core/events";
+import { EVENT_CARDS, EXPANSION_EVENT_IDS } from "../core/events";
 import type { EventId } from "../core/events";
 import type { CharacterChoice, ExpansionId, GameEvent, GameState, HouseRuleId, PendingAction, PlayerState, Rank, Role, Suit, Winner } from "../core/types";
 import type { CharacterChoiceView, PendingActionView, PlayerHandView, PlayerView } from "../core/view";
@@ -125,6 +125,44 @@ const CARD_DESCRIPTIONS: Record<CardName, string> = {
   knife: "Trang bị trì hoãn — chờ 1 lượt rồi bỏ ra để có hiệu ứng Bang! ở khoảng cách 1.",
   pepperbox: "Trang bị trì hoãn — chờ 1 lượt rồi bỏ ra để có hiệu ứng Bang! đúng tầm súng đang cầm.",
   howitzer: "Trang bị trì hoãn — chờ 1 lượt rồi bỏ ra để bắn TẤT CẢ người khác cùng lúc, bất kể khoảng cách.",
+};
+
+// Mở rộng High Noon + A Fistful of Cards (bổ sung 2026-08-08, thư viện bài
+// từng bỏ sót hoàn toàn nhóm này) — mô tả theo ĐÚNG luật đã cài (xem
+// CHANGELOG.md "Mở rộng High Noon"/"Mở rộng A Fistful of Cards" để đối chiếu
+// chi tiết từng lá), KHÔNG chép nguyên văn luật gốc BANG! vì dự án có vài chỗ
+// lệch luật gốc (đúng tinh thần CARD_DESCRIPTIONS ở trên). CHỈ soạn cho lá
+// THẬT SỰ nằm trong EXPANSION_EVENT_IDS (đã tự loại Ghost Town/Dead Man/Law
+// of the West/Peyote — core chưa cài) — không soạn trước cho lá chưa cài,
+// tránh mô tả sai luật chưa chốt xong.
+const EVENT_CARD_DESCRIPTIONS: Record<string, string> = {
+  // ----- High Noon -----
+  blessing: "Mọi lá bài đều được coi là chất Cơ (♥) — kể cả lúc lật bài kiểm tra (draw!).",
+  curse: "Mọi lá bài đều được coi là chất Bích (♠) — kể cả lúc lật bài kiểm tra (draw!).",
+  hangover: "Mọi người tạm mất khả năng đặc biệt của nhân vật (giữ nguyên máu tối đa) trong lúc lá này còn hiệu lực.",
+  shootout: "Mỗi người được đánh tối đa 2 lá Bang!/lượt thay vì 1 (Volcanic/Willy the Kid vẫn không giới hạn).",
+  the_reverend: "Cấm dùng Bia hoàn toàn — kể cả tự đánh chủ động lẫn tự động cứu mạng khi máu về 0.",
+  the_sermon: "Cấm CHƠI lá Bang! chủ động trong lượt của mình (vẫn được BỎ Bang! để đỡ Missed!/Đấu tay đôi bình thường).",
+  thirst: "Mọi người rút ÍT HƠN 1 lá ở bước rút bài đầu lượt, kể cả nhân vật có công thức rút bài riêng.",
+  train_arrival: "Mọi người rút NHIỀU HƠN 1 lá ở bước rút bài đầu lượt, kể cả nhân vật có công thức rút bài riêng.",
+  gold_rush: "Đảo NGƯỢC chiều đi của lượt chơi — hiệu ứng các lá bài (Gatling, Người da đỏ!...) vẫn theo đúng chiều gốc, không bị đảo.",
+  the_daltons: "Mỗi người đang có ít nhất 1 lá trang bị (kể cả Nhà tù/Thuốc nổ) phải tự chọn bỏ đúng 1 lá.",
+  the_doctor: "Người ít máu nhất được +1 máu — bằng nhau thì MỖI người đều +1 (chỉ tính người còn sống).",
+  high_noon: "Lá cuối, hiệu lực tới hết ván — đầu mỗi lượt, người tới lượt mất 1 máu vô điều kiện.",
+  // ----- A Fistful of Cards -----
+  ambush: "Khoảng cách vòng tròn giữa mọi người tạm tính là 1 — vẫn cộng/trừ theo Ống nhắm/Ngựa Mustang/kỹ năng nhân vật như bình thường.",
+  lasso: "Vô hiệu hoàn toàn MỌI trang bị của MỌI người (kể cả Nhà tù/Thuốc nổ) — không ai được đặt trang bị mới xuống sân.",
+  the_judge: "Cấm ĐẶT trang bị/Nhà tù mới xuống sân (trang bị đã bày từ trước vẫn dùng bình thường).",
+  hard_liquor: "Đầu lượt, có thể chọn bỏ qua pha rút bài để hồi 1 máu thay vào đó (không được cả hai).",
+  ranch: "Ngay sau khi rút bài, được đổi bất kỳ số lá nào trên tay lấy lại đúng bấy nhiêu lá mới — chỉ 1 lần/lượt.",
+  russian_roulette:
+    "Rút 1 lá để đếm vòng quanh bàn (chiều theo màu, bước theo số) — người bị trúng phải bỏ Missed! liên tiếp, ai không bỏ được thì mất 2 máu.",
+  blood_brothers: "Trước khi lượt bắt đầu, có thể tặng đúng 1 máu (không phải giọt cuối) cho 1 người bất kỳ.",
+  vendetta: "Sau khi kết thúc lượt, rút 1 lá — ra Cơ thì được chơi thêm đúng 1 lượt nữa như bình thường.",
+  sniper: "Bỏ cùng lúc 2 lá Bang! để bắn 1 người trong tầm — họ cần đỡ đủ 2 Missed!, dùng được nhiều lần/lượt.",
+  ricochet: "Bỏ 1 lá Bang! để bắn rụng 1 lá trang bị của người khác, bất kể khoảng cách — họ đỡ được bằng Missed!.",
+  a_fistful_of_cards:
+    "Lá cuối, hiệu lực tới hết ván — đầu mỗi lượt (trước cả kiểm tra Nhà tù/Thuốc nổ), người tới lượt bị bắn số phát Bang! bằng đúng số lá đang cầm trên tay.",
 };
 
 // Nhóm lá nâu/xanh CHỈ để trình bày (viền màu + màn hình Thư viện bài) — chép lại
@@ -528,11 +566,34 @@ function renderDeckPileBox(): HTMLSpanElement {
   return el;
 }
 
+// Mở rộng High Noon/A Fistful of Cards — khung nhỏ hiện TÊN lá sự kiện, dùng
+// CHUNG cho cả "đang chạy" lẫn "kế tiếp" (chỉ khác nhãn/kiểu chữ). Không có
+// ảnh thật riêng cho lá sự kiện (khác hẳn 40 lá bài thường) — chỉ hiện chữ,
+// đơn giản hơn cardChip()/cardBox() vì lá sự kiện không có suit/rank/id thật
+// (EventId là chuỗi tĩnh, không phải cardId gắn với 1 lá vật lý trong deck).
+function renderEventPileBox(eventId: string, modifierClass: string): HTMLElement {
+  const el = document.createElement("div");
+  el.className = `table-center__event-box ${modifierClass}`;
+  el.textContent = EVENT_CARDS[eventId as EventId]?.name ?? eventId;
+  return el;
+}
+
 // Mục 7 UI/UX: khu giữa bàn gồm bộ bài rút (úp, chỉ số lượng) + chồng bài bỏ
 // (lá mặt trên ngửa thật, dùng chung cardChip() như mọi nơi khác hiện 1 lá cụ
 // thể). Dùng CHUNG cho cả hotseat lẫn qua mạng — tham số chỉ cần deckCount +
 // discardPile (2 thứ CÔNG KHAI, PlayerView cũng có sẵn y hệt).
-function renderTableCenter(deckCount: number, discardPile: string[]): HTMLElement {
+//
+// Mở rộng High Noon/A Fistful of Cards (bổ sung 2026-08-08) — thêm
+// activeEventId/nextEventId (cả 2 ĐỀU công khai qua PlayerView từ trước, xem
+// view.ts, chỉ là ui.ts chưa từng vẽ ra) — CHỈ hiện khối này khi ít nhất 1
+// trong 2 khác null (ván không bật bộ mở rộng sự kiện thì không có gì để
+// hiện, giống renderActiveExpansions()).
+function renderTableCenter(
+  deckCount: number,
+  discardPile: string[],
+  activeEventId: string | null,
+  nextEventId: string | null
+): HTMLElement {
   const wrap = document.createElement("div");
   wrap.className = "table-center";
 
@@ -561,6 +622,31 @@ function renderTableCenter(deckCount: number, discardPile: string[]): HTMLElemen
   discardCaption.textContent = `Đã bỏ ${discardPile.length} lá`;
   discardPileEl.appendChild(discardCaption);
   wrap.appendChild(discardPileEl);
+
+  if (activeEventId !== null || nextEventId !== null) {
+    const eventPile = document.createElement("div");
+    eventPile.className = "table-center__pile";
+    if (activeEventId !== null) {
+      eventPile.appendChild(renderEventPileBox(activeEventId, "table-center__event-box--active"));
+    } else {
+      const empty = document.createElement("span");
+      empty.className = "card-box card-box--inert table-center__empty-pile";
+      empty.textContent = "(chưa lật)";
+      eventPile.appendChild(empty);
+    }
+    const eventCaption = document.createElement("span");
+    eventCaption.className = "table-center__caption";
+    eventCaption.textContent = "Sự kiện đang diễn ra";
+    eventPile.appendChild(eventCaption);
+    if (nextEventId !== null) {
+      eventPile.appendChild(renderEventPileBox(nextEventId, "table-center__event-box--next"));
+      const nextCaption = document.createElement("span");
+      nextCaption.className = "table-center__caption";
+      nextCaption.textContent = "Sự kiện kế tiếp";
+      eventPile.appendChild(nextCaption);
+    }
+    wrap.appendChild(eventPile);
+  }
 
   return wrap;
 }
@@ -954,21 +1040,6 @@ export function describeEvent(event: GameEvent, nameOf: (id: string) => string):
 // `.close()` vẫn chạy đúng — giữ listener lại chỉ để đồng bộ khi đóng bằng
 // cách KHÁC nút này, vd phím Esc, phòng khi trình duyệt thật của người chơi
 // hoạt động khác môi trường test).
-// Ép xoay ngang trên điện thoại (thay mục 10 cũ "danh sách dọc" ở màn hình
-// BÀN CHƠI) — web không tự xoay được máy người dùng, chỉ có thể CHẶN thao
-// tác bằng lớp phủ toàn màn hình cho tới khi họ tự xoay tay. Phần tử này LUÔN
-// được thêm vào DOM mỗi lần vẽ màn hình bàn chơi; ẩn/hiện HOÀN TOÀN bằng CSS
-// (`@media (orientation: portrait) and (max-width: 699px)`, xem style.css) —
-// không cần JS lắng nghe orientationchange.
-function renderOrientationLockOverlay(container: HTMLElement): void {
-  const overlay = document.createElement("div");
-  overlay.className = "orientation-lock-overlay";
-  const msg = document.createElement("p");
-  msg.textContent = "📱↻ Xoay ngang điện thoại để chơi";
-  overlay.appendChild(msg);
-  container.appendChild(overlay);
-}
-
 // Fix lỗi thật (báo từ chủ dự án): thanh cuộn của dialog (Nhật ký/Cài đặt bị
 // kéo về TRÊN CÙNG, Thư viện bài bị kéo xuống DƯỚI CÙNG) liên tục, dù người
 // chơi không đụng vào. Nguyên nhân: render() (main.ts) vẽ lại TOÀN BỘ cây DOM
@@ -1453,6 +1524,11 @@ export interface UiHandlers {
   // renderGameToolbar()). Client-only, y hệt 2 dialog trên.
   onOpenCardReferenceDialog(): void;
   onCloseCardReferenceDialog(): void;
+  // Bổ sung 2026-08-08 — ô tìm kiếm ĐẦU dialog Thư viện bài (xem
+  // renderCardReferenceSearchBox()). Cập nhật `cardReferenceSearchQuery` ở
+  // options tương ứng RỒI render() lại NGAY (khác mọi input khác trong dự án
+  // — lọc kết quả theo từng phím gõ bắt buộc phải vẽ lại danh sách).
+  onCardReferenceSearchChange(value: string): void;
   // Nút "Về màn hình chính" BÊN TRONG dialog Cài đặt.
   onLeaveGame(): void;
   // Bổ sung — nút "Bắt đầu ván mới" BÊN TRONG dialog Cài đặt. Bấm lần đầu gọi
@@ -2325,6 +2401,8 @@ export interface RenderOptions {
   settingsDialogOpen: boolean;
   // Bổ sung — dialog "Thư viện bài" mở giữa ván (xem renderGameToolbar()).
   cardReferenceDialogOpen: boolean;
+  // Bổ sung 2026-08-08 — nội dung đang gõ trong ô tìm kiếm của dialog trên.
+  cardReferenceSearchQuery: string;
   // Bổ sung — đang ở bước xác nhận "huỷ ván hiện tại để bắt đầu ván mới"
   // BÊN TRONG dialog Cài đặt (chỉ có ý nghĩa khi settingsDialogOpen === true).
   confirmingNewGame: boolean;
@@ -2338,7 +2416,6 @@ export function renderApp(
 ): void {
   container.replaceChildren();
 
-  renderOrientationLockOverlay(container);
   // Phản hồi thật: thanh nút góc trên (`.game-toolbar`) trước đây `position:
   // fixed` NỔI ĐÈ lên nội dung — seat trên cùng của bàn tròn hay bị che
   // khuất. Vẽ toolbar NGAY ĐẦU (trước mọi nội dung khác) + CSS đổi sang
@@ -2367,7 +2444,14 @@ export function renderApp(
     (state.winner ? ` · VÁN KẾT THÚC — thắng: ${describeWinner(state.winner, nameOfPlayer)}` : "");
   container.appendChild(summary);
 
-  container.appendChild(renderTableCenter(state.deck.length, state.discardPile));
+  container.appendChild(
+    renderTableCenter(
+      state.deck.length,
+      state.discardPile,
+      state.activeEventId,
+      state.eventDeck.length > 0 ? state.eventDeck[state.eventDeck.length - 1] : null
+    )
+  );
 
   renderActiveHouseRules(container, state.houseRules);
   renderActiveExpansions(container, state.expansions);
@@ -2412,7 +2496,10 @@ export function renderApp(
     renderDialog("Nhật ký ván đấu", handlers.onCloseLogDialog, (body) => renderLogDialogBody(body, options.log));
   }
   if (options.cardReferenceDialogOpen) {
-    renderDialog("Thư viện bài", handlers.onCloseCardReferenceDialog, (body) => renderCardReferenceBody(body));
+    renderDialog("Thư viện bài", handlers.onCloseCardReferenceDialog, (body) => {
+      renderCardReferenceSearchBox(body, options.cardReferenceSearchQuery, handlers.onCardReferenceSearchChange);
+      renderCardReferenceBody(body, options.cardReferenceSearchQuery);
+    });
   }
   if (options.settingsDialogOpen) {
     renderDialog("Cài đặt", handlers.onCloseSettingsDialog, (body) =>
@@ -2542,86 +2629,176 @@ export function renderHomeScreen(container: HTMLElement, betaLink: BetaLinkInfo,
   container.appendChild(panel);
 }
 
-// Việc 4.6: màn hình tra cứu — liệt kê đủ 22 lá (12 nâu + 10 xanh), mỗi lá 1
-// khung ảnh+tên (dùng chung appendCardVisual() với lá trong ván) kèm mô tả đầy
-// đủ bên dưới. Không cần cardId thật (không gắn với ván nào) — CardName suông
+// Việc 4.6: màn hình tra cứu — liệt kê đủ lá nâu/xanh/vàng + nhân vật + lá sự
+// kiện, mỗi lá 1 dòng ảnh nhỏ+tên+mô tả (dùng chung appendCardVisual() với lá
+// trong ván). Không cần cardId thật (không gắn với ván nào) — CardName suông
 // là đủ cho appendCardVisual()/CARD_DESCRIPTIONS, không phải suy ngược qua
 // cardNameFromId() như cardButton()/cardChip() (2 hàm đó phục vụ lá THẬT trong
 // ván, luôn có cardId).
+//
+// Bổ sung 2026-08-08 (yêu cầu chủ dự án): thêm ô tìm kiếm ở ĐẦU thư viện (cả
+// màn hình đầy đủ LẪN dialog mở giữa ván — dùng chung renderCardReferenceBody()
+// nên chỉ cần sửa 1 chỗ), đổi hẳn layout GRID sang LIST (dễ đọc hơn, đặc biệt
+// trên điện thoại chiều dọc — xem CSS .card-ref-list/.card-ref-item), và bổ
+// sung 2 nhóm trước đây bị BỎ SÓT hoàn toàn: 13 lá VÀNG "trì hoãn" (Dodge
+// City) và lá SỰ KIỆN (High Noon + A Fistful of Cards) — CHỈ liệt kê đúng
+// những lá THẬT SỰ có trong bộ bốc (EXPANSION_EVENT_IDS ở events.ts đã tự loại
+// Ghost Town/Dead Man/Law of the West/Peyote — core chưa cài, xem events.ts),
+// tự động cập nhật khi sau này cài thêm lá mới, không cần sửa danh sách ở đây.
 export interface CardReferenceHandlers {
   onBack(): void;
 }
 
-function renderCardReferenceGroup(container: HTMLElement, heading: string, names: readonly CardName[]): void {
+// Bỏ dấu tiếng Việt + thường hoá — cho phép gõ không dấu ("ngua") vẫn khớp
+// tên có dấu ("Ngựa"). Không cần thư viện ngoài, Unicode NFD + xoá dải combining
+// diacritics (U+0300-036F) là đủ cho toàn bộ nguyên âm có dấu tiếng Việt.
+function normalizeForSearch(text: string): string {
+  return text
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/đ/g, "d")
+    .replace(/Đ/g, "D")
+    .toLowerCase();
+}
+
+function matchesSearch(query: string, ...texts: string[]): boolean {
+  if (query.trim() === "") return true;
+  const q = normalizeForSearch(query);
+  return texts.some((t) => normalizeForSearch(t).includes(q));
+}
+
+// 1 dòng trong danh sách — ảnh nhỏ bên trái, tên (đậm) + mô tả bên phải. Dùng
+// chung cho cả 3 nhóm (lá bài/nhân vật/sự kiện), chỉ khác nguồn ảnh + class
+// viền màu.
+function renderCardRefListItem(
+  container: HTMLElement,
+  imageUrl: string,
+  boxModifierClass: string,
+  name: string,
+  description: string
+): void {
+  const item = document.createElement("div");
+  item.className = "card-ref-item";
+
+  const box = document.createElement("div");
+  box.className = `card-box ${boxModifierClass}`;
+  // Không truyền tên/mô tả cho appendCardVisual() — tên hiện riêng ở khối chữ
+  // bên cạnh (xem CSS ẩn .card-box__name trong ngữ cảnh list), tránh lặp 2 lần.
+  appendCardVisual(box, imageUrl, "");
+  item.appendChild(box);
+
+  const textBlock = document.createElement("div");
+  textBlock.className = "card-ref-item__text";
+  const nameEl = document.createElement("strong");
+  nameEl.textContent = name;
+  textBlock.appendChild(nameEl);
+  const desc = document.createElement("p");
+  desc.className = "card-ref-item__desc";
+  desc.textContent = description;
+  textBlock.appendChild(desc);
+  item.appendChild(textBlock);
+
+  container.appendChild(item);
+}
+
+// Trả về true nếu có vẽ ít nhất 1 dòng (để renderCardReferenceBody() biết có
+// nên hiện "không tìm thấy" hay không).
+function renderCardReferenceGroup(
+  container: HTMLElement,
+  heading: string,
+  names: readonly CardName[],
+  query: string
+): boolean {
+  const matched = names.filter((name) => matchesSearch(query, CARD_LABELS[name], CARD_DESCRIPTIONS[name]));
+  if (matched.length === 0) return false;
+
   const headingEl = document.createElement("h3");
   headingEl.className = "card-ref-group-heading";
   headingEl.textContent = heading;
   container.appendChild(headingEl);
 
-  const grid = document.createElement("div");
-  grid.className = "card-ref-grid";
-  for (const name of names) {
-    const item = document.createElement("div");
-    item.className = "card-ref-item";
-
-    const box = document.createElement("div");
-    box.className = `card-box ${cardTypeModifierClass(name)}`;
-    // Không truyền description — mô tả đã hiện thành chữ riêng ngay bên dưới
-    // (xem appendCardVisual()), gắn thêm tooltip/nhấn-giữ ở đây là thừa.
-    appendCardVisual(box, cardImageUrl(name), CARD_LABELS[name]);
-    item.appendChild(box);
-
-    const desc = document.createElement("p");
-    desc.className = "card-ref-item__desc";
-    desc.textContent = CARD_DESCRIPTIONS[name];
-    item.appendChild(desc);
-
-    grid.appendChild(item);
+  const list = document.createElement("div");
+  list.className = "card-ref-list";
+  for (const name of matched) {
+    renderCardRefListItem(list, cardImageUrl(name), cardTypeModifierClass(name), CARD_LABELS[name], CARD_DESCRIPTIONS[name]);
   }
-  container.appendChild(grid);
+  container.appendChild(list);
+  return true;
 }
 
 // Hoàn thiện màn hình "Thư viện bài" (trước gọi "Chú giải lá bài", đổi tên
-// theo yêu cầu chủ dự án — bao quát hơn vì có cả lá bài LẪN nhân vật): thay
-// hẳn khung xem trước 2 ô ví dụ (từ hồi CHƯA có nhân vật thật, việc bổ sung
-// sau 4.6) bằng danh sách ĐỦ 16 nhân vật THẬT lấy từ `CHARACTERS` (đăng ký
-// thật trong core/characters.ts, xong từ Giai đoạn 5) — dùng chung
+// theo yêu cầu chủ dự án — bao quát hơn vì có cả lá bài LẪN nhân vật): danh
+// sách ĐỦ nhân vật THẬT lấy từ `CHARACTERS` (đăng ký thật trong
+// core/characters.ts — 16 gốc + 15 Dodge City + 3 tự chế "*ex", ĐẾM ĐỘNG thay
+// vì ghi cứng "16" như bản đầu — số này đã tăng nhiều lần) — dùng chung
 // CHARACTER_DESCRIPTIONS đã soạn sẵn cho màn hình chọn nhân vật, không soạn
 // lại lần 2. Hiện kèm số máu (`bullets`, CHƯA cộng +1 nếu là Cảnh sát trưởng
 // — đúng số liệu tĩnh của nhân vật, giống cách NHAN-VAT-BANG-CO-BAN.txt ghi).
-function renderCharacterReferenceGroup(container: HTMLElement): void {
+function renderCharacterReferenceGroup(container: HTMLElement, query: string): boolean {
+  const characterIds = Object.keys(CHARACTERS);
+  const matched = characterIds.filter((id) =>
+    matchesSearch(query, CHARACTERS[id].name, CHARACTER_DESCRIPTIONS[id] ?? "")
+  );
+  if (matched.length === 0) return false;
+
   const headingEl = document.createElement("h3");
   headingEl.className = "card-ref-group-heading";
-  headingEl.textContent = "16 nhân vật";
+  headingEl.textContent = `${characterIds.length} nhân vật`;
   container.appendChild(headingEl);
 
-  const rule = document.createElement("p");
-  rule.textContent =
-    "Đầu ván, mỗi người được phát 2 lá nhân vật úp, tự xem rồi chọn giữ 1 lá làm nhân vật thật " +
-    "của mình, bỏ lá còn lại. Tên nhân vật khác với tên hiển thị bạn tự gõ lúc vào phòng.";
-  container.appendChild(rule);
-
-  const grid = document.createElement("div");
-  grid.className = "card-ref-grid";
-
-  for (const characterId of Object.keys(CHARACTERS)) {
-    const definition = CHARACTERS[characterId];
-    const item = document.createElement("div");
-    item.className = "card-ref-item";
-
-    const box = document.createElement("div");
-    box.className = "card-box card-box--character";
-    appendCardVisual(box, characterImageUrl(characterId), definition.name);
-    item.appendChild(box);
-
-    const desc = document.createElement("p");
-    desc.className = "card-ref-item__desc";
-    desc.textContent = `Máu: ${definition.bullets}. ${CHARACTER_DESCRIPTIONS[characterId] ?? ""}`;
-    item.appendChild(desc);
-
-    grid.appendChild(item);
+  if (query.trim() === "") {
+    const rule = document.createElement("p");
+    rule.textContent =
+      "Đầu ván, mỗi người được phát 2 lá nhân vật úp, tự xem rồi chọn giữ 1 lá làm nhân vật thật " +
+      "của mình, bỏ lá còn lại. Tên nhân vật khác với tên hiển thị bạn tự gõ lúc vào phòng.";
+    container.appendChild(rule);
   }
-  container.appendChild(grid);
+
+  const list = document.createElement("div");
+  list.className = "card-ref-list";
+  for (const characterId of matched) {
+    const definition = CHARACTERS[characterId];
+    renderCardRefListItem(
+      list,
+      characterImageUrl(characterId),
+      "card-box--character",
+      definition.name,
+      `Máu: ${definition.bullets}. ${CHARACTER_DESCRIPTIONS[characterId] ?? ""}`
+    );
+  }
+  container.appendChild(list);
+  return true;
+}
+
+// Mở rộng High Noon + A Fistful of Cards (bổ sung 2026-08-08) — TRƯỚC ĐÂY bị
+// bỏ sót HOÀN TOÀN khỏi thư viện dù đã chơi được thật. Đọc thẳng
+// EXPANSION_EVENT_IDS (events.ts) thay vì tự chép danh sách riêng — CHỈ liệt
+// kê lá THẬT SỰ nằm trong bộ bốc (đã tự loại Ghost Town/Dead Man/Law of the
+// West/Peyote, xem ghi chú ở events.ts), tự động khớp lại khi sau này cài
+// thêm lá mới, không cần sửa ở đây. Không có ảnh riêng cho lá sự kiện (khác
+// hẳn 40 lá bài thường, xem renderEventPileBox() ở khu giữa bàn) nên dùng
+// card-box--event (chỉ hiện tên, không có <img>).
+function renderEventReferenceGroup(container: HTMLElement, query: string): boolean {
+  const eventIds = [...EXPANSION_EVENT_IDS.high_noon, ...EXPANSION_EVENT_IDS.a_fistful_of_cards];
+  const matched = eventIds.filter((id) =>
+    matchesSearch(query, EVENT_CARDS[id].name, EVENT_CARD_DESCRIPTIONS[id] ?? "")
+  );
+  if (matched.length === 0) return false;
+
+  const headingEl = document.createElement("h3");
+  headingEl.className = "card-ref-group-heading";
+  headingEl.textContent = "Lá sự kiện (High Noon + A Fistful of Cards)";
+  container.appendChild(headingEl);
+
+  const list = document.createElement("div");
+  list.className = "card-ref-list";
+  for (const id of matched) {
+    // Chưa có ảnh riêng cho lá sự kiện — quy ước đường dẫn TRƯỚC (giống mọi
+    // sprite khác trong dự án), <img> lỗi tự ẩn, chỉ còn nền xám + tên chữ.
+    renderCardRefListItem(list, `/sprites/events/${id}.png`, "card-box--event", EVENT_CARDS[id].name, EVENT_CARD_DESCRIPTIONS[id] ?? "");
+  }
+  container.appendChild(list);
+  return true;
 }
 
 // Tách riêng phần NỘI DUNG (không có tiêu đề/nút quay lại) — dùng chung cho
@@ -2629,14 +2806,49 @@ function renderCharacterReferenceGroup(container: HTMLElement): void {
 // dialog mở giữa ván (renderApp()/renderNetworkGame() — nút mới ở toolbar,
 // xem GIAO-DIEN-UI-UX.txt/yêu cầu bổ sung "xem thư viện bài mà không văng ra
 // khỏi ván"). Dialog tự có sẵn tiêu đề + nút "Đóng" riêng (renderDialog()),
-// không cần lặp lại ở đây.
-function renderCardReferenceBody(container: HTMLElement): void {
-  renderCardReferenceGroup(container, "Bài nâu (đánh từ tay, chơi xong vào chồng bỏ)", BROWN_CARD_NAMES);
-  renderCardReferenceGroup(container, "Bài xanh (trang bị, để ngửa trước mặt tới khi mất)", BLUE_CARD_NAMES);
-  renderCharacterReferenceGroup(container);
+// không cần lặp lại ở đây. `query` rỗng = hiện đủ mọi thứ (hành vi cũ).
+function renderCardReferenceBody(container: HTMLElement, query: string): void {
+  const groupsFound = [
+    renderCardReferenceGroup(container, "Bài nâu (đánh từ tay, chơi xong vào chồng bỏ)", BROWN_CARD_NAMES, query),
+    renderCardReferenceGroup(container, "Bài xanh (trang bị, để ngửa trước mặt tới khi mất)", BLUE_CARD_NAMES, query),
+    renderCardReferenceGroup(
+      container,
+      "Bài vàng (trang bị TRÌ HOÃN, Dodge City — chờ 1 lượt mới dùng được)",
+      YELLOW_CARD_NAMES,
+      query
+    ),
+    renderCharacterReferenceGroup(container, query),
+    renderEventReferenceGroup(container, query),
+  ];
+  if (query.trim() !== "" && !groupsFound.some(Boolean)) {
+    const empty = document.createElement("p");
+    empty.textContent = `Không tìm thấy lá/nhân vật nào khớp với "${query}".`;
+    container.appendChild(empty);
+  }
 }
 
-export function renderCardReferenceScreen(container: HTMLElement, handlers: CardReferenceHandlers): void {
+// Ô tìm kiếm ở ĐẦU thư viện — dùng CHUNG cho cả màn hình đầy đủ lẫn dialog mở
+// giữa ván. Class `.card-ref-search-input` được main.ts's captureFocusState()/
+// restoreFocusState() dò theo để giữ NGUYÊN con trỏ đang gõ qua mỗi lần
+// render() (render() luôn xoá-vẽ-lại TOÀN BỘ DOM, xem ghi chú ở
+// captureScrollPositions() cùng file — lọc kết quả theo từng phím gõ BẮT BUỘC
+// phải render lại ngay, khác các input khác trong dự án chỉ cập nhật biến mà
+// không vẽ lại).
+function renderCardReferenceSearchBox(container: HTMLElement, query: string, onSearchChange: (value: string) => void): void {
+  const input = document.createElement("input");
+  input.type = "text";
+  input.className = "card-ref-search-input";
+  input.placeholder = "Tìm tên lá bài/nhân vật/sự kiện...";
+  input.value = query;
+  input.addEventListener("input", () => onSearchChange(input.value));
+  container.appendChild(input);
+}
+
+export function renderCardReferenceScreen(
+  container: HTMLElement,
+  query: string,
+  handlers: CardReferenceHandlers & { onSearchChange(value: string): void }
+): void {
   container.replaceChildren();
 
   const heading = document.createElement("h2");
@@ -2644,8 +2856,9 @@ export function renderCardReferenceScreen(container: HTMLElement, handlers: Card
   container.appendChild(heading);
 
   container.appendChild(button("← Quay lại", () => handlers.onBack()));
+  renderCardReferenceSearchBox(container, query, handlers.onSearchChange);
 
-  renderCardReferenceBody(container);
+  renderCardReferenceBody(container, query);
 }
 
 export interface NetworkLobbyFormHandlers {
@@ -2847,6 +3060,11 @@ export interface NetworkGameHandlers {
   // Bổ sung — giống UiHandlers (hotseat), xem ghi chú ở đó.
   onOpenCardReferenceDialog(): void;
   onCloseCardReferenceDialog(): void;
+  // Bổ sung 2026-08-08 — ô tìm kiếm ĐẦU dialog Thư viện bài (xem
+  // renderCardReferenceSearchBox()). Cập nhật `cardReferenceSearchQuery` ở
+  // options tương ứng RỒI render() lại NGAY (khác mọi input khác trong dự án
+  // — lọc kết quả theo từng phím gõ bắt buộc phải vẽ lại danh sách).
+  onCardReferenceSearchChange(value: string): void;
   onOpenRoomCodeDialog(): void;
   onCloseRoomCodeDialog(): void;
   onCopyRoomCode(): void;
@@ -2874,6 +3092,7 @@ export interface NetworkGameOptions {
   logDialogOpen: boolean; // Đợt 3 UI/UX (mục 9)
   settingsDialogOpen: boolean;
   cardReferenceDialogOpen: boolean; // bổ sung — giống RenderOptions (hotseat)
+  cardReferenceSearchQuery: string; // bổ sung 2026-08-08 — giống RenderOptions (hotseat)
   confirmingNewGame: boolean; // bổ sung — giống RenderOptions (hotseat)
   isRoomOwner: boolean; // bổ sung — chỉ chủ phòng mới thấy nút "Bắt đầu ván mới"
   roomCodeDialogOpen: boolean;
@@ -3633,7 +3852,6 @@ export function renderNetworkGame(
 ): void {
   container.replaceChildren();
 
-  renderOrientationLockOverlay(container);
   // Phản hồi thật: xem ghi chú y hệt ở renderApp() — vẽ toolbar NGAY ĐẦU +
   // CSS `position: sticky` để nó chiếm chỗ thật, không đè lên seat trên
   // cùng của bàn tròn nữa.
@@ -3660,7 +3878,7 @@ export function renderNetworkGame(
     (view.winner ? ` · VÁN KẾT THÚC — thắng: ${describeWinner(view.winner, nameOfPlayer)}` : "");
   container.appendChild(summary);
 
-  container.appendChild(renderTableCenter(view.deckCount, view.discardPile));
+  container.appendChild(renderTableCenter(view.deckCount, view.discardPile, view.activeEventId, view.nextEventId));
 
   renderActiveHouseRules(container, view.houseRules);
   renderActiveExpansions(container, view.expansions);
@@ -3733,7 +3951,10 @@ export function renderNetworkGame(
     renderDialog("Nhật ký ván đấu", handlers.onCloseLogDialog, (body) => renderLogDialogBody(body, options.log));
   }
   if (options.cardReferenceDialogOpen) {
-    renderDialog("Thư viện bài", handlers.onCloseCardReferenceDialog, (body) => renderCardReferenceBody(body));
+    renderDialog("Thư viện bài", handlers.onCloseCardReferenceDialog, (body) => {
+      renderCardReferenceSearchBox(body, options.cardReferenceSearchQuery, handlers.onCardReferenceSearchChange);
+      renderCardReferenceBody(body, options.cardReferenceSearchQuery);
+    });
   }
   if (options.settingsDialogOpen) {
     renderDialog("Cài đặt", handlers.onCloseSettingsDialog, (body) =>

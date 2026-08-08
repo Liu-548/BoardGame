@@ -151,39 +151,10 @@ input[type="text"] {
   border-width: 2px;
 }
 
-/* Ép xoay ngang trên điện thoại — thay hẳn danh sách dọc (mục 10 cũ) cho MÀN
-   HÌNH BÀN CHƠI (hotseat lẫn qua mạng). Web không thể tự xoay máy người dùng
-   (quyền hệ điều hành, không phải trình duyệt) — cách khả thi là CHẶN thao
-   tác bằng 1 lớp phủ toàn màn hình, chờ người chơi tự xoay tay. Phần tử này
-   LUÔN có trong DOM (renderOrientationLockOverlay() ở ui.ts, gọi mỗi lần vẽ
-   màn hình bàn chơi) — mặc định ẩn, CHỈ hiện qua media query dưới, không cần
-   JS lắng nghe orientationchange (đơn giản hơn, ít lỗi vặt hơn). Ngưỡng
-   699px khớp ĐÚNG ngưỡng bàn tròn ở trên — điện thoại dọc hẹp mới bị chặn,
-   máy tính bảng dọc (vd iPad ~768–810px) đã đủ rộng cho bàn tròn nên không
-   cần ép. */
-.orientation-lock-overlay {
-  display: none;
-}
-
-@media (orientation: portrait) and (max-width: 699px) {
-  .orientation-lock-overlay {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    position: fixed;
-    inset: 0;
-    z-index: 1000;
-    padding: 2rem;
-    background: #fff;
-    text-align: center;
-  }
-
-  .orientation-lock-overlay p {
-    font-size: 1.3rem;
-    font-weight: bold;
-    max-width: 20rem;
-  }
-}
+/* (2026-08-08) BỎ ép xoay ngang trên điện thoại theo yêu cầu chủ dự án — màn
+   hình bàn chơi giờ chấp nhận cả chiều dọc (portrait), dựa vào layout co giãn
+   sẵn có (hàng seat cuộn ngang qua overflow-x: auto, khu trang bị tự thu gọn
+   khi bàn >6 người...) thay vì chặn hẳn thao tác cho tới khi xoay tay. */
 
 .player h3 {
   margin: 0 0 0.5rem;
@@ -380,6 +351,7 @@ button.card-box {
   display: flex;
   gap: 1rem;
   align-items: flex-start;
+  flex-wrap: wrap; /* (2026-08-08) màn hình dọc/hẹp: xuống hàng thay vì tràn ngang */
   margin: 0.5rem 0;
 }
 
@@ -403,6 +375,34 @@ button.card-box {
   height: 3.9rem;
   font-size: 0.7rem;
   color: var(--color-text-muted);
+}
+
+/* Mở rộng High Noon/A Fistful of Cards (bổ sung 2026-08-08) — khung chữ đơn
+   giản cho lá sự kiện (không có ảnh/suit/rank như bài thường), cùng chiều cao
+   ĐẠI KHÁI với .table-center__empty-pile để hàng "khu giữa bàn" không lệch
+   nhau khi vừa có bộ bài/chồng bỏ vừa có sự kiện. "Đang diễn ra" viền đậm màu
+   nhấn mạnh; "kế tiếp" viền mờ hơn — phân biệt trực quan không cần đọc chữ. */
+.table-center__event-box {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 4.5rem;
+  min-height: 3.9rem;
+  padding: 0.25rem;
+  font-size: 0.75rem;
+  text-align: center;
+  border-radius: 0.35rem;
+  border: 2px solid var(--color-border);
+}
+
+.table-center__event-box--active {
+  border-color: var(--color-border-strong);
+  font-weight: bold;
+}
+
+.table-center__event-box--next {
+  opacity: 0.7;
+  border-style: dashed;
 }
 
 .card-box--deck-back .card-box__image-wrap {
@@ -432,6 +432,12 @@ button.card-box {
    khung nhân vật ở trên, nên dùng vàng thay thế). */
 .card-box--yellow {
   border-color: #c9a227;
+}
+
+/* Mở rộng High Noon/A Fistful of Cards (bổ sung 2026-08-08) — lá sự kiện,
+   chưa dùng màu nào ở trên (tím để phân biệt rõ với 4 nhóm sẵn có). */
+.card-box--event {
+  border-color: #7d4fb3;
 }
 
 .card-box--inert {
@@ -572,37 +578,63 @@ button.card-box {
   margin: 1.5rem 0 0.5rem;
 }
 
-.card-ref-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr));
-  gap: 1rem;
+/* Ô tìm kiếm (bổ sung 2026-08-08) — full độ rộng, đặt ngay dưới nút "Quay
+   lại"/tiêu đề dialog, trước mọi nhóm lá. */
+.card-ref-search-input {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.5rem 0.6rem;
+  margin: 0.75rem 0;
+  font-size: 1rem;
+}
+
+/* (2026-08-08) Đổi từ GRID (ảnh to xếp lưới) sang LIST (1 dòng/lá) theo yêu
+   cầu chủ dự án — dễ đọc hơn, đặc biệt khi cuộn dài trên điện thoại chiều
+   dọc: ảnh nhỏ cố định bên trái, tên+mô tả bên phải, không cần cuộn ngang. */
+.card-ref-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
 }
 
 .card-ref-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
   border: 1px solid var(--color-border);
   border-radius: 0.5rem;
-  overflow: hidden;
+  padding: 0.4rem 0.6rem;
 }
 
 .card-ref-item .card-box {
-  width: 100%;
-  border-width: 0 0 3px;
-  border-radius: 0;
+  flex: 0 0 auto;
+  width: 3.2rem;
+  border-width: 0 0 0 4px; /* dải màu bên trái thay vì viền dưới kiểu grid cũ */
+  border-radius: 0.3rem;
 }
 
 .card-ref-item .card-box__image-wrap {
-  height: 7rem;
+  height: 3.2rem;
 }
 
+/* Tên đã hiện riêng ở .card-ref-item__text (đậm hơn, cùng hàng với ảnh) —
+   ẩn tên lặp lại bên trong khung ảnh để khỏi trùng, khác lúc đang chơi (nơi
+   khung ảnh vẫn cần tự đứng riêng, có tên bên trong). */
 .card-ref-item .card-box__name {
-  font-size: 0.8rem;
-  padding: 0.3rem;
+  display: none;
+}
+
+.card-ref-item__text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0; /* cho phép chữ tự xuống dòng thay vì đẩy tràn hàng */
 }
 
 .card-ref-item__desc {
   margin: 0;
-  padding: 0.5rem 0.6rem;
-  font-size: 0.82rem;
+  font-size: 0.85rem;
   color: var(--color-text);
 }
 

@@ -130,6 +130,13 @@ let settingsDialogOpen = false;
 // Bổ sung — dialog "Thư viện bài" mở giữa ván (xem ghi chú UiHandlers ở
 // ui.ts). Client-only, giống 2 dialog trên.
 let cardReferenceDialogOpen = false;
+// Bổ sung 2026-08-08 — nội dung ô tìm kiếm Thư viện bài. DÙNG CHUNG cho cả 3
+// nơi hiện thư viện (màn hình đầy đủ vào từ home, dialog hotseat, dialog qua
+// mạng) — 1 người chỉ ở đúng 1 trong 3 ngữ cảnh tại 1 thời điểm nên không cần
+// 3 biến riêng. Reset về "" mỗi lần MỞ lại (xem onShowCardReference()/
+// onOpenCardReferenceDialog()/onNetworkOpenCardReferenceDialog()) để không
+// giữ lại từ khoá cũ từ lần xem trước.
+let cardReferenceSearchQuery = "";
 // Bổ sung — đang ở bước xác nhận "huỷ ván hiện tại để bắt đầu ván mới" BÊN
 // TRONG dialog Cài đặt (chỉ có ý nghĩa khi settingsDialogOpen === true).
 let confirmingNewGame = false;
@@ -222,10 +229,37 @@ function restoreScrollPositions(positions: Map<string, { left: number; top: numb
   }
 }
 
+// Bổ sung 2026-08-08 — ô tìm kiếm Thư viện bài (.card-ref-search-input) PHẢI
+// render() lại NGAY mỗi phím gõ (để lọc danh sách theo query mới, khác mọi
+// input khác trong dự án chỉ cập nhật biến mà KHÔNG vẽ lại — xem ghi chú ở
+// onCardReferenceSearchChange()). Nhưng render() luôn xoá-vẽ-lại DOM (kể cả
+// bên trong dialog, xem renderDialog() ở ui.ts: "vẽ lại nội dung" vẫn
+// replaceChildren() thân dialog) — không bù lại thì mỗi phím gõ sẽ mất con
+// trỏ/focus đang ở input, gõ được đúng 1 ký tự rồi phải bấm lại vào ô. Cùng
+// khuôn captureScrollPositions()/restoreScrollPositions() ở trên, dò từ
+// `document` (bao quát cả dialog lẫn màn hình đầy đủ ngoài `root`).
+function captureFocusState(): { selectionStart: number | null; selectionEnd: number | null } | null {
+  const active = document.activeElement;
+  if (!(active instanceof HTMLInputElement) || !active.classList.contains("card-ref-search-input")) return null;
+  return { selectionStart: active.selectionStart, selectionEnd: active.selectionEnd };
+}
+
+function restoreFocusState(saved: { selectionStart: number | null; selectionEnd: number | null } | null): void {
+  if (!saved) return;
+  const input = document.querySelector(".card-ref-search-input");
+  if (!(input instanceof HTMLInputElement)) return;
+  input.focus();
+  if (saved.selectionStart !== null && saved.selectionEnd !== null) {
+    input.setSelectionRange(saved.selectionStart, saved.selectionEnd);
+  }
+}
+
 function render(): void {
   const scrollPositions = captureScrollPositions();
+  const focusState = captureFocusState();
   renderScreen();
   restoreScrollPositions(scrollPositions);
+  restoreFocusState(focusState);
 }
 
 function renderScreen(): void {
@@ -234,7 +268,7 @@ function renderScreen(): void {
       renderHomeScreen(root, betaLinkInfo(), { onPlayLocal, onPlayNetwork, onShowCardReference });
       return;
     case "card-reference":
-      renderCardReferenceScreen(root, { onBack: onBackToHome });
+      renderCardReferenceScreen(root, cardReferenceSearchQuery, { onBack: onBackToHome, onSearchChange: onCardReferenceSearchChange });
       return;
     case "local-setup":
       renderSetupScreen(root, playerNames, setupError, selectedHouseRules, selectedExpansions, {
@@ -269,6 +303,7 @@ function renderScreen(): void {
           logDialogOpen,
           settingsDialogOpen,
           cardReferenceDialogOpen,
+          cardReferenceSearchQuery,
           confirmingNewGame,
         },
         {
@@ -306,6 +341,7 @@ function renderScreen(): void {
           onCloseSettingsDialog,
           onOpenCardReferenceDialog,
           onCloseCardReferenceDialog,
+          onCardReferenceSearchChange,
           onLeaveGame: onBackToHome,
           onRequestNewGame,
           onConfirmNewGame,
@@ -365,6 +401,7 @@ function renderScreen(): void {
             logDialogOpen: networkLogDialogOpen,
             settingsDialogOpen: networkSettingsDialogOpen,
             cardReferenceDialogOpen: networkCardReferenceDialogOpen,
+            cardReferenceSearchQuery,
             confirmingNewGame: networkConfirmingNewGame,
             isRoomOwner: myPlayerId === lobbyOwnerId,
             roomCodeDialogOpen: networkRoomCodeDialogOpen,
@@ -405,6 +442,7 @@ function renderScreen(): void {
             onCloseSettingsDialog: onNetworkCloseSettingsDialog,
             onOpenCardReferenceDialog: onNetworkOpenCardReferenceDialog,
             onCloseCardReferenceDialog: onNetworkCloseCardReferenceDialog,
+            onCardReferenceSearchChange,
             onOpenRoomCodeDialog: onNetworkOpenRoomCodeDialog,
             onCloseRoomCodeDialog: onNetworkCloseRoomCodeDialog,
             onCopyRoomCode: onNetworkCopyRoomCode,
@@ -435,6 +473,14 @@ function onPlayNetwork(): void {
 // đang chơi dở nào (không cần nhớ "quay lại đâu").
 function onShowCardReference(): void {
   screen = "card-reference";
+  cardReferenceSearchQuery = "";
+  render();
+}
+
+// Bổ sung 2026-08-08 — chỗ DUY NHẤT cập nhật cardReferenceSearchQuery, dùng
+// chung cho cả 3 ngữ cảnh (xem ghi chú khai báo biến ở trên).
+function onCardReferenceSearchChange(value: string): void {
+  cardReferenceSearchQuery = value;
   render();
 }
 
@@ -918,6 +964,7 @@ function onCloseSettingsDialog(): void {
 // đóng lại là chơi tiếp đúng y như trước khi mở.
 function onOpenCardReferenceDialog(): void {
   cardReferenceDialogOpen = true;
+  cardReferenceSearchQuery = "";
   render();
 }
 
@@ -1549,6 +1596,7 @@ function onNetworkCloseSettingsDialog(): void {
 // dialog nổi lên trên, đóng lại là chơi tiếp bình thường.
 function onNetworkOpenCardReferenceDialog(): void {
   networkCardReferenceDialogOpen = true;
+  cardReferenceSearchQuery = "";
   render();
 }
 

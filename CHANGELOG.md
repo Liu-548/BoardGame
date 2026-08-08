@@ -1485,3 +1485,62 @@ Roulette" — 11/13 lá, chỉ còn Dead Man/Law of the West):**
   Roulette) vẫn CHƯA có, giống nếp High Noon.
 - `npx tsc --noEmit` sạch, 657 test đều pass (không đổi count vì chỉ sửa lại 2
   giá trị mong đợi trong test cũ, không thêm/bớt test nào).
+
+**4 việc UI/UX bổ sung (2026-08-08, theo yêu cầu chủ dự án):**
+
+- **Hiện lá sự kiện đang chạy + lá kế tiếp ngay trên bàn** — giải quyết đúng
+  "hạn chế đã biết" ghi ở mục ngay trên. `renderTableCenter()` (dùng chung
+  hotseat/qua mạng) thêm 2 tham số `activeEventId`/`nextEventId` (đã công khai
+  qua `PlayerView` từ lâu, chỉ chưa có chỗ vẽ), thêm 1 "chồng bài" thứ 3 cạnh
+  bộ bài rút/chồng bỏ — viền tím đậm cho lá đang chạy, viền đứt nét mờ hơn cho
+  lá kế tiếp, chỉ hiện khối này khi có bộ mở rộng sự kiện đang bật. Lá sự kiện
+  không có ảnh riêng (khác 40 lá bài thường) nên khung mới `renderEventPileBox()`
+  chỉ hiện chữ tên lá, không có `<img>`.
+- **Bỏ ép xoay ngang trên điện thoại** — xoá hẳn `renderOrientationLockOverlay()`
+  (`ui.ts`, gọi ở cả `renderApp()`/`renderNetworkGame()`) và khối CSS
+  `.orientation-lock-overlay`/`@media (orientation: portrait)...` (`style.css`).
+  Chiều dọc giờ chơi được, dựa vào layout co giãn sẵn có (hàng seat cuộn ngang,
+  khu trang bị tự thu gọn khi >6 người) — không xây layout portrait riêng, chỉ
+  bỏ chặn.
+- **Thư viện bài — bổ sung ĐỦ các lá đang có trong game**: phát hiện thư viện
+  từ trước BỎ SÓT HOÀN TOÀN 2 nhóm dù đã chơi được thật — 13 lá VÀNG "trì hoãn"
+  (Dodge City, `YELLOW_CARD_NAMES` có sẵn nhưng chưa từng được `renderCardReferenceBody()`
+  gọi tới) và lá SỰ KIỆN (High Noon + A Fistful of Cards, chưa từng có mặt ở
+  thư viện). Thêm nhóm mới `renderEventReferenceGroup()` — đọc THẲNG
+  `EXPANSION_EVENT_IDS` (`events.ts`) thay vì tự chép danh sách riêng, nên CHỈ
+  liệt kê đúng 23 lá THẬT SỰ nằm trong bộ bốc (tự động loại Ghost Town/Dead
+  Man/Law of the West/Peyote — core chưa cài), và tự khớp lại khi sau này cài
+  thêm lá mới. Soạn mới `EVENT_CARD_DESCRIPTIONS` (23 lá) theo ĐÚNG luật đã cài
+  (đối chiếu CHANGELOG "Mở rộng High Noon"/"Mở rộng A Fistful of Cards"),
+  KHÔNG chép nguyên văn luật gốc BANG! — cùng tinh thần `CARD_DESCRIPTIONS`.
+  Tiện thể sửa luôn: heading "16 nhân vật" ghi CỨNG dù `CHARACTERS` đã tăng lên
+  34 (16 gốc + 15 Dodge City + 3 tự chế) từ lâu — đổi sang đếm động
+  `Object.keys(CHARACTERS).length`.
+- **Ô tìm kiếm ĐẦU thư viện** (cả màn hình đầy đủ lẫn dialog mở giữa ván — dùng
+  chung `renderCardReferenceBody()` nên sửa 1 chỗ là khớp cả 2 nơi) — lọc theo
+  TÊN lẫn MÔ TẢ (gõ "hồi máu" ra được mọi lá liên quan, không chỉ đúng tên),
+  bỏ dấu tiếng Việt (`normalizeForSearch()`: gõ không dấu "ngua" vẫn khớp
+  "Ngựa"). Vướng điểm kỹ thuật: dự án không dùng framework, `render()` luôn
+  xoá-vẽ-lại TOÀN BỘ DOM (kể cả bên trong `<dialog>`, xem `renderDialog()`) —
+  input khác trong dự án né vấn đề này bằng cách KHÔNG render lại lúc gõ, nhưng
+  lọc-theo-từng-phím ở đây bắt buộc phải render lại ngay. Thêm cặp hàm
+  `captureFocusState()`/`restoreFocusState()` ở `main.ts` (cùng khuôn
+  `captureScrollPositions()`/`restoreScrollPositions()` đã có sẵn cho vấn đề
+  tương tự với thanh cuộn) — lưu vị trí con trỏ TRƯỚC khi vẽ lại, gắn lại NGAY
+  SAU, dò qua class `.card-ref-search-input`. Đã tự kiểm bằng trình duyệt thật:
+  gõ liên tục nhiều ký tự cả ở màn hình đầy đủ lẫn dialog trong ván, con trỏ
+  không rớt ra ngoài, kết quả lọc đúng — kể cả tìm bằng mô tả ("ngua" khớp cả
+  "Hầm trú ẩn" vì mô tả có nhắc "Ngựa Mustang").
+- **Đổi layout GRID sang LIST** cho thư viện bài (`.card-ref-grid` →
+  `.card-ref-list`) — ảnh nhỏ cố định bên trái, tên (đậm)+mô tả bên phải,
+  1 dòng/lá thay vì lưới ảnh to — đọc dễ hơn, đặc biệt khi cuộn dài trên điện
+  thoại chiều dọc (khớp với việc bỏ ép xoay ngang ở trên).
+- Đã tự kiểm bằng trình duyệt thật (`npm run dev`, hotseat 3 người, bật bộ mở
+  rộng sự kiện): khu giữa bàn hiện đúng "(chưa lật)"/"Hangover" (sự kiện kế
+  tiếp) ngay từ lượt đầu; thư viện bài (cả màn hình đầy đủ lẫn dialog trong
+  ván) tìm kiếm đúng, lọc đúng, giữ nguyên con trỏ qua nhiều lần gõ liên tiếp;
+  xác nhận `.orientation-lock-overlay` không còn tồn tại trong DOM lẫn CSS.
+  Không lỗi console trong suốt quá trình.
+- `npx tsc --noEmit` sạch, 657 test đều pass (không đổi — batch này thuần UI,
+  không đụng `core/`).
+
