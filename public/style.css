@@ -382,17 +382,29 @@ button.card-box {
    ĐẠI KHÁI với .table-center__empty-pile để hàng "khu giữa bàn" không lệch
    nhau khi vừa có bộ bài/chồng bỏ vừa có sự kiện. "Đang diễn ra" viền đậm màu
    nhấn mạnh; "kế tiếp" viền mờ hơn — phân biệt trực quan không cần đọc chữ. */
+/* Khung lá sự kiện giữa bàn — xếp DỌC: ảnh trên, tên lá dưới (trước đây chỉ
+   có mỗi chữ, canh giữa theo cả 2 chiều). Thiếu file ảnh thì <img> tự ẩn
+   (xem renderEventPileBox()) và khối co lại còn đúng phần chữ như cũ. */
 .table-center__event-box {
   display: inline-flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 0.15rem;
   width: 4.5rem;
   min-height: 3.9rem;
   padding: 0.25rem;
   font-size: 0.75rem;
+  line-height: 1.15;
   text-align: center;
   border-radius: 0.35rem;
   border: 2px solid var(--color-border);
+}
+
+.table-center__event-image {
+  width: 2.1rem;
+  height: 2.1rem;
+  object-fit: contain;
 }
 
 .table-center__event-box--active {
