@@ -844,7 +844,7 @@ export function describeEvent(event: GameEvent, nameOf: (id: string) => string):
     case "LUCKY_DUKE_EXTRA_DRAW":
       return `${nameOf(event.playerId)} (Lucky Duke) lật thêm 1 lá khi draw!: ${cardFaceLabel(event.cardId)}`;
     case "KIT_CARLSON_DISCARDED":
-      return `${nameOf(event.playerId)} (Kit Carlson) bỏ ${cardFaceLabel(event.cardId)} trong 3 lá vừa xem`;
+      return `${nameOf(event.playerId)} (Kit Carlson) bỏ ${event.cardIds.map(cardFaceLabel).join(", ")} trong 3 lá vừa xem`;
     case "SID_KETCHUM_HEALED":
       return `${nameOf(event.playerId)} (Sid Ketchum) bỏ 2 lá để hồi ${event.amount} máu`;
     case "CHARACTER_CHOSEN":

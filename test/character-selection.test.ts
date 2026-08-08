@@ -41,7 +41,7 @@ function makeState(characterSelection: CharacterChoice[], overrides: Partial<Gam
     turnPhase: "draw",
     rngState: 1,
     winner: null,
-    bangUsedThisTurn: false,
+    bangCountThisTurn: 0,
     characterSelection,
     houseRules: [],
     expansions: [],

@@ -30,7 +30,7 @@ function makeState(overrides: Partial<GameState> = {}): GameState {
     turnPhase: "play",
     rngState: 1,
     winner: null,
-    bangUsedThisTurn: false,
+    bangCountThisTurn: 0,
     characterSelection: null,
     turnNumber: 1,
     equipmentPlayedTurn: {},

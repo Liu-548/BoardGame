@@ -36,7 +36,7 @@ function makeState(players: PlayerState[], overrides: Partial<GameState> = {}): 
     turnPhase: "play",
     rngState: 1,
     winner: null,
-    bangUsedThisTurn: false,
+    bangCountThisTurn: 0,
     characterSelection: null,
     turnNumber: 0,
     equipmentPlayedTurn: {},
@@ -212,14 +212,14 @@ describe("Dodge City đợt 2 — Punch (Bang! khoảng cách 1 bất kể súng
   it("KHÔNG tính vào giới hạn 1 Bang!/lượt — đánh Bang! thật rồi vẫn đánh được Punch trong cùng lượt", () => {
     const state = makeState([makePlayer("a", { hand: ["bang_1", "punch_1"] }), makePlayer("b")]);
     const afterBang = reduce(state, { type: "PLAY_CARD", playerId: "a", cardId: "bang_1", targetId: "b" });
-    expect(afterBang.state.bangUsedThisTurn).toBe(true);
+    expect(afterBang.state.bangCountThisTurn).toBe(1);
 
     const stateAfterMiss = { ...afterBang.state, pending: [] as GameState["pending"] };
     const { state: next } = reduce(stateAfterMiss, {
       type: "PLAY_CARD", playerId: "a", cardId: "punch_1", targetId: "b",
     });
     expect(next.pending).toEqual([{ kind: "NEED_MISSED", player: "b", source: { card: "punch", from: "a" } }]);
-    expect(next.bangUsedThisTurn).toBe(true); // vẫn true, Punch không đụng vào field này
+    expect(next.bangCountThisTurn).toBe(1); // vẫn 1, Punch không đụng vào field này
   });
 });
 
@@ -271,7 +271,7 @@ describe("Dodge City đợt 2 — Springfield (Bang! bất kỳ khoảng cách, 
 
     expect(next.discardPile).toEqual(["springfield_1", "beer_1"]);
     expect(next.pending).toEqual([{ kind: "NEED_MISSED", player: "c", source: { card: "springfield", from: "a" } }]);
-    expect(next.bangUsedThisTurn).toBe(false);
+    expect(next.bangCountThisTurn).toBe(0);
     expect(events.some((e) => e.type === "CARD_PLAYED")).toBe(true);
   });
 });

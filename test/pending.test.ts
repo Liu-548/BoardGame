@@ -17,7 +17,7 @@ function makeState(overrides: Partial<GameState> = {}): GameState {
     turnPhase: "play",
     rngState: 1,
     winner: null,
-    bangUsedThisTurn: false,
+    bangCountThisTurn: 0,
     characterSelection: null,
     turnNumber: 0,
     equipmentPlayedTurn: {},
@@ -99,7 +99,7 @@ describe("reduce — PLAY_CARD (Bang!)", () => {
     ).toThrow();
   });
 
-  it("đánh Bang! xong thì bangUsedThisTurn chuyển thành true", () => {
+  it("đánh Bang! xong thì bangCountThisTurn tăng lên 1", () => {
     const state = makeState();
     const { state: next } = reduce(state, {
       type: "PLAY_CARD",
@@ -107,7 +107,7 @@ describe("reduce — PLAY_CARD (Bang!)", () => {
       cardId: "bang_1",
       targetId: "b",
     });
-    expect(next.bangUsedThisTurn).toBe(true);
+    expect(next.bangCountThisTurn).toBe(1);
   });
 
   it("báo lỗi nếu đánh lá Bang! thứ 2 trong cùng lượt, không cầm Volcanic", () => {
@@ -116,7 +116,7 @@ describe("reduce — PLAY_CARD (Bang!)", () => {
         { id: "a", name: "a", role: "sheriff", hp: 4, maxHp: 4, hand: ["bang_2"], equipment: [], alive: true, characterId: null },
         ...makeState().players.slice(1),
       ],
-      bangUsedThisTurn: true, // đã đánh 1 lá Bang! trước đó trong lượt này
+      bangCountThisTurn: 1, // đã đánh 1 lá Bang! trước đó trong lượt này
     });
     expect(() =>
       reduce(state, { type: "PLAY_CARD", playerId: "a", cardId: "bang_2", targetId: "b" })
@@ -129,7 +129,7 @@ describe("reduce — PLAY_CARD (Bang!)", () => {
         { id: "a", name: "a", role: "sheriff", hp: 4, maxHp: 4, hand: ["bang_2"], equipment: ["volcanic_1"], alive: true, characterId: null },
         ...makeState().players.slice(1),
       ],
-      bangUsedThisTurn: true,
+      bangCountThisTurn: 1,
     });
     const { state: next } = reduce(state, {
       type: "PLAY_CARD",
@@ -142,13 +142,13 @@ describe("reduce — PLAY_CARD (Bang!)", () => {
     ]);
   });
 
-  it("sang lượt mới thì bangUsedThisTurn reset về false", () => {
+  it("sang lượt mới thì bangCountThisTurn reset về 0", () => {
     const state = makeState({
       turnPhase: "play",
-      bangUsedThisTurn: true,
+      bangCountThisTurn: 1,
     });
     const { state: next } = reduce(state, { type: "END_TURN", playerId: "a" });
-    expect(next.bangUsedThisTurn).toBe(false);
+    expect(next.bangCountThisTurn).toBe(0);
   });
 
   it("báo lỗi nếu đánh lá chưa hỗ trợ (Dynamite không bao giờ đánh chủ động được)", () => {

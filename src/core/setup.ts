@@ -256,7 +256,7 @@ export function setupGame(
     turnPhase: "draw",
     rngState: rngStateAfterEventDeck,
     winner: null,
-    bangUsedThisTurn: false,
+    bangCountThisTurn: 0,
     characterSelection,
     houseRules: options.houseRules ?? [],
     expansions: activeExpansions,

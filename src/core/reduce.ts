@@ -5,6 +5,7 @@ import type { CardName, YellowCardName } from "./cards";
 import {
   cardNameFromId,
   cardSuitRankFromId,
+  getEffectiveSuit,
   isDelayedEquipmentCardName,
   isSelfEquipBlueCardName,
   isWeaponCardName,
@@ -22,6 +23,7 @@ import {
 import { drawTopCard } from "./deck";
 import { computeDistance, getWeaponRange } from "./distance";
 import type { EventId } from "./events";
+import { isEventActive } from "./events";
 import { giveCardToPlayer, transferDynamiteToNextPlayer } from "./equipment";
 import { nextRandom } from "./rng";
 import type { Action, GameEvent, GameState, PendingAction, PlayerState } from "./types";
@@ -33,6 +35,30 @@ export interface Result {
 }
 
 const DRAW_COUNT = 2;
+
+// Mở rộng High Noon, lá "Thirst"/"Train Arrival" — chỉ 1 trong 2 lá này chạy
+// tại 1 thời điểm (activeEventId là 1 giá trị duy nhất) nên không cần lo tổ
+// hợp cả 2 cùng lúc. Theo FAQ chính thức (Q6 Davinci/Q13 Dodge City): LUÔN là
+// ±1 SO VỚI SỐ LẼ RA RÚT — Pixie Pete 3→2/4, Bill Noface 4→3/5, Kit Carlson
+// giữ 1/3 thay vì 2 (xem getDrawCount() dùng cho pha rút KHÔNG có nhân vật đặc
+// biệt nào can thiệp, và 3 hook onDrawPhase/pending có FAQ dẫn chứng rõ:
+// Pixie Pete, Bill Noface, Kit Carlson). CỐ TÌNH CHƯA áp dụng cho Black Jack/
+// Pedro Ramirez/Jesse Jones — FAQ không có ví dụ nào cho 3 nhân vật này (họ
+// không chỉ đơn thuần "rút N lá" mà còn có điều kiện/nguồn đặc biệt xen vào),
+// tự suy diễn công thức cho họ đúng lúc này là vi phạm quy tắc CLAUDE.md
+// "luật không rõ ràng → dừng lại hỏi, không tự đoán" — để dành hỏi sau nếu
+// thực tế cần.
+function getDrawCountAdjustment(state: GameState): number {
+  if (isEventActive(state, "thirst")) return -1;
+  if (isEventActive(state, "train_arrival")) return 1;
+  return 0;
+}
+
+// Số lá rút ở pha ĐẦU LƯỢT khi KHÔNG có nhân vật nào override (nhánh else của
+// handleDrawCards()) — DRAW_COUNT ± Thirst/Train Arrival, không bao giờ âm.
+function getDrawCount(state: GameState): number {
+  return Math.max(0, DRAW_COUNT + getDrawCountAdjustment(state));
+}
 
 // Giai đoạn 5 (Calamity Janet, đợt 7) — coi lá `cardId` có ĐÓNG VAI Bang!
 // được không: đúng là Bang! thật, HOẶC là Missed! nhưng thuộc về Janet. Dùng
@@ -172,21 +198,23 @@ function handleDrawCards(
 
   // Giai đoạn 5 (Kit Carlson, đợt 6) — xem riêng 3 lá trên cùng bộ bài (mỗi
   // lần gọi drawTopCard() tự xào lại chồng bỏ nếu bộ bài cạn, không cần tự
-  // viết thêm gì), rồi HỎI: giữ 2 bỏ 1. Không đủ 3 lá để rút (deck + chồng bỏ
-  // cùng cạn — cực hiếm) thì không có gì để CHỌN bỏ, cứ giữ hết những gì rút
-  // được, khỏi cần hỏi.
+  // viết thêm gì), rồi HỎI: giữ `keepCount` (mặc định 2, xem getDrawCount...
+  // ở trên — mở rộng High Noon Thirst/Train Arrival đổi thành 1/3, FAQ Q6
+  // Davinci). Không đủ 3 lá để rút HOẶC keepCount đã >= số lá xem được (Train
+  // Arrival: giữ cả 3, không có gì để CHỌN bỏ) thì cứ giữ hết, khỏi cần hỏi.
   if (getEffectiveCharacterDefinition(next, player)?.canPeekTopThree === true) {
     const peeked: string[] = [];
     for (let i = 0; i < 3; i++) {
       const card = drawTopCard(next);
       if (card) peeked.push(card);
     }
-    if (peeked.length < 3) {
+    const keepCount = Math.max(0, Math.min(peeked.length, 2 + getDrawCountAdjustment(next)));
+    if (keepCount >= peeked.length) {
       for (const cardId of peeked) giveCardToPlayer(next.players, player, cardId);
       next.turnPhase = "play";
       return { state: next, events: [{ type: "CARDS_DRAWN", playerId: player.id, count: peeked.length }] };
     }
-    next.pending.push({ kind: "NEED_PICK_KEPT_CARDS", player: player.id, cards: peeked });
+    next.pending.push({ kind: "NEED_PICK_KEPT_CARDS", player: player.id, cards: peeked, keepCount });
     return { state: next, events: [] };
   }
 
@@ -225,11 +253,12 @@ function handleDrawCards(
   if (onDrawPhase) {
     events = onDrawPhase(next, player);
   } else {
-    for (let i = 0; i < DRAW_COUNT; i++) {
+    const count = getDrawCount(next);
+    for (let i = 0; i < count; i++) {
       const card = drawTopCard(next);
       if (card) giveCardToPlayer(next.players, player, card);
     }
-    events = [{ type: "CARDS_DRAWN", playerId: player.id, count: DRAW_COUNT }];
+    events = [{ type: "CARDS_DRAWN", playerId: player.id, count }];
   }
 
   next.turnPhase = "play";
@@ -378,10 +407,11 @@ function respondToGiveCardToPlayer(
 }
 
 // Giai đoạn 5 (Kit Carlson, đợt 6) — trả lời NEED_PICK_KEPT_CARDS. Gửi kèm
-// cardId ĐÚNG BẰNG 1 trong 3 lá vừa xem -> lá đó bị bỏ, 2 lá còn lại vào tay
-// (giữ NGUYÊN THỨ TỰ trong `cards`, bỏ đúng phần tử trùng cardId). Không kèm
-// cardId (mặc định/timeout) -> bỏ đúng cards[2] (lá rút SAU CÙNG), giữ 2 lá
-// đầu — house rule, KHÁC bản gốc BANG! (xem ghi chú ở types.ts).
+// `cardIds` ĐÚNG `top.keepCount` lá (trong 3 lá vừa xem) muốn GIỮ -> phần còn
+// lại bị bỏ. Không kèm `cardIds` (mặc định/timeout) -> giữ ĐÚNG `keepCount` lá
+// ĐẦU (cards[0..keepCount-1]) — house rule, KHÁC bản gốc BANG! (xem ghi chú ở
+// types.ts). Mở rộng High Noon (Thirst/Train Arrival) đổi keepCount thành 1/3
+// thay vì luôn 2 — xem getDrawCountAdjustment()/handleDrawCards().
 function respondToPickKeptCards(
   state: GameState,
   action: Action & { type: "RESPOND" },
@@ -391,29 +421,31 @@ function respondToPickKeptCards(
   next.pending.pop();
   const player = next.players.find((p) => p.id === action.playerId)!;
 
-  let discardedCardId: string;
-  if (action.cardId) {
-    if (!top.cards.includes(action.cardId)) {
-      throw new Error(`Lá "${action.cardId}" không nằm trong 3 lá vừa xem`);
+  let keptCardIds: string[];
+  if (action.cardIds) {
+    if (action.cardIds.length !== top.keepCount) {
+      throw new Error(`Phải giữ đúng ${top.keepCount} lá trong 3 lá vừa xem`);
     }
-    discardedCardId = action.cardId;
+    for (const cardId of action.cardIds) {
+      if (!top.cards.includes(cardId)) {
+        throw new Error(`Lá "${cardId}" không nằm trong 3 lá vừa xem`);
+      }
+    }
+    keptCardIds = action.cardIds;
   } else {
-    discardedCardId = top.cards[2];
+    keptCardIds = top.cards.slice(0, top.keepCount);
   }
 
-  next.discardPile.push(discardedCardId);
-  for (const cardId of top.cards) {
-    if (cardId !== discardedCardId) giveCardToPlayer(next.players, player, cardId);
-  }
+  const discardedCardIds = top.cards.filter((cardId) => !keptCardIds.includes(cardId));
+  next.discardPile.push(...discardedCardIds);
+  for (const cardId of keptCardIds) giveCardToPlayer(next.players, player, cardId);
 
   next.turnPhase = "play";
-  return {
-    state: next,
-    events: [
-      { type: "CARDS_DRAWN", playerId: player.id, count: 2 },
-      { type: "KIT_CARLSON_DISCARDED", playerId: player.id, cardId: discardedCardId },
-    ],
-  };
+  const events: GameEvent[] = [{ type: "CARDS_DRAWN", playerId: player.id, count: keptCardIds.length }];
+  if (discardedCardIds.length > 0) {
+    events.push({ type: "KIT_CARLSON_DISCARDED", playerId: player.id, cardIds: discardedCardIds });
+  }
+  return { state: next, events };
 }
 
 // Mở rộng Dodge City, mục C nhóm A (Pat Brennan) — trả lời
@@ -775,6 +807,17 @@ function playBang(
   player: PlayerState,
   action: Action & { type: "PLAY_CARD" }
 ): Result {
+  // Mở rộng High Noon, lá "The Sermon" — *dev đã chốt: CHỈ cấm CHƠI lá tên
+  // "bang" trực tiếp (kể cả Calamity Janet đánh Missed! làm Bang!, vì hàm này
+  // dùng chung cho cả 2 ca — xem dispatchCardName ở handlePlayCard()). KHÔNG
+  // cấm bỏ Bang! để đỡ (respondToMissed/respondToDuel không đi qua đây), 7 lá
+  // "tương đương Bang!" của Dodge City, hay Doc Holyday (dùng hàm riêng
+  // useDocHolydayShot(), không gọi playBang()). Vì PLAY_CARD chỉ thực hiện
+  // được trong lượt chính mình (assertCurrentPlayer ở handlePlayCard()), tự
+  // động đúng luôn phạm vi "trong lượt của mình" mà không cần kiểm thêm.
+  if (isEventActive(next, "the_sermon")) {
+    throw new Error('Lá sự kiện "The Sermon" đang chạy — không được đánh Bang! trong lượt của mình');
+  }
   if (!action.targetId) {
     throw new Error("Đánh Bang! cần chọn mục tiêu");
   }
@@ -806,13 +849,16 @@ function playBang(
 
   // Luật gốc: chỉ 1 lá Bang!/lượt, trừ khi đang cầm súng Volcanic HOẶC là
   // Willy the Kid (Giai đoạn 5, bỏ giới hạn này luôn dù không cầm Volcanic —
-  // xem CharacterDefinition.bypassBangLimit ở core/characters.ts).
+  // xem CharacterDefinition.bypassBangLimit ở core/characters.ts). Mở rộng
+  // High Noon, lá "Shootout" — nâng giới hạn lên 2/lượt; Volcanic/Willy the
+  // Kid vẫn bỏ qua giới hạn hoàn toàn, không đổi.
   const hasVolcanic = player.equipment.some((id) => cardNameFromId(id) === "volcanic");
   const hasUnlimitedBang = hasVolcanic || getEffectiveCharacterDefinition(next, player)?.bypassBangLimit === true;
-  if (next.bangUsedThisTurn && !hasUnlimitedBang) {
+  const bangLimit = isEventActive(next, "shootout") ? 2 : 1;
+  if (next.bangCountThisTurn >= bangLimit && !hasUnlimitedBang) {
     throw new Error("Đã đánh Bang! trong lượt này — cần súng Volcanic mới được đánh thêm lần nữa");
   }
-  next.bangUsedThisTurn = true;
+  next.bangCountThisTurn += 1;
 
   const events: GameEvent[] = [
     { type: "CARD_PLAYED", playerId: player.id, cardId: action.cardId, targetId: target.id },
@@ -857,7 +903,7 @@ function pushMissedReaction(
   // Duel có check RIÊNG ở playDuel() (chỉ tra lá Duel khởi xướng, không đi
   // qua hàm này). Lá đã bị đánh/rời tay ở nơi gọi (handlePlayCard()) — chỉ
   // riêng HIỆU ỨNG (đẩy NEED_MISSED/Barrel draw!) không xảy ra.
-  if (getEffectiveCharacterHooks(next, target).isImmuneToCard?.(attackCardId) === true) {
+  if (getEffectiveCharacterHooks(next, target).isImmuneToCard?.(next, attackCardId) === true) {
     return [{ type: "APACHE_KID_IMMUNE", playerId: target.id, fromPlayerId: source.from, cardId: attackCardId }];
   }
   return pushMissedReactionUnconditional(next, target, source);
@@ -939,7 +985,7 @@ function playIndians(
   const immunityEvents: GameEvent[] = [];
   for (let i = targets.length - 1; i >= 0; i--) {
     const target = targets[i];
-    if (getEffectiveCharacterHooks(next, target).isImmuneToCard?.(action.cardId) === true) {
+    if (getEffectiveCharacterHooks(next, target).isImmuneToCard?.(next, action.cardId) === true) {
       immunityEvents.push({
         type: "APACHE_KID_IMMUNE",
         playerId: target.id,
@@ -985,7 +1031,7 @@ function playDuel(
   // bên bỏ ra lần lượt trong lúc đấu (duelBangDrawPending) KHÔNG bị kiểm tra,
   // vì Apache Kid chỉ miễn nhiễm với lá bài THẬT do người khác trực tiếp đánh
   // nhắm vào mình — trong Duel đó là lá Duel, không phải từng lá Bang! trao đổi.
-  if (getEffectiveCharacterHooks(next, target).isImmuneToCard?.(action.cardId) === true) {
+  if (getEffectiveCharacterHooks(next, target).isImmuneToCard?.(next, action.cardId) === true) {
     return {
       state: next,
       events: [
@@ -1078,7 +1124,7 @@ function applyPanicEffect(
   targetCardId: string | undefined,
   attackCardId: string
 ): GameEvent[] {
-  if (getEffectiveCharacterHooks(next, target).isImmuneToCard?.(attackCardId) === true) {
+  if (getEffectiveCharacterHooks(next, target).isImmuneToCard?.(next, attackCardId) === true) {
     return [{ type: "APACHE_KID_IMMUNE", playerId: target.id, fromPlayerId: player.id, cardId: attackCardId }];
   }
 
@@ -1175,7 +1221,7 @@ function pushDiscardFromZoneReaction(
   source: { card: string; from: string },
   attackCardId: string
 ): GameEvent[] {
-  if (getEffectiveCharacterHooks(next, target).isImmuneToCard?.(attackCardId) === true) {
+  if (getEffectiveCharacterHooks(next, target).isImmuneToCard?.(next, attackCardId) === true) {
     return [{ type: "APACHE_KID_IMMUNE", playerId: target.id, fromPlayerId: source.from, cardId: attackCardId }];
   }
 
@@ -1259,7 +1305,7 @@ function playBrawl(
 
 // Punch (mở rộng Dodge City) — hiệu ứng như Bang! nhắm người ở khoảng cách 1,
 // BẤT KỂ súng đang cầm (bỏ qua getWeaponRange() hoàn toàn); KHÔNG tính vào
-// giới hạn 1 Bang!/lượt (mục 1.4 — không đụng next.bangUsedThisTurn).
+// giới hạn 1 Bang!/lượt (mục 1.4 — không đụng next.bangCountThisTurn).
 function playPunch(
   next: GameState,
   player: PlayerState,
@@ -1572,7 +1618,7 @@ function playJail(
   // chất Rô KHÔNG THỂ gắn lên Apache Kid, chặn NGAY LÚC ĐÁNH (khác Bang!-like/
   // Cat Balou/Panic! — lá vẫn "dùng" được nhưng vô hiệu; Jail thì bị từ chối
   // hẳn, y hệt cách chặn Cảnh sát trưởng ở trên).
-  if (getEffectiveCharacterHooks(next, target).isImmuneToCard?.(action.cardId) === true) {
+  if (getEffectiveCharacterHooks(next, target).isImmuneToCard?.(next, action.cardId) === true) {
     throw new Error("Apache Kid miễn nhiễm với lá chất Rô — không thể đánh Jail chất Rô lên người này");
   }
   // Bộ mở rộng "custom_characters" (Elena Noir, xem House_Rule.txt mục I) —
@@ -1633,7 +1679,7 @@ function otherAlivePlayersInOrder(state: GameState, attackerId: string): PlayerS
   const result: PlayerState[] = [];
   let index = startIndex;
   while (true) {
-    index = nextAlivePlayerIndex(state, index);
+    index = nextSeatIndex(state, index);
     if (index === startIndex) break;
     result.push(state.players[index]);
   }
@@ -1661,6 +1707,11 @@ function assertBeerCanHeal(player: PlayerState): void {
 // thường (đã làm ở handlePlayCard() TRƯỚC KHI gọi hàm này) — chỉ riêng hiệu
 // ứng hồi máu là không xảy ra, không phải "không đánh được lá này".
 function playBeer(next: GameState, player: PlayerState, cardId: string): Result {
+  // Mở rộng High Noon, lá "The Reverend" — cấm đánh lá Beer trong vòng này
+  // (cả trong lẫn ngoài lượt, khác The Sermon chỉ cấm trong lượt mình).
+  if (isEventActive(next, "the_reverend")) {
+    throw new Error('Lá sự kiện "The Reverend" đang chạy — không được đánh Bia');
+  }
   assertBeerCanHeal(player);
 
   const events: GameEvent[] = [{ type: "CARD_PLAYED", playerId: player.id, cardId }];
@@ -1894,7 +1945,7 @@ function useJoseDelgadoTrade(
 // của chính mình (khác Sid Ketchum), tối đa 1 LẦN/lượt: bỏ ĐÚNG 2 lá KHÁC
 // NHAU bất kỳ (không cần cùng tên, khác José Delgado) để bắn hiệu ứng Bang!
 // nhắm `action.targetId` (bắt buộc), trong tầm súng đang cầm, KHÔNG tính vào
-// giới hạn 1 Bang!/lượt (không đụng next.bangUsedThisTurn).
+// giới hạn 1 Bang!/lượt (không đụng next.bangCountThisTurn).
 function useDocHolydayShot(
   state: GameState,
   action: Action & { type: "USE_ABILITY" },
@@ -1952,7 +2003,7 @@ function useDocHolydayShot(
   // nguyên hàm, tự tính miễn nhiễm rồi gọi thẳng phần đẩy pending không điều
   // kiện (pushMissedReactionUnconditional()).
   const immuneHook = getEffectiveCharacterHooks(next, nextTarget).isImmuneToCard;
-  const immune = immuneHook !== undefined && immuneHook(cardId1) && immuneHook(cardId2);
+  const immune = immuneHook !== undefined && immuneHook(next, cardId1) && immuneHook(next, cardId2);
   const shotEvents: GameEvent[] = immune
     ? [{ type: "APACHE_KID_IMMUNE", playerId: nextTarget.id, fromPlayerId: nextPlayer.id, cardId: cardId1 }]
     : pushMissedReactionUnconditional(next, nextTarget, { card: "doc_holyday", from: nextPlayer.id });
@@ -2391,7 +2442,7 @@ function respondToStorePick(state: GameState, action: Action & { type: "RESPOND"
 
   if (remainingOptions.length > 0) {
     const playerIndex = next.players.findIndex((p) => p.id === player.id);
-    const nextIndex = nextAlivePlayerIndex(next, playerIndex);
+    const nextIndex = nextSeatIndex(next, playerIndex);
     next.pending.push({
       kind: "NEED_PICK_STORE_CARD",
       player: next.players[nextIndex].id,
@@ -2465,8 +2516,12 @@ function resolveDrawCheck(
   }
   next.discardPile.push(primaryCardId);
 
+  // Mở rộng High Noon, lá "Blessing"/"Curse" — draw! (Barrel/Jail/Dynamite...)
+  // phải đọc CHẤT ĐÃ ĐỔI qua getEffectiveSuit(), không đọc thẳng chất thật.
+  // Rank không bị 2 lá này đụng tới, vẫn đọc qua cardSuitRankFromId().
   const matches = (id: string) => {
-    const { suit, rank } = cardSuitRankFromId(id);
+    const suit = getEffectiveSuit(next, id);
+    const { rank } = cardSuitRankFromId(id);
     return top.matchSuits.includes(suit) && (!top.matchRanks || top.matchRanks.includes(rank));
   };
   const primaryMatched = matches(primaryCardId);
@@ -2713,8 +2768,12 @@ function eliminateIfDead(next: GameState, target: PlayerState, killerId: string 
   // Việc 5.3 (house rule "beer_below_two") — đúng ngoại lệ đã bỏ ở playBeer(),
   // áp dụng CHUNG cho cả đường hồi sinh tự động này.
   const beerWorksBelowTwo = next.houseRules.includes("beer_below_two");
+  // Mở rộng High Noon, lá "The Reverend" — *dev đã chốt: cấm CẢ đường hồi
+  // sinh tự động này (nguyên văn luật "players cannot play Beer", không giới
+  // hạn "trong lượt" như The Sermon).
+  const beerBannedByReverend = isEventActive(next, "the_reverend");
 
-  if ((aliveCount > 2 || beerWorksBelowTwo) && beerIndex !== -1) {
+  if ((aliveCount > 2 || beerWorksBelowTwo) && beerIndex !== -1 && !beerBannedByReverend) {
     const [beerId] = target.hand.splice(beerIndex, 1);
     next.discardPile.push(beerId);
     target.hp = 1;
@@ -2742,7 +2801,7 @@ function eliminateIfDead(next: GameState, target: PlayerState, killerId: string 
   // là bug). CHỈ báo khi thật sự có Bia trên tay — không có thì im lặng như
   // bình thường, không phải ca "Bia vô tác dụng".
   const ineffectiveEvents: GameEvent[] =
-    !(aliveCount > 2 || beerWorksBelowTwo) && beerIndex !== -1
+    !beerBannedByReverend && !(aliveCount > 2 || beerWorksBelowTwo) && beerIndex !== -1
       ? [{ type: "BEER_INEFFECTIVE", playerId: target.id }]
       : [];
 
@@ -2904,9 +2963,9 @@ function advanceTurn(next: GameState): GameEvent[] {
     next.elenaNoirImmortalTurnsLeft[departingPlayer.id] = turnsLeft;
   }
 
-  next.currentPlayerIndex = nextAlivePlayerIndex(next, next.currentPlayerIndex);
+  next.currentPlayerIndex = nextTurnPlayerIndex(next, next.currentPlayerIndex);
   next.turnPhase = "draw";
-  next.bangUsedThisTurn = false;
+  next.bangCountThisTurn = 0;
   next.cardNamesPlayedThisTurn = []; // việc 5.3 (house rule "no_duplicate_card_names")
   next.turnNumber += 1; // mở rộng Dodge City, mục 1.1 (xem GameState.turnNumber ở types.ts)
   next.joseDelgadoUsesThisTurn = 0; // mở rộng Dodge City, mục C nhóm A (José Delgado)
@@ -2934,6 +2993,22 @@ export function applyTurnStartChecks(next: GameState): GameEvent[] {
   const eventEvents = revealNextEventIfDue(next);
   const player = next.players[next.currentPlayerIndex];
 
+  // Mở rộng High Noon, lá "High Noon" (nhóm B, mục 1.4) — MỖI ĐẦU LƯỢT của
+  // chính người tới lượt, trừ 1 máu VÔ ĐIỀU KIỆN (đúng khuôn Dynamite:
+  // killerId = null nên onLoseLifeFromCard không chạy, onLoseLife vẫn chạy).
+  // Đặt NGAY SAU bước lật lá ở trên, TRƯỚC CẢ Marcel companion/Vera Custer/
+  // Dynamite/Jail (đã hỏi lại và chốt đúng thứ tự này) — nhờ vậy người bị
+  // Jail/Marcel companion bỏ qua HẲN lượt vẫn ăn đủ sát thương này mà không
+  // cần code riêng cho từng trường hợp, vì lúc này 2 bước đó còn chưa chạy.
+  const highNoonEvents = isEventActive(next, "high_noon") ? applyDamage(next, player, 1, null) : [];
+  if (!player.alive) {
+    // Chết ngay tại đây -> eliminatePlayer() đã tự đệ quy advanceTurn() (đúng
+    // cascade đang dùng cho Elena Noir) cho người kế tiếp -> DỪNG NGAY, không
+    // chạy tiếp các bước bên dưới cho người vừa chết (currentPlayerIndex đã
+    // trỏ sang người khác rồi).
+    return [...eventEvents, ...highNoonEvents];
+  }
+
   // Bộ mở rộng "custom_characters" (Marcel Marcelo) — người "cùng vào tù" ăn
   // theo kết quả kẹt tù của Marcel: bỏ qua HẲN lượt này (không rút, không
   // đánh), y hệt JAIL_SKIPPED_TURN nhưng KHÔNG tự rút bài kiểm tra gì — chỉ
@@ -2944,6 +3019,7 @@ export function applyTurnStartChecks(next: GameState): GameEvent[] {
     delete next.marcelCompanionSkipNextTurn[player.id];
     return [
       ...eventEvents,
+      ...highNoonEvents,
       { type: "MARCEL_COMPANION_TURN_SKIPPED", playerId: player.id },
       ...advanceTurn(next),
     ];
@@ -2953,11 +3029,11 @@ export function applyTurnStartChecks(next: GameState): GameEvent[] {
     const candidates = otherAlivePlayersInOrder(next, player.id).filter((p) => p.characterId !== null);
     if (candidates.length > 0) {
       next.pending.push({ kind: "NEED_PICK_BORROWED_CHARACTER", player: player.id });
-      return eventEvents;
+      return [...eventEvents, ...highNoonEvents];
     }
   }
   applyDynamiteAndJailChecks(next, player);
-  return eventEvents;
+  return [...eventEvents, ...highNoonEvents];
 }
 
 // "Chủ trò" (mục 1.3) — có Sheriff thì là Sheriff, không có (biến thể 2/3
@@ -3086,10 +3162,27 @@ function applyJailCheck(next: GameState, player: PlayerState): void {
   }
 }
 
-function nextAlivePlayerIndex(state: GameState, fromIndex: number): number {
+// Chiều GỐC (kim đồng hồ), KHÔNG bao giờ bị đảo — dùng cho MỌI hiệu ứng lá bài
+// (Gatling/Indians!/Brawl qua otherAlivePlayersInOrder(), General Store qua
+// respondToStorePick()). Mở rộng High Noon, lá "Gold Rush" — bản dịch xác
+// nhận CHỈ thứ tự LƯỢT bị đảo, hiệu ứng lá bài vẫn đi chiều gốc.
+function nextSeatIndex(state: GameState, fromIndex: number): number {
   const total = state.players.length;
   for (let step = 1; step <= total; step++) {
     const index = (fromIndex + step) % total;
+    if (state.players[index].alive) return index;
+  }
+  throw new Error("Không còn người chơi nào sống"); // ván phải đã kết thúc trước khi tới đây
+}
+
+// Chiều ĐI LƯỢT thật sự — bị ĐẢO NGƯỢC khi lá "Gold Rush" đang chạy (mở rộng
+// High Noon). CHỈ dùng cho advanceTurn() (chuyển lượt), KHÔNG dùng cho hiệu
+// ứng lá bài nào (xem nextSeatIndex() ở trên).
+function nextTurnPlayerIndex(state: GameState, fromIndex: number): number {
+  if (!isEventActive(state, "gold_rush")) return nextSeatIndex(state, fromIndex);
+  const total = state.players.length;
+  for (let step = 1; step <= total; step++) {
+    const index = (((fromIndex - step) % total) + total) % total;
     if (state.players[index].alive) return index;
   }
   throw new Error("Không còn người chơi nào sống"); // ván phải đã kết thúc trước khi tới đây

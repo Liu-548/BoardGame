@@ -27,7 +27,7 @@ function makeState(players: PlayerState[], overrides: Partial<GameState> = {}): 
     turnPhase: "play",
     rngState: 1,
     winner: null,
-    bangUsedThisTurn: false,
+    bangCountThisTurn: 0,
     characterSelection: null,
     turnNumber: 0,
     equipmentPlayedTurn: {},
@@ -174,17 +174,19 @@ describe("viewFor — thông tin luôn công khai", () => {
 describe("viewFor — NEED_PICK_KEPT_CARDS (Kit Carlson, Giai đoạn 5 đợt 6) — pending DUY NHẤT chứa thông tin ẩn", () => {
   it("chính chủ (Kit Carlson) thấy đúng 3 lá thật", () => {
     const state = makeState([makePlayer("a"), makePlayer("b")], {
-      pending: [{ kind: "NEED_PICK_KEPT_CARDS", player: "a", cards: ["c1", "c2", "c3"] }],
+      pending: [{ kind: "NEED_PICK_KEPT_CARDS", player: "a", cards: ["c1", "c2", "c3"], keepCount: 2 }],
     });
 
     const view = viewFor(state, "a");
 
-    expect(view.pending).toEqual([{ kind: "NEED_PICK_KEPT_CARDS", player: "a", cards: ["c1", "c2", "c3"] }]);
+    expect(view.pending).toEqual([
+      { kind: "NEED_PICK_KEPT_CARDS", player: "a", cards: ["c1", "c2", "c3"], keepCount: 2 },
+    ]);
   });
 
   it("người khác KHÔNG thấy nội dung 3 lá — cards bị thay bằng null", () => {
     const state = makeState([makePlayer("a"), makePlayer("b")], {
-      pending: [{ kind: "NEED_PICK_KEPT_CARDS", player: "a", cards: ["c1", "c2", "c3"] }],
+      pending: [{ kind: "NEED_PICK_KEPT_CARDS", player: "a", cards: ["c1", "c2", "c3"], keepCount: 2 }],
     });
 
     const view = viewFor(state, "b");
