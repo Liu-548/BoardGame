@@ -1,0 +1,751 @@
+========================================================================
+BANG! WILD WEST SHOW — ĐẶC TẢ MỞ RỘNG (input cho Claude Code)
+========================================================================
+
+Mục đích: đặc tả bộ mở rộng Wild West Show để dùng làm cơ sở cài đặt
+trong core/. File CHƯA có gì được code — đây là spec đọc trước, không
+phải mô tả trạng thái hiện tại của repo.
+
+>>> ĐỌC Luat_Bang_Mo_Rong_HighNoon.txt TRƯỚC <<<
+Bộ này CŨNG dùng cơ chế "lá tình huống" (một lá luật toàn cục có hiệu
+lực cho tới khi bị lá khác đè). Phần hạ tầng chung — kiểu dữ liệu lá sự
+kiện, lưu vào state, hàm isEventActive, phân nhóm (A)/(B)/(C) — đặc tả ở
+mục 1 file High Noon và KHÔNG lặp lại ở đây.
+NHƯNG **CƠ CHẾ LẬT KHÁC HẲN** (không theo lượt chủ trò mà theo lá bài
+được đánh ra) — xem mục 1 bên dưới. Đây là điểm dễ nhầm nhất.
+
+QUY ƯỚC ĐỌC FILE NÀY: y hệt 2 file kia — mỗi lá tách "Hiệu ứng" và "Cách
+cài đặt"; các dấu [CẦN KIỂM CHỨNG] / [CẦN HOOK MỚI] / [ĐỔI STATE] /
+[CẦN BÀN] / *dev mang đúng nghĩa như 2 file đó.
+
+------------------------------------------------------------------------
+!!! CẢNH BÁO ĐỘ TIN CẬY NGUỒN — ĐỌC TRƯỚC KHI TIN BẤT KỲ DÒNG NÀO !!!
+------------------------------------------------------------------------
+Hai file trước (High Noon, A Fistful of Cards) dựa trên bản dịch có trích
+FAQ **CHÍNH THỨC của Davinci Games** — độ tin cậy cao.
+
+FILE NÀY THÌ KHÁC. Chính bản dịch đã ghi rõ:
+    "Hiện chưa có FAQ chính thức từ Davinci, phần chú thích lấy từ
+     http://bangcardgame.blogspot.com/2011/01/wild-west-show-faq-in-english.html"
+
+Nghĩa là mọi số hiệu (Q9, Q12, Q17, Q18, Q19, Q20, Q22, Q27, Q28, Q29,
+Q34) trong file này là **FAQ DO CỘNG ĐỒNG BIÊN SOẠN**, KHÔNG phải phán
+quyết chính thức của nhà xuất bản. Một mục (xử lý John Pain khi Vera
+Custer copy) còn được chính người dịch ghi là "(tự biên)".
+
+HỆ QUẢ CHO CÁCH LÀM VIỆC:
+  · Phần "Hiệu ứng" cơ bản của từng lá/nhân vật (in trên mặt bài) vẫn
+    đáng tin.
+  · Phần "chú thích/tình huống biên" chỉ nên coi là ĐỀ XUẤT hợp lý.
+  · Vì đây là ván chơi riêng trong nhóm bạn, cách đúng nhất là chủ dự án
+    TỰ CHỐT như một house rule, rồi ghi lại — đừng chờ một nguồn "chính
+    thức" mà nó không tồn tại.
+  · Đối chiếu chéo: sách luật tiếng Anh của dV Giochi (BANG! Expansion
+    Pack) CÓ một trang chú thích ngắn cho bộ này. Chỗ nào 2 nguồn nói
+    khác nhau, file này ghi rõ cả hai.
+
+------------------------------------------------------------------------
+LÁ ĐÃ BỊ LOẠI THEO YÊU CẦU CHỦ DỰ ÁN
+------------------------------------------------------------------------
+**Bavaglio (Cag)** — "Người chơi không được nói với nhau, ai nói sẽ bị
+mất 1 máu."
+ĐÃ LOẠI HOÀN TOÀN khỏi bộ bài và khỏi file này. Lý do: luật này điều
+chỉnh hành vi NGOÀI phần mềm (nói chuyện ngoài đời), server không có cách
+nào quan sát hay cưỡng chế. Không cài được.
+⇒ Bộ tình huống còn **9 lá** thay vì 10. Không cần lá thay thế — bộ sự
+kiện vốn không yêu cầu số lượng cố định.
+⇒ Ghi chú cho tương lai: nếu sau này có chat trong game thì lá này VẪN
+không nên cài lại theo kiểu tự động phạt — sẽ phạt nhầm liên tục.
+
+Thành phần bộ (sau khi loại Cag): 9 lá tình huống + 8 nhân vật mới.
+KHÔNG có lá bài chơi mới.
+
+CẢNH BÁO ĐỘ KHÓ: đây là bộ mở rộng NẶNG NHẤT trong 3 bộ sự kiện.
+  · High Noon/Fistful phần lớn chỉ chỉnh một con số hoặc một điều kiện.
+  · Wild West Show có 3 lá đụng thẳng vào những thứ dự án đang coi là
+    BẤT BIẾN TUYỆT ĐỐI: vai trò người chơi (Helena Zontero), thứ tự ghế
+    ngồi (Lady Rose of Texas), và điều kiện thắng (lá Wild West Show).
+  · Thêm 1 lá phá vỡ quy tắc 6 của CLAUDE.md (Sacagaway — bài trên tay
+    thành công khai).
+  · 8 nhân vật mới thì 5 người cần hook hoàn toàn mới.
+
+
+========================================================================
+1. CƠ CHẾ LẬT LÁ — KHÁC HẲN HIGH NOON / A FISTFUL OF CARDS
+========================================================================
+
+1.1. Điều kiện lật
+--------------------------------------------------------------------
+- Hiệu ứng (NGUYÊN VĂN bản dịch): "Xào xấp bài tình huống, ÚP XUỐNG, lá
+  tên 'Wild West Show' để dưới cùng. MỖI KHI LÁ WELLS FARGO HOẶC
+  STAGECOACH ĐƯỢC ĐÁNH RA, mở một lá tình huống. Khi lá Wild West Show
+  được mở ra thì sẽ giữ yên không thay đổi nữa, không xào lại xấp bài."
+- Ba khác biệt CỐT LÕI so với 2 bộ kia:
+    (1) Lật theo LÁ BÀI ĐƯỢC ĐÁNH, không theo lượt chủ trò. Có thể cả
+        ván không lật lá nào (không ai rút được Stagecoach/Wells Fargo),
+        hoặc lật 3 lá trong 1 lượt.
+    (2) Xấp bài ÚP XUỐNG — người chơi KHÔNG thấy lá kế tiếp. (High Noon
+        thì thấy — xem *dev tại mục 1.2 file đó.) ⇒ viewFor() ở đây
+        ĐƠN GIẢN HƠN: chỉ lộ lá đang có hiệu lực, giấu toàn bộ phần còn
+        lại.
+    (3) Không có "chủ trò" nào tham gia vào cơ chế này ⇒ mọi câu hỏi về
+        biến thể 2/3 người không có Sheriff đều KHÔNG áp dụng ở đây.
+- Cách cài đặt:
+  → Điểm cắm: CUỐI playStagecoach() và playWellsFargo() (reduce.ts) —
+    sau khi hiệu ứng rút bài của chính lá đó đã xong.
+  → ExpansionId (types.ts) thêm "wild_west_show". [ĐỔI STATE]
+  → [CẦN BÀN — QUAN TRỌNG] Dùng CHUNG hay TÁCH RIÊNG state với 2 bộ kia?
+    Luật cho phép bật đồng thời High Noon + Wild West Show (2 hệ thống
+    độc lập, 2 xấp bài riêng, 2 lá đang chạy cùng lúc). Vì vậy KHÔNG
+    dùng chung `eventDeck`/`activeEventId` đã đề xuất ở file High Noon.
+    Đề xuất: bộ field RIÊNG
+        wwsDeck: EventId[];          // úp xuống, phần tử cuối = lá kế tiếp
+        activeWwsId: EventId | null;
+        wwsDiscard: EventId[];
+    Chấp nhận trùng lặp nhẹ 3 field, đổi lại tránh hẳn một lớp trừu
+    tượng "nhiều hệ thống sự kiện" mà chủ dự án phải đọc hiểu.
+  → isEventActive() (file High Noon mục 1.5) phải tra CẢ HAI chỗ, hoặc
+    tách thành isWwsActive() riêng. Chốt 1 kiểu rồi dùng nhất quán.
+  → Lá cuối ("Wild West Show", isFinalCard) khi đã lật thì wwsDeck coi
+    như đóng băng — playStagecoach()/playWellsFargo() không lật gì nữa.
+  → NGOẠI LỆ (FAQ cộng đồng Q19): Lee Van Kliff LẶP LẠI tác dụng của
+    Stagecoach/Wells Fargo thì KHÔNG lật lá tình huống mới. Chỉ lần đánh
+    THẬT mới lật. Nhớ chừa tham số cho việc này ngay từ đầu, đừng để
+    quên rồi phải sửa sau.
+  → Bắn GameEvent mới `{ type: "WWS_REVEALED"; eventId: EventId }`.
+
+1.2. Chuẩn bị xấp bài (setup.ts)
+--------------------------------------------------------------------
+- Để riêng lá "Wild West Show", tráo 8 lá còn lại (đã bỏ Cag) bằng RNG
+  có seed, đặt lá "Wild West Show" xuống ĐÁY.
+- Vì xấp úp xuống, KHÔNG cần thủ thuật "lật ngược cả chồng" như High
+  Noon. Đơn giản hơn hẳn.
+
+1.3. Nhóm hiệu ứng (theo phân loại mục 1.4 file High Noon)
+--------------------------------------------------------------------
+  (A) LÚC LẬT: Helena Zontero.
+  (B) MỖI LƯỢT: Miss Susanna (cuối lượt), Darling Valentine (đầu lượt),
+      Bone Orchard (đầu lượt).
+  (C) SỬA LUẬT NỀN: Dorothy Rage, Sacagaway, Lady Rose of Texas,
+      Showdown, Wild West Show.
+
+
+========================================================================
+2. DANH SÁCH 9 LÁ TÌNH HUỐNG (đã loại Bavaglio/Cag)
+========================================================================
+
+--- NHÓM (A): CHẠY MỘT LẦN LÚC LẬT ---
+
+Helena Zontero — nhóm (A) — ĐỤNG VÀO VAI TRÒ, RỦI RO CAO NHẤT BỘ
+  - Hiệu ứng (NGUYÊN VĂN bản dịch): "Khi Helena xuất hiện, Sheriff rút 1
+    lá bài (lá này John Pain KHÔNG được lấy — Q34); nếu là chất CƠ hoặc
+    RÔ (tức màu ĐỎ) thì XÀO LẠI CÁC LÁ BÀI PHÂN VAI (TRỪ lá Sheriff) và
+    CHIA LẠI NGẪU NHIÊN cho mọi người."
+  - Cách cài đặt: [ĐỔI STATE + CẦN BÀN NẶNG — đọc hết trước khi động vào]
+    → Đây là lần ĐẦU TIÊN trong dự án `PlayerState.role` bị thay đổi sau
+      khi ván đã bắt đầu. Rất nhiều chỗ đang ngầm giả định role là bất
+      biến. Phải rà TRƯỚC KHI CODE: win.ts (checkWinCondition),
+      eliminatePlayer() (thưởng hạ Outlaw / phạt Sheriff giết Deputy),
+      view.ts (lộ vai trò), setup.ts (tính máu khởi điểm theo vai).
+    → MÁU KHỞI ĐIỂM KHÔNG ĐỔI. Sheriff được +1 máu tối đa lúc setup
+      (SHERIFF_BONUS_HP, xem characters.ts) — nhưng vì lá Sheriff KHÔNG
+      bị xào lại, người giữ vai Sheriff không đổi ⇒ không phát sinh vấn
+      đề. [CẦN KIỂM CHỨNG] xác nhận đúng là chỉ hoán đổi Deputy/Outlaw/
+      Renegade với nhau.
+    → viewFor() (quy tắc 6): vai trò mới vẫn phải ẨN với người khác, y
+      như đầu ván. Đảm bảo không vô tình lộ qua GameEvent.
+    → Biến thể 2 người (role = null) và 3 người (police/criminal/traitor
+      CÔNG KHAI): lá này có ý nghĩa gì không? [CẦN BÀN] Đề xuất: KHÔNG
+      áp dụng — bỏ qua lá, chỉ bắn event báo "không có tác dụng". Với
+      biến thể 3 người thì vai công khai nên xào lại là vô nghĩa/phá
+      vòng tròn săn đuổi.
+    → Việc rút 1 lá là một lần draw! thật ⇒ Lucky Duke của Sheriff có áp
+      dụng không? [CẦN BÀN] Đề xuất: CÓ (nó là draw! của đích danh
+      Sheriff), nhưng phải chốt.
+    → John Pain KHÔNG được lấy lá này (FAQ cộng đồng Q34) — nhớ chừa cờ
+      loại trừ khi cài hook của John Pain ở mục 3.
+    → Bắn event mới `ROLES_RESHUFFLED` (KHÔNG kèm vai trò cụ thể của ai
+      — sẽ lộ bí mật).
+    → RỦI RO GAMEPLAY (không phải bug): sau khi xào lại, có thể xuất hiện
+      trạng thái thắng NGAY LẬP TỨC (vd chỉ còn 2 người và cả 2 cùng
+      thành Outlaw). Phải gọi checkWinCondition() ngay sau khi chia lại.
+
+--- NHÓM (B): CHẠY MỖI LƯỢT ---
+
+Darling Valentine — nhóm (B)
+  - Hiệu ứng (NGUYÊN VĂN bản dịch): "TRƯỚC KHI BẮT ĐẦU lượt chơi, bạn bỏ
+    TẤT CẢ bài cầm trên tay vào đống bài dư và rút lại từ bộ bài để rút
+    BẰNG SỐ BÀI BỎ RA (vẫn rút 2 lá của bước 1 như bình thường)."
+    ⇒ Sách luật tiếng Anh dV Giochi khớp: "Players then also draw the
+    usual 2 cards from the deck."
+    ⇒ Tay 5 lá ⇒ bỏ 5, rút 5, RỒI rút tiếp 2 lá của pha rút = 7 lá.
+    ⇒ Tay rỗng ⇒ không bỏ gì, không rút bù, vẫn rút 2 lá bình thường.
+  - Cách cài đặt:
+    → KHÔNG cần pending — không có lựa chọn nào, hoàn toàn tự động.
+      Cắm ở applyTurnStartChecks(), TRƯỚC pha rút bài.
+    → Thứ tự BẮT BUỘC: bỏ hết N lá vào chồng bỏ TRƯỚC, rồi mới rút N lá.
+      Nếu rút trước thì rút lại đúng lá vừa bỏ.
+    → Suzy Lafayette: tay về 0 giữa chừng ⇒ hook onHandEmpty. Áp đúng
+      nguyên tắc đã chốt ở Dodge City mục 1.2: gọi
+      triggerHandEmptyHook() SAU khi đã rút bù xong, không phải giữa
+      chừng.
+    → Tương tác với các nhân vật override onDrawPhase: lá này KHÔNG đụng
+      pha rút, nó là bước RIÊNG trước đó ⇒ Kit Carlson/Pedro Ramirez/
+      Jesse Jones... vẫn chạy bình thường sau đó. Không va chạm.
+
+Miss Susanna — nhóm (B)
+  - Hiệu ứng (NGUYÊN VĂN bản dịch): "Bạn phải đánh ra ÍT NHẤT 3 LÁ BÀI
+    trong lượt của mình, nếu không thì MẤT 1 MÁU. Không áp dụng cho
+    người nào phải bỏ lượt vì không thể ra tù (Jail)."
+    ⇒ Sách luật tiếng Anh dV Giochi khớp y hệt về ngoại lệ Jail.
+  - Cách cài đặt: [ĐỔI STATE]
+    → Cần đếm số lá ĐÁNH RA trong lượt. Dự án đã có
+      `cardNamesPlayedThisTurn: string[]` (types.ts) NHƯNG nó chỉ ghi lá
+      NÂU và chỉ có ý nghĩa khi bật house rule "no_duplicate_card_names".
+      Không dùng lại được nguyên trạng. Đề xuất thêm
+      `cardsPlayedThisTurn: number` đếm MỌI lá đánh ra (nâu + xanh dương
+      + vàng), reset ở advanceTurn() như các cờ khác.
+    → [CẦN BÀN] "đánh ra" gồm những gì:
+        · Lá xanh dương/vàng bày ra sân — nhiều khả năng CÓ tính.
+        · Kích hoạt lá vàng đã bày sẵn (Dodge City) — CHƯA RÕ.
+        · Bỏ Missed!/Bang! để phản ứng NGOÀI lượt — chắc chắn KHÔNG
+          tính (không phải lượt của mình).
+        · Lá phụ bỏ kèm (Brawl/Whisky/Rag Time... — Dodge City mục 1.2)
+          tính 1 hay 2 lá?
+        · USE_ABILITY của Sid Ketchum/Doc Holyday (bỏ bài nhưng không
+          "đánh lá") — nhiều khả năng KHÔNG tính.
+      Chốt đủ 5 dòng trước khi code, đừng cài từng phần.
+    → NGOẠI LỆ ĐÃ CÓ TIỀN LỆ TRONG CODE: "người bỏ lượt vì Jail" chính
+      là nhánh JAIL_SKIPPED_TURN (reduce.ts). Nhớ mở rộng ngoại lệ này
+      cho cả người "cùng vào tù" của Marcel Marcelo
+      (MARCEL_COMPANION_TURN_SKIPPED) — cùng bản chất "không được chơi
+      lượt", dù FAQ không nhắc (Marcel là nhân vật tự chế của dự án).
+    → FAQ cộng đồng Q19 (xem Lee Van Kliff, mục 3): mỗi lần Lee lặp lại
+      tác dụng ĐƯỢC TÍNH LÀ 1 lá đánh ra cho mục đích của lá này.
+    → Mất máu: applyDamage với killerId = null + eliminateIfDead(), đúng
+      khuôn High Noon/Dynamite. Cắm ở handleEndTurn().
+
+Bone Orchard (Camposanto) — nhóm (B) — LÁ THỨ BA CẦN "NGƯỜI CHẾT VÀO VÒNG LƯỢT"
+  - Hiệu ứng (NGUYÊN VĂN bản dịch): "Khi tới lượt của mình, ai đã chết sẽ
+    SỐNG LẠI VỚI 1 MÁU, cho tới khi bị chết lại; CHỌN NGẪU NHIÊN bài
+    phân vai của các người chơi bị chết."
+    ⇒ Sách luật tiếng Anh dV Giochi bổ sung một điểm QUAN TRỌNG mà bản
+    dịch không nói: "Players return to play PERMANENTLY. Hence, they stay
+    in play even after the Bone Orchard terminates its effect, if they
+    are still in play."
+    ⇒ Tức là khác hẳn Ghost Town (High Noon): ma của Ghost Town chỉ sống
+    1 lượt rồi đi; người của Bone Orchard sống lại THẬT, ở lại luôn kể
+    cả sau khi lá này bị đè.
+  - Cách cài đặt: [ĐỔI STATE]
+    → Đây là lá thứ BA cần cơ chế "người đã chết vẫn được tính vào vòng
+      lượt" — cùng với Ghost Town (High Noon) và Dead Man (Fistful).
+      **THIẾT KẾ CHUNG MỘT CƠ CHẾ CHO CẢ BA, ĐỪNG LÀM BA LẦN.** Đây là
+      lý do quan trọng nhất để đọc cả 3 file spec trước khi code bất kỳ
+      bộ nào.
+      Ba lá khác nhau ở đúng 3 điểm, còn lại giống hệt:
+        | | Ghost Town | Dead Man | Bone Orchard |
+        |---|---|---|---|
+        | Ai quay lại | MỌI người chết | người chết ĐẦU TIÊN | MỌI người chết |
+        | Máu | 0 (bất tử) | 2 | 1 |
+        | Ở lại | hết lượt là đi | vĩnh viễn | vĩnh viễn |
+    → Vai trò: bản dịch nói "chọn ngẫu nhiên bài phân vai của các người
+      chơi bị chết" ⇒ những người sống lại được CHIA LẠI NGẪU NHIÊN các
+      lá vai trò của chính nhóm đã chết đó (không đụng người còn sống).
+      [CẦN KIỂM CHỨNG] cách hiểu này — nguồn là FAQ cộng đồng, và câu
+      tiếng Việt tối nghĩa. Nếu chốt như trên thì dùng chung code với
+      Helena Zontero (cùng là "xào lại một tập con vai trò").
+    → Người sống lại giữ nguyên characterId. Bài trên tay đã bị bỏ hết
+      lúc chết ⇒ sống lại tay rỗng, rồi rút bài bình thường ở pha 1.
+      [CẦN KIỂM CHỨNG] có được rút bài bù lúc sống lại không (Dead Man
+      thì CÓ 2 lá, Ghost Town thì rút 3) — bản dịch KHÔNG nói ⇒ nghiêng
+      về KHÔNG, chỉ rút 2 lá của pha 1 như thường.
+    → checkWinCondition() phải chạy lại NGAY sau mỗi lần hồi sinh — số
+      người sống đổi, phe đổi ⇒ có thể lật ngược kết quả đã "gần thắng".
+    → Va chạm Greg Digger/Herb Hunter (hook onAnyDeath): người sống lại
+      rồi CHẾT LẠI ⇒ hook chạy LẦN NỮA, và thưởng hạ Outlaw cũng tính
+      lại. Đúng luật (đây là cái chết thật, khác việc "ma rời đi" của
+      Ghost Town). Không cần xử lý đặc biệt.
+    → Bắn event mới `BONE_ORCHARD_REVIVED`.
+
+--- NHÓM (C): SỬA LUẬT NỀN ---
+
+Sacagaway — nhóm (C) — PHÁ QUY TẮC 6 CỦA CLAUDE.md
+  - Hiệu ứng (NGUYÊN VĂN bản dịch): "Mọi người chơi bài MỞ với nhau (mở
+    bài cầm trên tay lên cho người khác thấy), TRỪ lá bài phân vai. Nếu
+    lấy bài trên tay người khác bằng Panic!, Cat Balou... hoặc do đặc
+    tính nhân vật như Flint Westwood, Jesse Jones... thì VẪN CHỌN NGẪU
+    NHIÊN; sau khi lấy bài xong thì bài còn lại tiếp tục mở (Q17)."
+  - Cách cài đặt:
+    → CHÚ Ý QUY TẮC 6 (CLAUDE.md): "Client KHÔNG BAO GIỜ nhận state đầy
+      đủ. Server chỉ gửi viewFor(state, playerId)". Lá này KHÔNG vi phạm
+      quy tắc đó — nó chỉ đổi ĐỊNH NGHĨA cái gì là bí mật. Cách cài đúng
+      là sửa viewFor() để tay bài KHÔNG còn bị lọc, TUYỆT ĐỐI KHÔNG phải
+      "gửi thẳng state đầy đủ cho tiện". Vai trò VẪN phải ẩn.
+    → Cụ thể ở view.ts: chỗ đang thay tay người khác bằng số lượng/null
+      thì trả về danh sách id thật khi Sacagaway đang chạy.
+    → NGHỊCH LÝ ĐÃ ĐƯỢC FAQ TRẢ LỜI (Q17): thấy hết bài NHƯNG cướp vẫn
+      NGẪU NHIÊN. Nghĩa là KHÔNG được đổi Panic!/Cat Balou/Jesse Jones/
+      Flint Westwood thành "chọn lá cụ thể". Giữ nguyên code cướp ngẫu
+      nhiên đang có — đây là chỗ rất dễ "sửa nhầm cho hợp lý".
+      · Ngoại lệ vốn có: Panic! khi tay mục tiêu RỖNG thì được chỉ đích
+        danh lá trang bị (targetCardId, xem types.ts) — không liên quan,
+        giữ nguyên.
+    → Kit Carlson (NEED_PICK_KEPT_CARDS chứa thông tin ẩn — pending duy
+      nhất như vậy, xem types.ts): 3 lá anh ta đang xem có bị lộ theo
+      không? [CẦN BÀN] Đề xuất KHÔNG — đó là bài chưa vào tay, chưa phải
+      "bài cầm trên tay". Ghi rõ để không hiểu nhầm.
+    → Black Jack (lá thứ 2 lật ngửa) và Sacagaway chồng nhau vô hại.
+    → UI: cần chỉ báo rõ ràng "đang mở bài" nếu không người chơi sẽ tưởng
+      lỗi bảo mật.
+
+Dorothy Rage — nhóm (C) — CẦN PENDING MỚI, PHỨC TẠP
+  - Hiệu ứng (NGUYÊN VĂN bản dịch): "Trong lượt của mình, bạn có thể BUỘC
+    1 người chơi khác ĐÁNH 1 LÁ BÀI THEO YÊU CẦU của bạn (bạn ĐỒNG THỜI
+    chọn đối tượng để người được yêu cầu đánh bài vào). Nếu không có lá
+    đó thì phải CHO MỌI NGƯỜI XEM BÀI để kiểm tra đúng là không có (Q20).
+    Vd: yêu cầu người B bắn 1 lá Bang! tới người C (do bạn chỉ định) —
+    tất nhiên phải trong tầm bắn."
+    ⇒ Sách luật tiếng Anh dV Giochi bổ sung: lá bị ép được chơi "as if it
+    was his turn (also for counting the distances)" — tức khoảng cách
+    tính TỪ NGƯỜI BỊ ÉP, không phải từ người ra lệnh.
+  - Cách cài đặt: [ĐỔI STATE — lá tốn công thứ nhì của bộ]
+    → Cần PendingAction mới `NEED_FORCED_PLAY`, mang theo: người bị ép,
+      tên lá bị yêu cầu, mục tiêu do người ra lệnh chỉ định.
+    → Hành động ra lệnh: [CẦN BÀN] dùng Action mới (vd `FORCE_PLAY`) hay
+      nhồi vào PLAY_CARD? Đề xuất Action MỚI — đây không phải "đánh 1 lá
+      bài", nó không tiêu lá nào của người ra lệnh.
+    → Số lần dùng mỗi lượt: bản dịch nói "có thể buộc" mà KHÔNG nói giới
+      hạn. [CẦN KIỂM CHỨNG] Đề xuất 1 lần/lượt (an toàn, tránh khoá chặt
+      cả bàn), kèm cờ `dorothyRageUsedThisTurn`.
+    → Nhánh "không có lá đó" ⇒ phải LỘ TOÀN BỘ TAY người bị ép cho mọi
+      người. Cần GameEvent mới `HAND_REVEALED` kèm danh sách id, và
+      viewFor() phải cho phép lộ 1 lần này. Tái dùng đúng cơ chế đã làm
+      cho Sacagaway thì gọn.
+    → Nhánh "có lá đó" ⇒ lá được chơi NHƯ THỂ đang là lượt người bị ép:
+      khoảng cách tính từ HỌ, giới hạn 1 Bang!/lượt tính vào lượt của
+      AI? [CẦN BÀN] Đề xuất: KHÔNG tính vào giới hạn của ai cả (họ đâu
+      có tự nguyện).
+    → Nếu lá yêu cầu là loại KHÔNG hợp lệ với mục tiêu đã chỉ (ngoài tầm
+      bắn, mục tiêu đã chết...) thì sao? Phải validate NGAY LÚC RA LỆNH,
+      từ chối lệnh không thực hiện được — đừng để pending kẹt.
+    → Ép người bị Jail / đang ở trạng thái đặc biệt: [CẦN KIỂM CHỨNG].
+
+Lady Rose of Texas — nhóm (C) — ĐỤNG VÀO THỨ TỰ GHẾ NGỒI
+  - Hiệu ứng (NGUYÊN VĂN bản dịch): "Bạn có thể ĐỔI CHỖ NGỒI với người
+    ngồi BÊN TAY PHẢI của bạn (đem bài của mình theo), nhưng người này
+    KHÔNG ĐƯỢC CHƠI LƯỢT của anh ta sau khi đổi chỗ."
+    ⇒ Sách luật tiếng Anh dV Giochi ghi vui: "Bring your cards, your mat,
+    etc. with you!" — tức mọi thứ thuộc về người chơi (tay bài, trang bị
+    trên sân, máu, nhân vật) đi theo, chỉ có VỊ TRÍ GHẾ đổi.
+  - Cách cài đặt: [ĐỔI STATE]
+    → `state.players` là mảng, và THỨ TỰ TRONG MẢNG = GHẾ NGỒI (xem
+      types.ts). Đổi chỗ = hoán vị 2 phần tử trong mảng. Vì mọi dữ liệu
+      người chơi nằm gọn trong phần tử đó, "đem bài theo" là TỰ ĐÚNG,
+      không phải chuyển gì thủ công.
+    → BẪY: `currentPlayerIndex` là CHỈ SỐ, không phải playerId. Hoán vị
+      xong phải cập nhật lại currentPlayerIndex để vẫn trỏ đúng người
+      đang chơi. Rà thêm mọi chỗ khác đang lưu CHỈ SỐ thay vì id.
+    → "Bên tay phải" là chiều nào trong mảng? Dự án chưa định nghĩa
+      "trái/phải" ở đâu cả. [CẦN BÀN] Đề xuất chốt: chiều đi lượt bình
+      thường (index + 1) = "bên tay trái", nên "bên tay phải" =
+      index - 1. Ghi rõ vào types.ts để lần sau khỏi đoán lại.
+    → "Người này không được chơi lượt sau khi đổi chỗ": tái dùng ĐÚNG cơ
+      chế đã có cho Marcel Marcelo — `marcelCompanionSkipNextTurn`
+      (Record<string, boolean>, tiêu thụ 1 lần ở applyTurnStartChecks()).
+      Nên đổi tên field đó thành trung tính (vd `skipNextTurn`) và dùng
+      chung, thay vì thêm field thứ hai làm y hệt. [CẦN BÀN — đổi tên
+      field đang có là thay đổi hồi tố]
+    → Số lần dùng: [CẦN KIỂM CHỨNG] mỗi lượt 1 lần? Đề xuất 1 lần/lượt.
+    → Va chạm Dynamite: Dynamite chuyền theo ghế ⇒ đổi chỗ có thể đẩy
+      quả Dynamite sang người khác. Đúng luật, không cần chặn, nhưng nhớ
+      khi viết test.
+
+Showdown (Regolamento di Conti) — nhóm (C) — ĐẢO NGƯỢC BANG!/MISSED!
+  - Hiệu ứng (NGUYÊN VĂN bản dịch): "Lá Bang! PHẢI được chơi NHƯ LÁ
+    MISSED!. Tất cả các lá KHÁC Bang! CÓ THỂ được dùng NHƯ LÁ BANG!.
+    Khi này, nhân vật Big Spencer có thể dùng lá Bang! như lá Missed!,
+    Lee Van Kliff có thể bỏ ra BẤT KÌ LÁ NÀO để lặp lại tác dụng của 1
+    lá viền nâu mà Lee mới vừa đánh ra."
+    ⇒ Sách luật tiếng Anh dV Giochi khớp ở cả 2 ngoại lệ nhân vật.
+    ⇒ Đọc kỹ tính bất đối xứng: Bang! → CHỈ được dùng như Missed!
+    (BẮT BUỘC, mất hẳn vai trò Bang!). Mọi lá khác → ĐƯỢC PHÉP dùng như
+    Bang! (tuỳ chọn, vẫn giữ vai trò gốc).
+  - Cách cài đặt:
+    → Cắm vào ĐÚNG 2 hàm đã có sẵn ở reduce.ts, không cần chỗ mới:
+        actsAsBang(state, cardId, player)   → khi Showdown chạy: trả
+            true cho MỌI lá TRỪ lá tên "bang".
+        actsAsMissed(state, cardId, player) → khi Showdown chạy: trả
+            true cho lá tên "bang" (và giữ nguyên các nhánh cũ).
+      Đây là lý do dự án gom sẵn 2 hàm này — tận dụng.
+    → Va chạm Calamity Janet (hasBangMissedAlias): khả năng của cô trở
+      nên thừa, không mâu thuẫn. Không cần nhánh riêng.
+    → Va chạm Elena Fuente (hasAnyCardMissedAlias, Dodge City): cũng
+      thành thừa. Không mâu thuẫn.
+    → Big Spencer (không dùng được Missed!): dưới Showdown thì được dùng
+      lá Bang! làm Missed!. ⇒ Cấm-Missed! của anh ta phải cài theo TÊN
+      LÁ ("missed" và các lá vàng có ký hiệu Missed!), KHÔNG phải theo
+      "bất cứ thứ gì actsAsMissed trả true". Nếu cài kiểu sau thì ngoại
+      lệ này tự nhiên sai. Ghi nhớ khi cài Big Spencer ở mục 3.
+    → Lee Van Kliff: bình thường phải bỏ 1 lá Bang! để dùng khả năng;
+      dưới Showdown thì bỏ lá BẤT KỲ. Tự đúng nếu điều kiện của anh ta
+      viết là "1 lá actsAsBang" thay vì "1 lá tên bang". Ngược hẳn với
+      Big Spencer ở trên — 2 nhân vật này phải cài theo 2 kiểu KHÁC
+      NHAU, rất dễ nhầm.
+    → Giới hạn 1 Bang!/lượt vẫn áp bình thường cho lá được dùng như
+      Bang!. [CẦN KIỂM CHỨNG]
+    → Volcanic (bypassBangLimit) dưới Showdown: vẫn bỏ qua giới hạn.
+
+Wild West Show — nhóm (C) — LÁ CUỐI, ĐỔI ĐIỀU KIỆN THẮNG
+  - Hiệu ứng (NGUYÊN VĂN bản dịch): "Mục tiêu của TẤT CẢ người chơi là
+    'NGƯỜI CUỐI CÙNG CÒN SỐNG' (nên nếu Sheriff chết, cuộc chơi VẪN TIẾP
+    TỤC), nhưng Sheriff vẫn KHÔNG BỊ VÀO TÙ, luật thưởng/phạt khi giết
+    Deputy và Outlaw VẪN NHƯ CŨ."
+    ⇒ Sách luật tiếng Anh dV Giochi nói rõ hơn: "It is just like each
+    player has the same goal of the Renegade. However, the actual roles
+    STAY THE SAME... Victory is INDIVIDUAL."
+  - Cách cài đặt: [ĐỔI STATE ở win.ts]
+    → Kiểu `Winner` (types.ts) ĐÃ CÓ SẴN nhánh cần dùng:
+      `{ kind: "player"; playerId: string }` — vốn làm cho biến thể 2
+      người (isDuelMode). Tái dùng đúng nhánh đó, KHÔNG thêm kiểu mới.
+    → checkWinCondition() (win.ts): khi lá này đang chạy, bỏ qua toàn bộ
+      logic phe phái, chỉ kiểm tra "còn đúng 1 người sống" ⇒ người đó
+      thắng cá nhân.
+    → GIỮ NGUYÊN (không được vô hiệu hoá):
+        · Sheriff không bị đánh Jail (luật gốc) — vẫn chặn ở playJail().
+        · Thưởng 3 lá khi hạ Outlaw (OUTLAW_BOUNTY_DRAWN).
+        · Phạt Sheriff giết Deputy (SHERIFF_KILLED_DEPUTY_PENALTY).
+      Nghĩa là vai trò VẪN tồn tại và vẫn sinh hậu quả, chỉ có ĐIỀU KIỆN
+      THẮNG bị thay. Đây là điểm dễ cài sai nhất — đừng "dọn sạch" vai
+      trò cho gọn.
+    → Sheriff chết thì ván KHÔNG kết thúc ⇒ phải bỏ nhánh "Sheriff chết
+      = Outlaw thắng" khi lá này chạy.
+    → Va chạm biến thể 3 người (vòng tròn săn đuổi HUNT_CIRCLE) và 2
+      người: [CẦN BÀN] Đề xuất KHÔNG áp dụng lá này ở 2 biến thể đó —
+      biến thể 2 người vốn đã là "người cuối cùng còn sống", còn biến
+      thể 3 người có mục tiêu riêng, ghi đè sẽ phá vỡ thiết kế.
+    → Vì là lá CUỐI (isFinalCard), một khi lật là chạy tới hết ván.
+
+
+========================================================================
+3. TÁM NHÂN VẬT MỚI
+========================================================================
+(Máu = số viên đạn, dùng chung field `bullets` của CharacterDefinition.
+Bộ này nâng tổng số nhân vật của dự án từ 34 lên 42 ⇒ nhớ thêm 8 ảnh vào
+public/sprites/characters/ và 8 mô tả tooltip ở màn chọn nhân vật.)
+
+Big Spencer (9 máu) — CẦN 3 THỨ ĐẶC BIỆT
+  - Hiệu ứng: bắt đầu với 5 lá trên tay (bất kể có làm Sheriff hay
+    không). KHÔNG dùng được lá Missed! (FAQ cộng đồng Q9). Giới hạn cầm
+    trên tay là 9 lá (không phải theo máu hiện tại).
+  - Cách cài đặt:
+    → Máu 9: chỉ là `bullets: 9` — nhưng đây là con số LỚN BẤT THƯỜNG
+      (cao nhất dự án; trước đó cao nhất là 5). Rà lại chỗ nào đang ngầm
+      giả định máu tối đa ≤ 5: UI vẽ viên đạn (ui.ts — 9 viên có vỡ hàng
+      không?), và mọi vòng lặp theo máu.
+    → 5 lá khởi điểm: [CẦN HOOK MỚI] — luật gốc chia bài đầu ván = số
+      máu. Cần hook kiểu `startingHandSize?: number` (field tĩnh, PURE),
+      đọc ở setup.ts. KHÔNG dùng onDrawPhase (khác thời điểm hoàn toàn).
+    → Không dùng Missed!: [CẦN HOOK MỚI] `cannotUseMissed?: boolean`.
+      CẢNH BÁO đã nêu ở lá Showdown: phải cài theo TÊN LÁ (lá "missed",
+      lá "dodge", và 4 lá vàng có ký hiệu Missed! của Dodge City), KHÔNG
+      cài theo "mọi thứ actsAsMissed() trả true" — nếu không thì ngoại
+      lệ Showdown (được dùng Bang! làm Missed!) sẽ tự động sai.
+    → Giới hạn tay 9 lá: dùng hook `modifyHandLimit` ĐÃ CÓ SẴN (làm cho
+      Sean Mallory, Dodge City) — trả về 9. Không cần gì mới.
+      [CẦN KIỂM CHỨNG] Big Spencer + Sean Mallory (giới hạn 10) không
+      thể cùng lúc, trừ khi Vera Custer mượn — lúc đó lấy số nào?
+
+Flint Westwood (4 máu)
+  - Hiệu ứng: trong lượt của mình, chọn 1 lá trên tay (TỰ CHỌN, không
+    ngẫu nhiên) đưa cho 1 người chơi khác, đổi lấy 2 lá NGẪU NHIÊN trên
+    tay người đó. Nếu người đó chỉ còn 1 lá thì chỉ lấy được 1 lá.
+    Tối đa 1 lần/lượt (FAQ cộng đồng Q27).
+  - Cách cài đặt:
+    → Dùng chung action `USE_ABILITY` đã có (cardIds = đúng 1 lá của
+      mình, targetId = người bị đổi) — đúng khuôn Doc Holyday.
+    → Cần `flintWestwoodUsedThisTurn: boolean` [ĐỔI STATE], reset ở
+      advanceTurn() như docHolydayUsedThisTurn.
+    → Lấy ngẫu nhiên: tái dùng đúng RNG của Panic! (applyPanicEffect()).
+    → Sacagaway đang chạy ⇒ VẪN lấy ngẫu nhiên (Q17, xem lá đó).
+    → Suzy Lafayette 2 chiều: cả người cho lẫn người bị lấy đều có thể
+      về tay 0 ⇒ gọi triggerHandEmptyHook() cho ĐÚNG CẢ HAI, và chỉ SAU
+      KHI toàn bộ việc trao đổi xong.
+
+Gary Looter (4 máu)
+  - Hiệu ứng: lấy tất cả bài mà NGƯỜI KHÁC (không phải của Gary) bỏ ra
+    khi người đó kết thúc lượt.
+  - Cách cài đặt: [CẦN HOOK MỚI]
+    → Hook mới `onOtherPlayerDiscardAtTurnEnd(next, self, discarded[])`,
+      gọi ở handleDiscardCards() (reduce.ts) — nhưng CHỈ cho bài bỏ dư
+      CUỐI LƯỢT, không phải mọi lá vào chồng bỏ.
+    → Va chạm Vulture Sam: 2 nhân vật cùng "nhặt bài", nhưng khác nguồn
+      hoàn toàn (Sam nhặt bài người CHẾT, Gary nhặt bài BỎ DƯ) ⇒ không
+      xung đột.
+    → Va chạm lá Abandoned Mine (Fistful): lá đó khiến bài bỏ dư đi lên
+      CHỒNG RÚT thay vì chồng bỏ ⇒ Gary lấy trước hay bài lên chồng rút
+      trước? [CẦN BÀN] Đề xuất Gary lấy trước (khả năng nhân vật ưu tiên
+      hơn). Chỉ xảy ra khi bật cả 2 bộ.
+    → Bài Gary nhặt về có làm chính anh ta vượt giới hạn tay không? Có,
+      nhưng lượt của anh ta đã qua/chưa tới ⇒ không bị phạt. Đúng luật.
+
+Greygory Deck (4 máu) — MỞ RỘNG CƠ CHẾ UỶ QUYỀN CỦA VERA CUSTER
+  - Hiệu ứng: mỗi khi bắt đầu lượt, lấy NGẪU NHIÊN 2 lá nhân vật (CHỈ bộ
+    CƠ BẢN) và có khả năng của CẢ HAI cùng lúc. Phải nói cho mọi người
+    biết lượt tiếp theo có đổi 2 lá đó không; nếu đổi thì phải đổi CẢ
+    HAI (gộp 2 lá hiện có vào để xào lại).
+    ⇒ Sách luật tiếng Anh dV Giochi khớp: "The only valid characters are
+    those from the basic game... you must change BOTH of them. This
+    ability also applies at the beginning of the game."
+  - Cách cài đặt: [ĐỔI STATE — hỏi trước]
+    → Dự án ĐÃ CÓ hạ tầng gần đúng: 3 hàm trung tâm
+      getEffectiveCharacterId() / getEffectiveCharacterHooks() /
+      getEffectiveCharacterDefinition() (characters.ts, làm cho Vera
+      Custer). Nhưng cả 3 đang trả về MỘT nhân vật. Greygory cần HAI.
+    → Đây là thay đổi kiến trúc thật sự: hoặc đổi 3 hàm đó trả về MẢNG
+      (ảnh hưởng ~30 điểm gọi, xem CLAUDE.md), hoặc thêm một lớp "gộp 2
+      bộ hook" chỉ dùng cho riêng anh ta. **BÀN TRƯỚC, ĐỪNG TỰ CHỌN.**
+    → Xung đột 2 hook cùng loại (vd bốc trúng CẢ Kit Carlson LẪN Pedro
+      Ramirez — cả hai đều override onDrawPhase): chạy cái nào? [CẦN BÀN]
+      Đây là câu hỏi KHÔNG CÓ trong FAQ và chắc chắn sẽ xảy ra.
+    → "CHỈ bộ cơ bản" ⇒ lọc theo EXPANSION_CHARACTER_IDS (characters.ts)
+      — lấy 16 nhân vật gốc, loại 15 Dodge City + 3 tự chế + 8 WWS.
+    → Vera Custer mượn Greygory Deck: uỷ quyền lồng uỷ quyền. [CẦN BÀN]
+      Đề xuất chặn thẳng — quá rối, giá trị thấp.
+    → "Áp dụng cả ở đầu ván" ⇒ setup.ts cũng phải bốc 2 lá cho anh ta.
+
+John Pain (4 máu)
+  - Hiệu ứng: nếu John cầm trên tay ÍT HƠN 6 lá, thì mỗi khi CÓ AI so
+    bài (draw!), John lấy lá vừa lật đó về tay mình. Lá lấy được KHÔNG
+    dùng được ngay — phải đợi hiệu ứng đang chạy kết thúc.
+    ⇒ Sách luật tiếng Anh dV Giochi khớp: "The card drawn this way may
+    not be used immediately; you must wait until the previous effect
+    ends."
+    Ví dụ trong bản dịch: cả bàn bị Gatling, có người so bài vì Barrel
+    và lật ra lá Beer ⇒ John lấy được lá Beer đó, NHƯNG nếu chính John
+    mất giọt máu cuối vì Gatling thì KHÔNG được dùng lá Beer đó để cứu.
+  - Cách cài đặt: [CẦN HOOK MỚI]
+    → Hook mới `onAnyDrawCheck(next, self, cardId)`, gọi ở
+      resolveDrawCheck() (reduce.ts) SAU khi lá đã làm xong nhiệm vụ so
+      chất/giá trị, TRƯỚC khi nó vào chồng bài bỏ.
+    → Điều kiện: `self.hand.length < 6` xét TẠI THỜI ĐIỂM lật.
+    → "Không dùng được ngay" là điểm KHÓ THẬT SỰ — dự án chưa có khái
+      niệm "lá đang bị khoá". [CẦN BÀN] 2 hướng:
+        (a) Thêm `lockedCardIds: string[]` vào GameState, gỡ khoá khi
+            pending stack rỗng. Đúng luật nhưng thêm state + thêm chỗ
+            phải nhớ kiểm tra.
+        (b) Đơn giản hoá: chỉ CHUYỂN lá vào tay SAU KHI pending stack
+            rỗng (xếp vào hàng đợi `pendingJohnPainCards`). Ít rủi ro
+            hơn, hiệu quả tương đương.
+      Đề xuất (b).
+    → Lucky Duke lật 2 lá ⇒ John lấy CẢ 2. Nhưng nếu John đã có 5 lá thì
+      chỉ lấy được lá ĐẦU TIÊN (vì sau lá đầu anh ta đã đủ 6). FAQ cộng
+      đồng Q22 — logic này TỰ ĐÚNG nếu kiểm tra `< 6` trước TỪNG lá,
+      không kiểm 1 lần rồi lấy cả cụm.
+    → Helena Zontero (lá tình huống ở mục 2): lá Sheriff rút ra để xét
+      màu thì John KHÔNG được lấy (FAQ cộng đồng Q34) ⇒ cần cờ loại trừ
+      truyền vào hook.
+    → Vera Custer copy John Pain (cùng lúc có 2 người ăn draw!): bản
+      dịch tự nhận phần xử lý này là "(TỰ BIÊN)", không phải luật thật.
+      ⇒ ĐỪNG cài phần chia bài phức tạp đó. Đề xuất đơn giản: người ngồi
+      GẦN người so bài hơn được lấy; hoà thì người có lượt trước lấy.
+      Chốt là house rule, ghi lại.
+
+Lee Van Kliff (4 máu)
+  - Hiệu ứng: trong lượt của mình, bỏ 1 lá Bang! (phải là lá Bang! THẬT,
+    không phải lá "có tác dụng như Bang!") để LẶP LẠI tác dụng của 1 lá
+    VIỀN NÂU mà Lee VỪA MỚI đánh ra. Được chọn mục tiêu khác lần đầu.
+    ⇒ Bao gồm cả các lá cần bỏ kèm 1 lá phụ (Brawl, Rag Time, Whisky...
+    — Dodge City mục 1.2): lặp lại thì KHÔNG phải bỏ thêm lá phụ nữa
+    (FAQ cộng đồng Q29).
+    ⇒ Mỗi loại tác dụng chỉ lặp được 1 LẦN.
+    ⇒ Lặp lại Wells Fargo/Stagecoach thì KHÔNG lật lá tình huống WWS mới
+    (Q19).
+    ⇒ Mỗi lần lặp tính là 1 lá đánh ra cho mục đích lá Miss Susanna.
+    ⇒ Lá Bang! bỏ ra để kích hoạt có CHẤT riêng, và chất đó dùng để xét
+    miễn nhiễm của Apache Kid (Dodge City) cho hiệu ứng được lặp — không
+    phải chất của lá gốc (Q12). Ví dụ: bỏ Bang! chất Rô để lặp Indians!
+    (Indians! luôn là chất Rô) ⇒ Apache Kid vẫn miễn nhiễm; nhưng lặp
+    Gatling (không phải chất Rô) thì Apache Kid trúng đòn.
+  - Cách cài đặt: [ĐỔI STATE]
+    → Cần nhớ "lá viền nâu vừa đánh ra" ⇒ `lastBrownCardPlayed: {
+      cardId, name } | null`, reset ở advanceTurn().
+    → Cần nhớ "đã lặp tác dụng nào rồi" ⇒ `repeatedEffectsThisTurn:
+      string[]`.
+    → Dùng action `USE_ABILITY` (cardIds = đúng 1 lá Bang!) + targetId
+      nếu hiệu ứng cần mục tiêu.
+    → Điều kiện lá bỏ ra: viết là "1 lá actsAsBang()" (KHÔNG phải "tên
+      lá = bang") — để ngoại lệ Showdown ("bỏ bất kỳ lá nào") tự đúng.
+      NGƯỢC HẲN với Big Spencer ở trên, xem cảnh báo tại lá Showdown.
+      ⚠ Nhưng bản dịch lại nói rõ "KHÔNG phải những lá có tác dụng như
+      Bang!" ⇒ mâu thuẫn nội bộ với cách cài "actsAsBang()".
+      [CẦN BÀN] Cách gỡ đề xuất: điều kiện = (tên lá là "bang") HOẶC
+      (Showdown đang chạy). Rõ ràng, không phụ thuộc actsAsBang().
+    → Cờ "đang lặp lại" phải truyền xuống tới playStagecoach()/
+      playWellsFargo() để chặn việc lật lá WWS mới (Q19) — thiết kế
+      tham số này NGAY từ mục 1.1, đừng để phải sửa sau.
+    → Apache Kid: chất dùng để xét là chất của LÁ BANG! BỎ RA. Hook
+      isImmuneToCard(cardId) hiện nhận cardId ⇒ truyền id lá Bang! đó
+      vào là tự đúng. Tiện.
+
+Teren Kill (4 máu)
+  - Hiệu ứng: mỗi khi BỊ GIẾT CHẾT (kể cả chết vì Dynamite — FAQ cộng
+    đồng Q28), Teren so bài (draw!): KHÔNG phải chất Bích ⇒ sống lại với
+    1 máu và rút 1 lá. Ra chất Bích ⇒ chết thật, VÀ KHÔNG được dùng Beer
+    để cứu.
+    ⇒ Sách luật tiếng Anh dV Giochi khớp: "If the 'draw!' is
+    unsuccessful, you can't play a Beer to save you."
+    ⇒ CẢNH BÁO: đoạn tiếng Việt tương ứng bị lỗi OCR nặng (có chỗ ghi
+    nhầm thành "Lee"), phần trên đã đối chiếu với bản tiếng Anh để viết
+    lại cho đúng. [CẦN KIỂM CHỨNG] bằng lá bài thật nếu có.
+  - Cách cài đặt: [CẦN HOOK MỚI]
+    → Chỗ cắm: eliminateIfDead() (reduce.ts). Dự án ĐÃ CÓ 2 tiền lệ
+      "chặn cái chết" tại đúng hàm này — Bia hồi sinh tự động
+      (BEER_SAVED_FROM_DEATH) và Elena Noir (Miễn Tử). Teren Kill là
+      cái thứ ba, cùng khuôn.
+    → THỨ TỰ giữa 3 cơ chế: [CẦN BÀN, quan trọng]. Luật nói rõ Teren
+      draw! TRƯỚC, và nếu ra Bích thì Beer KHÔNG cứu được nữa ⇒ Teren
+      phải chạy TRƯỚC Bia. Còn Elena Noir (nhân vật tự chế của dự án)
+      thì chưa có luật nào định thứ tự — chủ dự án tự chốt.
+    → draw! này cần pending (NEED_DRAW_CHECK, source.card = "teren_kill",
+      matchSuits = ["spades"] nghĩa là "khớp = CHẾT"). Lưu ý đảo ngược
+      so với mọi draw! khác trong dự án (thường khớp = TỐT) — ghi comment
+      rõ để người đọc sau không hiểu ngược.
+    → Đây là draw! xảy ra GIỮA việc xử lý cái chết ⇒ luồng eliminate
+      phải TẠM DỪNG chờ pending. Rất dễ sai. Đọc kỹ eliminateIfDead()
+      và cascade advanceTurn() trước khi động vào.
+    → Lucky Duke (Vera Custer mượn) áp dụng cho draw! này ⇒ lật 2 lá
+      chọn lá có lợi. Tự đúng nếu đi qua resolveDrawCheck().
+
+Youl Grinner (4 máu)
+  - Hiệu ứng: TRƯỚC KHI Youl rút bài (bước 1), tất cả người chơi đang
+    cầm trên tay NHIỀU BÀI HƠN Youl phải TỰ CHỌN 1 lá đưa cho Youl.
+  - Cách cài đặt:
+    → Có lựa chọn (mỗi nạn nhân tự chọn lá) ⇒ đẩy pending. TÁI DÙNG
+      NGUYÊN kind đã có: `NEED_GIVE_CARD_TO_PLAYER` (player = nạn nhân,
+      giveTo = Youl) — vốn làm cho Jesse Jones. KHÔNG cần kind mới.
+    → Đẩy 1 pending cho MỖI nạn nhân, theo thứ tự NGƯỢC với thứ tự muốn
+      xử lý (pending là stack) — đúng khuôn playGatling().
+    → So sánh số bài xét TẠI THỜI ĐIỂM ĐẨY, không xét lại sau mỗi lần
+      đưa (nếu không sẽ thành vòng lặp kỳ quặc). [CẦN KIỂM CHỨNG]
+    → Cắm ở applyTurnStartChecks(), TRƯỚC pha rút — cùng khu với Darling
+      Valentine/Blood Brothers. Nếu bật nhiều bộ mở rộng cùng lúc, thứ
+      tự các bước đầu lượt cần chốt lại một lần cho tất cả.
+    → Hết giờ: rút ngẫu nhiên thay họ (đúng tiền lệ Jesse Jones, xem
+      respondToGiveCardToPlayer()).
+    → Suzy Lafayette đưa lá cuối cùng ⇒ hook onHandEmpty chạy.
+
+
+========================================================================
+4. KẾT HỢP VỚI CÁC BỘ MỞ RỘNG KHÁC
+========================================================================
+- Wild West Show là hệ thống ĐỘC LẬP với High Noon/A Fistful of Cards
+  (xấp bài riêng, cơ chế lật riêng) ⇒ bật đồng thời được, và có thể có
+  2 lá sự kiện cùng hiệu lực (1 lá theo lượt + 1 lá tình huống WWS).
+  Đây là lý do mục 1.1 khuyên TÁCH state riêng.
+- Các chỗ chồng chéo đã biết, cần chốt khi bật nhiều bộ:
+  · Gary Looter + Abandoned Mine (Fistful) — bài bỏ dư đi đâu trước.
+  · Ghost Town (High Noon) + Dead Man (Fistful) + Bone Orchard (WWS) —
+    BA cơ chế hồi sinh, phải dùng chung một nền. Nếu 2 lá cùng chạy
+    (High Noon và WWS độc lập nhau nên HOÀN TOÀN CÓ THỂ) thì luật nào
+    thắng? [CẦN BÀN] Đề xuất: Bone Orchard (vĩnh viễn) thắng Ghost Town
+    (1 lượt), vì trạng thái "sống thật" mạnh hơn "làm ma".
+  · Showdown (WWS) + The Sermon (High Noon) — Sermon cấm chơi Bang!,
+    Showdown lại bắt Bang! phải dùng làm Missed!. Không mâu thuẫn thật
+    (cùng dẫn tới "không bắn bằng lá Bang!"), nhưng phải viết test.
+  · Sacagaway (WWS) + bất kỳ lá nào của 2 bộ kia — không xung đột.
+- Thứ tự các bước ĐẦU LƯỢT giờ đã có quá nhiều thứ chen vào (Marcel,
+  Vera Custer, lật lá High Noon, High Noon mất máu, A Fistful of Cards
+  ăn đạn, Blood Brothers, Darling Valentine, Youl Grinner, Bone Orchard,
+  Dynamite, Jail...). **CHỐT MỘT DANH SÁCH THỨ TỰ DUY NHẤT** cho toàn
+  dự án trước khi cài bộ thứ hai, đừng chèn dần từng bộ.
+
+
+========================================================================
+NGUỒN THAM KHẢO
+========================================================================
+- *** NGUỒN CHÍNH cho các đoạn "NGUYÊN VĂN bản dịch" trong file này ***
+  Bản dịch luật tiếng Việt (Enjoy Boardgame / BoardgameVN), chủ dự án
+  cung cấp. ĐỘ TIN CẬY THẤP HƠN 2 FILE KIA — chính bản dịch ghi rõ chưa
+  có FAQ chính thức từ Davinci, phần chú thích lấy từ FAQ cộng đồng:
+  http://bangcardgame.blogspot.com/2011/01/wild-west-show-faq-in-english.html
+  Mọi số hiệu Q9/Q12/Q17/Q18/Q19/Q20/Q22/Q27/Q28/Q29/Q34 trong file này
+  là của FAQ CỘNG ĐỒNG đó. Xem cảnh báo đầu file.
+- Sách luật chính thức dV Giochi (BANG! Expansion Pack — có 1 trang chú
+  thích cho Wild West Show, ĐÃ dùng để đối chiếu chéo trong file này):
+  https://www.dvgiochi.com/giochi/BangExpansionPack/download/BANG-Expansion-Pack-ENG-Rules_WEB.pdf
+- Danh sách lá chính thức:
+  https://bang.dvgiochi.com/cardslist.php?id=6&lang=en
+- BoardGameGeek — BANG! Wild West Show:
+  https://boardgamegeek.com/boardgame/71984/bang-wild-west-show
+
+
+========================================================================
+CẦN TRA / XÁC NHẬN TRƯỚC KHI CODE
+========================================================================
+
+QUYẾT ĐỊNH ĐÃ CHỐT:
+  ☒ Bavaglio (Cag) — LOẠI HẲN, không cài. Bộ còn 9 lá tình huống.
+
+CƠ CHẾ CHUNG (mục 1):
+  ☐ Tách state riêng (wwsDeck/activeWwsId/wwsDiscard) hay dùng chung với
+    High Noon? [ĐỔI STATE] — đề xuất TÁCH.
+  ☐ ExpansionId thêm "wild_west_show" — [ĐỔI STATE].
+  ☐ Chốt MỘT danh sách thứ tự các bước ĐẦU LƯỢT cho toàn dự án (xem
+    mục 4) — nên làm trước khi cài bất kỳ bộ sự kiện nào.
+
+RỦI RO CAO — bàn kỹ trước khi động vào (3 lá này đụng thứ dự án đang coi
+là bất biến):
+  ☐ Helena Zontero — đổi `role` giữa ván. Rà win.ts, eliminatePlayer(),
+    view.ts, setup.ts. Có áp dụng cho biến thể 2/3 người không?
+  ☐ Lady Rose of Texas — hoán vị `players` (= ghế ngồi). Cập nhật
+    `currentPlayerIndex`. Định nghĩa "bên tay phải" là chiều nào. Có
+    dùng chung/đổi tên `marcelCompanionSkipNextTurn` không.
+  ☐ Wild West Show (lá cuối) — đổi điều kiện thắng sang cá nhân, NHƯNG
+    giữ nguyên mọi hậu quả gắn với vai trò. Có áp dụng cho biến thể 2/3
+    người không?
+
+TỪNG LÁ CÒN LẠI:
+  ☐ Sacagaway — sửa viewFor() để lộ tay bài (KHÔNG lộ vai trò, KHÔNG
+    gửi state đầy đủ). 3 lá của Kit Carlson có lộ theo không?
+  ☐ Dorothy Rage — Action mới hay PLAY_CARD; giới hạn số lần/lượt;
+    khoảng cách tính từ người bị ép; có tính vào giới hạn 1 Bang!/lượt
+    của ai không.
+  ☐ Miss Susanna — "đánh ra" gồm những gì (5 dòng ở mục lá đó); mở rộng
+    ngoại lệ cho Marcel companion.
+  ☐ Bone Orchard — cách hiểu "chọn ngẫu nhiên bài phân vai"; có rút bài
+    bù lúc sống lại không.
+  ☐ Showdown — giới hạn 1 Bang!/lượt có áp cho lá dùng-như-Bang! không.
+
+TỪNG NHÂN VẬT:
+  ☐ Big Spencer — 2 hook mới (startingHandSize, cannotUseMissed); rà UI
+    cho 9 viên đạn; xung đột modifyHandLimit nếu Vera Custer mượn.
+  ☐ Greygory Deck — [KIẾN TRÚC] 3 hàm trung tâm phải trả về 2 nhân vật
+    thay vì 1 (~30 điểm gọi). Xử lý 2 hook cùng loại xung đột. Có cho
+    Vera Custer mượn không.
+  ☐ John Pain — cơ chế "lá bị khoá" (đề xuất: hàng đợi, gỡ khi pending
+    rỗng); loại trừ lá của Helena Zontero; phần Vera Custer là "tự
+    biên", tự chốt house rule.
+  ☐ Lee Van Kliff — điều kiện lá bỏ ra (mâu thuẫn nội bộ giữa "không
+    phải lá tác dụng như Bang!" và ngoại lệ Showdown); cờ chặn lật lá
+    WWS khi lặp Stagecoach/Wells Fargo.
+  ☐ Teren Kill — thứ tự với Bia hồi sinh và Elena Noir; draw! đảo nghĩa
+    (khớp = chết); tạm dừng luồng eliminate để chờ pending.
+  ☐ Gary Looter — hook mới; thứ tự với Abandoned Mine.
+  ☐ Flint Westwood — cờ 1 lần/lượt; onHandEmpty cho CẢ HAI phía.
+  ☐ Youl Grinner — so sánh số bài xét 1 lần hay xét lại liên tục.
+
+VIỆC PHỤ:
+  ☐ 8 ảnh nhân vật mới vào public/sprites/characters/ (tổng 42).
+  ☐ 8 mô tả kỹ năng (tooltip) ở màn chọn nhân vật.
+
+THỨ TỰ LÀM ĐỀ XUẤT: mục 1 (hạ tầng lật lá) → Darling Valentine (dễ
+nhất, kiểm chứng cơ chế) → Miss Susanna → Youl Grinner / Flint Westwood
+/ Gary Looter (nhân vật dễ) → Showdown → Sacagaway → Teren Kill →
+Lee Van Kliff → Dorothy Rage → Lady Rose of Texas → Wild West Show
+(lá cuối) → Helena Zontero → Bone Orchard (làm chung với Ghost Town +
+Dead Man) → Greygory Deck (khó nhất, để cuối cùng).
+
+
+========================================================================
+HẾT FILE
+========================================================================
