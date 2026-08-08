@@ -26,7 +26,7 @@ import type { EventId } from "./events";
 import { isEventActive } from "./events";
 import { giveCardToPlayer, transferDynamiteToNextPlayer } from "./equipment";
 import { nextRandom } from "./rng";
-import type { Action, GameEvent, GameState, PendingAction, PlayerState } from "./types";
+import type { Action, GameEvent, GameState, PendingAction, PlayerState, Rank } from "./types";
 import { checkWinCondition } from "./win";
 
 export interface Result {
@@ -625,16 +625,18 @@ function respondToPickBorrowedCharacter(
   }
 
   next.veraCusterBorrowedCharacterId = target.characterId;
-  // Mở rộng A Fistful of Cards, lá "Blood Brothers" — xem ghi chú ở
-  // continueTurnStartAfterVeraCuster()/applyTurnStartChecks(): phần còn lại
-  // của Bước 0 (Blood Brothers rồi mới tới Dynamite/Jail), KHÔNG gọi thẳng
-  // applyDynamiteAndJailChecks() nữa (sẽ bỏ sót Blood Brothers).
-  continueTurnStartAfterVeraCuster(next, player);
+  // Mở rộng A Fistful of Cards, lá "Blood Brothers"/"A Fistful of Cards" — xem
+  // ghi chú ở continueTurnStartAfterVeraCuster()/applyTurnStartChecks(): phần
+  // còn lại của Bước 0 (Blood Brothers/loạt đạn A Fistful of Cards rồi mới tới
+  // Dynamite/Jail), KHÔNG gọi thẳng applyDynamiteAndJailChecks() nữa (sẽ bỏ
+  // sót 2 bước đó).
+  const continueEvents = continueTurnStartAfterVeraCuster(next, player);
 
   return {
     state: next,
     events: [
       { type: "VERA_CUSTER_BORROWED", playerId: player.id, borrowedFromPlayerId: target.id, characterId: target.characterId },
+      ...continueEvents,
     ],
   };
 }
@@ -1176,18 +1178,24 @@ function pushMissedReaction(
 function pushMissedReactionUnconditional(
   next: GameState,
   target: PlayerState,
-  source: { card: string; from: string },
-  missesMultiplier: number = 1
+  source: { card: string; from: string | null },
+  missesMultiplier: number = 1,
+  // Mở rộng A Fistful of Cards, lá "A Fistful of Cards" — số phát Bang! CÒN
+  // LẠI SAU phát này (0 = đây là phát cuối cùng/duy nhất). Mọi lời gọi khác
+  // (Bang!/Gatling/Sniper...) bỏ qua tham số này, luôn là 0 — chỉ đúng 1 phát.
+  shotsRemaining: number = 0
 ): GameEvent[] {
-  const attacker = next.players.find((p) => p.id === source.from);
+  const attacker = source.from ? next.players.find((p) => p.id === source.from) : undefined;
   const missesNeeded =
     ((attacker ? getEffectiveCharacterHooks(next, attacker).onOutgoingBang?.() : undefined) ?? 1) * missesMultiplier;
 
-  next.pending.push(
-    missesNeeded > 1
-      ? { kind: "NEED_MISSED", player: target.id, source, missesNeeded }
-      : { kind: "NEED_MISSED", player: target.id, source }
-  );
+  next.pending.push({
+    kind: "NEED_MISSED",
+    player: target.id,
+    source,
+    ...(missesNeeded > 1 ? { missesNeeded } : {}),
+    ...(shotsRemaining > 0 ? { shotsRemaining } : {}),
+  });
 
   // Mở rộng Dodge City, mục C nhóm C (Belle Star) — Barrel THẬT (vật lý trên
   // sân) của mục tiêu mất tác dụng nếu đang là lượt Belle Star. Barrel ẢO của
@@ -2432,6 +2440,8 @@ function handleRespond(state: GameState, action: Action & { type: "RESPOND" }): 
       return respondToMissedForEquipment(state, action, top);
     case "NEED_RANCH_EXCHANGE":
       return respondToRanchExchange(state, action);
+    case "NEED_DISCARD_MISSED_OR_DAMAGE":
+      return respondToRussianRouletteChain(state, action, top);
     default: {
       const neverKind: never = top;
       throw new Error(`Chưa hỗ trợ phản hồi loại việc: ${JSON.stringify(neverKind)}`);
@@ -2491,6 +2501,101 @@ function respondDiscardOrDamage(
 // (cùng người/nguồn) với số còn thiếu, CHỜ TIẾP Missed! khác; đủ (hoặc mặc
 // định 1) thì mới thực sự né. Chọn chịu máu thì luôn kết thúc ngay, mất đúng 1
 // máu như bình thường, không liên quan missesNeeded.
+// Kiểm tra + rút 1 lá "dùng như Missed!" khỏi tay/sân của `player` — DÙNG
+// CHUNG cho respondToMissed() (Bang!/Gatling/Sniper/A Fistful of Cards...) LẪN
+// respondToRussianRouletteChain() (Russian Roulette, mở rộng A Fistful of
+// Cards) — cả 2 đều là "bỏ 1 lá Missed! để né 1 đòn", chỉ khác hậu quả nếu
+// KHÔNG né được (mất máu vs. dừng chuỗi). Ném lỗi nếu cardId không hợp lệ.
+function resolveMissedCardChoice(
+  next: GameState,
+  player: PlayerState,
+  cardId: string,
+  missesNeeded: number
+): { cardName: string; fromEquipment: boolean } {
+  const cardName = cardNameFromId(cardId);
+  const inHand = player.hand.includes(cardId);
+  // Mở rộng Dodge City (mục 1.1) — CŨNG chấp nhận lá vàng "trì hoãn" ĐÃ BÀY
+  // SẴN trên sân (Bible/Sombrero/Ten Gallon Hat/Iron Plate), miễn đã qua ít
+  // nhất 1 lượt kể từ lúc chơi ra. Kiểm TRƯỚC actsAsMissed() (hàm đó chỉ
+  // biết về bài TRÊN TAY/alias Janet, không biết gì về trang bị).
+  const fromEquipment = !inHand && isEquipmentUsableAsMissed(next, player, cardId);
+
+  // Giai đoạn 5 (Calamity Janet, đợt 7) — chấp nhận cả lá Bang! của Janet để đỡ.
+  if (!fromEquipment && (!inHand || !actsAsMissed(next, cardId, player))) {
+    if (inHand) {
+      throw new Error(`Lá "${cardName}" không hợp lệ cho việc đang chờ này`);
+    }
+    if (player.equipment.includes(cardId)) {
+      // Mở rộng Dodge City, mục C nhóm B (Elena Fuente) — Dynamite LUÔN bị
+      // loại trừ (kể cả với canUseOwnEquipmentAsMissed), không phải vì
+      // "chưa đủ 1 lượt" — báo lỗi riêng để khỏi gây hiểu nhầm.
+      if (cardName === "dynamite") {
+        throw new Error("Thuốc nổ không bao giờ dùng được như Missed!");
+      }
+      // Mở rộng A Fistful of Cards, lá "Lasso" — phân biệt rõ với "chưa đủ 1
+      // lượt"/Belle Star bên dưới (3 lý do khác hẳn nhau).
+      if (isEventActive(next, "lasso")) {
+        throw new Error(`Lá sự kiện "Lasso" đang chạy — "${cardName}" mất tác dụng, không dùng được như Missed!`);
+      }
+      // Mở rộng Dodge City, mục C nhóm C (Belle Star) — phân biệt rõ "đang
+      // bị vô hiệu hoá tạm thời" với "chưa đủ 1 lượt" (2 lý do khác hẳn
+      // nhau, dùng chung 1 thông báo dễ gây hiểu nhầm là bug).
+      const currentPlayer = next.players[next.currentPlayerIndex];
+      if (
+        getEffectiveCharacterDefinition(next, currentPlayer)?.disablesOthersEquipment === true &&
+        player.id !== currentPlayer.id
+      ) {
+        throw new Error(`"${cardName}" đang bị Belle Star vô hiệu hoá tạm thời trong lượt này`);
+      }
+      throw new Error(`"${cardName}" vừa được đánh ra lượt này — phải chờ ít nhất 1 lượt mới dùng được`);
+    }
+    throw new Error(`Người chơi ${player.id} không có lá bài ${cardId} trong tay`);
+  }
+
+  // Slab the Killer (missesNeeded > 1) — luật gốc là "if able": chỉ được bỏ
+  // bài khi CÓ ĐỦ số Missed! cần NGAY TỪ ĐẦU (tay + trang bị vàng dùng
+  // được), không được bỏ dần từng lá rồi hết giữa chừng. Không đủ thì coi
+  // như không làm gì được — GIỮ NGUYÊN lá, chỉ còn cách chịu mất máu (action
+  // không kèm cardId).
+  const eligibleCount = countEligibleMissedSources(next, player);
+  if (eligibleCount < missesNeeded) {
+    throw new Error(
+      `Không đủ Missed! để né (cần ${missesNeeded}, chỉ có ${eligibleCount}) — chỉ có thể chịu mất máu`
+    );
+  }
+
+  if (fromEquipment) {
+    const equipIndex = player.equipment.indexOf(cardId);
+    player.equipment.splice(equipIndex, 1);
+    delete next.equipmentPlayedTurn[cardId];
+  } else {
+    const cardIndex = player.hand.indexOf(cardId);
+    player.hand.splice(cardIndex, 1);
+  }
+  next.discardPile.push(cardId);
+
+  return { cardName, fromEquipment };
+}
+
+// Mở rộng A Fistful of Cards, lá "A Fistful of Cards" — gọi SAU KHI 1 phát
+// Bang! đã resolve xong (né được HAY mất máu, respondToMissed()/Barrel-dodge
+// trong resolveDrawCheck() đều gọi tới đây). `top` là pending VỪA bị pop —
+// đọc shotsRemaining để biết còn phát nào không. Người chết giữa chừng thì
+// KHÔNG làm gì thêm — eliminatePlayer() đã tự advanceTurn() nếu cần (không có
+// pending nào của lá này còn sót lại, vì luôn chỉ đẩy ĐÚNG 1 phát 1 lúc).
+function continueAfterMissedResolved(next: GameState, top: PendingAction & { kind: "NEED_MISSED" }): GameEvent[] {
+  if (top.source.card !== "a_fistful_of_cards") return [];
+  const player = next.players.find((p) => p.id === top.player)!;
+  if (!player.alive) return [];
+
+  const shotsRemaining = top.shotsRemaining ?? 0;
+  if (shotsRemaining > 0) {
+    return pushMissedReactionUnconditional(next, player, top.source, 1, shotsRemaining - 1);
+  }
+  applyDynamiteAndJailChecks(next, player);
+  return [];
+}
+
 function respondToMissed(
   state: GameState,
   action: Action & { type: "RESPOND" },
@@ -2501,68 +2606,7 @@ function respondToMissed(
   const player = next.players.find((p) => p.id === action.playerId)!;
 
   if (action.cardId) {
-    const cardName = cardNameFromId(action.cardId);
-    const inHand = player.hand.includes(action.cardId);
-    // Mở rộng Dodge City (mục 1.1) — CŨNG chấp nhận lá vàng "trì hoãn" ĐÃ BÀY
-    // SẴN trên sân (Bible/Sombrero/Ten Gallon Hat/Iron Plate), miễn đã qua ít
-    // nhất 1 lượt kể từ lúc chơi ra. Kiểm TRƯỚC actsAsMissed() (hàm đó chỉ
-    // biết về bài TRÊN TAY/alias Janet, không biết gì về trang bị).
-    const fromEquipment = !inHand && isEquipmentUsableAsMissed(next, player, action.cardId);
-
-    // Giai đoạn 5 (Calamity Janet, đợt 7) — chấp nhận cả lá Bang! của Janet để đỡ.
-    if (!fromEquipment && (!inHand || !actsAsMissed(next, action.cardId, player))) {
-      if (inHand) {
-        throw new Error(`Lá "${cardName}" không hợp lệ cho việc đang chờ này`);
-      }
-      if (player.equipment.includes(action.cardId)) {
-        // Mở rộng Dodge City, mục C nhóm B (Elena Fuente) — Dynamite LUÔN bị
-        // loại trừ (kể cả với canUseOwnEquipmentAsMissed), không phải vì
-        // "chưa đủ 1 lượt" — báo lỗi riêng để khỏi gây hiểu nhầm.
-        if (cardName === "dynamite") {
-          throw new Error("Thuốc nổ không bao giờ dùng được như Missed!");
-        }
-        // Mở rộng A Fistful of Cards, lá "Lasso" — phân biệt rõ với "chưa đủ 1
-        // lượt"/Belle Star bên dưới (3 lý do khác hẳn nhau).
-        if (isEventActive(next, "lasso")) {
-          throw new Error(`Lá sự kiện "Lasso" đang chạy — "${cardName}" mất tác dụng, không dùng được như Missed!`);
-        }
-        // Mở rộng Dodge City, mục C nhóm C (Belle Star) — phân biệt rõ "đang
-        // bị vô hiệu hoá tạm thời" với "chưa đủ 1 lượt" (2 lý do khác hẳn
-        // nhau, dùng chung 1 thông báo dễ gây hiểu nhầm là bug).
-        const currentPlayer = next.players[next.currentPlayerIndex];
-        if (
-          getEffectiveCharacterDefinition(next, currentPlayer)?.disablesOthersEquipment === true &&
-          player.id !== currentPlayer.id
-        ) {
-          throw new Error(`"${cardName}" đang bị Belle Star vô hiệu hoá tạm thời trong lượt này`);
-        }
-        throw new Error(`"${cardName}" vừa được đánh ra lượt này — phải chờ ít nhất 1 lượt mới dùng được`);
-      }
-      throw new Error(`Người chơi ${player.id} không có lá bài ${action.cardId} trong tay`);
-    }
-
-    // Slab the Killer (missesNeeded > 1) — luật gốc là "if able": chỉ được bỏ
-    // bài khi CÓ ĐỦ số Missed! cần NGAY TỪ ĐẦU (tay + trang bị vàng dùng
-    // được), không được bỏ dần từng lá rồi hết giữa chừng. Không đủ thì coi
-    // như không làm gì được — GIỮ NGUYÊN lá, chỉ còn cách chịu mất máu (action
-    // không kèm cardId, nhánh dưới).
-    const missesNeeded = top.missesNeeded ?? 1;
-    const eligibleCount = countEligibleMissedSources(next, player);
-    if (eligibleCount < missesNeeded) {
-      throw new Error(
-        `Không đủ Missed! để né (cần ${missesNeeded}, chỉ có ${eligibleCount}) — chỉ có thể chịu mất máu`
-      );
-    }
-
-    if (fromEquipment) {
-      const equipIndex = player.equipment.indexOf(action.cardId);
-      player.equipment.splice(equipIndex, 1);
-      delete next.equipmentPlayedTurn[action.cardId];
-    } else {
-      const cardIndex = player.hand.indexOf(action.cardId);
-      player.hand.splice(cardIndex, 1);
-    }
-    next.discardPile.push(action.cardId);
+    const { cardName, fromEquipment } = resolveMissedCardChoice(next, player, action.cardId, top.missesNeeded ?? 1);
 
     const missesRemaining = (top.missesNeeded ?? 1) - 1;
     if (missesRemaining > 0) {
@@ -2589,6 +2633,11 @@ function respondToMissed(
     // "ngoài lượt mình" (NEED_MISSED không bao giờ nhắm chính người đang tới
     // lượt) — context "immediate", rút ngay.
     events.push(...triggerVoluntaryOutOfTurnHook(next, player, cardName, "immediate"));
+    // Chỉ tiếp tục loạt đạn A Fistful of Cards khi phát NÀY đã né trọn vẹn
+    // (missesRemaining <= 0 — Slab the Killer cần đủ 2 Missed! mới coi là xong).
+    if (missesRemaining <= 0) {
+      events.push(...continueAfterMissedResolved(next, top));
+    }
     return { state: next, events };
   }
 
@@ -2612,7 +2661,60 @@ function respondToMissed(
     }
   }
 
+  damageEvents.push(...continueAfterMissedResolved(next, top));
+
   return { state: next, events: damageEvents };
+}
+
+// Mở rộng A Fistful of Cards, lá "Russian Roulette" — trả lời
+// NEED_DISCARD_MISSED_OR_DAMAGE. Bỏ được (cardId hợp lệ) -> chuỗi tiếp tục,
+// đẩy pending mới cho người KẾ TIẾP theo đúng `direction`. Không bỏ (không có/
+// không muốn, đều hợp lệ — đúng tiền lệ NEED_DISCARD_BANG của Indians!) ->
+// "Roulette khai hoả": mất 2 máu (sàn 0), chuỗi DỪNG hẳn tại đây, không ai
+// khác bị hỏi tiếp. Không có "người bắn" (killerId null, giống Dynamite) nên
+// El Gringo không kích hoạt.
+function respondToRussianRouletteChain(
+  state: GameState,
+  action: Action & { type: "RESPOND" },
+  top: PendingAction & { kind: "NEED_DISCARD_MISSED_OR_DAMAGE" }
+): Result {
+  const next = cloneState(state);
+  next.pending.pop();
+  const player = next.players.find((p) => p.id === action.playerId)!;
+
+  if (action.cardId) {
+    const { cardName, fromEquipment } = resolveMissedCardChoice(next, player, action.cardId, top.missesNeeded ?? 1);
+
+    const missesRemaining = (top.missesNeeded ?? 1) - 1;
+    const events: GameEvent[] = [{ type: "MISSED_PLAYED", playerId: player.id }];
+    if (missesRemaining > 0) {
+      next.pending.push({ kind: "NEED_DISCARD_MISSED_OR_DAMAGE", player: player.id, direction: top.direction, missesNeeded: missesRemaining });
+      return { state: next, events };
+    }
+
+    if (cardName === "bible" || cardName === "dodge") {
+      const drawnCount = drawCardsForPlayer(next, player, 1);
+      if (drawnCount > 0) {
+        events.push({ type: "CARDS_DRAWN", playerId: player.id, count: drawnCount });
+      }
+    }
+    if (!fromEquipment) {
+      events.push(...triggerHandEmptyHook(next, player)); // Giai đoạn 5 (Suzy Lafayette)
+    }
+    events.push(...triggerVoluntaryOutOfTurnHook(next, player, cardName, "immediate"));
+
+    const currentIndex = next.players.findIndex((p) => p.id === player.id);
+    const nextPlayer = next.players[seatIndexInDirection(next, currentIndex, top.direction)];
+    next.pending.push({ kind: "NEED_DISCARD_MISSED_OR_DAMAGE", player: nextPlayer.id, direction: top.direction });
+    return { state: next, events };
+  }
+
+  const amount = Math.min(2, player.hp);
+  player.hp -= amount;
+  const events: GameEvent[] = [{ type: "RUSSIAN_ROULETTE_FIRED", playerId: player.id, amount }];
+  events.push(...triggerLoseLifeHooks(next, player, amount, null));
+  events.push(...eliminateIfDead(next, player, null));
+  return { state: next, events };
 }
 
 // Mở rộng A Fistful of Cards, lá "Ricochet" — trả lời NEED_MISSED_FOR_EQUIPMENT.
@@ -2946,13 +3048,19 @@ function resolveDrawCheck(
   // (hoặc đã ở mức mặc định 1) thì mới THẬT SỰ né trọn vẹn — dọn nốt các
   // NEED_DRAW_CHECK Barrel còn lại (không cần lật thêm, đã đủ); còn thiếu thì
   // giữ nguyên NEED_MISSED (số liệu mới) để chờ tiếp Barrel khác/Missed! thật.
+  // Mở rộng A Fistful of Cards, lá "Russian Roulette" — chuỗi bỏ Missed! của
+  // lá này dùng kind RIÊNG (NEED_DISCARD_MISSED_OR_DAMAGE, không phải
+  // NEED_MISSED) nhưng vẫn cần Barrel hoạt động y hệt — nên đoạn dưới đây xét
+  // CẢ 2 kind, không chỉ NEED_MISSED.
   if (top.source.card === "barrel" && matched) {
     events.push({ type: "BARREL_DODGED", playerId: top.player });
 
     const needMissedIndex = next.pending.findIndex(
-      (p) => p.kind === "NEED_MISSED" && p.player === top.player
+      (p) => (p.kind === "NEED_MISSED" || p.kind === "NEED_DISCARD_MISSED_OR_DAMAGE") && p.player === top.player
     );
-    const needMissed = next.pending[needMissedIndex] as PendingAction & { kind: "NEED_MISSED" };
+    const needMissed = next.pending[needMissedIndex] as PendingAction & {
+      kind: "NEED_MISSED" | "NEED_DISCARD_MISSED_OR_DAMAGE";
+    };
     const missesRemaining = (needMissed.missesNeeded ?? 1) - 1;
 
     if (missesRemaining <= 0) {
@@ -2963,11 +3071,25 @@ function resolveDrawCheck(
           next.pending.splice(i, 1);
         }
       }
+      // Né trọn vẹn qua Barrel — vẫn phải tiếp tục đúng như né bằng Missed!
+      // thật: loạt đạn A Fistful of Cards đẩy phát kế tiếp (nếu còn), chuỗi
+      // Russian Roulette đẩy pending cho người KẾ TIẾP theo đúng `direction`.
+      if (needMissed.kind === "NEED_MISSED") {
+        events.push(...continueAfterMissedResolved(next, needMissed));
+      } else {
+        const currentIndex = next.players.findIndex((p) => p.id === needMissed.player);
+        const nextPlayer = next.players[seatIndexInDirection(next, currentIndex, needMissed.direction)];
+        next.pending.push({ kind: "NEED_DISCARD_MISSED_OR_DAMAGE", player: nextPlayer.id, direction: needMissed.direction });
+      }
     } else {
       next.pending[needMissedIndex] =
-        missesRemaining > 1
-          ? { kind: "NEED_MISSED", player: needMissed.player, source: needMissed.source, missesNeeded: missesRemaining }
-          : { kind: "NEED_MISSED", player: needMissed.player, source: needMissed.source };
+        needMissed.kind === "NEED_MISSED"
+          ? missesRemaining > 1
+            ? { kind: "NEED_MISSED", player: needMissed.player, source: needMissed.source, missesNeeded: missesRemaining }
+            : { kind: "NEED_MISSED", player: needMissed.player, source: needMissed.source }
+          : missesRemaining > 1
+            ? { kind: "NEED_DISCARD_MISSED_OR_DAMAGE", player: needMissed.player, direction: needMissed.direction, missesNeeded: missesRemaining }
+            : { kind: "NEED_DISCARD_MISSED_OR_DAMAGE", player: needMissed.player, direction: needMissed.direction };
     }
   }
 
@@ -3421,8 +3543,8 @@ export function applyTurnStartChecks(next: GameState, options: { skipEventReveal
       return [...eventEvents, ...highNoonEvents];
     }
   }
-  continueTurnStartAfterVeraCuster(next, player);
-  return [...eventEvents, ...highNoonEvents];
+  const continueEvents = continueTurnStartAfterVeraCuster(next, player);
+  return [...eventEvents, ...highNoonEvents, ...continueEvents];
 }
 
 // Phần CÒN LẠI của Bước 0 sau khi Vera Custer (nếu có) đã chọn xong mượn ai —
@@ -3431,13 +3553,23 @@ export function applyTurnStartChecks(next: GameState, options: { skipEventReveal
 // đều gọi chung, không lặp code. Mở rộng A Fistful of Cards, lá "Blood
 // Brothers" (nhóm B) — hỏi TRƯỚC Dynamite/Jail: có muốn tặng ĐÚNG 1 máu
 // (không được là giọt cuối) cho 1 người chơi bất kỳ không. Bỏ qua hẳn (không
-// hỏi) nếu chỉ còn 1 máu.
-function continueTurnStartAfterVeraCuster(next: GameState, player: PlayerState): void {
+// hỏi) nếu chỉ còn 1 máu. Lá "A Fistful of Cards" (nhóm B, lá cuối) — xét NGAY
+// SAU Blood Brothers (*dev đã chốt: sau Vera Custer, trước Dynamite/Jail — 2
+// lá này KHÔNG BAO GIỜ cùng active vì chỉ 1 activeEventId chung cho cả 2 bộ mở
+// rộng, nên thứ tự trước/sau giữa chúng không thật sự quan trọng, chỉ cần cả 2
+// đều nằm giữa Vera Custer và Dynamite/Jail).
+function continueTurnStartAfterVeraCuster(next: GameState, player: PlayerState): GameEvent[] {
   if (isEventActive(next, "blood_brothers") && player.hp > 1) {
     next.pending.push({ kind: "NEED_BLOOD_BROTHERS_GIFT", player: player.id });
-    return;
+    return [];
+  }
+  if (isEventActive(next, "a_fistful_of_cards") && player.hand.length > 0) {
+    const shotCount = player.hand.length;
+    pushMissedReactionUnconditional(next, player, { card: "a_fistful_of_cards", from: null }, 1, shotCount - 1);
+    return [{ type: "A_FISTFUL_OF_CARDS_TRIGGERED", playerId: player.id, shotCount }];
   }
   applyDynamiteAndJailChecks(next, player);
+  return [];
 }
 
 // "Chủ trò" (mục 1.3) — có Sheriff thì là Sheriff, không có (biến thể 2/3
@@ -3476,16 +3608,54 @@ function revealNextEventIfDue(next: GameState): GameEvent[] {
 }
 
 // Hiệu ứng nhóm (A) — chạy ĐÚNG 1 LẦN ngay lúc lá được lật (mục 1.4). Điền
-// dần theo LO-TRINH.md/TaskList — CHƯA có Russian Roulette/Dead Man.
+// dần theo LO-TRINH.md/TaskList — CHƯA có Dead Man.
 function applyEventRevealEffect(next: GameState, eventId: EventId): GameEvent[] {
   switch (eventId) {
     case "the_doctor":
       return applyTheDoctorEffect(next);
     case "the_daltons":
       return applyTheDaltonsEffect(next);
+    case "russian_roulette":
+      return applyRussianRouletteEffect(next);
     default:
       return [];
   }
+}
+
+// Mở rộng A Fistful of Cards, lá "Russian Roulette" — rút 1 lá (KHÔNG áp dụng
+// Lucky Duke, đây là draw! của lá sự kiện cho cả bàn, không phải của riêng ai),
+// đếm từ "chủ trò" (dealer — có Sheriff thì là Sheriff, không thì players[0],
+// đúng quy ước đã chốt cho High Noon) theo GIÁ TRỊ lá vừa rút, CHIỀU do MÀU
+// CHẤT quyết định (đỏ = kim đồng hồ, đen = ngược lại). Chỉ đếm người CÒN SỐNG.
+// Người bị đếm trúng phải bỏ 1 Missed! đầu tiên trong chuỗi — xem
+// respondToRussianRouletteChain().
+// Rank là kiểu chuỗi ("A".."K", xem types.ts) — Russian Roulette cần GIÁ TRỊ
+// SỐ để đếm (A=1, J=11, Q=12, K=13, còn lại đúng số ghi trên lá).
+const RANK_NUMERIC_VALUE: Record<Rank, number> = {
+  A: 1, "2": 2, "3": 3, "4": 4, "5": 5, "6": 6, "7": 7, "8": 8, "9": 9, "10": 10, J: 11, Q: 12, K: 13,
+};
+
+function applyRussianRouletteEffect(next: GameState): GameEvent[] {
+  const alivePlayers = next.players.filter((p) => p.alive);
+  if (alivePlayers.length === 0) return [];
+
+  const cardId = drawTopCard(next);
+  if (!cardId) return []; // bộ bài + chồng bỏ cạn hẳn — không thể xảy ra trong thực tế
+  next.discardPile.push(cardId);
+
+  const effectiveSuit = getEffectiveSuit(next, cardId);
+  const { rank } = cardSuitRankFromId(cardId);
+  const direction: 1 | -1 = effectiveSuit === "hearts" || effectiveSuit === "diamonds" ? 1 : -1;
+
+  const dealer = next.players[getDealerIndex(next)];
+  const dealerAliveIndex = alivePlayers.findIndex((p) => p.id === dealer.id);
+  const steps = RANK_NUMERIC_VALUE[rank] - 1; // chủ trò đã tính là số 1
+  const targetIndex =
+    ((dealerAliveIndex + direction * steps) % alivePlayers.length + alivePlayers.length) % alivePlayers.length;
+  const startPlayer = alivePlayers[targetIndex];
+
+  next.pending.push({ kind: "NEED_DISCARD_MISSED_OR_DAMAGE", player: startPlayer.id, direction });
+  return [{ type: "RUSSIAN_ROULETTE_STARTED", cardId, startPlayerId: startPlayer.id, direction }];
 }
 
 // High Noon — "The Daltons": mỗi người có ít nhất 1 lá XANH DƯƠNG (kể cả
@@ -3599,6 +3769,25 @@ function nextTurnPlayerIndex(state: GameState, fromIndex: number): number {
     if (state.players[index].alive) return index;
   }
   throw new Error("Không còn người chơi nào sống"); // ván phải đã kết thúc trước khi tới đây
+}
+
+// Mở rộng A Fistful of Cards, lá "Russian Roulette" — chiều NGƯỢC kim đồng hồ,
+// bỏ qua người đã chết, y hệt nextSeatIndex() nhưng đi lùi. CHỈ dùng cho chuỗi
+// bỏ Missed! của lá này (KHÔNG liên quan gì tới Gold Rush/chiều đi lượt — xem
+// nextTurnPlayerIndex() ở trên, 2 khái niệm độc lập nhau).
+function prevSeatIndex(state: GameState, fromIndex: number): number {
+  const total = state.players.length;
+  for (let step = 1; step <= total; step++) {
+    const index = (((fromIndex - step) % total) + total) % total;
+    if (state.players[index].alive) return index;
+  }
+  throw new Error("Không còn người chơi nào sống"); // ván phải đã kết thúc trước khi tới đây
+}
+
+// Mở rộng A Fistful of Cards, lá "Russian Roulette" — 1 bước theo `direction`
+// đã xác định lúc lật lá (1 = kim đồng hồ/lá đỏ, -1 = ngược lại/lá đen).
+function seatIndexInDirection(state: GameState, fromIndex: number, direction: 1 | -1): number {
+  return direction === 1 ? nextSeatIndex(state, fromIndex) : prevSeatIndex(state, fromIndex);
 }
 
 // Nhân bản state để sửa trên bản sao, không đụng vào state gốc.

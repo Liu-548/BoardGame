@@ -630,6 +630,12 @@ export class Room {
       // chơi.
       case "NEED_RANCH_EXCHANGE":
         return { type: "RESPOND", playerId: top.player };
+
+      // Mở rộng A Fistful of Cards (Russian Roulette) — có lựa chọn "không bỏ"
+      // (chịu mất 2 máu, chuỗi dừng lại), giống hệt NEED_MISSED — RESPOND
+      // không kèm cardId.
+      case "NEED_DISCARD_MISSED_OR_DAMAGE":
+        return { type: "RESPOND", playerId: top.player };
     }
   }
 
