@@ -92,6 +92,16 @@ export const EVENT_CARDS: Record<EventId, EventDefinition> = {
 // khỏi đây (chủ dự án quyết định tạm bỏ lá này khỏi bộ bài, xem
 // Luat_Bang_Mo_Rong_FistfulOfCards.txt) — EventDefinition vẫn khai báo đủ ở
 // trên, chỉ không đưa vào bộ bốc thật.
+//
+// (2026-08-08) CÙNG LÝ DO: "ghost_town" (High Noon)/"dead_man"/
+// "law_of_the_west"/"peyote" (A Fistful of Cards) CŨNG bị loại tạm thời —
+// core CHƯA cài (xem LO-TRINH.md/CHANGELOG.md, riêng Peyote đã chốt xong
+// thiết kế, chỉ chưa viết code). Nếu KHÔNG loại, bật bộ mở rộng cho ván
+// thật có thể lật trúng 1 trong 4 lá này -> activeEventId đổi, lá hiện tên
+// trong nhật ký, NHƯNG không có hiệu ứng gì cả (applyEventRevealEffect() và
+// mọi chỗ isEventActive() liên quan đều chưa có nhánh xử lý) — trông như bug
+// dù không phải. Bỏ 4 dòng này ra khỏi comment ở đây NGAY khi cài xong lá
+// tương ứng, EventDefinition vẫn khai báo đủ ở trên không cần đổi gì.
 export const EXPANSION_EVENT_IDS: Record<ExpansionId, EventId[]> = {
   dodge_city: [],
   custom_characters: [],
@@ -107,7 +117,7 @@ export const EXPANSION_EVENT_IDS: Record<ExpansionId, EventId[]> = {
     "gold_rush",
     "the_daltons",
     "the_doctor",
-    "ghost_town",
+    // "ghost_town" — TẠM LOẠI, xem ghi chú (2026-08-08) ở trên.
     "high_noon",
   ],
   a_fistful_of_cards: [
@@ -115,11 +125,11 @@ export const EXPANSION_EVENT_IDS: Record<ExpansionId, EventId[]> = {
     "lasso",
     "the_judge",
     "hard_liquor",
-    "law_of_the_west",
-    "peyote",
+    // "law_of_the_west" — TẠM LOẠI, xem ghi chú (2026-08-08) ở trên.
+    // "peyote" — TẠM LOẠI, xem ghi chú (2026-08-08) ở trên.
     "ranch",
     "russian_roulette",
-    "dead_man",
+    // "dead_man" — TẠM LOẠI, xem ghi chú (2026-08-08) ở trên.
     "blood_brothers",
     "vendetta",
     "sniper",

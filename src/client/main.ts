@@ -473,10 +473,22 @@ function onToggleHouseRule(id: HouseRuleId): void {
   render();
 }
 
+// Mở rộng High Noon + A Fistful of Cards — TẠM GỘP thành 1 nút trên giao diện
+// (xem EVENT_CARDS_EXPANSION_LABEL ở ui.ts): mỗi bộ RIÊNG LẺ còn thiếu khá
+// nhiều lá (Ghost Town/Dead Man/Law of the West/Peyote chưa cài), nên bật/tắt
+// LUÔN CẢ 2 id "high_noon" VÀ "a_fistful_of_cards" cùng lúc thay vì để riêng.
+// Các bộ khác (dodge_city/custom_characters) vẫn bật/tắt độc lập như cũ.
+function toggleExpansionId(current: ExpansionId[], id: ExpansionId): ExpansionId[] {
+  if (id === "high_noon" || id === "a_fistful_of_cards") {
+    const bothOn = current.includes("high_noon") && current.includes("a_fistful_of_cards");
+    const withoutEventCards = current.filter((x) => x !== "high_noon" && x !== "a_fistful_of_cards");
+    return bothOn ? withoutEventCards : [...withoutEventCards, "high_noon", "a_fistful_of_cards"];
+  }
+  return current.includes(id) ? current.filter((existing) => existing !== id) : [...current, id];
+}
+
 function onToggleExpansion(id: ExpansionId): void {
-  selectedExpansions = selectedExpansions.includes(id)
-    ? selectedExpansions.filter((existing) => existing !== id)
-    : [...selectedExpansions, id];
+  selectedExpansions = toggleExpansionId(selectedExpansions, id);
   render();
 }
 
@@ -1183,9 +1195,7 @@ function onNetworkToggleHouseRule(id: HouseRuleId): void {
 }
 
 function onNetworkToggleExpansion(id: ExpansionId): void {
-  networkSelectedExpansions = networkSelectedExpansions.includes(id)
-    ? networkSelectedExpansions.filter((existing) => existing !== id)
-    : [...networkSelectedExpansions, id];
+  networkSelectedExpansions = toggleExpansionId(networkSelectedExpansions, id);
   render();
 }
 
