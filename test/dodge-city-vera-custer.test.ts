@@ -1,4 +1,4 @@
-﻿// Mở rộng Dodge City, mục C — Vera Custer (nhân vật cuối cùng, 15/15) — cơ chế
+// Mở rộng Dodge City, mục C — Vera Custer (nhân vật cuối cùng, 15/15) — cơ chế
 // uỷ quyền toàn hệ thống hook: getEffectiveCharacterId()/getEffectiveCharacterHooks()/
 // getEffectiveCharacterDefinition() (characters.ts). Xem LO-TRINH.md "Ghi chú
 // cho 5.4" mục C.9 để biết đặc tả gốc.
@@ -37,11 +37,14 @@ function makeState(overrides: Partial<GameState> = {}): GameState {
     equipmentPlayedTurn: {},
     joseDelgadoUsesThisTurn: 0,
     docHolydayUsedThisTurn: false,
+    fairKillerUsedThisTurn: false,
     vendettaUsedThisTurn: false,
     duelBangDrawPending: null,
     veraCusterBorrowedCharacterId: null,
     elenaNoirArmed: {},
     elenaNoirImmortalTurnsLeft: {},
+    drifterShield: {},
+    drifterHiddenCard: {},
     marcelJailCompanion: {},
     marcelCompanionSkipNextTurn: {},
     marcelJailBonusDrawThisTurn: {},

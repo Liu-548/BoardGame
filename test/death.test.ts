@@ -1,4 +1,4 @@
-﻿import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { checkWinCondition } from "../src/core/win";
 import { reduce } from "../src/core/reduce";
 import type { GameState, PlayerState } from "../src/core/types";
@@ -34,11 +34,14 @@ function makeState(players: PlayerState[], overrides: Partial<GameState> = {}): 
     equipmentPlayedTurn: {},
     joseDelgadoUsesThisTurn: 0,
     docHolydayUsedThisTurn: false,
+    fairKillerUsedThisTurn: false,
     vendettaUsedThisTurn: false,
     duelBangDrawPending: null,
     veraCusterBorrowedCharacterId: null,
     elenaNoirArmed: {},
     elenaNoirImmortalTurnsLeft: {},
+    drifterShield: {},
+    drifterHiddenCard: {},
     marcelJailCompanion: {},
     marcelCompanionSkipNextTurn: {},
     marcelJailBonusDrawThisTurn: {},

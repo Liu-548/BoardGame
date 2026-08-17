@@ -191,6 +191,17 @@ export type PendingAction =
   // tù của chính Marcel sau này, không tự rút bài riêng (xem
   // GameState.marcelJailCompanion, resolveDrawCheck() trong reduce.ts).
   | { kind: "NEED_PICK_MARCEL_COMPANION"; player: string }
+  // Bộ mở rộng "custom_characters" (The Thief, xem House_Rule.txt mục I) —
+  // đẩy SAU KHI đã rút 2 lá đầu lượt bình thường VÀ draw! (NEED_DRAW_CHECK,
+  // source.card = "the_thief") vừa khớp chất đỏ (Cơ/Rô) — xem completeDrawPhase()/
+  // resolveDrawCheck() trong reduce.ts. RESPOND kèm targetId = cướp NGẪU
+  // NHIÊN 1 lá của người đó (tay rỗng thì không lấy được gì, KHÔNG rút bù);
+  // không kèm targetId (mặc định) = bỏ qua, không lấy gì cả — CHỈ đúng nghĩa
+  // này khi CHÍNH người chơi tự bỏ qua, KHÔNG PHẢI hành vi mặc định lúc hết
+  // giờ (room.ts hết giờ phải tự CHỌN NGẪU NHIÊN 1 người còn sống CÓ BÀI, chỉ
+  // rơi về "không chọn ai" nếu thật sự không còn ai có bài — xem
+  // buildReactiveTimeoutAction()).
+  | { kind: "NEED_PICK_THIEF_TARGET"; player: string }
   // Mở rộng A Fistful of Cards, lá "Blood Brothers" (nhóm B — chạy mỗi lượt)
   // — đẩy TRƯỚC KHI lượt của `player` thật sự bắt đầu (applyTurnStartChecks(),
   // sau High Noon nếu có, TRƯỚC Marcel companion/Vera Custer/Dynamite/Jail).
@@ -244,7 +255,57 @@ export type PendingAction =
   // kèm cardId (không có/không muốn dùng, đều là lựa chọn hợp lệ) = mất 2 máu,
   // DỪNG chuỗi tại đây (KHÔNG đẩy tiếp cho ai nữa). Xem
   // respondToRussianRouletteChain() trong reduce.ts.
-  | { kind: "NEED_DISCARD_MISSED_OR_DAMAGE"; player: string; direction: 1 | -1; missesNeeded?: number };
+  | { kind: "NEED_DISCARD_MISSED_OR_DAMAGE"; player: string; direction: 1 | -1; missesNeeded?: number }
+  // Bộ mở rộng "custom_characters" (The Drifter, xem House_Rule.txt mục I) —
+  // hỏi TRƯỚC KHI 1 cụm sát thương THẬT SỰ áp dụng (SAU CÙNG — khi Barrel/
+  // Missed! đã hết cơ hội né). `resume` mô tả PHẦN CÒN LẠI của luồng gốc cần
+  // chạy tiếp sau khi biết kết quả (thuần JSON, không phải closure — quy tắc
+  // 3 CLAUDE.md), xem respondToUseDrifterShield() trong reduce.ts.
+  //
+  // QUAN TRỌNG (đã tự rà lại và chốt kiến trúc): pending này được đẩy VÔ
+  // ĐIỀU KIỆN mỗi khi mục tiêu có hasDrifterShield, KỂ CẢ KHI
+  // drifterShield[player] hiện đang false — nếu chỉ đẩy lúc có khiên thật thì
+  // chính SỰ XUẤT HIỆN của pending đã lộ bí mật cho mọi người xem
+  // (state.pending công khai, viewPendingItem() không lọc kind này). Giá trị
+  // thật chỉ được đọc lúc GIẢI QUYẾT, y hệt cách NEED_MISSED vẫn hỏi dù người
+  // chơi không có lá Missed! nào trong tay.
+  //
+  // RESPOND kèm `useShield: true` = muốn dùng (chỉ THỰC SỰ có tác dụng nếu
+  // drifterShield[player] đang true — nếu không, coi như từ chối, KHÔNG báo
+  // lỗi khác biệt, để không tạo tín hiệu phân biệt được); không kèm/false =
+  // từ chối (để dành).
+  | { kind: "NEED_USE_DRIFTER_SHIELD"; player: string; amount: number; killerId: string | null; resume: DrifterShieldResume }
+  // Bộ mở rộng "custom_characters" (The Dealer, xem House_Rule.txt mục I) —
+  // hỏi TRƯỚC KHI 1 đòn "kiểu Bang!" (Bang!/Gatling/Punch/Springfield/
+  // Derringer/Knife/Pepperbox/Buffalo Rifle/Howitzer/Doc Holyday...) THẬT SỰ
+  // áp dụng, SAU CÙNG (khi Barrel/Missed! đã hết cơ hội né) — CHỈ đẩy khi
+  // `player` thật sự đủ điều kiện (còn ≥2 lá trên tay VÀ có người đánh thật
+  // để đưa bài, xem ghi chú ở maybeAskDealerTrade() trong reduce.ts) — KHÁC
+  // The Drifter (không cần giấu gì, "còn đủ 2 lá" vốn đã công khai qua
+  // handCount trong PlayerView, không cần mẹo "đẩy vô điều kiện").
+  //
+  // `missedTop` = chính NEED_MISSED đang chờ giải quyết, giữ nguyên để
+  // respondToUseDealerTrade() biết tiếp tục đúng luồng gốc (Mary Rose reflect,
+  // continueAfterMissedResolved()...).
+  //
+  // RESPOND kèm `useDealerTrade: true` = đưa 2 lá ngẫu nhiên cho người vừa
+  // đánh mình để vô hiệu đòn; không kèm/false = từ chối, chịu mất máu bình
+  // thường.
+  | { kind: "NEED_USE_DEALER_TRADE"; player: string; missedTop: PendingAction & { kind: "NEED_MISSED" } };
+
+// Bộ mở rộng "custom_characters" (The Drifter) — dữ liệu mô tả "làm gì tiếp"
+// sau khi biết dùng khiên hay không, tách riêng khỏi PendingAction để dễ đọc.
+// THUẦN JSON (missedTop lồng 1 PendingAction khác — hợp lệ, không phải
+// closure). Mỗi case ứng với đúng 1 trong 6 điểm áp sát thương đã rà trong
+// reduce.ts (Indians!/Bang!-Gatling/Duel/High Noon turn-start/Dynamite/
+// Russian Roulette).
+export type DrifterShieldResume =
+  | { kind: "indians" }
+  | { kind: "bang_missed"; missedTop: PendingAction & { kind: "NEED_MISSED" } }
+  | { kind: "duel"; opponent: string }
+  | { kind: "high_noon_turn_start" }
+  | { kind: "dynamite" }
+  | { kind: "russian_roulette" };
 
 // ----- Hành động -----
 // Các hành động cho vòng lượt (việc 1.5) và đánh bài (việc 1.7/1.8, hiện chỉ hỗ
@@ -300,6 +361,15 @@ export type Action =
       // Mở rộng A Fistful of Cards, lá "Hard Liquor" — trả lời
       // NEED_PICK_HARD_LIQUOR: true = bỏ qua pha rút để hồi 1 máu.
       skipDrawForHardLiquor?: boolean;
+      // Bộ mở rộng "custom_characters" (The Drifter) — trả lời
+      // NEED_USE_DRIFTER_SHIELD: true = muốn dùng lá chắn; bỏ trống/false =
+      // từ chối (để dành). Xem respondToUseDrifterShield() trong reduce.ts.
+      useShield?: boolean;
+      // Bộ mở rộng "custom_characters" (The Dealer) — trả lời
+      // NEED_USE_DEALER_TRADE: true = đưa 2 lá ngẫu nhiên cho người vừa đánh
+      // mình; bỏ trống/false = từ chối, chịu mất máu bình thường. Xem
+      // respondToUseDealerTrade() trong reduce.ts.
+      useDealerTrade?: boolean;
     }
   // Kỹ năng CHỦ ĐỘNG dùng chung cho 3 nhân vật khác nhau — `cardIds` đổi ý
   // nghĩa/độ dài tuỳ nhân vật đang dùng (xem handleUseAbility() trong
@@ -493,6 +563,23 @@ export type GameEvent =
   // MIỄN PHÍ vào `targetId` (người vừa bang cô), bỏ qua khoảng cách, cần 2
   // Missed! mới né được (xem pushMaryRoseReflection() trong reduce.ts).
   | { type: "MARY_ROSE_REFLECTED"; playerId: string; targetId: string }
+  // Bộ mở rộng "custom_characters" (The Thief, xem House_Rule.txt mục I) —
+  // draw! cộng thêm sau pha rút khớp chất đỏ, cướp NGẪU NHIÊN `cardId` của
+  // `fromPlayerId` — TÁI DÙNG event CARD_STOLEN có sẵn (giống Jesse Jones/El
+  // Gringo), không cần event riêng.
+  //
+  // Bộ mở rộng "custom_characters" (The Gambler, xem House_Rule.txt mục I) —
+  // vừa bỏ ĐÚNG 2 lá `cardIds` để dùng kỹ năng (chưa biết kết quả draw! —
+  // báo qua DRAW_CHECK_RESOLVED + CARDS_DRAWN như bình thường ngay sau đó,
+  // xem useGamblerDraw()/resolveDrawCheck() trong reduce.ts).
+  | { type: "GAMBLER_DISCARDED"; playerId: string; cardIds: [string, string] }
+  // Bộ mở rộng "custom_characters" (The Fair Killer, xem House_Rule.txt mục
+  // I) — mất 1 máu TỰ NGUYỆN (không rút bài, khác Chuck Wengam) để bắn hiệu
+  // ứng Bang! (bỏ qua khoảng cách) vào `targetId` — KHÔNG tái dùng DAMAGE_DEALT
+  // cùng lý do CHUCK_WENGAM_TRADED_LIFE ở trên (mất máu TỰ NGUYỆN, không phải
+  // "bị tấn công"). Mất máu này NGAY LẬP TỨC, không hoàn lại dù mục tiêu đỡ
+  // được — xem useFairKillerShot() trong reduce.ts.
+  | { type: "FAIR_KILLER_TRADED_LIFE"; playerId: string; targetId: string }
   // Mở rộng A Fistful of Cards, lá "Blood Brothers" — `playerId` tặng ĐÚNG 1
   // máu (tự nguyện, KHÔNG được là giọt cuối) cho `targetId`. Event RIÊNG,
   // KHÔNG tái dùng DAMAGE_DEALT/HP_RESTORED — đây là 1 hành động TỰ NGUYỆN
@@ -536,6 +623,19 @@ export type GameEvent =
   // (luôn 2, trừ khi hp không đủ 2 thì mất hết chỗ còn lại — xem sàn 0 ở
   // eliminateIfDead()). Không có "người bắn" (killerId null, giống Dynamite).
   | { type: "RUSSIAN_ROULETTE_FIRED"; playerId: string; amount: number }
+  // Bộ mở rộng "custom_characters" (The Drifter) — vừa DÙNG lá chắn để chặn
+  // TRỌN `amount` sát thương sắp áp. Public — dùng khiên là hành động chủ
+  // động, KHÔNG cần giấu (chỉ trạng thái CHƯA dùng mới cần giấu, xem ghi chú
+  // ở GameState.drifterShield — lúc dùng thì hp không đổi cũng đã tự lộ rồi).
+  // Cố tình KHÔNG có event nào báo "từ chối"/"không có gì để dùng" — 2 case
+  // đó phải giống hệt nhau ở tầng event để không lộ bí mật.
+  | { type: "DRIFTER_SHIELD_USED"; playerId: string; amount: number }
+  // Bộ mở rộng "custom_characters" (The Dealer) — vừa đưa 2 lá `cardIds` (ngẫu
+  // nhiên, biết ngay lúc chuyển tay — công khai, giống CARD_STOLEN) cho
+  // `targetId` (người vừa đánh mình) để vô hiệu 1 đòn "kiểu Bang!". Event
+  // RIÊNG (không tái dùng CARD_STOLEN) vì ngữ nghĩa khác hẳn — đây là hành
+  // động TỰ NGUYỆN đưa bài để phòng thủ, không phải bị cướp.
+  | { type: "DEALER_TRADE_USED"; playerId: string; targetId: string; cardIds: [string, string] }
   | { type: "GAME_ENDED"; winner: Winner };
 
 // ----- State tổng -----
@@ -618,6 +718,14 @@ export interface GameState {
   // lượt của chính mình. Reset về false mỗi khi sang lượt mới (advanceTurn(),
   // giống bangUsedThisTurn).
   docHolydayUsedThisTurn: boolean;
+  // Bộ mở rộng "custom_characters" (The Fair Killer, xem House_Rule.txt mục
+  // I) — dùng được kỹ năng chủ động (mất 1 máu, bắn Bang! bỏ qua khoảng cách)
+  // tối đa 1 LẦN/lượt, CHỈ trong lượt của chính mình. Reset về false mỗi khi
+  // sang lượt mới (advanceTurn()) — field ĐƠN (không phải Record theo
+  // playerId) vì assertCurrentPlayer() đã đảm bảo chỉ CHÍNH người đang tới
+  // lượt dùng được, giống hệt docHolydayUsedThisTurn ở trên (kể cả khi Vera
+  // Custer đang mượn khả năng này).
+  fairKillerUsedThisTurn: boolean;
   // Mở rộng A Fistful of Cards, lá "Vendetta" — CHỈ có ý nghĩa trong LƯỢT
   // THÊM do chính lá này cấp (xem resolveDrawCheck() trong reduce.ts): true =
   // lượt hiện tại LÀ lượt thêm, không draw! lại nữa dù Vendetta vẫn đang
@@ -668,6 +776,31 @@ export interface GameState {
   // nguyên ở 0 suốt trạng thái này — không dùng field riêng đánh dấu "đang
   // Miễn Tử", chỉ cần có entry trong Record này là đủ.
   elenaNoirImmortalTurnsLeft: Record<string, number>;
+  // Bộ mở rộng "custom_characters" (The Drifter, xem House_Rule.txt mục I) —
+  // playerId -> đang có "lá chắn" (đủ điều kiện chặn TRỌN 1 cụm sát thương)
+  // hay không. THEO PLAYERID (không phải field đơn) — cùng lý do elenaNoirArmed
+  // ở trên (Vera Custer có thể mượn khả năng này). Không có entry coi như
+  // false. Chỉ bị GHI ĐÈ mỗi khi draw! bí mật đầu lượt CỦA CHÍNH người đó chạy
+  // xong (xem completeDrawPhase()/resolveDrawCheck() trong reduce.ts) —
+  // KHÔNG reset vô điều kiện ở advanceTurn() như bangCountThisTurn, đúng
+  // "hết hạn vào ĐẦU LƯỢT KẾ TIẾP của CHÍNH anh ta" (không phải "mỗi lượt của
+  // bất kỳ ai" — field tự nhiên "sống sót" qua lượt người khác xen giữa vì
+  // không có chỗ nào khác ghi đè nó).
+  //
+  // BÍ MẬT — KHÁC elenaNoirArmed (field đó công khai vì không cần giấu gì).
+  // viewFor() (view.ts) CHỈ được trả entry của ĐÚNG viewerId, xoá hẳn mọi
+  // entry khác (kể cả `false`) — đây là field ĐẦU TIÊN trong dự án cần lọc
+  // kiểu này ngoài NEED_PICK_KEPT_CARDS.cards.
+  drifterShield: Record<string, boolean>;
+  // Bộ mở rộng "custom_characters" (The Drifter) — playerId -> id lá bài ĐÃ
+  // RÚT bí mật (đầu lượt chính người đó), CHƯA trả về chồng bỏ công khai.
+  // Field NỘI BỘ HOÀN TOÀN, KHÔNG lộ qua PlayerView (không thêm field tương
+  // ứng ở view.ts) — chỉ dùng để bảo toàn tổng số lá bài trong ván (không rơi
+  // mất khỏi deck/discardPile/tay/sân), đẩy vào discardPile ở thời điểm AN
+  // TOÀN (đã hết hạn, không còn ý nghĩa chiến thuật gì — xem
+  // resolveDrawCheck()/eliminatePlayer() trong reduce.ts). Không có entry =
+  // không có lá nào đang "treo" bí mật.
+  drifterHiddenCard: Record<string, string>;
   // Bộ mở rộng "custom_characters" (Marcel Marcelo, xem House_Rule.txt mục I)
   // — playerId của người ĐANG BỊ JAIL có khả năng này (thường là Marcel, có
   // thể là Vera Custer đang mượn) -> playerId của người được chỉ định "cùng
@@ -718,7 +851,15 @@ export type HouseRuleId =
   | "extra_distance" // khoảng cách vòng tròn mặc định +1 (distance.ts)
   | "require_weapon_for_bang" // phải có súng trang bị mới đánh Bang! được, bỏ súng ngầm định tầm 1 (playBang())
   | "no_duplicate_card_names" // cấm đánh 2 lá NÂU trùng tên trong 1 lượt (trừ lá trang bị, handlePlayCard())
-  | "beer_below_two"; // Bia vẫn có tác dụng dù chỉ còn 2 người sống, bỏ ngoại lệ luật gốc (playBeer()/eliminateIfDead())
+  | "beer_below_two" // Bia vẫn có tác dụng dù chỉ còn 2 người sống, bỏ ngoại lệ luật gốc (playBeer()/eliminateIfDead())
+  // Gấp đôi MỌI mốc thời gian đếm ngược (lượt đánh 60s/phản hồi 15s/bỏ bài
+  // thừa 15s/chọn nhân vật 30s) — NGOẠI LỆ DUY NHẤT trong HouseRuleId: xử lý
+  // ở server/room.ts (scheduleDeadline()), KHÔNG PHẢI reduce.ts/distance.ts
+  // như mọi luật khác, vì đồng hồ đếm ngược vốn CHỈ tồn tại lúc chơi qua
+  // mạng (core/ không được biết gì về thời gian/mạng, quy tắc 1+2 CLAUDE.md)
+  // — hotseat KHÔNG có đồng hồ nào để tăng, luật này không có tác dụng gì
+  // khi chơi hotseat.
+  | "double_timers";
 
 // Mở rộng Dodge City — danh sách id BỘ MỞ RỘNG đã cài, TÁCH RIÊNG khỏi
 // HouseRuleId ở trên: house rule là chỉnh SỬA luật chơi gốc, còn bộ mở rộng là

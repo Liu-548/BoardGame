@@ -1,4 +1,4 @@
-﻿// Mở rộng Dodge City (Luat_Bang_Mo_Rong_DodgeCity.txt, mục 1.1 — "kiến trúc
+// Mở rộng Dodge City (Luat_Bang_Mo_Rong_DodgeCity.txt, mục 1.1 — "kiến trúc
 // trang bị trì hoãn"). Đợt 1: chỉ 6/40 lá vàng KHÔNG cần hook nhân vật mới —
 // Bible/Sombrero/Ten Gallon Hat/Iron Plate (dùng NHƯ Missed!) và
 // Canteen/Pony Express (hiệu ứng chủ động đơn giản: tự hồi máu, rút bài).
@@ -39,11 +39,14 @@ function makeState(players: PlayerState[], overrides: Partial<GameState> = {}): 
     equipmentPlayedTurn: {},
     joseDelgadoUsesThisTurn: 0,
     docHolydayUsedThisTurn: false,
+    fairKillerUsedThisTurn: false,
     vendettaUsedThisTurn: false,
     duelBangDrawPending: null,
     veraCusterBorrowedCharacterId: null,
     elenaNoirArmed: {},
     elenaNoirImmortalTurnsLeft: {},
+    drifterShield: {},
+    drifterHiddenCard: {},
     marcelJailCompanion: {},
     marcelCompanionSkipNextTurn: {},
     marcelJailBonusDrawThisTurn: {},

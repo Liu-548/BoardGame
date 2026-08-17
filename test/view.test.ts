@@ -1,4 +1,4 @@
-﻿import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { viewFor } from "../src/core/view";
 import type { GameState, PlayerState } from "../src/core/types";
 
@@ -33,11 +33,14 @@ function makeState(players: PlayerState[], overrides: Partial<GameState> = {}): 
     equipmentPlayedTurn: {},
     joseDelgadoUsesThisTurn: 0,
     docHolydayUsedThisTurn: false,
+    fairKillerUsedThisTurn: false,
     vendettaUsedThisTurn: false,
     duelBangDrawPending: null,
     veraCusterBorrowedCharacterId: null,
     elenaNoirArmed: {},
     elenaNoirImmortalTurnsLeft: {},
+    drifterShield: {},
+    drifterHiddenCard: {},
     marcelJailCompanion: {},
     marcelCompanionSkipNextTurn: {},
     marcelJailBonusDrawThisTurn: {},
@@ -192,7 +195,7 @@ describe("viewFor — NEED_PICK_KEPT_CARDS (Kit Carlson, Giai đoạn 5 đợt 6
 
     const view = viewFor(state, "b");
 
-    expect(view.pending).toEqual([{ kind: "NEED_PICK_KEPT_CARDS", player: "a", cards: null }]);
+    expect(view.pending).toEqual([{ kind: "NEED_PICK_KEPT_CARDS", player: "a", cards: null, keepCount: 2 }]);
   });
 });
 

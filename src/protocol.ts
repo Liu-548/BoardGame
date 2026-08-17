@@ -63,7 +63,19 @@ export type ClientMessage =
   // dở" ở server, HUỶ NGANG ván cũ (chưa có `winner`) để tạo ván mới đè lên.
   // Client tự hỏi xác nhận TRƯỚC khi gửi kèm `force: true` (xem main.ts) —
   // server không tự hỏi gì, tin thẳng field này.
-  | { type: "start_game"; seed: number; houseRules?: HouseRuleId[]; expansions?: ExpansionId[]; force?: boolean }
+  // `eventDeckSize`: số lá sự kiện "thường" chủ phòng chọn, CHỈ có ý nghĩa khi
+  // CẢ HAI id "high_noon"/"a_fistful_of_cards" cùng có trong `expansions` —
+  // forward thẳng xuống RuleOptions.eventDeckSize (xem setup.ts), không kiểm
+  // tra lại min/max ở server (UI đã chặn ở client, setupGame() tự an toàn nếu
+  // lỡ nhận giá trị vượt số lá thật có — slice() tự cắt gọn).
+  | {
+      type: "start_game";
+      seed: number;
+      houseRules?: HouseRuleId[];
+      expansions?: ExpansionId[];
+      eventDeckSize?: number;
+      force?: boolean;
+    }
   // Một hành động luật chơi (rút bài, đánh bài, trả lời...) — forward nguyên
   // si vào reduce(state, action) ở server.
   | { type: "action"; action: Action }

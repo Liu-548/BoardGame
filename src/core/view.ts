@@ -48,6 +48,11 @@ export type PendingActionView = Exclude<PendingAction, { kind: "NEED_PICK_KEPT_C
   kind: "NEED_PICK_KEPT_CARDS";
   player: string;
   cards: string[] | null;
+  // `keepCount` KHÔNG bí mật (chỉ là số lá phải giữ, suy ra được từ nhân vật +
+  // sự kiện đang chạy — công khai), khác `cards` — giữ nguyên cho MỌI người
+  // xem, kể cả không phải chủ nhân, để client hiện đúng "giữ mấy lá" và nút
+  // mặc định khi hết giờ.
+  keepCount: number;
 };
 
 // Giai đoạn 5, cơ chế chọn nhân vật — giống PlayerHandView.hand: `options` chỉ
@@ -88,6 +93,10 @@ export interface PlayerView {
   // liên quan bài úp/thông tin ẩn nào.
   joseDelgadoUsesThisTurn: number;
   docHolydayUsedThisTurn: boolean;
+  // Bộ mở rộng "custom_characters" (The Fair Killer, xem House_Rule.txt mục
+  // I) — client cần biết đúng như core để tự vẽ/ẩn nút "Dùng kỹ năng" (tối đa
+  // 1 lần/lượt, giống Doc Holyday). KHÔNG bí mật gì, cùng lý do 2 field trên.
+  fairKillerUsedThisTurn: boolean;
   // Bộ mở rộng "custom_characters" (Elena Noir, xem House_Rule.txt mục I) —
   // client cần biết đúng như core để tự vẽ nút "vũ trang" (chỉ hiện khi KHÔNG
   // đang Miễn Tử) và hiển thị trạng thái "đang Miễn Tử (còn N lượt)". KHÔNG bí
@@ -96,6 +105,14 @@ export interface PlayerView {
   // thể mượn khả năng này, cần trạng thái riêng với Elena Noir thật).
   elenaNoirArmed: Record<string, boolean>;
   elenaNoirImmortalTurnsLeft: Record<string, number>;
+  // Bộ mở rộng "custom_characters" (The Drifter, xem House_Rule.txt mục I) —
+  // BÍ MẬT, KHÁC HẲN elenaNoirArmed ngay phía trên (field đó công khai vì
+  // không có gì để giấu). CHỈ chứa ĐÚNG 1 key — của chính viewerId (nếu có) —
+  // mọi playerId khác KHÔNG xuất hiện trong map này (không phải `false`, mà
+  // KHÔNG CÓ KEY), để đối phương không suy luận được gì. Client tự đọc
+  // `drifterShield[viewerId]`; coi bất kỳ playerId nào khác là "không biết"
+  // (không đọc được, không phải biết chắc là false).
+  drifterShield: Record<string, boolean>;
   // Bộ mở rộng "custom_characters" (Marcel Marcelo, xem House_Rule.txt mục I)
   // — cùng lý do KHÔNG bí mật như 2 field Elena Noir ở trên: ai "cùng vào tù"
   // với ai, và ai sắp mất lượt kế tiếp, đều công khai (không liên quan bài úp).
@@ -126,7 +143,7 @@ function viewRole(player: PlayerState, viewerId: string): Role | null {
 // chính người đang xem 3 lá đó. Mọi kind khác giữ nguyên, trả thẳng lại.
 function viewPendingItem(item: PendingAction, viewerId: string): PendingActionView {
   if (item.kind === "NEED_PICK_KEPT_CARDS" && item.player !== viewerId) {
-    return { kind: item.kind, player: item.player, cards: null };
+    return { kind: item.kind, player: item.player, cards: null, keepCount: item.keepCount };
   }
   return item;
 }
@@ -173,8 +190,11 @@ export function viewFor(state: GameState, viewerId: string): PlayerView {
     turnNumber: state.turnNumber,
     joseDelgadoUsesThisTurn: state.joseDelgadoUsesThisTurn,
     docHolydayUsedThisTurn: state.docHolydayUsedThisTurn,
+    fairKillerUsedThisTurn: state.fairKillerUsedThisTurn,
     elenaNoirArmed: state.elenaNoirArmed,
     elenaNoirImmortalTurnsLeft: state.elenaNoirImmortalTurnsLeft,
+    drifterShield:
+      state.drifterShield[viewerId] !== undefined ? { [viewerId]: state.drifterShield[viewerId] } : {},
     marcelJailCompanion: state.marcelJailCompanion,
     marcelCompanionSkipNextTurn: state.marcelCompanionSkipNextTurn,
     activeEventId: state.activeEventId,
