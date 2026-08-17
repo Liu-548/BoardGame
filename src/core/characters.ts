@@ -162,6 +162,14 @@ export interface CharacterHooks {
   // chính mình.
   onAnyDeath?(next: GameState, self: PlayerState, deadPlayer: PlayerState): GameEvent[];
 
+  // Bộ mở rộng "custom_characters" (The Drunker, xem House_Rule.txt mục I) —
+  // gọi ngay khi 1 lá Beer THẬT SỰ hồi máu cho `drinker` (đã trừ maxHp, xem
+  // playBeer() trong reduce.ts — CHỈ Beer, không phải mọi nguồn hồi máu).
+  // Caller đã tự loại `drinker` ra khỏi vòng lặp (không gọi hook của chính
+  // người vừa uống Beer) — không cần tự kiểm `drinker !== self` ở đây, giống
+  // hệt quy ước onAnyDeath ở trên.
+  onOtherPlayerHealedByBeer?(next: GameState, self: PlayerState, drinker: PlayerState): GameEvent[];
+
   // Giai đoạn 5 (đợt 3), Slab the Killer — trả về số lá Missed! CẦN để né TRỌN
   // VẸN 1 phát Bang!/Gatling do CHÍNH người này đánh ra (không áp dụng Duel/
   // Indians! — 2 lá đó không đi qua pushMissedReaction()). Không có hook này
@@ -416,6 +424,51 @@ export interface CharacterDefinition {
   // "chịu mất máu" của respondToMissed() + pushMaryRoseReflection() trong
   // reduce.ts.
   canReflectBangDamage?: boolean;
+  // Bộ mở rộng "custom_characters" (The Thief, xem House_Rule.txt mục I) —
+  // KHÔNG thay pha rút bình thường (khác Jesse Jones/canStealFirstDrawCard) —
+  // rút 2 lá từ bộ bài NHƯ THƯỜNG xong mới CỘNG THÊM 1 draw!, ra chất đỏ (Cơ/
+  // Rô) thì được hỏi chọn 1 người khác còn sống để cướp ngẫu nhiên 1 lá. HOÀN
+  // TOÀN KHÔNG CẦN state gì trong GameState (giống Mary Rose ở trên) — không
+  // có gì để lưu theo thời gian, không có xung đột Vera Custer. Xem
+  // completeDrawPhase()/resolveDrawCheck()/respondToPickThiefTarget() trong
+  // reduce.ts.
+  canStealCardOnRedDraw?: boolean;
+  // Bộ mở rộng "custom_characters" (The Gambler, xem House_Rule.txt mục I) —
+  // kỹ năng CHỦ ĐỘNG dùng action USE_ABILITY (giống Sid Ketchum/Chuck Wengam)
+  // nhưng CHỈ trong lượt của chính mình (giống Chuck Wengam, khác Sid
+  // Ketchum): bỏ ĐÚNG 2 lá bất kỳ trên tay rồi draw!, ra chất đỏ (Cơ/Rô) thì
+  // rút 3 lá, ra chất đen thì rút 1 lá. Không giới hạn số lần, không cần state
+  // gì trong GameState (giống Mary Rose/The Thief). Xem
+  // useGamblerDraw()/resolveDrawCheck() trong reduce.ts.
+  canDiscardTwoToGambleDraw?: boolean;
+  // Bộ mở rộng "custom_characters" (The Fair Killer, xem House_Rule.txt mục
+  // I) — kỹ năng CHỦ ĐỘNG dùng action USE_ABILITY (giống Doc Holyday) nhưng
+  // KHÔNG cần bỏ lá nào (giống Chuck Wengam): tự mất 1 máu để bắn hiệu ứng
+  // Bang! vào `targetId` bất kỳ, bỏ qua khoảng cách/tầm súng hoàn toàn,
+  // KHÔNG tính vào giới hạn 1 Bang!/lượt. Tối đa 1 LẦN/lượt (xem
+  // GameState.fairKillerUsedThisTurn), chặn nếu chỉ còn 1 máu (không tự sát
+  // được). Xem useFairKillerShot() trong reduce.ts.
+  canShootByLosingLife?: boolean;
+  // Bộ mở rộng "custom_characters" (The Drifter, xem House_Rule.txt mục I) —
+  // cờ tĩnh bật/tắt TOÀN BỘ cơ chế "lá chắn": (1) draw! bí mật đầu lượt CHÍNH
+  // mình (completeDrawPhase() trong reduce.ts), (2) mọi điểm áp sát thương
+  // đều PHẢI hỏi "dùng khiên?" nếu mục tiêu có cờ này — KỂ CẢ khi
+  // drifterShield hiện đang false (đẩy pending VÔ ĐIỀU KIỆN, xem ghi chú ở
+  // GameState.drifterShield — nếu chỉ hỏi lúc có khiên thật thì chính sự xuất
+  // hiện của câu hỏi đã lộ bí mật). Không cần state gì riêng ở field này —
+  // GameState.drifterShield/drifterHiddenCard mới là nơi lưu trạng thái. Xem
+  // maybeAskDrifterShield()/respondToUseDrifterShield() trong reduce.ts.
+  hasDrifterShield?: boolean;
+  // Bộ mở rộng "custom_characters" (The Dealer, xem House_Rule.txt mục I) —
+  // cờ tĩnh: mỗi khi bị nhắm bởi 1 đòn "kiểu Bang!" (đi qua NEED_MISSED —
+  // Bang!/Gatling/Punch/Springfield/Derringer/Knife/Pepperbox/Buffalo Rifle/
+  // Howitzer/Doc Holyday...) và không đỡ được, được hỏi có muốn đưa 2 lá NGẪU
+  // NHIÊN trên tay cho người vừa đánh mình để vô hiệu đòn đó hay không —
+  // không giới hạn số lần, miễn còn đủ 2 lá. KHÔNG cần state riêng (tính lại
+  // ngay mỗi lần qua handCount, vốn đã công khai, không như hasDrifterShield
+  // phải giấu). Xem maybeAskDealerTrade()/respondToUseDealerTrade() trong
+  // reduce.ts.
+  hasDealerTrade?: boolean;
   hooks: CharacterHooks;
 }
 
@@ -861,6 +914,60 @@ export const CHARACTERS: Record<string, CharacterDefinition> = {
     canReflectBangDamage: true,
     hooks: {},
   },
+
+  the_thief: {
+    id: "the_thief",
+    name: "The Thief *ex",
+    bullets: 3,
+    canStealCardOnRedDraw: true,
+    hooks: {},
+  },
+
+  the_gambler: {
+    id: "the_gambler",
+    name: "The Gambler *ex",
+    bullets: 3,
+    canDiscardTwoToGambleDraw: true,
+    hooks: {},
+  },
+
+  the_fair_killer: {
+    id: "the_fair_killer",
+    name: "The Fair Killer *ex",
+    bullets: 4,
+    canShootByLosingLife: true,
+    hooks: {},
+  },
+
+  the_drunker: {
+    id: "the_drunker",
+    name: "The Drunker *ex",
+    bullets: 4,
+    hooks: {
+      onOtherPlayerHealedByBeer: (_next, self) => {
+        const restored = Math.min(1, self.maxHp - self.hp);
+        if (restored <= 0) return [];
+        self.hp += restored;
+        return [{ type: "HP_RESTORED", playerId: self.id, amount: restored }];
+      },
+    },
+  },
+
+  the_drifter: {
+    id: "the_drifter",
+    name: "The Drifter *ex",
+    bullets: 3,
+    hasDrifterShield: true,
+    hooks: {},
+  },
+
+  the_dealer: {
+    id: "the_dealer",
+    name: "The Dealer *ex",
+    bullets: 4,
+    hasDealerTrade: true,
+    hooks: {},
+  },
 };
 
 // Id nhân vật do từng BỘ MỞ RỘNG đóng góp (xem ExpansionId ở types.ts +
@@ -887,7 +994,17 @@ export const EXPANSION_CHARACTER_IDS: Record<ExpansionId, string[]> = {
     "belle_star",
     "vera_custer",
   ],
-  custom_characters: ["elena_noir", "marcel_marcelo", "mary_rose"],
+  custom_characters: [
+    "elena_noir",
+    "marcel_marcelo",
+    "mary_rose",
+    "the_thief",
+    "the_gambler",
+    "the_fair_killer",
+    "the_drunker",
+    "the_drifter",
+    "the_dealer",
+  ],
   // Mở rộng High Noon/A Fistful of Cards — CHỈ lá sự kiện (core/events.ts),
   // không có nhân vật mới nào.
   high_noon: [],

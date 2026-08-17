@@ -1,4 +1,4 @@
-﻿// Việc 5.2 (đợt 1 + đợt 2) — kiểm tra DỮ LIỆU THẬT của các nhân vật dùng
+// Việc 5.2 (đợt 1 + đợt 2) — kiểm tra DỮ LIỆU THẬT của các nhân vật dùng
 // ngay được, không cần PendingAction/luồng action mới: đợt 1 — Bart Cassidy,
 // El Gringo, Paul Regret, Rose Doolan, Vulture Sam, Willy the Kid; đợt 2 —
 // Jourdonnais, Black Jack. Khác test/characters.test.ts (kiểm tra HỆ THỐNG
@@ -40,11 +40,14 @@ function makeState(overrides: Partial<GameState> = {}): GameState {
     equipmentPlayedTurn: {},
     joseDelgadoUsesThisTurn: 0,
     docHolydayUsedThisTurn: false,
+    fairKillerUsedThisTurn: false,
     vendettaUsedThisTurn: false,
     duelBangDrawPending: null,
     veraCusterBorrowedCharacterId: null,
     elenaNoirArmed: {},
     elenaNoirImmortalTurnsLeft: {},
+    drifterShield: {},
+    drifterHiddenCard: {},
     marcelJailCompanion: {},
     marcelCompanionSkipNextTurn: {},
     marcelJailBonusDrawThisTurn: {},

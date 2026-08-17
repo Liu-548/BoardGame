@@ -256,6 +256,57 @@ input[type="text"] {
   }
 }
 
+/* Bổ sung 2026-08-10 — 2 hiệu ứng hình ảnh đơn giản, gắn tạm lên <body> bằng
+   triggerVisualEffect() (ui.ts): tới lượt của mình (viền xám đậm chớp 1 lần)
+   và thuốc nổ phát nổ (viền đỏ + rung nhẹ). Giữ đúng quy tắc "chrome chỉ dùng
+   thang xám + 1 màu đỏ duy nhất" (GIAO-DIEN-UI-UX.txt mục 1) — lượt của mình
+   KHÔNG phải tình huống nguy hiểm nên dùng xám, thuốc nổ nổ dùng đỏ giống mọi
+   cảnh báo khẩn cấp khác trong dự án. */
+@keyframes flash-my-turn {
+  0% {
+    box-shadow: inset 0 0 0 0 var(--color-border-strong);
+  }
+  35% {
+    box-shadow: inset 0 0 0 0.6rem var(--color-border-strong);
+  }
+  100% {
+    box-shadow: inset 0 0 0 0 var(--color-border-strong);
+  }
+}
+
+body.effect-my-turn {
+  animation: flash-my-turn 0.9s ease-out;
+}
+
+@keyframes flash-dynamite {
+  0%,
+  100% {
+    box-shadow: inset 0 0 0 0 var(--color-danger);
+    transform: translateX(0);
+  }
+  10% {
+    box-shadow: inset 0 0 0 1rem var(--color-danger);
+    transform: translateX(-0.4rem);
+  }
+  20% {
+    transform: translateX(0.4rem);
+  }
+  30% {
+    transform: translateX(-0.3rem);
+  }
+  40% {
+    transform: translateX(0.3rem);
+  }
+  55% {
+    box-shadow: inset 0 0 0 0 var(--color-danger);
+    transform: translateX(0);
+  }
+}
+
+body.effect-dynamite {
+  animation: flash-dynamite 0.6s ease-out;
+}
+
 /* Đang chờ (không phải lượt mình, không bị nhắm) — đặc tả gốc mục 1 ghi "MỜ
    đi", nhưng phản hồi thật từ chủ dự án sau khi chơi thử: mờ khiến người
    CHƯA tới lượt trông như đã bị loại/chết rồi — bỏ hẳn opacity, giữ nguyên

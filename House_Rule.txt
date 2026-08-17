@@ -256,12 +256,12 @@ mà không ảnh hưởng nhân vật *ex khác.
 	    playGeneralStore() phải tách làm 2 giai đoạn (hiện đang gộp
 	    trong 1 lần reduce()). Đây là lá khó nhất trong cả nhóm A.
 
-	  - THỨ TỰ VỚI BARREL (và Jourdonnais ảo): anh ta có thể vừa có
-	    khả năng này vừa đang cầm Barrel -> 2 lần draw! liên tiếp cho
-	    cùng 1 phát Bang!. [CẦN BÀN] Đề xuất: draw! của The Nobody
-	    TRƯỚC (đúng câu luật "trước khi lá bài chính thức kích hoạt"),
-	    ra Bích thì huỷ luôn, khỏi cần Barrel. Phải chốt rõ vì nó đổi
-	    xác suất tổng: 22,9% + 77,1%*29,6% ~= 45% né được 1 phát Bang!.
+	  - ✅ CHỐT (2026-08-09) — THỨ TỰ VỚI BARREL (và Jourdonnais ảo): anh
+	    ta có thể vừa có khả năng này vừa đang cầm Barrel -> 2 lần draw!
+	    liên tiếp cho cùng 1 phát Bang!. Draw! của The Nobody chạy
+	    TRƯỚC (đúng câu luật "trước khi lá bài chính thức kích hoạt") —
+	    ra Bích thì huỷ luôn, KHÔNG cần Barrel draw! nữa. Xác suất né
+	    tổng 1 phát Bang!: 22,9% + 77,1%×29,6% ≈ 45,7%.
 
 	  - KHÔNG cần field GameState nào (khả năng hoàn toàn "tính lại mỗi
 	    lần", không lưu trạng thái theo thời gian) ⇒ KHÔNG có xung đột
@@ -378,7 +378,16 @@ mà không ảnh hưởng nhân vật *ex khác.
 			      "không giới hạn số lần" không biến thành bất tử trước
 			      Bang!. Khớp đúng đánh giá đã ghi sẵn ở mục IV.
 
-	- The Drunker 4 máu — ⬜ CHƯA CODE.
+	- The Drunker 4 máu — ✅ ĐÃ CODE XONG (2026-08-10, core + test — xem đánh
+	  giá sức mạnh ở mục IV). Hook mới `onOtherPlayerHealedByBeer` (xem
+	  characters.ts, cùng khuôn onAnyDeath) cắm ở đúng nhánh hồi máu chủ
+	  động của playBeer() (reduce.ts), KHÔNG cắm ở eliminateIfDead(). Test:
+	  test/the-drunker.test.ts (7 test, kể cả 1 test riêng cho ca Vera
+	  Custer mượn, 1 test xác nhận KHÔNG ăn theo Saloon, 1 test xác nhận
+	  KHÔNG ăn theo Bia cứu mạng tự động). Hoàn toàn THỤ ĐỘNG (không có nút
+	  bấm nào) nên không cần UI riêng ngoài mô tả kỹ năng ở màn chọn nhân
+	  vật — đã tự kiểm bằng trình duyệt thật (hotseat 8 người): nhân vật
+	  hiện đúng 4/4 máu + mô tả, không lỗi console.
 	  - *dev đã chốt: nâng từ 3 lên 4 máu, GIỮ nguyên điều kiện chỉ-Beer
 	    (không mở rộng sang mọi nguồn hồi máu như đề xuất ban đầu).
 
@@ -401,7 +410,14 @@ mà không ảnh hưởng nhân vật *ex khác.
 	    người uống, còn đây là hồi cho NGƯỜI KHÁC).
 	  - Không cần field GameState nào ⇒ không có xung đột Vera Custer.
 
-	- The Gambler 3 máu — ⬜ CHƯA CODE.
+	- The Gambler 3 máu — ✅ ĐÃ CODE XONG (2026-08-10, core + UI hotseat/qua
+	  mạng + test — xem đánh giá sức mạnh ở mục IV). Test:
+	  test/the-gambler.test.ts (9 test, kể cả 1 test riêng cho ca Vera
+	  Custer mượn). Draw! đi qua NEED_DRAW_CHECK/resolveDrawCheck() (không
+	  rút thẳng) để Lucky Duke tự áp dụng đúng, không cần code riêng. Đã tự
+	  kiểm bằng trình duyệt thật (hotseat 8 người, bật "Nhân vật *ex"): bấm
+	  "Dùng kỹ năng", chọn 2 lá, xác nhận, lật bài, rút đúng 1 lá (ra chất
+	  đen) — không lỗi console.
 	  - *dev đã chốt: đổi sang phương án "bỏ 2 lá để draw!" — bản gốc
 	    "bỏ 2 rút 1" là lỗ bài thuần tuý, gần như không ai bấm.
 
@@ -469,16 +485,24 @@ mà không ảnh hưởng nhân vật *ex khác.
 	    ưu tiên duy nhất trong eliminateIfDead() và ghi lại ở đây. Lưu ý
 	    (5) khác hẳn 4 cái trên: nó do NGƯỜI KHÁC quyết định, và chạy
 	    SAU CÙNG (khi mọi cách tự cứu đã thất bại).
-	  - [CẦN CHỐT] Người được hồi sinh có GIỮ BÀI TRÊN TAY không? Nếu
-	    chặn TRƯỚC eliminatePlayer() thì bài họ CHƯA bị bỏ ⇒ giữ nguyên
-	    cả tay lẫn trang bị. Đề xuất: GIỮ — như vậy mới xứng cái giá 2
-	    máu vĩnh viễn. Nếu chọn "mất hết bài" thì khả năng này gần như
-	    vô dụng.
+	  - ✅ CHỐT (2026-08-09): Người được hồi sinh GIỮ NGUYÊN bài trên tay
+	    LẪN trang bị — đúng đề xuất ban đầu. Về mặt cài đặt, đây là hệ
+	    quả TỰ NHIÊN nếu chặn TRƯỚC eliminatePlayer() (hàm đó mới là chỗ
+	    bỏ hết tay/trang bị) — KHÔNG cần code thêm gì để "giữ", chỉ cần
+	    ĐỪNG gọi eliminatePlayer()/eliminateIfDead() tiếp cho người này,
+	    y hệt cách Elena Noir/Bia hồi sinh đang chặn trước hàm đó.
 	  - Pending mới NEED_SENTINEL_REVIVE (hỏi The Sentinel, không phải
 	    hỏi người sắp chết). [ĐỔI STATE]
 	  - checkWinCondition() KHÔNG được chạy trước khi hỏi xong.
 
-	- Fairy The Killer 4 máu — ⬜ CHƯA CODE. (Tên lệch khuôn "The X" của cả
+	- The Fair Killer 4 máu — ✅ ĐÃ CODE XONG (2026-08-10, core + UI hotseat/
+	  qua mạng + test — xem đánh giá sức mạnh ở mục IV). Test:
+	  test/the-fair-killer.test.ts (14 test, kể cả 1 test riêng cho ca Vera
+	  Custer mượn, 1 test xác nhận KHÔNG bị Apache Kid miễn nhiễm, 1 test
+	  xác nhận KHÔNG bị Mary Rose bắn trả). Đã tự kiểm bằng trình duyệt
+	  thật (hotseat 8 người, bật "Nhân vật *ex"): bấm "Dùng kỹ năng", chọn
+	  mục tiêu ở xa (bỏ qua khoảng cách), mất đúng 1 máu, ghi log đúng —
+	  không lỗi console. (Tên lệch khuôn "The X" của cả
 	  nhóm, cân nhắc đổi thành "The Fair Killer".)
 	  - *dev đã chốt: MẤT MÁU kể cả khi đòn bị đỡ bằng Missed!. Và CHẶN
 	    không cho dùng khi chỉ còn 1 máu (không cho tự sát).
@@ -499,8 +523,9 @@ mà không ảnh hưởng nhân vật *ex khác.
 	    advanceTurn() như docHolydayUsedThisTurn.
 	  - Mất máu TỰ NGUYỆN ⇒ bắn event RIÊNG (vd FAIR_KILLER_TRADED_LIFE)
 	    thay vì DAMAGE_DEALT, đúng tiền lệ CHUCK_WENGAM_TRADED_LIFE.
-	    [CẦN CHỐT] có gọi triggerLoseLifeHooks() không (Bart Cassidy có
-	    rút bài không) — cùng câu hỏi đã đặt ra ở Blood Brothers.
+	    ✅ CHỐT (2026-08-09): KHÔNG gọi triggerLoseLifeHooks() — mất máu
+	    kiểu này không liên quan gì tới khả năng của Bart Cassidy (không
+	    rút bài), khác Blood Brothers (Bart CÓ rút ở đó).
 	  - KHÔNG đi qua Apache Kid (isImmuneToCard): đây là kỹ năng, không
 	    gắn với lá bài thật nào để tra chất. ĐÃ CÓ TIỀN LỆ — xem ghi
 	    chú "đòn bang trả" của Mary Rose ở trên, chép lại nguyên tắc.
@@ -626,99 +651,157 @@ mà không ảnh hưởng nhân vật *ex khác.
 
 	  Tên hiệu ứng: "nhặt của người vung tay".
 
-	  Khả năng: mỗi khi 1 NGƯỜI CHƠI KHÁC đánh HƠN 4 LÁ trong lượt của
-	  họ, thì từ lá thứ 5 trở đi, MỖI lá làm The Beggar được draw! 1
-	  lần. Ra CƠ hoặc RÔ (đỏ) thì lá đó về tay The Beggar thay vì vào
-	  chồng bài bỏ.
+	  ✅ CHỐT (2026-08-09) — THIẾT KẾ LẠI đáng kể so với bản trên, xem
+	  "*** THIẾT KẾ LẠI ***" ngay dưới. Ngưỡng tần suất giữ ĐÚNG như
+	  *dev đã chốt trước đó (hạ xuống 3 — xét từ lá thứ 4 trở đi), đã
+	  hỏi lại và xác nhận KHÔNG đổi.
 
-	  - Lá VẪN PHÁT TÁC BÌNH THƯỜNG. The Beggar chỉ NHẶT lá đã dùng
-	    xong, KHÔNG chặn hiệu ứng. (Hiểu theo hướng "chặn" thì cần cơ
-	    chế ngắt giữa chừng mà dự án chưa có — đã loại.)
+	  Khả năng: mỗi khi 1 NGƯỜI CHƠI KHÁC đánh HƠN 3 LÁ trong lượt của
+	  họ, thì từ lá thứ 4 trở đi, MỖI lá làm The Beggar được draw! 1
+	  lần. Ra CƠ hoặc RÔ (đỏ — 55,3%) thì lá đó về tay The Beggar.
+
 	  - KHÔNG tính lượt của chính The Beggar.
-	  - [CẦN CHỐT] Lá thứ 5 là TRANG BỊ (nằm trên sân, không vào chồng
-	    bỏ) thì có nhặt được không? Đề xuất: CÓ, gỡ khỏi sân về tay.
-	    Trang bị vốn công khai nên không rò rỉ thông tin gì.
 
-	  - *** CẢNH BÁO TẦN SUẤT — [CẦN CHỐT] TRƯỚC KHI CODE ***
-	    Đánh hơn 4 lá trong 1 lượt là chuyện HIẾM (hay gặp nhất là lượt
-	    xả trang bị: súng + Barrel + Scope + Mustang + Bang! = 5). Ước
-	    lượng ~5% số lượt chạm mốc, mỗi lần dư ~1,5 lá, nhân 55,3%
-	    ⇒ CHỈ ~1,7 LÁ CẢ VÁN. Có ván khả năng không kích hoạt lần nào.
-	    Hai cần gạt rẻ nhất nếu chơi thử thấy nhạt:
-	      (a) Hạ ngưỡng xuống 3 (ăn từ lá thứ 4) -> ~4,3 lá/ván.
-	      (b) Giữ ngưỡng 4 nhưng BỎ draw!, ăn chắc 100% -> ~3 lá/ván.
-	    Nghiêng (a). Bản ghi ở trên là NGUYÊN VĂN chủ dự án (ngưỡng 4 +
-	    draw!), chưa áp dụng cần gạt nào.
-		- *dev: Hạ xuống 3.
+	  *** THIẾT KẾ LẠI (2026-08-09) — CHẶN HẲN HIỆU ỨNG, ÁP DỤNG MỌI LOẠI
+	  LÁ *** — đảo ngược hoàn toàn quyết định cũ ("lá vẫn phát tác bình
+	  thường, chỉ nhặt xác"):
+	  - Ra đỏ: lá đó BỊ VÔ HIỆU HOÀN TOÀN — hiệu ứng KHÔNG xảy ra (kể cả
+	    khi có lợi cho người đánh) — VÀ lá đi THẲNG vào tay The Beggar
+	    thay vì vào chồng bỏ/gắn lên sân.
+	  - ÁP DỤNG CHO MỌI LOẠI LÁ, không chỉ lá có mục tiêu:
+	    · Lá nâu có mục tiêu (Bang!, Panic!, Cat Balou, Jail...): không
+	      ai bị ảnh hưởng gì cả — coi như lá chưa từng được đánh.
+	    · Lá nâu KHÔNG nhắm ai, chỉ lợi cho chính người đánh (Bia, Xe
+	      ngựa, Wells Fargo, Cửa hàng tổng hợp, Saloon...): người đó MẤT
+	      TRẮNG cả lá LẪN tác dụng — vd Xe ngựa bị chặn thì KHÔNG rút
+	      được 2 lá đó (chứ không phải rút xong rồi mới bị nhặt lại).
+	    · Lá trang bị (xanh dương/vàng): KHÔNG gắn lên sân — đi thẳng
+	      vào tay The Beggar. Không có "hiệu ứng" nào để chặn (trang bị
+	      không tự phát tác ngay), chỉ đơn giản đổi hướng đi.
+	  - HỆ QUẢ CÂN BẰNG (khác hẳn bản cũ): đây KHÔNG còn là "nhặt xác vô
+	    hại" nữa — giờ là 1 dạng PHỦ NHẬN THẬT SỰ, có thể huỷ trắng 1
+	    lượt xả bài lớn của đối thủ (vd họ đánh súng mới + Barrel + Bang!
+	    ở lá thứ 4/5, ra đỏ thì Bang! đó KHÔNG XẢY RA và Beggar còn được
+	    thêm bài). Cần ĐÁNH GIÁ LẠI cân bằng ở mục IV — bản đánh giá "YẾU
+	    vì tần suất" trước đó viết cho thiết kế CŨ (chỉ nhặt xác), không
+	    còn đúng hoàn toàn với sức mạnh thật của thiết kế MỚI.
 
-	  GHI CHÚ KHI CODE:
+	  ✅ CHỐT (2026-08-09) — MÁU: GIỮ NGUYÊN 4 máu, KHÔNG hạ xuống 3 dù
+	  đánh giá lại (mục IV) đã nâng hạng từ "YẾU" lên "TRUNG BÌNH-MẠNH,
+	  biến thiên cao". Lý do KHÔNG đụng máu ngay: HP là cần gạt NẶNG
+	  NHẤT (ảnh hưởng sống còn ở MỌI tình huống trong ván), trong khi
+	  điểm đáng lo chỉ tập trung ở ĐÚNG 1 chỗ — nguy cơ dồn 2-3 lần
+	  trúng liên tiếp trong CÙNG 1 lượt xả bài lớn (vd Willy the Kid xả
+	  4-5 Bang!, xem bảng xác suất ở mục IV). Cần gạt ĐÚNG TRỌNG TÂM hơn
+	  nếu sau này chơi thử thấy quá mạnh — thử TRƯỚC KHI nghĩ tới hạ
+	  máu:
+	    · GIỚI HẠN 1 LẦN DRAW!/LƯỢT của mỗi đối phương (kể cả họ xả bao
+	      nhiêu lá vượt ngưỡng, Beggar chỉ thử đúng 1 lần cho lá ĐẦU
+	      TIÊN đủ điều kiện trong lượt đó, không thử tiếp cho các lá
+	      sau). Cắt gần hết phần đuôi rủi ro cao (80-91% trúng ít nhất 1
+	      trong lượt xả 5-6 lá) mà GẦN NHƯ KHÔNG đụng giá trị trung bình
+	      cả ván (đa số lượt kích hoạt chỉ dư 1-2 lá, hiếm khi dư 3+).
+	    · Chỉ hạ máu nếu cần gạt trên vẫn chưa đủ — đúng thứ tự "rẻ
+	      trước, đắt sau" đã dùng cho mọi nhân vật khác trong file này.
+	  Giữ đúng tinh thần "đo bằng chơi thật rồi mới chỉnh" đã áp dụng
+	  nhất quán cho Elena Noir/The Nobody/The Drifter — KHÔNG tự ý nerf
+	  trước khi có bằng chứng thật từ playtest.
+
+	  GHI CHÚ KHI CODE (VIẾT LẠI — đây giờ là nhân vật *ex TỐN CÔNG,
+	  gần ngang The Nobody, KHÔNG còn đơn giản như bản cũ):
 	  - [ĐỔI STATE] cần `cardsPlayedThisTurn: number` — TIN TỐT: lá
 	    Miss Susanna (Wild West Show) cũng cần ĐÚNG field này. Làm 1
 	    lần dùng cho cả hai. KHÔNG tái dùng `cardNamesPlayedThisTurn`
 	    (chỉ ghi lá NÂU, và chỉ có nghĩa khi bật house rule
 	    no_duplicate_card_names).
-	  - Điểm cắm: cuối handlePlayCard(), sau khi đã tăng bộ đếm.
-	  - THỨ TỰ với hiệu ứng của chính lá đó: lá có thể đẩy pending riêng
-	    (Bang! -> NEED_MISSED). [CẦN BÀN] Đề xuất đẩy draw! của Beggar
-	    XUỐNG DƯỚI pending của lá (giải quyết SAU), để không có cảnh lá
-	    Bang! nằm trong tay Beggar trong lúc nạn nhân đang bị hỏi
-	    Missed!.
+	  - ĐIỂM CẮM ĐỔI HẲN so với bản cũ: KHÔNG còn là "cuối
+	    handlePlayCard(), sau khi lá đã phát tác" nữa — giờ phải chặn
+	    NGAY ĐẦU handlePlayCard() (TRƯỚC khi gọi bất kỳ play*() nào),
+	    vì phải có khả năng HUỶ TRỌN việc phát tác chứ không chỉ nhặt
+	    xác sau đó. Đây là mẫu "hoãn lại rồi mới áp dụng" giống hệt
+	    NHÓM B của The Nobody (Panic!/Jail/Saloon/Tequila...), nhưng ÁP
+	    DỤNG CHO TẤT CẢ MỌI LOẠI LÁ chứ không phải chỉ 5 chỗ — phạm vi
+	    rộng hơn hẳn The Nobody, đây là điểm cắm TRUNG TÂM NHẤT trong cả
+	    reduce.ts, rủi ro ảnh hưởng dây chuyền tới MỌI lá bài, cần rà
+	    kỹ hơn bất kỳ nhân vật *ex nào khác kể cả Jeff The Clown.
+	  - Luồng đề xuất: đếm `cardsPlayedThisTurn` TRƯỚC (biết đây có phải
+	    lá thứ 4+ không) -> nếu có -> đẩy NEED_DRAW_CHECK cho Beggar,
+	    CHỜ kết quả rồi MỚI quyết định gọi play*() thật hay chuyển
+	    thẳng lá vào tay Beggar (không gọi play*() gì cả).
 	  - Kỹ năng BẮT BUỘC, không có lựa chọn ⇒ để server/UI tự gửi
 	    RESPOND cho draw!, đừng bắt bấm nút (giống The Nobody).
 	  - Không cần field theo playerId ⇒ không xung đột Vera Custer.
 	  - Không xung đột Vulture Sam (nhặt bài người CHẾT) hay Gary Looter
 	    (Wild West Show, nhặt bài BỎ DƯ cuối lượt) — 3 nguồn khác hẳn
 	    nhau, cùng tồn tại được.
+	  - [CẦN BÀN khi code] Đề xuất làm SAU CÙNG trong cả đợt — không
+	    phải vì luật mơ hồ (đã chốt rõ ở trên) mà vì đây là điểm cắm rủi
+	    ro cao nhất, nên làm sau khi NHÓM B của The Nobody đã chạy ổn
+	    định (2 nhân vật dùng chung 1 kiểu mẫu "hoãn phát tác").
 
-	- The Thief 4 máu — ⬜ CHƯA CODE. Đánh giá sức mạnh ở mục IV.
-	  - *dev đã chốt: dùng hướng "cướp bài đầu lượt", nhắm 2 NGƯỜI TỰ
-	    CHỌN (khác đề xuất ban đầu là "người đang nhiều bài nhất").
+	- The Thief 3 máu (hạ từ 4 — xem ✅ CHỐT 2026-08-09 bên dưới) — ✅ ĐÃ
+	  CODE XONG (2026-08-10, core + UI hotseat/qua mạng + test, đúng thiết
+	  kế "CỘNG THÊM 1 mục tiêu" đã chốt bên dưới — xem đánh giá sức mạnh ở
+	  mục IV). Test: test/the-thief.test.ts (11 test, kể cả 1 test riêng
+	  cho ca Vera Custer mượn). Đã tự kiểm bằng trình duyệt thật (hotseat 8
+	  người, bật "Nhân vật *ex"): rút bài, draw! cộng thêm, chọn mục tiêu,
+	  cướp đúng 1 lá, ghi log đúng — không lỗi console.
+	  - *dev đã chốt: dùng hướng "cướp bài đầu lượt".
 
-	  Tên hiệu ứng: "hai túi một lúc".
+	  Tên hiệu ứng: "một túi thôi cũng đủ" (đổi từ "hai túi một lúc" —
+	  giờ chỉ còn 1 mục tiêu).
 
-	  Khả năng: ĐẦU LƯỢT của mình, The Thief draw! 1 lần. Ra CƠ hoặc RÔ
-	  (đỏ — 55,3%) thì THAY VÌ rút 2 lá từ bộ bài, anh ta chọn 2 người
-	  chơi khác còn sống và lấy NGẪU NHIÊN 1 lá từ tay MỖI người.
-	  - Ra ĐEN: rút 2 lá từ bộ bài như bình thường.
-	  - Người bị chọn mà tay RỖNG: không lấy được gì từ người đó, rút
-	    bù 1 lá từ bộ bài thay thế (đúng tiền lệ Jesse Jones — xem
-	    respondToPickDrawTarget() trong reduce.ts).
-	  - Bàn chỉ còn đúng 1 người khác còn sống: lấy 1 lá, rút bù 1 lá.
+	  ✅ CHỐT (2026-08-09) — THIẾT KẾ LẠI HOÀN TOÀN so với bản trên: đổi
+	  từ "THAY THẾ pha rút, 2 mục tiêu" sang "CỘNG THÊM vào pha rút bình
+	  thường, CHỈ 1 mục tiêu duy nhất" — đồng thời hạ máu 4→3, cân bằng
+	  lại theo hướng mới.
 
-	  - *** ĐIỂM QUAN TRỌNG NHẤT — "THAY VÌ RÚT" chứ KHÔNG PHẢI "RÚT
-	    THÊM" *** [CẦN CHỐT]
-	    Bản chủ dự án chỉ nói "draw đầu lượt để rút bài từ tay 2 người",
-	    không nói rõ có thay thế pha rút hay không. Hai cách hiểu lệch
-	    nhau RẤT XA:
-	      · THAY THẾ (đang ghi ở trên): 55,3% số lượt đổi 2 lá bộ bài
-	        lấy 2 lá của đối thủ. Giá trị ròng = phần TƯỚC ĐOẠT
-	        (~1,1 lá/lượt). Gần ĐÚNG BẰNG Jesse Jones (tước ~1 lá/lượt,
-	        100% số lượt) — cùng 4 máu. CÂN BẰNG TỐT.
-	      · CỘNG THÊM: 2 + 1,1 = 3,1 lá/lượt VÀ vẫn tước của đối thủ.
-	        Mạnh hơn Pixie Pete lại còn kèm tước đoạt — QUÁ MẠNH.
-	    Chốt tạm phương án THAY THẾ vì nó khớp neo Jesse Jones. Nếu chủ
-	    dự án muốn CỘNG THÊM thì phải hạ xuống 3 máu VÀ bỏ bớt 1 mục
-	    tiêu.
+	  Khả năng: ĐẦU LƯỢT của mình, The Thief RÚT 2 LÁ TỪ BỘ BÀI NHƯ BÌNH
+	  THƯỜNG (không thay đổi), rồi draw! 1 lần.
+	  - Ra CƠ hoặc RÔ (đỏ — 55,3%): CỘNG THÊM, chọn 1 người chơi khác
+	    còn sống, lấy NGẪU NHIÊN 1 lá từ tay người đó.
+	  - Ra ĐEN: không có gì thêm, lượt đó y hệt người thường.
+	  - Mục tiêu tay RỖNG: không lấy được gì, KHÔNG rút bù (khác Jesse
+	    Jones — ở đây là CỘNG THÊM chứ không phải THAY THẾ pha rút, nên
+	    "rút bù" không cần thiết, 2 lá gốc từ bộ bài đã có sẵn rồi).
 
-	  GHI CHÚ KHI CODE:
-	  - Dùng lại gần như NGUYÊN hạ tầng Jesse Jones đã có — đây là nhân
-	    vật *ex RẺ NHẤT trong cả 2 đợt.
-	  - Hook onDrawPhase (thay thế hoàn toàn pha rút mặc định), đúng
-	    khuôn Jesse Jones/Pedro Ramirez/Kit Carlson.
-	  - Luồng: đẩy NEED_DRAW_CHECK (source.card = "the_thief",
-	    matchSuits = ["hearts","diamonds"]) -> ra đỏ thì đẩy tiếp
-	    pending hỏi chọn 2 mục tiêu; ra đen thì rút 2 lá, kết thúc.
-	  - [ĐỔI STATE] pending mới NEED_PICK_TWO_STEAL_TARGETS, và RESPOND
-	    cần chỗ chứa 2 mục tiêu ⇒ thêm `targetIds?: string[]`.
+	  ĐÁNH GIÁ LẠI THEO THIẾT KẾ MỚI (thay cho đoạn so sánh Jesse Jones
+	  cũ ở mục IV):
+	  - Kỳ vọng số lá/lượt: 2 (chắc chắn) + 0,553×1 (mục tiêu) ≈ 2,553 lá
+	    — THẤP HƠN Pixie Pete (3 lá/lượt chắc chắn, cũng 3 máu). Bù lại
+	    có phần TƯỚC ĐOẠT ~0,553 lá/lượt (chỉ 55,3% số lượt, không phải
+	    100% như Jesse Jones).
+	  - Nếu tính tước đoạt "đắt" hơn tự rút (đồng thời lợi cho mình VÀ
+	    hại đối phương — hiệu ứng 2 chiều), quy đổi ước lượng giá trị
+	    ròng ~2 + 0,553×2 ≈ 3,1 — xấp xỉ hoặc nhỉnh hơn Pixie Pete 1
+	    chút. Nhưng đây là ước lượng chủ quan, KHÔNG chắc như phép tính
+	    "kỳ vọng lá" thuần tuý bên trên.
+	  - Máu hạ xuống 3 (từ 4) làm nhân vật dễ chết hơn hẳn — cái giá
+	    thật, không phải chỉ trên giấy.
+	  - KẾT LUẬN TẠM: nằm ở vùng "cân bằng, có thể hơi nhẹ" — không rõ
+	    ràng như phương án THAY THẾ cũ (neo thẳng Jesse Jones), cần chơi
+	    thử/mô phỏng bot thật để biết chắc (xem "CÁCH ĐO THỰC TẾ" ở mục
+	    IV, phần The Nobody/The Drifter).
+
+	  GHI CHÚ KHI CODE (CẦN VIẾT LẠI so với bản GHI CHÚ cũ — nhẹ hơn
+	  hẳn nhờ chỉ còn 1 mục tiêu):
+	  - VẪN dùng lại hạ tầng Jesse Jones cho phần "chọn 1 người, lấy
+	    ngẫu nhiên 1 lá" (respondToPickDrawTarget()-style), nhưng đây
+	    giờ là bước CỘNG THÊM sau khi đã rút 2 lá bình thường — KHÔNG
+	    còn là hook onDrawPhase thay thế hoàn toàn pha rút nữa.
+	  - Luồng: rút 2 lá bình thường xong (hoặc ngay TRƯỚC/SAU, cần chốt
+	    thứ tự lúc code) -> đẩy NEED_DRAW_CHECK (source.card =
+	    "the_thief", matchSuits = ["hearts","diamonds"]) -> ra đỏ thì
+	    đẩy tiếp pending chọn 1 mục tiêu; ra đen thì kết thúc luôn.
+	  - [ĐỔI STATE] pending mới, CHỈ CẦN 1 mục tiêu — RESPOND tái dùng
+	    `targetId?: string` ĐÃ CÓ SẴN (không cần `targetIds[]` nữa, nhẹ
+	    hơn bản cũ).
 	  - Lấy NGẪU NHIÊN (không cho tự chọn lá) ⇒ tái dùng RNG của Panic!
-	    (applyPanicEffect()). KHÔNG có tuỳ chọn `letTargetChoose` như
-	    Jesse Jones — giữ đơn giản.
-	  - Sacagaway (Wild West Show, mở bài cả bàn) đang chạy thì VẪN lấy
-	    ngẫu nhiên (FAQ Q17 bộ đó) — cùng nguyên tắc đã ghi cho Flint
-	    Westwood.
-	  - Suzy Lafayette: 2 nạn nhân đều có thể về tay 0 ⇒ gọi
-	    triggerHandEmptyHook() cho CẢ HAI, SAU KHI lấy xong hết.
-	  - Hết giờ (room.ts): tự chọn ngẫu nhiên 2 người còn sống có bài.
+	    (applyPanicEffect()).
+	  - Suzy Lafayette: mục tiêu có thể về tay 0 ⇒ gọi
+	    triggerHandEmptyHook() SAU KHI đã lấy xong.
+	  - Hết giờ (room.ts): tự chọn ngẫu nhiên 1 người còn sống có bài
+	    (hoặc coi như không chọn ai nếu không còn ai có bài).
 	  - Không cần field theo lượt ⇒ không xung đột Vera Custer.
 
 
@@ -972,20 +1055,32 @@ chủ dự án là người quyết định cuối cùng có giữ nguyên hay c
 	    kích hoạt, không đổi câu luật. Cơ 29,6% -> Rô 25,7% (-13%)
 	    -> Bích 22,9% (-23%) -> Nhép 21,8% (-26%).
 
-	The Nobody *ex — theo tôi TRÊN MẶT BẰNG CHUNG, ở mức cần chỉnh số
-	chứ chưa tới mức phải thiết kế lại:
+	The Nobody *ex — ✅ SỬA LỖI SỐ LIỆU (2026-08-09): đoạn dưới đây trước
+	đó dùng NHẦM 29,6% (tỉ lệ chất CƠ) trong khi luật quy định né bằng
+	BÍCH — đúng phải là 22,9%. Đã sửa lại các số bên dưới, kết luận
+	tổng thể (cần chỉnh nếu chơi thử thấy mạnh, chưa tới mức thiết kế
+	lại) KHÔNG đổi, chỉ mức độ nhẹ hơn 1 chút so với bản tính sai.
+
+	Theo tôi TRÊN MẶT BẰNG CHUNG, ở mức cần chỉnh số chứ chưa tới mức
+	phải thiết kế lại:
 
 	- Nhân vật gần nhất để so là Apache Kid (Dodge City): cũng 3 máu,
 	  cũng miễn nhiễm theo chất. Nhưng Apache Kid miễn nhiễm lá chất
 	  Rô (25,7%) và CHỈ với lá nhắm 1 người, KHÔNG áp dụng Duel/
-	  Indians!. The Nobody ăn 29,6%, phủ MỌI thứ kể cả Duel/Indians!/
-	  Gatling/Jail. Mọi khác biệt đều theo hướng mạnh hơn.
-	- Quy ra máu hiệu dụng chỉ tính sát thương: 3 / (1 - 0,296) ~= 4,2
-	  máu. Cộng thêm ~30% chống Panic!/Cat Balou (không nhân vật nào
-	  có) và ~30% chống Jail (lá tempo mạnh nhất game).
-	- So với Jourdonnais (4 máu, Barrel ảo 27,5% chỉ chống Bang!): đây
-	  là đổi 1 máu lấy việc mở rộng vùng phủ gấp ba. Vẫn lời, nhưng
-	  cùng một hạng — không phải phá vỡ cân bằng.
+	  Indians!. The Nobody ăn 22,9% (Bích), phủ MỌI thứ kể cả Duel/
+	  Indians!/Gatling/Jail. Mọi khác biệt đều theo hướng mạnh hơn, dù
+	  bản thân tỉ lệ né THẤP HƠN Apache Kid (22,9% < 25,7%) — bù lại
+	  bằng phạm vi áp dụng rộng hơn nhiều.
+	- Quy ra máu hiệu dụng chỉ tính sát thương: 3 / (1 - 0,229) ≈ 3,89
+	  máu (SỬA từ 4,2 — số cũ dùng nhầm tỉ lệ Cơ). Cộng thêm ~23% chống
+	  Panic!/Cat Balou (không nhân vật nào có) và ~23% chống Jail (lá
+	  tempo mạnh nhất game).
+	- So với Jourdonnais (4 máu, Barrel ảo ~29,6% chỉ chống Bang!): The
+	  Nobody có tỉ lệ né THẤP HƠN cho từng đòn riêng lẻ (22,9% <
+	  29,6%), NHƯNG phủ được thêm Duel/Indians!/Jail/Panic!/Cat Balou —
+	  những thứ Jourdonnais không đụng được. Đổi 1 máu lấy mở rộng vùng
+	  phủ, tỉ lệ né gốc lại còn thấp hơn — vẫn lời nhưng KHÔNG chênh
+	  lệch nhiều như số liệu cũ (4,2 máu) từng cho thấy.
 	- PHẦN AoE THIẾT KẾ TỐT, không cần sửa: 8 lá AoE hại so với 6 lá
 	  AoE lợi (gần 50-50). Ra Cơ lúc bị Gatling là né được, ra Cơ lúc
 	  có Saloon là mất máu hồi. Đối xứng thật sự.
@@ -1009,28 +1104,65 @@ chủ dự án là người quyết định cuối cùng có giữ nguyên hay c
 	     đẹp nhất — không khuyến khích).
 	KHÔNG nên hạ máu: 3 đã là mức thấp nhất trong toàn bộ BANG!.
 
-	The Drifter *ex — theo tôi Ở MỨC TRUNG BÌNH, an toàn hơn The
-	Nobody khá nhiều, và là nhân vật THIẾT KẾ TỐT HƠN dù yếu hơn:
+	The Drifter *ex — ✅ VIẾT LẠI HOÀN TOÀN (2026-08-09): bản dưới đây
+	có 2 lỗi — (1) dùng nhầm 0,296 (tỉ lệ Cơ) thay vì tỉ lệ ĐỎ thật
+	(Cơ+Rô = 55,3%) mà luật quy định; (2) kết luận "để 4 máu là hợp
+	lý" viết TRƯỚC khi *dev chốt hạ xuống 3 máu, chưa từng cập nhật.
+	Viết lại từ đầu, kèm 1 bàn luận quan trọng đã có với chủ dự án về
+	tình huống bị DỒN HOẢ LỰC.
 
-	- Số lần vô hiệu kỳ vọng: 0,296 lần/vòng (tối đa 1). So với
-	  Jourdonnais gặp 2 phát Bang!/vòng thì được ~0,55 lần. Tức là
-	  ÍT HƠN Jourdonnais về số lượng, nhưng phủ rộng hơn hẳn (Jail,
-	  Panic!, Cat Balou, Duel...). Để 4 máu là hợp lý.
+	SO SÁNH ĐÚNG với Jourdonnais (4 máu, Barrel ảo, tung xu ĐỘC LẬP mỗi
+	lần bị Bang!, chỉ chống lá "kiểu Bang!"): The Drifter (3 máu) draw!
+	ĐẦU MỖI LƯỢT CỦA CHÍNH MÌNH, ra đỏ (55,3%) thì có 1 khiên SỐNG tới
+	lượt kế tiếp của chính mình (qua hết mọi lượt người khác xen giữa),
+	dùng được CHẮC CHẮN 100% cho ĐÚNG 1 đòn bất kỳ (tự chọn đòn nào),
+	phủ được cả Đấu tay đôi/Indians!/Thuốc nổ trọn 3 máu/lá High Noon
+	— những thứ Jourdonnais không đụng được lá nào.
+
+	*** ĐIỂM MẤU CHỐT — 2 KỊCH BẢN CHO KẾT QUẢ NGƯỢC NHAU HẲN *** (phát
+	hiện sau khi chủ dự án hỏi lại "bị dồn 3-4 phát thì sao"):
+	  · Bị nhắm ĐƠN LẺ (1 đòn/vòng): Drifter THẮNG rõ — 55,3% chặn chắc
+	    chắn so với 29,6% tung xu của Jourdonnais, cộng phạm vi rộng
+	    hơn hẳn.
+	  · Bị DỒN HOẢ LỰC (vd 3 phát Bang! cùng vòng): Jourdonnais tung xu
+	    RIÊNG cho từng đòn (độc lập) nên càng bị dồn càng có nhiều cơ
+	    hội — kỳ vọng chặn được 3×0,296 ≈ 0,89 đòn. The Drifter CỨNG ở
+	    "chặn tối đa 1 đòn/vòng" dù bị bắn bao nhiêu — kỳ vọng chỉ
+	    0,553×1 ≈ 0,55 đòn. TRONG TÌNH HUỐNG NÀY JOURDONNAIS CHẶN ĐƯỢC
+	    NHIỀU HƠN, không phải Drifter.
+	  Vì The Drifter chỉ 3 máu (dễ thành mục tiêu bị dồn nhất bàn), 2
+	  hiệu ứng gần như TRIỆT TIÊU NHAU: mạnh hơn đúng lúc ít bị chú ý
+	  (bị nhắm đơn lẻ), yếu hơn đúng lúc dễ gặp nhất với máu thấp của
+	  chính mình (bị dồn hoả lực) — bản thân luật "chỉ 1 lần/vòng" đã
+	  TỰ KÌM HÃM sức mạnh đúng ngay chỗ cần kìm hãm, không phải nhược
+	  điểm ngẫu nhiên mà là 1 dạng tự cân bằng có chủ đích trong chính
+	  thiết kế gốc.
+
 	- Có ĐỐI PHÓ THẬT qua bluff: đối phương không biết anh ta có khiên
 	  hay không. Người chơi The Drifter cũng có thể "diễn" — hành xử
 	  như đang có khiên để răn đe. Đây là thứ The Nobody hoàn toàn
 	  thiếu, và là lý do chính đáng để 2 nhân vật cùng tồn tại.
+	- Sức mạnh có xu hướng tăng nhẹ theo SỐ NGƯỜI CHƠI: khiên "sống"
+	  qua toàn bộ lượt người khác xen giữa tới lượt kế tiếp của chính
+	  mình — bàn càng đông, càng nhiều lượt được che (ít lãng phí khiên
+	  vào 1 vòng không ai tấn công), dù trần "chặn tối đa 1" không đổi.
+	  Không phải hiệu ứng lớn, nhưng là biến số thật với 2/3/8 người.
 	- RỦI RO NGƯỢC LẠI — có thể HƠI YẾU: nếu lỡ để lộ kết quả (UI vẽ
 	  sai, hoặc người chơi tự nói ra), đối phương chỉ việc đợi 1 lượt
 	  là khả năng mất gần hết giá trị. Toàn bộ sức mạnh nằm ở chỗ
-	  GIẤU ĐƯỢC. Nếu chơi thử thấy yếu, cần gạt theo thứ tự:
-	    1. Cho lá chắn GIỮ TỚI KHI DÙNG thay vì hết hạn mỗi vòng
-	       (mạnh lên đáng kể — trạng thái ổn định sẽ gần như luôn có
-	       khiên, cân nhắc kỹ).
-	    2. Hạ xuống 3 máu thì KHÔNG phải buff — đó là nerf. Đừng nhầm.
+	  GIẤU ĐƯỢC.
 	- Lá chắn tiêu cả vào lá CÓ LỢI là điểm trừ thật (mất Saloon/Cửa
 	  hàng tổng hợp), nhưng cũng chỉ ~1-2 lần/ván như đã phân tích ở
 	  The Nobody — giữ vì flavour, không tính vào ngân sách.
+
+	✅ CHỐT (2026-08-09): GIỮ NGUYÊN đặc tả gốc (3 máu, đỏ 55,3%, hết
+	hạn mỗi vòng) — KHÔNG áp trước cần gạt nào. Lý do: 2 kịch bản ở
+	trên gần như triệt tiêu nhau nên KHÔNG rõ ràng đây là nhân vật quá
+	mạnh (khác The Nobody — nơi mọi so sánh đều nghiêng 1 chiều). Nếu
+	sau chơi thử thật thấy vẫn mạnh (vd nhóm ít khi dồn hoả lực, để
+	Drifter tự do sống lâu ăn hết phần lợi "bị nhắm đơn lẻ"), cần gạt
+	rẻ nhất là đổi "đỏ" (2 chất, 55,3%) xuống 1 chất — đề xuất Cơ
+	(29,6%, bằng đúng Jourdonnais) — để dành, CHƯA áp dụng.
 
 	CÁCH ĐO THỰC TẾ (khuyến nghị làm trước khi chốt số cho cả 2 nhân
 	vật): dự án đã có sẵn test/bot-simulation.test.ts chạy 1000 ván 4
@@ -1039,7 +1171,19 @@ chủ dự án là người quyết định cuối cùng có giữ nguyên hay c
 	này, so tỉ lệ thắng theo TỪNG VAI. Biên chấp nhận được ~±3-5% so
 	với trung bình. Bot đánh ngẫu nhiên nên không đo được kỹ năng,
 	nhưng đo lệch thô thì rất tốt — và rẻ hơn nhiều so với ngồi đoán
-	trên giấy.
+	trên giấy. LƯU Ý (2026-08-09): cách đo này KÉM TIN CẬY HƠN cho The
+	Beggar cụ thể (xem đánh giá riêng ở dưới) — bot không biết "né" xả
+	nhiều lá như người thật biết bàn có Beggar, số đo sẽ cao hơn thực
+	tế.
+
+	✅ RÀ SOÁT LẠI TOÀN BỘ (2026-08-09): đối chiếu số liệu nền (đếm thật
+	từ cards.ts, xác nhận bảng ở trên ĐÚNG 100%) với từng công thức
+	riêng của 9 nhân vật chưa code. Chỉ phát hiện lỗi số liệu ở The
+	Nobody và The Drifter (đã sửa ở 2 đoạn trên — cả 2 đều nhầm 29,6%
+	là tỉ lệ kích hoạt trong khi luật thật khác). The Dealer/The
+	Drunker/The Gambler/The Sentinel/Fair Killer/Jeff The Clown/The
+	Thief đã kiểm tra lại công thức và số đếm bài liên quan — KHÔNG
+	phát hiện sai sót, giữ nguyên đánh giá đã ghi.
 
 	--- 6 NHÂN VẬT *ex ĐỢT 2 (sau khi đã áp dụng chỉnh sửa của *dev) ---
 
@@ -1120,7 +1264,12 @@ chủ dự án là người quyết định cuối cùng có giữ nguyên hay c
 	  ĐỪNG tăng máu trước khi biết chắc — rất dễ thành nhân vật vừa
 	  khó chịu vừa khó giết.
 
-	The Beggar *ex (4 máu) — YẾU vì TẦN SUẤT, không phải vì con số.
+	The Beggar *ex (4 máu) — ✅ ĐÁNH GIÁ LẠI (2026-08-09): đoạn dưới đây
+	viết cho bản CŨ ("chỉ nhặt xác, không chặn hiệu ứng") — ĐÃ LỖI THỜI
+	sau khi thiết kế lại thành "chặn hẳn + áp dụng mọi loại lá". Giữ lại
+	nguyên văn để đối chiếu lịch sử, đánh giá MỚI viết ngay sau.
+
+	[BẢN CŨ, không còn đúng] YẾU vì TẦN SUẤT, không phải vì con số.
 	Ước lượng ~1,7 lá cả ván (xem tính toán ở phần đặc tả), có ván
 	khả năng không kích hoạt lần nào. So với Jesse Jones ~10 lá/ván
 	thì đây gần như là nhân vật 4 máu không kỹ năng.
@@ -1130,20 +1279,82 @@ chủ dự án là người quyết định cuối cùng có giữ nguyên hay c
 	đụng tới.
 	Bù lại, việc tách tên ra là RẤT ĐÚNG: "kẻ ăn mày nhặt thứ người
 	giàu vung ra" khớp cơ chế hơn hẳn so với gọi nó là trộm, và biện
-	minh được cho tính bị động của khả năng. Chỉ cần chỉnh tần suất
-	(hạ ngưỡng xuống 3) là thành một nhân vật tốt.
+	minh được cho tính bị động của khả năng.
 
-	The Thief *ex (4 máu, bản THAY THẾ pha rút) — CÂN BẰNG TỐT, neo
-	gần như trùng khít Jesse Jones:
-	  · Jesse Jones: tước ~1 lá/lượt, 100% số lượt, 4 máu.
-	  · The Thief:   tước ~1,1 lá/lượt (2 x 55,3%), 4 máu.
-	Cùng giá trị kỳ vọng, khác ở HÌNH DẠNG rủi ro: Jesse Jones đều đặn
-	và chắc chắn; The Thief bấp bênh nhưng khi trúng thì đánh vào 2
-	người cùng lúc — giá trị chiến thuật cao hơn (chia đều áp lực, hoặc
-	dồn vào 2 mối nguy). Đổi lại 44,7% số lượt anh ta không có gì đặc
-	biệt. Đây là kiểu đánh đổi lành mạnh, không cần chỉnh.
-	CẢNH BÁO: toàn bộ đánh giá trên CHỈ đúng với bản THAY THẾ. Nếu chốt
-	bản CỘNG THÊM thì nhân vật vọt lên trên đường cong ngay, xem mục
-	[CẦN CHỐT] ở phần đặc tả.
-	Ghi chú vui: đây là nhân vật *ex RẺ NHẤT để code trong cả 2 đợt —
-	hạ tầng Jesse Jones đã lo gần hết.
+	[ĐÁNH GIÁ MỚI, theo thiết kế "chặn hẳn + mọi loại lá", ngưỡng đã
+	chốt xét từ lá thứ 4] Tần suất kích hoạt KHÔNG đổi (vẫn ~4,3 lá cả
+	ván theo ước lượng cũ, ngưỡng 3), nhưng GIÁ TRỊ MỖI LẦN kích hoạt
+	tăng vọt — đây không còn là "nhặt xác miễn phí, không ai thiệt gì"
+	mà là PHỦ NHẬN THẬT SỰ:
+	- Đòn "đánh nhầm đối tượng" ở bản cũ giờ thành ĐIỂM MẠNH THẬT chứ
+	  không chỉ là điểm trừ thiết kế: người đang dốc bài (xả trang bị +
+	  Bang!) THƯỜNG là người đang dồn lực tấn công/phòng thủ mạnh nhất
+	  lượt đó — chặn ĐÚNG lúc đó (vd huỷ luôn phát Bang! kết liễu, hoặc
+	  huỷ luôn lượt xả Barrel+Scope+Mustang) có thể đổi cả cục diện ván,
+	  không phải chuyện nhỏ.
+	- Rủi ro ngược cho người bị nhắm: nếu đối thủ CHỦ Ý xả >3 lá NÂU
+	  không nhắm ai để "câu" Beggar chặn nhầm phe mình (vd tự đánh Bia/
+	  Xe ngựa dư thừa để nhử), khả năng có thể bị LỢI DỤNG NGƯỢC — cần
+	  chơi thử mới biết mức độ thật.
+	- KHÔNG CÒN AN TOÀN Ở MỨC "4 máu không kỹ năng" nữa — cần đánh giá
+	  lại từ đầu bằng bot-simulation thật (xem "CÁCH ĐO THỰC TẾ" ở
+	  The Nobody/The Drifter) trước khi coi đây là nhân vật yếu.
+	- Cái giá bù lại: tần suất vẫn thấp (không phải mỗi lượt), và hiệu
+	  ứng CHỈ xảy ra khi đối thủ TỰ CHỌN xả nhiều bài — người chơi giỏi
+	  có thể né bằng cách chia nhỏ lượt xả bài qua nhiều lượt nếu biết
+	  bàn có Beggar (lại tạo ra 1 lớp đối phó/bluff nữa, giống The
+	  Drifter — điểm cộng thiết kế không ngờ tới).
+
+	[ĐÁNH GIÁ LẦN 2 (2026-08-09), sau khi tính kỹ bằng số] Bản trên vẫn
+	còn hời hợt ở chỗ lẫn "tần suất kích hoạt" với "giá trị mỗi lần
+	kích hoạt". Tách rõ:
+	- Mỗi lá TỪ NGƯỠNG TRỞ ĐI có draw! RIÊNG (độc lập) — 1 lượt xả nhiều
+	  lá không phải "1 lần tung xu" mà là NHIỀU lần liên tiếp:
+	      1 lá dư: P(trúng ≥1) = 55,3%, kỳ vọng 0,55 lần
+	      2 lá dư: P(trúng ≥1) = 80,0%, kỳ vọng 1,11 lần
+	      3 lá dư: P(trúng ≥1) = 91,1%, kỳ vọng 1,66 lần
+	  ⇒ Đúng lượt "kết liễu" kiểu Willy the Kid (xả 4-5 Bang! liên tiếp,
+	  không giới hạn 1 Bang!/lượt) — Beggar có 80-91% HUỶ ĐƯỢC ÍT NHẤT 1
+	  PHÁT. The Beggar gần như là KHẮC TINH CẤU TRÚC của lối chơi
+	  Willy the Kid — đáng chú ý khi playtest có mặt cả 2.
+	- GIÁ TRỊ RĂN ĐE bị bỏ sót ở bản đánh giá lần 1: ngay cả KHÔNG trúng
+	  lần nào cả ván, sự tồn tại của Beggar vẫn có thể buộc đối thủ TỰ
+	  GIỚI HẠN số lá đánh/lượt (né lượt trang bị lớn/combo lớn) — đúng
+	  loại "đối phó thật, làm đối thủ đổi quyết định" mà The Nobody bị
+	  chê THIẾU. The Beggar CÓ đặc điểm này.
+	- "Rủi ro bị lợi dụng ngược" (nhử mồi bằng lá rác) nêu ở bản trên
+	  SAI — mỗi lá kiểm tra ĐỘC LẬP theo đúng thứ tự đánh, không có
+	  chuyện "dùng hết lượt kiểm tra" bằng 1 lá nhử. Rút lại lo ngại
+	  này.
+	- Người chơi giỏi VẪN có cách giảm thiệt hại thật: dồn lá QUAN
+	  TRỌNG NHẤT vào 3 lá ĐẦU (trước ngưỡng), để lá phụ/thừa ở vị trí 4+
+	  — bảo vệ được đòn kết liễu, chỉ mất lá rác. Đây là kỹ năng sắp
+	  xếp thứ tự đánh bài, không phải "né hoàn toàn".
+	⇒ XẾP HẠNG LẠI: không còn "YẾU", chuyển thành TRUNG BÌNH-MẠNH, BIẾN
+	THIÊN RẤT CAO (có ván không làm gì vì không ai xả >3 lá, có ván 1
+	lượt duy nhất phá banh kế hoạch đối thủ). ✅ CHỐT: GIỮ 4 máu, KHÔNG
+	hạ ngay (xem lý do + cần gạt dự phòng "giới hạn 1 lần draw!/lượt"
+	ở phần đặc tả) — HP là cần gạt nặng nhất, chỉ dùng SAU KHI cần gạt
+	nhẹ hơn (giới hạn 1 lần/lượt) đã thử mà vẫn chưa đủ.
+	LƯU Ý ĐO LƯỜNG: bot-simulation (vốn được đề xuất chung cho cả nhóm)
+	KÉM TIN CẬY HƠN với riêng nhân vật này — bot đánh ngẫu nhiên không
+	biết "né" xả nhiều lá như người thật biết bàn có Beggar, nên số đo
+	từ bot sẽ CAO HƠN thực tế chơi với người.
+
+	The Thief *ex — ✅ ĐÁNH GIÁ LẠI (2026-08-09) theo thiết kế MỚI (3
+	máu, bản CỘNG THÊM 1 mục tiêu duy nhất, thay cho bản THAY THẾ 2 mục
+	tiêu/4 máu cũ ở trên — xem ✅ CHỐT trong phần đặc tả):
+	  · Pixie Pete: 3 lá/lượt chắc chắn, không tước đoạt, 3 máu.
+	  · The Thief:  2 + 0,553×1 ≈ 2,553 lá/lượt, CỘNG tước đoạt ~0,553
+	    lá/lượt (chỉ 55,3% số lượt), cũng 3 máu.
+	Không còn neo thẳng vào Jesse Jones nữa (đó là bài toán của bản CŨ)
+	— giờ đối trọng gần nhất là Pixie Pete, và The Thief kỳ vọng lá
+	THUẦN TUÝ ít hơn 1 chút, đổi lại có phần tước đoạt không phải lúc
+	nào cũng có. XẾP HẠNG TẠM: cân bằng, có thể HƠI NHẸ — không rõ ràng
+	như bản cũ (thứ chỉ cần so 1 nhân vật là xong), cần đo bằng
+	bot-simulation thật trước khi tin chắc (xem "CÁCH ĐO THỰC TẾ" ở
+	trên). Máu hạ 4→3 là cái giá thật, không chỉ trên giấy — dễ chết
+	hơn hẳn cùng lúc với hiệu ứng đã nhẹ đi.
+	Ghi chú vui: dù thiết kế đổi, vẫn là nhân vật *ex RẺ NHẤT để code —
+	hạ tầng Jesse Jones lo gần hết, giờ còn NHẸ HƠN NỮA vì chỉ 1 mục
+	tiêu (không cần `targetIds[]`, không cần pending 2 mục tiêu).

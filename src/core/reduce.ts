@@ -26,7 +26,7 @@ import type { EventId } from "./events";
 import { isEventActive } from "./events";
 import { giveCardToPlayer, transferDynamiteToNextPlayer } from "./equipment";
 import { nextRandom } from "./rng";
-import type { Action, GameEvent, GameState, PendingAction, PlayerState, Rank } from "./types";
+import type { Action, DrifterShieldResume, GameEvent, GameState, PendingAction, PlayerState, Rank } from "./types";
 import { checkWinCondition } from "./win";
 
 export interface Result {
@@ -199,6 +199,39 @@ function handleDrawCards(
 // gốc "sau bước đánh bài"): hỏi NGAY tại đây.
 function completeDrawPhase(next: GameState, player: PlayerState, events: GameEvent[]): Result {
   next.turnPhase = "play";
+  // Bộ mở rộng "custom_characters" (The Thief, xem House_Rule.txt mục I) —
+  // CỘNG THÊM sau khi pha rút (dù rút bằng đường nào — bình thường/Pedro
+  // Ramirez/Jesse Jones/Kit Carlson/Pat Brennan/Elena Noir/Hard Liquor... đều
+  // đi qua đúng 1 điểm cuối này) đã xong: đẩy draw! kiểm tra chất đỏ. Đẩy
+  // TRƯỚC Ranch bên dưới — pending là STACK (xử lý phần tử CUỐI trước, quy
+  // tắc 5 CLAUDE.md) nên đẩy trước = nằm DƯỚI = giải quyết SAU: Ranch (đổi
+  // bài, cần người chơi tự chọn) hỏi trước, draw! tự động không cần chọn gì
+  // của The Thief xử lý sau cùng.
+  if (getEffectiveCharacterDefinition(next, player)?.canStealCardOnRedDraw === true) {
+    next.pending.push({
+      kind: "NEED_DRAW_CHECK",
+      player: player.id,
+      source: { card: "the_thief" },
+      matchSuits: ["hearts", "diamonds"],
+    });
+  }
+  // Bộ mở rộng "custom_characters" (The Drifter, xem House_Rule.txt mục I) —
+  // draw! BÍ MẬT đầu lượt CHÍNH mình, cùng khuôn The Thief ở trên (đẩy ở đúng
+  // 1 điểm cuối pha rút, KHÔNG đẩy ở Bước 0/applyJailCheck() — tự phát hiện đặt
+  // ở đó sẽ SAI vì Lasso khiến applyJailCheck() không bao giờ chạy tới, và bị
+  // Jail giam không thoát thì lượt bị bỏ qua hoàn toàn trước khi tới đây, đúng
+  // ý "đầu lượt của chính mình" mà không cần code riêng cho 2 ca đó — giống
+  // NEED_PICK_ARMED của Elena Noir cũng chỉ hỏi ở pha rút). Kết quả xử lý ở
+  // nhánh RIÊNG trong resolveDrawCheck() (source.card === "the_drifter") —
+  // KHÔNG dùng chung logic thường vì phải giữ bí mật, xem ghi chú ở đó.
+  if (getEffectiveCharacterDefinition(next, player)?.hasDrifterShield === true) {
+    next.pending.push({
+      kind: "NEED_DRAW_CHECK",
+      player: player.id,
+      source: { card: "the_drifter" },
+      matchSuits: ["hearts", "diamonds"],
+    });
+  }
   if (isEventActive(next, "ranch")) {
     next.pending.push({ kind: "NEED_RANCH_EXCHANGE", player: player.id });
   }
@@ -670,6 +703,51 @@ function respondToPickMarcelCompanion(
   return {
     state: next,
     events: [{ type: "MARCEL_COMPANION_PICKED", playerId: player.id, companionId: target.id }],
+  };
+}
+
+// Bộ mở rộng "custom_characters" (The Thief, xem House_Rule.txt mục I) — trả
+// lời NEED_PICK_THIEF_TARGET. KHÔNG bắt buộc như Marcel Marcelo ở trên — bỏ
+// trống targetId = tự nguyện bỏ qua, không lấy gì cả (an toàn để room.ts vẫn
+// có 1 hành động hợp lệ khi hết giờ mà không còn ai có bài, xem
+// buildReactiveTimeoutAction()). Kèm targetId hợp lệ (còn sống, khác chính
+// mình): tay rỗng -> không lấy được gì (KHÔNG rút bù, đúng luật — đây là
+// CỘNG THÊM sau khi đã rút 2 lá gốc, khác Jesse Jones); còn bài -> cướp
+// NGẪU NHIÊN 1 lá (tái dùng đúng cách chọn ngẫu nhiên của Panic!/Jesse Jones).
+function respondToPickThiefTarget(
+  state: GameState,
+  action: Action & { type: "RESPOND" }
+): Result {
+  const next = cloneState(state);
+  next.pending.pop();
+  const player = next.players.find((p) => p.id === action.playerId)!;
+
+  if (!action.targetId) {
+    return { state: next, events: [] };
+  }
+  if (action.targetId === player.id) {
+    throw new Error("Không thể tự cướp bài của chính mình");
+  }
+  const target = next.players.find((p) => p.id === action.targetId);
+  if (!target || !target.alive) {
+    throw new Error("Mục tiêu không hợp lệ");
+  }
+  if (target.hand.length === 0) {
+    return { state: next, events: [] };
+  }
+
+  const { value, nextState } = nextRandom(next.rngState);
+  next.rngState = nextState;
+  const index = Math.floor(value * target.hand.length);
+  const [stolenCardId] = target.hand.splice(index, 1);
+  giveCardToPlayer(next.players, player, stolenCardId);
+
+  return {
+    state: next,
+    events: [
+      { type: "CARD_STOLEN", playerId: player.id, fromPlayerId: target.id, cardId: stolenCardId },
+      ...triggerHandEmptyHook(next, target), // Giai đoạn 5 (Suzy Lafayette)
+    ],
   };
 }
 
@@ -2015,6 +2093,17 @@ function playBeer(next: GameState, player: PlayerState, cardId: string): Result 
     if (restored > 0) {
       player.hp += restored;
       events.push({ type: "HP_RESTORED", playerId: player.id, amount: restored });
+      // Bộ mở rộng "custom_characters" (The Drunker, xem House_Rule.txt mục
+      // I) — ăn theo Beer của NGƯỜI KHÁC, CHỈ khi Beer THẬT SỰ hồi máu (restored
+      // > 0). Loại chính người vừa uống ra khỏi vòng lặp — Beer tự đánh không
+      // ăn theo, đúng *dev đã chốt.
+      for (const other of next.players) {
+        if (!other.alive || other.id === player.id) continue;
+        const drunkerHooks = getEffectiveCharacterHooks(next, other);
+        if (drunkerHooks.onOtherPlayerHealedByBeer) {
+          events.push(...drunkerHooks.onOtherPlayerHealedByBeer(next, other, player));
+        }
+      }
     }
   } else {
     // Báo cho người chơi biết rõ lá vừa đánh KHÔNG có tác dụng gì (khác im
@@ -2102,6 +2191,8 @@ function handleUseAbility(state: GameState, action: Action & { type: "USE_ABILIT
   if (definition?.canPayLifeToDraw === true) return useChuckWengamTrade(state, action, player);
   if (definition?.canDiscardEquipmentToDraw === true) return useJoseDelgadoTrade(state, action, player);
   if (definition?.canDiscardTwoForBang === true) return useDocHolydayShot(state, action, player);
+  if (definition?.canDiscardTwoToGambleDraw === true) return useGamblerDraw(state, action, player);
+  if (definition?.canShootByLosingLife === true) return useFairKillerShot(state, action, player);
   throw new Error("Nhân vật này không có kỹ năng chủ động này");
 }
 
@@ -2305,6 +2396,123 @@ function useDocHolydayShot(
   };
 }
 
+// Bộ mở rộng "custom_characters" (The Gambler, xem House_Rule.txt mục I) —
+// CHỈ dùng được TRONG lượt của chính mình (khác Sid Ketchum), KHÔNG giới hạn
+// số lần (khác Doc Holyday/José Delgado): bỏ ĐÚNG 2 lá KHÁC NHAU bất kỳ rồi
+// draw! (source.card = "the_gambler") — đẩy pending rồi TRẢ VỀ NGAY (quy tắc
+// 4 CLAUDE.md), resolveDrawCheck() mới thật sự rút 3 lá (khớp đỏ) hay 1 lá
+// (không khớp). Đẩy pending qua NEED_DRAW_CHECK thay vì rút thẳng — để Lucky
+// Duke (lật thêm 1 lá, lấy kết quả có lợi) áp dụng ĐÚNG cho draw! này mà
+// không cần code riêng, xem resolveDrawCheck().
+function useGamblerDraw(
+  state: GameState,
+  action: Action & { type: "USE_ABILITY" },
+  player: PlayerState
+): Result {
+  assertCurrentPlayer(state, player.id);
+  assertPhase(state, "play");
+  if (state.pending.length > 0) {
+    throw new Error("Không thể dùng kỹ năng khi còn việc đang chờ xử lý");
+  }
+  const [cardId1, cardId2] = action.cardIds;
+  if (cardId1 === undefined || cardId2 === undefined || action.cardIds.length !== 2 || cardId1 === cardId2) {
+    throw new Error("Phải chọn ĐÚNG 2 lá KHÁC NHAU để bỏ");
+  }
+  const index1 = player.hand.indexOf(cardId1);
+  const index2 = player.hand.indexOf(cardId2);
+  if (index1 === -1 || index2 === -1) {
+    throw new Error("Cả 2 lá phải nằm trong tay của chính bạn");
+  }
+
+  const next = cloneState(state);
+  const nextPlayer = next.players.find((p) => p.id === player.id)!;
+
+  // Bỏ theo chỉ số GIẢM DẦN để splice() không làm lệch chỉ số của nhau.
+  for (const index of [index1, index2].sort((a, b) => b - a)) {
+    const [cardId] = nextPlayer.hand.splice(index, 1);
+    next.discardPile.push(cardId);
+  }
+  // CỐ Ý KHÔNG gọi triggerHandEmptyHook() ở đây (khác José Delgado/Doc
+  // Holyday) — draw! của kỹ năng này CHƯA xảy ra ngay, còn phải chờ RESPOND
+  // riêng ở resolveDrawCheck(). Gọi ở đây sẽ có khoảng hở "tay vừa về 0"
+  // trước khi rút 1-3 lá thật, khiến Suzy Lafayette rút bù 1 lá THỪA không
+  // cần thiết. Hook gọi Ở ĐÓ, sau khi rút xong (xem House_Rule.txt mục I).
+  next.pending.push({
+    kind: "NEED_DRAW_CHECK",
+    player: nextPlayer.id,
+    source: { card: "the_gambler" },
+    matchSuits: ["hearts", "diamonds"],
+  });
+
+  return {
+    state: next,
+    events: [{ type: "GAMBLER_DISCARDED", playerId: nextPlayer.id, cardIds: [cardId1, cardId2] }],
+  };
+}
+
+// Bộ mở rộng "custom_characters" (The Fair Killer, xem House_Rule.txt mục I)
+// — CHỈ dùng được TRONG lượt của chính mình (khác Sid Ketchum), tối đa 1
+// LẦN/lượt (giống Doc Holyday): KHÔNG bỏ lá nào (cardIds phải rỗng, giống
+// Chuck Wengam), tự mất 1 máu để bắn hiệu ứng Bang! vào `targetId` bất kỳ —
+// bỏ qua khoảng cách/tầm súng HOÀN TOÀN (không gọi getWeaponRange()/
+// computeDistance(), khác Doc Holyday), KHÔNG tính vào bangCountThisTurn.
+function useFairKillerShot(
+  state: GameState,
+  action: Action & { type: "USE_ABILITY" },
+  player: PlayerState
+): Result {
+  assertCurrentPlayer(state, player.id);
+  assertPhase(state, "play");
+  if (state.pending.length > 0) {
+    throw new Error("Không thể dùng kỹ năng khi còn việc đang chờ xử lý");
+  }
+  if (state.fairKillerUsedThisTurn) {
+    throw new Error("Đã dùng kỹ năng này trong lượt này");
+  }
+  if (action.cardIds.length > 0) {
+    throw new Error("Kỹ năng này không cần bỏ lá nào — chỉ tốn máu");
+  }
+  if (player.hp <= 1) {
+    throw new Error("Không thể mất máu cuối cùng theo cách này");
+  }
+  if (!action.targetId) {
+    throw new Error("Kỹ năng này cần chọn mục tiêu");
+  }
+  if (action.targetId === player.id) {
+    throw new Error("Không thể tự nhắm vào chính mình");
+  }
+  const target = state.players.find((p) => p.id === action.targetId);
+  if (!target || !target.alive) {
+    throw new Error("Mục tiêu không hợp lệ");
+  }
+
+  const next = cloneState(state);
+  const nextPlayer = next.players.find((p) => p.id === player.id)!;
+  const nextTarget = next.players.find((p) => p.id === target.id)!;
+
+  // Mất máu NGAY, KHÔNG hoàn lại dù mục tiêu đỡ được (*dev đã chốt) — trả giá
+  // trước khi biết kết quả, đúng tinh thần "hoàn toàn tự nguyện". KHÔNG gọi
+  // triggerLoseLifeHooks() (✅ CHỐT trong file luật) — mất máu kiểu này không
+  // liên quan gì tới khả năng của Bart Cassidy, khác Blood Brothers.
+  nextPlayer.hp -= 1;
+  next.fairKillerUsedThisTurn = true;
+
+  // KHÔNG đi qua Apache Kid (isImmuneToCard) — đây là kỹ năng, không gắn với
+  // lá bài thật nào để tra chất Rô, đúng tiền lệ đòn "bang trả" của Mary Rose.
+  // source.card = "fair_killer" (khác "bang") -> Mary Rose không phản đòn lại
+  // (đúng luật: chỉ phản đòn lá Bang! ĐƠN LẺ đích thực). VẪN tôn trọng Barrel/
+  // Jourdonnais/Missed! của mục tiêu như đòn Bang! bình thường.
+  const shotEvents = pushMissedReactionUnconditional(next, nextTarget, { card: "fair_killer", from: nextPlayer.id });
+
+  return {
+    state: next,
+    events: [
+      { type: "FAIR_KILLER_TRADED_LIFE", playerId: nextPlayer.id, targetId: nextTarget.id },
+      ...shotEvents,
+    ],
+  };
+}
+
 // ----- Chọn nhân vật đầu ván (xem CharacterChoice ở types.ts) -----
 // KHÔNG dùng chung switch/handleRespond() với `pending` — đây KHÔNG phải
 // ngăn xếp, mỗi người chọn ĐỘC LẬP, không cần đúng thứ tự. Validate trên
@@ -2432,6 +2640,8 @@ function handleRespond(state: GameState, action: Action & { type: "RESPOND" }): 
       return respondToPickArmed(state, action);
     case "NEED_PICK_MARCEL_COMPANION":
       return respondToPickMarcelCompanion(state, action);
+    case "NEED_PICK_THIEF_TARGET":
+      return respondToPickThiefTarget(state, action);
     case "NEED_BLOOD_BROTHERS_GIFT":
       return respondToBloodBrothersGift(state, action);
     case "NEED_PICK_HARD_LIQUOR":
@@ -2442,6 +2652,10 @@ function handleRespond(state: GameState, action: Action & { type: "RESPOND" }): 
       return respondToRanchExchange(state, action);
     case "NEED_DISCARD_MISSED_OR_DAMAGE":
       return respondToRussianRouletteChain(state, action, top);
+    case "NEED_USE_DRIFTER_SHIELD":
+      return respondToUseDrifterShield(state, action, top);
+    case "NEED_USE_DEALER_TRADE":
+      return respondToUseDealerTrade(state, action, top);
     default: {
       const neverKind: never = top;
       throw new Error(`Chưa hỗ trợ phản hồi loại việc: ${JSON.stringify(neverKind)}`);
@@ -2492,6 +2706,11 @@ function respondDiscardOrDamage(
     return { state: next, events };
   }
 
+  // Bộ mở rộng "custom_characters" (The Drifter) — sắp chắc chắn mất máu
+  // (không bỏ Bang!/không có gì để bỏ), hỏi dùng khiên trước khi áp.
+  if (maybeAskDrifterShield(next, player, 1, attackerId, { kind: "indians" })) {
+    return { state: next, events: [] };
+  }
   return { state: next, events: applyDamage(next, player, 1, attackerId) };
 }
 
@@ -2641,6 +2860,20 @@ function respondToMissed(
     return { state: next, events };
   }
 
+  // Bộ mở rộng "custom_characters" (The Drifter) — sắp chắc chắn mất máu
+  // (không đỡ được/không dùng Missed!), hỏi dùng khiên trước khi áp — SAU
+  // CÙNG, đúng lúc đòn đã chắc chắn trúng (Barrel/Missed! đã hết cơ hội né).
+  if (maybeAskDrifterShield(next, player, 1, top.source.from, { kind: "bang_missed", missedTop: top })) {
+    return { state: next, events: [] };
+  }
+
+  // Bộ mở rộng "custom_characters" (The Dealer) — cùng thời điểm với Drifter ở
+  // trên (không xung đột — 1 người không thể vừa là Drifter vừa là Dealer):
+  // hỏi có muốn đưa 2 lá ngẫu nhiên cho người vừa đánh mình để vô hiệu đòn.
+  if (maybeAskDealerTrade(next, player, top)) {
+    return { state: next, events: [] };
+  }
+
   const damageEvents = applyDamage(next, player, 1, top.source.from);
 
   // Bộ mở rộng "custom_characters" (Mary Rose, xem House_Rule.txt mục I) —
@@ -2710,10 +2943,155 @@ function respondToRussianRouletteChain(
   }
 
   const amount = Math.min(2, player.hp);
+  // Bộ mở rộng "custom_characters" (The Drifter) — "Roulette khai hoả" sắp
+  // chắc chắn mất máu, hỏi dùng khiên TRƯỚC KHI trừ hp — chặn TRỌN cả amount.
+  if (maybeAskDrifterShield(next, player, amount, null, { kind: "russian_roulette" })) {
+    return { state: next, events: [] };
+  }
   player.hp -= amount;
   const events: GameEvent[] = [{ type: "RUSSIAN_ROULETTE_FIRED", playerId: player.id, amount }];
   events.push(...triggerLoseLifeHooks(next, player, amount, null));
   events.push(...eliminateIfDead(next, player, null));
+  return { state: next, events };
+}
+
+// Bộ mở rộng "custom_characters" (The Drifter, xem House_Rule.txt mục I) —
+// trả lời NEED_USE_DRIFTER_SHIELD. Đọc drifterShield[player.id] THẬT (KHÔNG
+// tin action.useShield mù quáng) — nếu client gửi true nhưng không có khiên
+// thật (hết giờ tự trả lời sai/client cũ/gian lận) thì coi như từ chối,
+// KHÔNG báo lỗi khác biệt, để không tạo tín hiệu phân biệt được người có/
+// không có khiên. Sau khi biết chặn hay không, tiếp tục ĐÚNG phần "sau đó"
+// của luồng gốc theo `top.resume.kind` — mỗi nhánh gọi lại đúng logic áp
+// damage gốc (applyDamage() hoặc tự trừ hp + triggerLoseLifeHooks/
+// eliminateIfDead cho Dynamite/Russian Roulette) rồi mới chạy tiếp phần còn
+// lại (Mary Rose reflect, continueAfterMissedResolved(), Duel/Jail-check...).
+function respondToUseDrifterShield(
+  state: GameState,
+  action: Action & { type: "RESPOND" },
+  top: PendingAction & { kind: "NEED_USE_DRIFTER_SHIELD" }
+): Result {
+  const next = cloneState(state);
+  next.pending.pop();
+  const player = next.players.find((p) => p.id === action.playerId)!;
+
+  const blocked = action.useShield === true && next.drifterShield[player.id] === true;
+  const events: GameEvent[] = [];
+  if (blocked) {
+    delete next.drifterShield[player.id]; // dùng 1 lần là hết
+    events.push({ type: "DRIFTER_SHIELD_USED", playerId: player.id, amount: top.amount });
+  }
+
+  switch (top.resume.kind) {
+    case "indians": {
+      if (!blocked) events.push(...applyDamage(next, player, top.amount, top.killerId));
+      return { state: next, events };
+    }
+
+    case "bang_missed": {
+      const damageEvents: GameEvent[] = [];
+      if (!blocked) {
+        damageEvents.push(...applyDamage(next, player, top.amount, top.killerId));
+        // Bộ mở rộng "custom_characters" (Mary Rose) — xem ghi chú gốc ở
+        // respondToMissed(): CHỈ Bang! ĐƠN LẺ, chỉ khi THẬT SỰ mất máu.
+        if (
+          top.resume.missedTop.source.card === "bang" &&
+          getEffectiveCharacterDefinition(next, player)?.canReflectBangDamage === true
+        ) {
+          const attacker = top.killerId ? next.players.find((p) => p.id === top.killerId) : undefined;
+          if (attacker?.alive) damageEvents.push(...pushMaryRoseReflection(next, player, attacker));
+        }
+      }
+      damageEvents.push(...continueAfterMissedResolved(next, top.resume.missedTop));
+      return { state: next, events: [...events, ...damageEvents] };
+    }
+
+    case "duel": {
+      const damageEvents = blocked ? [] : applyDamage(next, player, top.amount, top.killerId);
+      return { state: next, events: [...events, ...damageEvents, ...drainDuelBangDrawPending(next)] };
+    }
+
+    case "high_noon_turn_start": {
+      const damageEvents = blocked ? [] : applyDamage(next, player, top.amount, null);
+      return {
+        state: next,
+        events: [...events, ...damageEvents, ...continueTurnStartAfterHighNoonDamage(next, player)],
+      };
+    }
+
+    case "dynamite": {
+      const damageEvents: GameEvent[] = [];
+      if (!blocked) {
+        player.hp -= top.amount;
+        damageEvents.push({ type: "DYNAMITE_EXPLODED", playerId: player.id, amount: top.amount });
+        damageEvents.push(...triggerLoseLifeHooks(next, player, top.amount, null));
+        damageEvents.push(...eliminateIfDead(next, player, null));
+      }
+      if (player.alive) applyJailCheck(next, player);
+      return { state: next, events: [...events, ...damageEvents] };
+    }
+
+    case "russian_roulette": {
+      const damageEvents: GameEvent[] = [];
+      if (!blocked) {
+        player.hp -= top.amount;
+        damageEvents.push({ type: "RUSSIAN_ROULETTE_FIRED", playerId: player.id, amount: top.amount });
+        damageEvents.push(...triggerLoseLifeHooks(next, player, top.amount, null));
+        damageEvents.push(...eliminateIfDead(next, player, null));
+      }
+      return { state: next, events: [...events, ...damageEvents] };
+    }
+  }
+}
+
+// Bộ mở rộng "custom_characters" (The Dealer, xem House_Rule.txt mục I) — trả
+// lời NEED_USE_DEALER_TRADE. Đọc lại điều kiện THẬT (còn ≥2 lá, người nhận
+// còn sống) thay vì tin action.useDealerTrade mù quáng — phòng trường hợp tay
+// đã đổi giữa lúc đẩy pending và lúc trả lời (dù hiếm, không phải bí mật nên
+// không cần kỹ tính như Drifter, chỉ là phòng thủ chung).
+function respondToUseDealerTrade(
+  state: GameState,
+  action: Action & { type: "RESPOND" },
+  top: PendingAction & { kind: "NEED_USE_DEALER_TRADE" }
+): Result {
+  const next = cloneState(state);
+  next.pending.pop();
+  const player = next.players.find((p) => p.id === action.playerId)!;
+  const attacker = next.players.find((p) => p.id === top.missedTop.source.from)!;
+
+  const traded = action.useDealerTrade === true && player.hand.length >= 2 && attacker.alive;
+  const events: GameEvent[] = [];
+
+  if (traded) {
+    const cardIds: string[] = [];
+    for (let i = 0; i < 2; i++) {
+      const { value, nextState } = nextRandom(next.rngState);
+      next.rngState = nextState;
+      const index = Math.floor(value * player.hand.length);
+      const [cardId] = player.hand.splice(index, 1);
+      giveCardToPlayer(next.players, attacker, cardId);
+      cardIds.push(cardId);
+    }
+    events.push({
+      type: "DEALER_TRADE_USED",
+      playerId: player.id,
+      targetId: attacker.id,
+      cardIds: cardIds as [string, string],
+    });
+    events.push(...triggerHandEmptyHook(next, player)); // Suzy Lafayette — SAU KHI cả 2 lá đã rời tay
+  } else {
+    events.push(...applyDamage(next, player, 1, top.missedTop.source.from));
+    // Bộ mở rộng "custom_characters" (Mary Rose) — sao chép nguyên văn điều
+    // kiện gốc ở respondToMissed(): CHỈ Bang! đơn lẻ, chỉ khi THẬT SỰ mất máu.
+    if (
+      top.missedTop.source.card === "bang" &&
+      getEffectiveCharacterDefinition(next, player)?.canReflectBangDamage === true
+    ) {
+      const atk = next.players.find((p) => p.id === top.missedTop.source.from);
+      if (atk?.alive) events.push(...pushMaryRoseReflection(next, player, atk));
+    }
+  }
+
+  events.push(...continueAfterMissedResolved(next, top.missedTop));
   return { state: next, events };
 }
 
@@ -2854,6 +3232,12 @@ function respondToDuel(
     return { state: next, events };
   }
 
+  // Bộ mở rộng "custom_characters" (The Drifter) — sắp thua Duel, sắp chắc
+  // chắn mất máu, hỏi dùng khiên trước khi áp.
+  if (maybeAskDrifterShield(next, player, 1, top.opponent, { kind: "duel", opponent: top.opponent })) {
+    return { state: next, events: [] };
+  }
+
   // Duel kết thúc thật sự (thua) — rút hết số Bang! Molly Stark đã dồn (nếu có).
   return {
     state: next,
@@ -2972,6 +3356,27 @@ function resolveDrawCheck(
   if (!primaryCardId) {
     throw new Error("Không còn lá nào để draw! (cả bộ bài lẫn chồng bài đã bỏ đều hết)");
   }
+
+  // Bộ mở rộng "custom_characters" (The Drifter, xem House_Rule.txt mục I) —
+  // draw! này PHẢI GIỮ KÍN, nhánh RIÊNG, tách khỏi mọi logic thường bên dưới
+  // (Lucky Duke/Barrel/Dynamite/Jail/Vendetta/Thief — không cái nào áp dụng
+  // cho draw! cá nhân bí mật này). KHÔNG được next.discardPile.push() lá này
+  // (rò qua view.ts's discardPile công khai cho mọi người), KHÔNG được emit
+  // event chứa cardId/suit (rò qua room.ts's broadcastState() — events gửi
+  // NGUYÊN VẸN cho mọi socket, KHÔNG lọc theo viewer như view, đã verify
+  // sendStateTo()). Giữ lá ở drifterHiddenCard (field nội bộ, không lộ qua
+  // PlayerView) tới khi hết hạn thật sự (draw! MỚI của chính người này, hoặc
+  // người này bị loại — xem 2 chỗ ghi đè field này).
+  if (top.source.card === "the_drifter") {
+    const stale = next.drifterHiddenCard[top.player];
+    if (stale !== undefined) next.discardPile.push(stale);
+
+    const suit = getEffectiveSuit(next, primaryCardId); // tôn trọng Blessing/Curse (High Noon)
+    next.drifterHiddenCard[top.player] = primaryCardId;
+    next.drifterShield[top.player] = suit === "hearts" || suit === "diamonds";
+    return { state: next, events: [] };
+  }
+
   next.discardPile.push(primaryCardId);
 
   // Mở rộng High Noon, lá "Blessing"/"Curse" — draw! (Barrel/Jail/Dynamite...)
@@ -3103,6 +3508,12 @@ function resolveDrawCheck(
       const [dynamiteId] = holder.equipment.splice(dynamiteIndex, 1);
       next.discardPile.push(dynamiteId);
       const amount = Math.min(3, holder.hp);
+      // Bộ mở rộng "custom_characters" (The Drifter) — sắp chắc chắn mất máu
+      // vì Dynamite nổ, hỏi dùng khiên TRƯỚC KHI trừ hp — chặn TRỌN cả amount
+      // (có thể là cả 3), không phải từng máu.
+      if (maybeAskDrifterShield(next, holder, amount, null, { kind: "dynamite" })) {
+        return { state: next, events };
+      }
       holder.hp -= amount;
       events.push({ type: "DYNAMITE_EXPLODED", playerId: holder.id, amount });
       // Giai đoạn 5 (Bart Cassidy) — byPlayerId null: Dynamite không có
@@ -3188,6 +3599,7 @@ function resolveDrawCheck(
       next.turnNumber += 1;
       next.joseDelgadoUsesThisTurn = 0;
       next.docHolydayUsedThisTurn = false;
+      next.fairKillerUsedThisTurn = false;
       next.vendettaUsedThisTurn = true;
       events.push(...applyTurnStartChecks(next, { skipEventReveal: true }));
     } else {
@@ -3196,10 +3608,79 @@ function resolveDrawCheck(
     return { state: next, events };
   }
 
+  // Bộ mở rộng "custom_characters" (The Thief, xem House_Rule.txt mục I) —
+  // khớp chất đỏ (Cơ/Rô) -> hỏi chọn 1 người khác còn sống để cướp ngẫu nhiên
+  // 1 lá (xem respondToPickThiefTarget() bên dưới). Không khớp -> lượt đó
+  // không có gì thêm, đã đủ với DRAW_CHECK_RESOLVED vừa unshift ở trên.
+  if (top.source.card === "the_thief" && matched) {
+    next.pending.push({ kind: "NEED_PICK_THIEF_TARGET", player: top.player });
+  }
+
+  // Bộ mở rộng "custom_characters" (The Gambler, xem House_Rule.txt mục I) —
+  // khớp chất đỏ (Cơ/Rô) -> rút 3 lá; không khớp -> rút 1 lá. Lucky Duke đã
+  // tự áp dụng ở phần lật lá phía trên (đọc `matched` sau khi tính) — không
+  // cần code riêng ở đây. triggerHandEmptyHook() gọi Ở ĐÂY (SAU khi rút xong,
+  // không phải lúc bỏ 2 lá ở useGamblerDraw()) — đúng thứ tự đã chốt trong
+  // file luật, tránh Suzy Lafayette rút bù thừa giữa chừng.
+  if (top.source.card === "the_gambler") {
+    const gambler = next.players.find((p) => p.id === top.player)!;
+    const drawnCount = drawCardsForPlayer(next, gambler, matched ? 3 : 1);
+    events.push({ type: "CARDS_DRAWN", playerId: gambler.id, count: drawnCount });
+    events.push(...triggerHandEmptyHook(next, gambler)); // Giai đoạn 5 (Suzy Lafayette)
+  }
+
   return { state: next, events };
 }
 
 // ----- Việc 1.13: chết, thưởng/phạt, điều kiện thắng -----
+
+// Bộ mở rộng "custom_characters" (The Drifter, xem House_Rule.txt mục I) —
+// chèn TRƯỚC 1 cụm sát thương SẮP áp dụng, y hệt khuôn "đẩy pending lên trên
+// rồi return" của Barrel (xem ghi chú resolveDrawCheck() nhánh dynamite/
+// applyDynamiteAndJailChecks() gọi tiếp Jail sau khi Dynamite giải quyết
+// xong). Trả về true = ĐÃ chèn pending để hỏi — người GỌI PHẢI return events
+// tích luỹ TỚI GIỜ ngay, KHÔNG được áp damage/tự trừ hp nữa; false = mục tiêu
+// không có khả năng này, người gọi áp damage như bình thường.
+//
+// Đẩy pending VÔ ĐIỀU KIỆN (không kiểm tra drifterShield[target.id] trước) —
+// xem ghi chú đầy đủ ở PendingAction["NEED_USE_DRIFTER_SHIELD"] (types.ts):
+// nếu chỉ đẩy lúc có khiên thật thì chính sự xuất hiện của pending đã lộ bí
+// mật cho mọi người xem.
+function maybeAskDrifterShield(
+  next: GameState,
+  target: PlayerState,
+  amount: number,
+  killerId: string | null,
+  resume: DrifterShieldResume
+): boolean {
+  if (getEffectiveCharacterDefinition(next, target)?.hasDrifterShield !== true) return false;
+  next.pending.push({ kind: "NEED_USE_DRIFTER_SHIELD", player: target.id, amount, killerId, resume });
+  return true;
+}
+
+// Bộ mở rộng "custom_characters" (The Dealer, xem House_Rule.txt mục I) —
+// chèn TRƯỚC 1 đòn "kiểu Bang!" (qua NEED_MISSED) SẮP áp dụng, cùng khuôn
+// maybeAskDrifterShield() ở trên nhưng CHỈ đẩy pending khi THẬT SỰ đủ điều
+// kiện (khác Drifter — "còn đủ 2 lá" vốn đã công khai qua handCount, không
+// cần mẹo "đẩy vô điều kiện" để giấu bí mật). Trả về true = ĐÃ chèn pending,
+// người gọi PHẢI return events tích luỹ tới giờ ngay; false = không đủ điều
+// kiện (không có khả năng này/không đủ 2 lá/không có ai để đưa bài), người
+// gọi áp damage như bình thường.
+function maybeAskDealerTrade(
+  next: GameState,
+  target: PlayerState,
+  missedTop: PendingAction & { kind: "NEED_MISSED" }
+): boolean {
+  if (getEffectiveCharacterDefinition(next, target)?.hasDealerTrade !== true) return false;
+  if (target.hand.length < 2) return false;
+  // Mở rộng A Fistful of Cards, lá "A Fistful of Cards" — loạt đạn không ai
+  // "bắn" (source.from: null), không có ai để đưa 2 lá cho.
+  if (!missedTop.source.from) return false;
+  const attacker = next.players.find((p) => p.id === missedTop.source.from);
+  if (!attacker?.alive) return false;
+  next.pending.push({ kind: "NEED_USE_DEALER_TRADE", player: target.id, missedTop });
+  return true;
+}
 
 // Gây damage cho `target`, phát DAMAGE_DEALT, rồi xử lý chết nếu hp về 0.
 // `killerId` = người trực tiếp gây đòn đánh (Bang!/Gatling/Indians!/Duel);
@@ -3360,6 +3841,17 @@ function eliminatePlayer(next: GameState, target: PlayerState, killerId: string 
   target.hand = [];
   target.equipment = [];
 
+  // Bộ mở rộng "custom_characters" (The Drifter) — lá bí mật đang treo (nếu
+  // có) trả về chồng bỏ luôn, người chết không giữ bí mật gì nữa. Tránh rò rỉ
+  // vĩnh viễn 1 lá khỏi tổng số bài của ván. Xoá luôn drifterShield — không
+  // còn ý nghĩa gì với người đã bị loại.
+  const drifterHiddenCard = next.drifterHiddenCard[target.id];
+  if (drifterHiddenCard !== undefined) {
+    next.discardPile.push(drifterHiddenCard);
+    delete next.drifterHiddenCard[target.id];
+  }
+  delete next.drifterShield[target.id];
+
   const events: GameEvent[] = [
     { type: "PLAYER_ELIMINATED", playerId: target.id, killedBy: killerId },
     ...deathHookEvents,
@@ -3475,6 +3967,7 @@ function advanceTurn(next: GameState): GameEvent[] {
   next.turnNumber += 1; // mở rộng Dodge City, mục 1.1 (xem GameState.turnNumber ở types.ts)
   next.joseDelgadoUsesThisTurn = 0; // mở rộng Dodge City, mục C nhóm A (José Delgado)
   next.docHolydayUsedThisTurn = false; // mở rộng Dodge City, mục C nhóm C (Doc Holyday)
+  next.fairKillerUsedThisTurn = false; // bộ mở rộng "custom_characters" (The Fair Killer)
   next.vendettaUsedThisTurn = false; // mở rộng A Fistful of Cards (Vendetta)
   return applyTurnStartChecks(next);
 }
@@ -3511,13 +4004,35 @@ export function applyTurnStartChecks(next: GameState, options: { skipEventReveal
   // Dynamite/Jail (đã hỏi lại và chốt đúng thứ tự này) — nhờ vậy người bị
   // Jail/Marcel companion bỏ qua HẲN lượt vẫn ăn đủ sát thương này mà không
   // cần code riêng cho từng trường hợp, vì lúc này 2 bước đó còn chưa chạy.
-  const highNoonEvents = isEventActive(next, "high_noon") ? applyDamage(next, player, 1, null) : [];
+  // Bộ mở rộng "custom_characters" (The Drifter, xem House_Rule.txt mục I) —
+  // hỏi dùng khiên TRƯỚC khi áp sát thương High Noon, SAU CÙNG (đòn này không
+  // có gì để đỡ trước đó — không qua Barrel/Missed!, nên "sau cùng" ở đây là
+  // ngay lập tức). Bị chặn -> DỪNG HẲN Bước 0 tại đây, chờ trả lời (đúng khuôn
+  // "chèn pending lên trên rồi return" của Barrel) — phần còn lại của Bước 0
+  // (Marcel companion/Vera Custer/Dynamite/Jail) chạy tiếp trong
+  // respondToUseDrifterShield() qua continueTurnStartAfterHighNoonDamage(),
+  // y hệt nhánh không bị chặn bên dưới.
+  let highNoonEvents: GameEvent[] = [];
+  if (isEventActive(next, "high_noon")) {
+    if (maybeAskDrifterShield(next, player, 1, null, { kind: "high_noon_turn_start" })) {
+      return [...eventEvents];
+    }
+    highNoonEvents = applyDamage(next, player, 1, null);
+  }
+  return [...eventEvents, ...highNoonEvents, ...continueTurnStartAfterHighNoonDamage(next, player)];
+}
+
+// Phần CÒN LẠI của Bước 0 sau khi sát thương High Noon (nếu có) đã xử lý
+// XONG XUÔI (dù bị The Drifter chặn hay không) — TÁCH RIÊNG để cả
+// applyTurnStartChecks() LẪN respondToUseDrifterShield() (resume
+// "high_noon_turn_start") đều gọi chung, không lặp code.
+function continueTurnStartAfterHighNoonDamage(next: GameState, player: PlayerState): GameEvent[] {
   if (!player.alive) {
     // Chết ngay tại đây -> eliminatePlayer() đã tự đệ quy advanceTurn() (đúng
     // cascade đang dùng cho Elena Noir) cho người kế tiếp -> DỪNG NGAY, không
     // chạy tiếp các bước bên dưới cho người vừa chết (currentPlayerIndex đã
     // trỏ sang người khác rồi).
-    return [...eventEvents, ...highNoonEvents];
+    return [];
   }
 
   // Bộ mở rộng "custom_characters" (Marcel Marcelo) — người "cùng vào tù" ăn
@@ -3528,23 +4043,17 @@ export function applyTurnStartChecks(next: GameState, options: { skipEventReveal
   // kiểm nữa (kể cả nếu người này CŨNG có Dynamite/Jail riêng của họ).
   if (next.marcelCompanionSkipNextTurn[player.id]) {
     delete next.marcelCompanionSkipNextTurn[player.id];
-    return [
-      ...eventEvents,
-      ...highNoonEvents,
-      { type: "MARCEL_COMPANION_TURN_SKIPPED", playerId: player.id },
-      ...advanceTurn(next),
-    ];
+    return [{ type: "MARCEL_COMPANION_TURN_SKIPPED", playerId: player.id }, ...advanceTurn(next)];
   }
 
   if (getEffectiveCharacterDefinition(next, player)?.canBorrowCharacterAbilities === true) {
     const candidates = otherAlivePlayersInOrder(next, player.id).filter((p) => p.characterId !== null);
     if (candidates.length > 0) {
       next.pending.push({ kind: "NEED_PICK_BORROWED_CHARACTER", player: player.id });
-      return [...eventEvents, ...highNoonEvents];
+      return [];
     }
   }
-  const continueEvents = continueTurnStartAfterVeraCuster(next, player);
-  return [...eventEvents, ...highNoonEvents, ...continueEvents];
+  return continueTurnStartAfterVeraCuster(next, player);
 }
 
 // Phần CÒN LẠI của Bước 0 sau khi Vera Custer (nếu có) đã chọn xong mượn ai —

@@ -32,6 +32,7 @@ import type { DeadlineInfo, ServerMessage } from "../protocol";
 import {
   applyStoredSettings,
   cardActsAsBang,
+  DEFAULT_EVENT_DECK_SIZE,
   describeEvent,
   renderApp,
   renderCardReferenceScreen,
@@ -42,6 +43,8 @@ import {
   renderNetworkLobby,
   renderNetworkLobbyForm,
   renderSetupScreen,
+  triggerVisualEffect,
+  vibrateForTurn,
 } from "./ui";
 import type { BetaLinkInfo, DrawCheckNotice, LobbyPlayer, Selection, UseAbilityCharacter } from "./ui";
 
@@ -96,13 +99,19 @@ let screen: Screen = "home";
 let playerNames: string[] = [...DEFAULT_PLAYER_NAMES];
 let setupError: string | null = null;
 // Việc 5.3 (house rules) — chọn ở màn hình thiết lập, chỉ áp dụng cho VÁN
-// SẮP bắt đầu (không phải cấu hình toàn cục) — reset về [] mỗi khi bắt đầu
-// ván mới (onStartGame), giống cách playerNames KHÔNG bị reset (giữ nguyên
-// tên cũ) nhưng khác ở đây vì luật bổ sung PHẢI chọn lại mỗi ván, tránh quên
-// đang bật gì từ ván trước.
+// SẮP bắt đầu (không phải cấu hình toàn cục). GIỮ NGUYÊN qua "Chơi ván mới"
+// (onPlayAgain) — giống cách playerNames được giữ nguyên — CHỈ reset khi tạo
+// tab/phiên mới (tải lại trang). Bổ sung theo yêu cầu chủ dự án: trước đây bị
+// reset về [] mỗi lần chơi ván mới, gây bực vì phải tick lại từ đầu dù vẫn
+// muốn giữ đúng cấu hình cũ.
 let selectedHouseRules: HouseRuleId[] = [];
-// Mở rộng Dodge City — cùng quy tắc reset như selectedHouseRules ở trên.
+// Mở rộng Dodge City — cùng quy tắc giữ nguyên như selectedHouseRules ở trên.
 let selectedExpansions: ExpansionId[] = [];
+// Mở rộng High Noon/A Fistful of Cards, mục 1.6 — số lá sự kiện "thường"
+// muốn rút vào ván (CHỈ có ý nghĩa khi selectedExpansions có cả 2 id, xem
+// RuleOptions.eventDeckSize ở setup.ts). Cùng quy tắc giữ nguyên qua "Chơi
+// ván mới" như 2 biến trên.
+let selectedEventDeckSize: number = DEFAULT_EVENT_DECK_SIZE;
 let state: GameState; // chỉ tồn tại sau khi bấm "Bắt đầu ván"
 // Việc bổ sung sau Giai đoạn 5 — màn hình chọn nhân vật: playerId -> lá đang
 // "cầm lên" chờ bấm "Xác nhận" mới thật sự gửi CHOOSE_CHARACTER (tránh bấm
@@ -183,6 +192,8 @@ let networkSelectedHouseRules: HouseRuleId[] = [];
 // Mở rộng Dodge City — giống selectedExpansions ở hotseat, cùng lý do CHỈ chủ
 // phòng dùng tới như networkSelectedHouseRules ở trên.
 let networkSelectedExpansions: ExpansionId[] = [];
+// Giống selectedEventDeckSize ở hotseat, cùng lý do CHỈ chủ phòng dùng tới.
+let networkSelectedEventDeckSize: number = DEFAULT_EVENT_DECK_SIZE;
 // Việc 4.1: đồng hồ đếm ngược lượt (server tự tính, xem room.ts) — client chỉ
 // đọc `expiresAt` rồi TỰ đếm lùi mỗi giây bằng setInterval CỦA RIÊNG CLIENT
 // (không phải Durable Object — quy tắc 8 CLAUDE.md chỉ cấm setInterval TRONG
@@ -208,7 +219,13 @@ let countdownTickId: ReturnType<typeof setInterval> | null = null;
 // trong `root` nữa, phải dò từ `document` (bao quát cả trong lẫn ngoài
 // `root`) thay vì chỉ `root.querySelector()` như trước — nếu không, `.log-list`
 // nằm trong dialog sẽ không bao giờ được tìm thấy.
-const SCROLLABLE_SELECTORS = [".opponent-row", ".log-list"];
+// Bổ sung (sửa bug thanh cuộn Thư viện bài nhảy về đầu mỗi phím gõ tìm kiếm):
+// thêm "dialog.app-dialog" — khi nội dung dialog (vd danh sách lá/nhân vật lọc
+// theo từ khoá) cao hơn màn hình, CHÍNH thẻ <dialog> là nơi cuộn (UA
+// stylesheet mặc định overflow: auto + giới hạn theo viewport), không phải
+// `.log-list`/`.opponent-row` như 2 selector cũ — trước đây không nằm trong
+// danh sách này nên mỗi lần render() lại (mỗi phím gõ) bị mất vị trí cuộn.
+const SCROLLABLE_SELECTORS = [".opponent-row", ".log-list", "dialog.app-dialog"];
 
 function captureScrollPositions(): Map<string, { left: number; top: number }> {
   const positions = new Map<string, { left: number; top: number }>();
@@ -216,11 +233,20 @@ function captureScrollPositions(): Map<string, { left: number; top: number }> {
     const el = document.querySelector(selector);
     if (el) positions.set(selector, { left: el.scrollLeft, top: el.scrollTop });
   }
+  // Màn hình đầy đủ Thư viện bài (vào từ trang chủ, không phải dialog giữa
+  // ván) không có khung riêng để cuộn — cả trang (window) cuộn thẳng. Cùng lý
+  // do: gõ tìm kiếm khiến render() vẽ lại DOM, mất vị trí cuộn trang nếu
+  // không lưu/gắn lại riêng.
+  positions.set("__window__", { left: window.scrollX, top: window.scrollY });
   return positions;
 }
 
 function restoreScrollPositions(positions: Map<string, { left: number; top: number }>): void {
   for (const [selector, pos] of positions) {
+    if (selector === "__window__") {
+      window.scrollTo(pos.left, pos.top);
+      continue;
+    }
     const el = document.querySelector(selector);
     if (el) {
       el.scrollLeft = pos.left;
@@ -248,7 +274,12 @@ function restoreFocusState(saved: { selectionStart: number | null; selectionEnd:
   if (!saved) return;
   const input = document.querySelector(".card-ref-search-input");
   if (!(input instanceof HTMLInputElement)) return;
-  input.focus();
+  // BUG thật (báo từ chủ dự án): input.focus() KHÔNG kèm { preventScroll: true }
+  // khiến trình duyệt tự cuộn ô input (nằm gần đầu trang/dialog) vào tầm nhìn
+  // mỗi lần gọi — chạy SAU restoreScrollPositions() ở render() nên đè mất vị
+  // trí cuộn vừa gắn lại, kéo về gần đầu trang mỗi phím gõ dù đã lưu/gắn lại
+  // scroll đúng cách.
+  input.focus({ preventScroll: true });
   if (saved.selectionStart !== null && saved.selectionEnd !== null) {
     input.setSelectionRange(saved.selectionStart, saved.selectionEnd);
   }
@@ -260,6 +291,14 @@ function render(): void {
   renderScreen();
   restoreScrollPositions(scrollPositions);
   restoreFocusState(focusState);
+  // Vẫn còn 1 lần "lệch" cuối cùng dù đã có preventScroll: true ở trên —
+  // trình duyệt tự cuộn caret của ô input (đang gõ dở) vào tầm nhìn NGAY SAU
+  // bước này, KHÔNG qua focus() nên preventScroll không chặn được (đây là
+  // hành vi tự nhiên khi gõ vào 1 ô input đang bị cuộn khuất, không phải do
+  // code của mình gọi). Gắn lại vị trí cuộn 1 lần nữa ở animation frame kế
+  // tiếp (sau khi trình duyệt đã tự cuộn xong) để phần cuộn tự động đó không
+  // đè mất lần gắn lại ở trên.
+  requestAnimationFrame(() => restoreScrollPositions(scrollPositions));
 }
 
 function renderScreen(): void {
@@ -271,12 +310,13 @@ function renderScreen(): void {
       renderCardReferenceScreen(root, cardReferenceSearchQuery, { onBack: onBackToHome, onSearchChange: onCardReferenceSearchChange });
       return;
     case "local-setup":
-      renderSetupScreen(root, playerNames, setupError, selectedHouseRules, selectedExpansions, {
+      renderSetupScreen(root, playerNames, setupError, selectedHouseRules, selectedExpansions, selectedEventDeckSize, {
         onNameChange,
         onAddPlayer,
         onRemovePlayer,
         onToggleHouseRule,
         onToggleExpansion,
+        onEventDeckSizeChange,
         onStartGame,
       });
       return;
@@ -325,12 +365,16 @@ function renderScreen(): void {
           onPickEquipmentFromPlayer,
           onPickBorrowedCharacter,
           onPickArmed,
+          onUseDrifterShield,
+          onUseDealerTrade,
           onPickMarcelCompanion,
+          onPickThiefTarget,
           onBrawlZonePick,
           onBrawlZonesConfirmed,
           onExtraDiscardCardClick,
           onArmAbility,
           onUseChuckWengamAbility,
+          onArmFairKillerAbility,
           onToggleAbilityCard,
           onConfirmAbilityCards,
           onAbilityTargetClick,
@@ -368,9 +412,11 @@ function renderScreen(): void {
         networkAbandonedNotice,
         networkSelectedHouseRules,
         networkSelectedExpansions,
+        networkSelectedEventDeckSize,
         {
           onToggleHouseRule: onNetworkToggleHouseRule,
           onToggleExpansion: onNetworkToggleExpansion,
+          onEventDeckSizeChange: onNetworkEventDeckSizeChange,
           onStartGame: onNetworkStartGame,
         }
       );
@@ -426,12 +472,16 @@ function renderScreen(): void {
             onPickEquipmentFromPlayer: onNetworkPickEquipmentFromPlayer,
             onPickBorrowedCharacter: onNetworkPickBorrowedCharacter,
             onPickArmed: onNetworkPickArmed,
+            onUseDrifterShield: onNetworkUseDrifterShield,
+            onUseDealerTrade: onNetworkUseDealerTrade,
             onPickMarcelCompanion: onNetworkPickMarcelCompanion,
+            onPickThiefTarget: onNetworkPickThiefTarget,
             onBrawlZonePick: onNetworkBrawlZonePick,
             onBrawlZonesConfirmed: onNetworkBrawlZonesConfirmed,
             onExtraDiscardCardClick: onNetworkExtraDiscardCardClick,
             onArmAbility: onNetworkArmAbility,
             onUseChuckWengamAbility: onNetworkUseChuckWengamAbility,
+            onArmFairKillerAbility: onNetworkArmFairKillerAbility,
             onToggleAbilityCard: onNetworkToggleAbilityCard,
             onConfirmAbilityCards: onNetworkConfirmAbilityCards,
             onAbilityTargetClick: onNetworkAbilityTargetClick,
@@ -538,6 +588,11 @@ function onToggleExpansion(id: ExpansionId): void {
   render();
 }
 
+function onEventDeckSizeChange(size: number): void {
+  selectedEventDeckSize = size;
+  render();
+}
+
 function onStartGame(): void {
   const trimmedNames = playerNames.map((name) => name.trim());
   if (trimmedNames.some((name) => name.length === 0)) {
@@ -552,6 +607,7 @@ function onStartGame(): void {
     dealCharacterCards: true,
     houseRules: selectedHouseRules,
     expansions: selectedExpansions,
+    eventDeckSize: selectedEventDeckSize,
   });
   // setupGame() tạm dùng id làm tên hiển thị (xem ghi chú trong setup.ts) —
   // gán lại tên thật người chơi vừa gõ.
@@ -575,8 +631,10 @@ function onStartGame(): void {
 
 function onPlayAgain(): void {
   screen = "local-setup";
-  selectedHouseRules = []; // luật bổ sung chỉ áp dụng cho 1 ván — chọn lại từ đầu mỗi ván mới
-  selectedExpansions = []; // bộ mở rộng cũng vậy — chọn lại từ đầu mỗi ván mới
+  // GIỮ NGUYÊN selectedHouseRules/selectedExpansions/selectedEventDeckSize —
+  // trước đây reset về [] ở đây, khiến mọi lựa chọn ván trước mất sạch dù
+  // không hề tạo phòng/tab mới (yêu cầu chủ dự án 2026-08-11: chỉ reset khi
+  // thật sự bắt đầu phiên chơi mới, không phải mỗi lần "Chơi ván mới").
   confirmingNewGame = false;
   render();
 }
@@ -585,6 +643,20 @@ function onPlayAgain(): void {
 // (sai lượt, ngoài tầm, sai mục tiêu...) sẽ ném lỗi tiếng Việt sẵn có từ
 // reduce.ts, chỉ cần hiện ra, không cần dịch lại.
 function dispatch(action: Action): void {
+  // Bổ sung 2026-08-10 — hiệu ứng "tới lượt của mình": hotseat dùng chung 1
+  // màn hình cho mọi người (không có khái niệm "viewer" riêng như qua mạng),
+  // nên cứ đổi người-đang-đi (currentPlayerIndex) là coi như "tới lượt mới",
+  // xem triggerVisualEffect() ở ui.ts.
+  const previousPlayerId = currentPlayerId();
+  // Bổ sung — rung màn hình khi tới lượt HOẶC cần phản hồi (khác điều kiện
+  // effect-my-turn ở trên, xem ghi chú actingPlayerId()). Đang ở màn hình
+  // chọn nhân vật/ván đã kết thúc thì coi như "chưa có ai đang cần hành
+  // động" (null) — tránh rung sai lúc đang chọn nhân vật (currentPlayerIndex
+  // lúc đó không mang ý nghĩa "tới lượt").
+  const previousActingId =
+    state.characterSelection || state.winner
+      ? null
+      : actingPlayerId(state.pending, state.players, state.currentPlayerIndex);
   try {
     const result = reduce(state, action);
     state = result.state;
@@ -600,6 +672,12 @@ function dispatch(action: Action): void {
     const nameOf = (id: string) => state.players.find((p) => p.id === id)?.name ?? id;
     for (const event of result.events) {
       gameLog.unshift(describeEvent(event, nameOf));
+      if (event.type === "DYNAMITE_EXPLODED") triggerVisualEffect("effect-dynamite");
+    }
+    if (currentPlayerId() !== previousPlayerId) triggerVisualEffect("effect-my-turn");
+    if (!state.characterSelection && !state.winner) {
+      const newActingId = actingPlayerId(state.pending, state.players, state.currentPlayerIndex);
+      if (newActingId !== null && newActingId !== previousActingId) vibrateForTurn();
     }
   } catch (e) {
     error = e instanceof Error ? e.message : "Có lỗi không rõ khi thực hiện hành động";
@@ -611,6 +689,23 @@ function dispatch(action: Action): void {
 
 function currentPlayerId(): string {
   return state.players[state.currentPlayerIndex].id;
+}
+
+// Bổ sung — "người đang cần hành động", dùng để rung màn hình (xem
+// vibrateForTurn() ở ui.ts) khi tới lượt HOẶC cần phản hồi. Khác
+// currentPlayerId() ở trên (chỉ tính "tới lượt" cho hiệu ứng effect-my-turn
+// có sẵn): pending[cuối] (nếu có) mới là người THẬT SỰ cần bấm gì đó — vd A
+// đánh Bang! vào B thì currentPlayerIndex vẫn là A nhưng B mới cần đỡ
+// Missed!, xem PendingAction ở types.ts (mọi kind đều có field `player`).
+// Dùng chung được cho cả GameState (hotseat) lẫn PlayerView (qua mạng) vì 2
+// kiểu này cùng hình dạng field pending/players/currentPlayerIndex.
+function actingPlayerId(
+  pending: { player: string }[],
+  players: { id: string }[],
+  currentPlayerIndex: number
+): string | null {
+  if (pending.length > 0) return pending[pending.length - 1].player;
+  return players[currentPlayerIndex]?.id ?? null;
 }
 
 function onDrawCards(): void {
@@ -836,6 +931,15 @@ function onUseChuckWengamAbility(playerId: string): void {
   dispatch({ type: "USE_ABILITY", playerId, cardIds: [] });
 }
 
+// Bộ mở rộng "custom_characters" (The Fair Killer) — cũng không cần bỏ lá
+// nào (giống Chuck Wengam) NHƯNG cần chọn mục tiêu (giống Doc Holyday) — nhảy
+// THẲNG sang bước chọn mục tiêu, bỏ qua "picking-ability-cards" (0 lá thì
+// không có gì để chọn).
+function onArmFairKillerAbility(playerId: string): void {
+  selection = { step: "picking-ability-target", playerId, cardIds: [] };
+  render();
+}
+
 // Bấm 1 lá trong lúc đang chọn lá cho kỹ năng — bấm lại lá đã chọn để bỏ
 // chọn; đã đủ số lượng cần thì không cho chọn thêm (phải bỏ bớt trước).
 function onToggleAbilityCard(cardId: string): void {
@@ -890,10 +994,25 @@ function onPickDrawTarget(targetId: string, letTargetChoose: boolean): void {
   if (top) dispatch({ type: "RESPOND", playerId: top.player, targetId, letTargetChoose });
 }
 
-// Kit Carlson — bỏ đúng lá vừa bấm trong 3 lá đã xem, giữ 2 lá còn lại.
+// Kit Carlson — bấm LẦN LƯỢT từng lá muốn GIỮ (không phải bỏ). Tích luỹ vào
+// `selection` cho tới khi đủ `top.keepCount` lá thì gửi RESPOND ngay, không
+// cần nút xác nhận riêng; bấm lại lá đã chọn thì bỏ chọn (sửa lại nếu lỡ tay).
 function onPickKeptCard(cardId: string): void {
   const top = state.pending[state.pending.length - 1];
-  if (top) dispatch({ type: "RESPOND", playerId: top.player, cardId });
+  if (!top || top.kind !== "NEED_PICK_KEPT_CARDS") return;
+  const selectedCardIds = selection.step === "picking-kit-carlson-kept" ? [...selection.selectedCardIds] : [];
+  const index = selectedCardIds.indexOf(cardId);
+  if (index === -1) {
+    selectedCardIds.push(cardId);
+  } else {
+    selectedCardIds.splice(index, 1);
+  }
+  if (selectedCardIds.length >= top.keepCount) {
+    dispatch({ type: "RESPOND", playerId: top.player, cardIds: selectedCardIds });
+    return;
+  }
+  selection = { step: "picking-kit-carlson-kept", selectedCardIds };
+  render();
 }
 
 // Mở rộng Dodge City, mục C nhóm A (Pat Brennan) — lấy đúng lá trang bị
@@ -916,8 +1035,29 @@ function onPickArmed(armed: boolean): void {
   if (top) dispatch({ type: "RESPOND", playerId: top.player, armed });
 }
 
+// Bộ mở rộng "custom_characters" (The Drifter) — trả lời NEED_USE_DRIFTER_SHIELD
+// muốn dùng lá chắn. Nút "Không dùng" tái dùng onRespondTakeConsequence().
+function onUseDrifterShield(): void {
+  const top = state.pending[state.pending.length - 1];
+  if (top) dispatch({ type: "RESPOND", playerId: top.player, useShield: true });
+}
+
+// Bộ mở rộng "custom_characters" (The Dealer) — trả lời NEED_USE_DEALER_TRADE
+// muốn đưa 2 lá cho người vừa đánh mình. Nút "Không, chịu mất máu" tái dùng
+// onRespondTakeConsequence().
+function onUseDealerTrade(): void {
+  const top = state.pending[state.pending.length - 1];
+  if (top) dispatch({ type: "RESPOND", playerId: top.player, useDealerTrade: true });
+}
+
 // Bộ mở rộng "custom_characters" (Marcel Marcelo) — trả lời NEED_PICK_MARCEL_COMPANION.
 function onPickMarcelCompanion(targetId: string): void {
+  const top = state.pending[state.pending.length - 1];
+  if (top) dispatch({ type: "RESPOND", playerId: top.player, targetId });
+}
+
+// Bộ mở rộng "custom_characters" (The Thief) — trả lời NEED_PICK_THIEF_TARGET.
+function onPickThiefTarget(targetId: string): void {
   const top = state.pending[state.pending.length - 1];
   if (top) dispatch({ type: "RESPOND", playerId: top.player, targetId });
 }
@@ -1129,6 +1269,7 @@ function onJoinRoom(): void {
   networkGameLog = [];
   networkSelectedHouseRules = [];
   networkSelectedExpansions = [];
+  networkSelectedEventDeckSize = DEFAULT_EVENT_DECK_SIZE;
   networkArmedCharacterId = null;
   networkExpandedSeatIds = [];
   networkLogDialogOpen = false;
@@ -1172,6 +1313,21 @@ function onNetworkMessage(message: ServerMessage): void {
       if (screen === "network-lobby") render();
       return;
     case "state": {
+      // Bổ sung 2026-08-10 — hiệu ứng "tới lượt của mình": qua mạng MỖI người
+      // có 1 view riêng (myPlayerId), nên chỉ nháy hiệu ứng đúng lúc lượt MỚI
+      // chuyển SANG chính mình (so người-đang-đi cũ/mới), khác hotseat (mọi
+      // lượt đổi đều tính, xem ghi chú dispatch() ở trên) vì ở đây phân biệt
+      // được rõ "mình" với người khác.
+      const previousCurrentPlayerId = networkView?.players[networkView.currentPlayerIndex]?.id ?? null;
+      // Bổ sung — rung màn hình khi tới lượt HOẶC cần phản hồi (khác điều
+      // kiện effect-my-turn ở trên, xem ghi chú actingPlayerId() ở
+      // dispatch()). null nếu chưa có view cũ, hoặc đang ở màn hình chọn
+      // nhân vật/ván đã kết thúc (currentPlayerIndex lúc đó không mang ý
+      // nghĩa "tới lượt").
+      const previousActingId =
+        networkView && !networkView.characterSelection && !networkView.winner
+          ? actingPlayerId(networkView.pending, networkView.players, networkView.currentPlayerIndex)
+          : null;
       networkView = message.view;
       networkConnectedIds = message.connectedPlayerIds;
       networkAbandonedNotice = null; // ván mới đang chạy thật -> thông báo ván cũ bị huỷ hết ý nghĩa
@@ -1196,6 +1352,15 @@ function onNetworkMessage(message: ServerMessage): void {
       const nameOf = (id: string) => networkView!.players.find((p) => p.id === id)?.name ?? id;
       for (const event of message.events) {
         networkGameLog.unshift(describeEvent(event, nameOf));
+        if (event.type === "DYNAMITE_EXPLODED") triggerVisualEffect("effect-dynamite");
+      }
+      const newCurrentPlayerId = networkView.players[networkView.currentPlayerIndex]?.id ?? null;
+      if (newCurrentPlayerId === myPlayerId && newCurrentPlayerId !== previousCurrentPlayerId) {
+        triggerVisualEffect("effect-my-turn");
+      }
+      if (!networkView.characterSelection && !networkView.winner) {
+        const newActingId = actingPlayerId(networkView.pending, networkView.players, networkView.currentPlayerIndex);
+        if (newActingId === myPlayerId && newActingId !== previousActingId) vibrateForTurn();
       }
       networkDeadline = message.deadline;
       syncCountdownTick();
@@ -1246,12 +1411,18 @@ function onNetworkToggleExpansion(id: ExpansionId): void {
   render();
 }
 
+function onNetworkEventDeckSizeChange(size: number): void {
+  networkSelectedEventDeckSize = size;
+  render();
+}
+
 function onNetworkStartGame(): void {
   netConnection?.send({
     type: "start_game",
     seed: Date.now(),
     houseRules: networkSelectedHouseRules,
     expansions: networkSelectedExpansions,
+    eventDeckSize: networkSelectedEventDeckSize,
   });
 }
 
@@ -1465,6 +1636,12 @@ function onNetworkUseChuckWengamAbility(playerId: string): void {
   networkDispatch({ type: "USE_ABILITY", playerId, cardIds: [] });
 }
 
+// Giống hệt onArmFairKillerAbility (hotseat).
+function onNetworkArmFairKillerAbility(playerId: string): void {
+  networkSelection = { step: "picking-ability-target", playerId, cardIds: [] };
+  render();
+}
+
 // Giống hệt onToggleAbilityCard (hotseat).
 function onNetworkToggleAbilityCard(cardId: string): void {
   if (networkSelection.step !== "picking-ability-cards") return;
@@ -1518,11 +1695,25 @@ function onNetworkPickDrawTarget(targetId: string, letTargetChoose: boolean): vo
   if (top) networkDispatch({ type: "RESPOND", playerId: top.player, targetId, letTargetChoose });
 }
 
-// Kit Carlson — bỏ đúng lá vừa bấm trong 3 lá đã xem, giữ 2 lá còn lại.
+// Kit Carlson — giống hệt onPickKeptCard() (hotseat), xem ghi chú ở đó.
 function onNetworkPickKeptCard(cardId: string): void {
   if (!networkView) return;
   const top = networkView.pending[networkView.pending.length - 1];
-  if (top) networkDispatch({ type: "RESPOND", playerId: top.player, cardId });
+  if (!top || top.kind !== "NEED_PICK_KEPT_CARDS") return;
+  const selectedCardIds =
+    networkSelection.step === "picking-kit-carlson-kept" ? [...networkSelection.selectedCardIds] : [];
+  const index = selectedCardIds.indexOf(cardId);
+  if (index === -1) {
+    selectedCardIds.push(cardId);
+  } else {
+    selectedCardIds.splice(index, 1);
+  }
+  if (selectedCardIds.length >= top.keepCount) {
+    networkDispatch({ type: "RESPOND", playerId: top.player, cardIds: selectedCardIds });
+    return;
+  }
+  networkSelection = { step: "picking-kit-carlson-kept", selectedCardIds };
+  render();
 }
 
 // Mở rộng Dodge City — giống hệt onPickEquipmentFromPlayer (hotseat).
@@ -1546,9 +1737,32 @@ function onNetworkPickArmed(armed: boolean): void {
   if (top) networkDispatch({ type: "RESPOND", playerId: top.player, armed });
 }
 
+// Bộ mở rộng "custom_characters" (The Drifter) — giống hệt onUseDrifterShield
+// (hotseat).
+function onNetworkUseDrifterShield(): void {
+  if (!networkView) return;
+  const top = networkView.pending[networkView.pending.length - 1];
+  if (top) networkDispatch({ type: "RESPOND", playerId: top.player, useShield: true });
+}
+
+// Bộ mở rộng "custom_characters" (The Dealer) — giống hệt onUseDealerTrade
+// (hotseat).
+function onNetworkUseDealerTrade(): void {
+  if (!networkView) return;
+  const top = networkView.pending[networkView.pending.length - 1];
+  if (top) networkDispatch({ type: "RESPOND", playerId: top.player, useDealerTrade: true });
+}
+
 // Bộ mở rộng "custom_characters" (Marcel Marcelo) — giống hệt
 // onPickMarcelCompanion (hotseat).
 function onNetworkPickMarcelCompanion(targetId: string): void {
+  if (!networkView) return;
+  const top = networkView.pending[networkView.pending.length - 1];
+  if (top) networkDispatch({ type: "RESPOND", playerId: top.player, targetId });
+}
+
+// Bộ mở rộng "custom_characters" (The Thief) — giống hệt onPickThiefTarget (hotseat).
+function onNetworkPickThiefTarget(targetId: string): void {
   if (!networkView) return;
   const top = networkView.pending[networkView.pending.length - 1];
   if (top) networkDispatch({ type: "RESPOND", playerId: top.player, targetId });
@@ -1620,6 +1834,7 @@ function onNetworkRequestNewGame(): void {
       seed: Date.now(),
       houseRules: networkSelectedHouseRules,
       expansions: networkSelectedExpansions,
+      eventDeckSize: networkSelectedEventDeckSize,
     });
     return;
   }
@@ -1633,6 +1848,7 @@ function onNetworkConfirmNewGame(): void {
     seed: Date.now(),
     houseRules: networkSelectedHouseRules,
     expansions: networkSelectedExpansions,
+    eventDeckSize: networkSelectedEventDeckSize,
     force: true,
   });
   networkConfirmingNewGame = false;

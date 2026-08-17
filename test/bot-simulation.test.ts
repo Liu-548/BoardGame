@@ -270,6 +270,22 @@ function chooseRespondAction(state: GameState): Action {
       // Mở rộng A Fistful of Cards (Ranch) — bot cứ bỏ qua, không đổi lá nào
       // (an toàn, luôn hợp lệ).
       return { type: "RESPOND", playerId: top.player };
+    case "NEED_PICK_THIEF_TARGET":
+      // Bộ mở rộng "custom_characters" (The Thief) — bot không dùng nhân vật
+      // này nên pending không thực sự phát sinh, nhưng vẫn xử lý an toàn: cứ
+      // bỏ qua, không chọn ai (KHÔNG bắt buộc chọn, khác Marcel Marcelo ở
+      // trên — an toàn, luôn hợp lệ).
+      return { type: "RESPOND", playerId: top.player };
+    case "NEED_USE_DRIFTER_SHIELD":
+      // Bộ mở rộng "custom_characters" (The Drifter) — bot không dùng nhân
+      // vật này nên pending không thực sự phát sinh, nhưng vẫn xử lý an toàn:
+      // cứ từ chối (không kèm useShield, an toàn, luôn hợp lệ).
+      return { type: "RESPOND", playerId: top.player };
+    case "NEED_USE_DEALER_TRADE":
+      // Bộ mở rộng "custom_characters" (The Dealer) — bot không dùng nhân vật
+      // này nên pending không thực sự phát sinh, nhưng vẫn xử lý an toàn: cứ
+      // từ chối (không kèm useDealerTrade, an toàn, luôn hợp lệ).
+      return { type: "RESPOND", playerId: top.player };
     default: {
       const neverKind: never = top;
       throw new Error(`Bot chưa biết cách phản hồi: ${JSON.stringify(neverKind)}`);

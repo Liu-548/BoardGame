@@ -446,6 +446,18 @@ const CHARACTER_DESCRIPTIONS: Record<string, string> = {
     "Bị nhốt tù thì lập tức chỉ định 1 người khác 'cùng vào tù' (ăn theo kết quả, không tự rút). Đầu lượt được rút tối đa 2 lá để tìm Cơ thoát tù; thoát thành công thì lượt đó rút 3 lá thay vì 2.",
   mary_rose:
     "Thật sự mất máu vì trúng Bang! đơn lẻ (không đỡ được) thì bắn trả MIỄN PHÍ vào người đó, bỏ qua khoảng cách, cần 2 Missed! mới né được — không tính Gatling/Duel/Indians!. Đổi lại, đánh Bang! chủ động phải bỏ đủ 2 lá Bang! thay vì 1.",
+  the_thief:
+    "Đầu lượt, sau khi rút 2 lá như thường, lật thêm 1 lá kiểm tra: ra Cơ/Rô thì được chọn 1 người khác còn sống để cướp ngẫu nhiên 1 lá của họ (tay rỗng thì thôi, không rút bù).",
+  the_gambler:
+    "Trong lượt của mình, bỏ 2 lá bất kỳ trên tay rồi lật bài kiểm tra: ra Cơ/Rô thì rút 3 lá, ra Nhép/Bích thì rút 1 lá — dùng được nhiều lần, miễn còn đủ 2 lá.",
+  the_fair_killer:
+    "Mỗi lượt 1 lần, tự mất 1 máu để bắn 1 phát Bang! vào bất kỳ ai, bỏ qua khoảng cách — mất máu ngay, không hoàn lại dù mục tiêu đỡ được. Không dùng được khi chỉ còn 1 máu.",
+  the_drunker:
+    "Mỗi khi NGƯỜI KHÁC dùng lá Bia hồi máu thành công, tự hồi thêm 1 máu ngay lập tức (không vượt quá máu tối đa). Bia tự đánh không được ăn theo.",
+  the_drifter:
+    "Đầu mỗi lượt của mình, lật bài kiểm tra NGẦM (chỉ mình biết): ra Cơ/Rô thì có 1 lá chắn tới đầu lượt kế tiếp của chính mình. Khi sắp mất máu vì bất cứ lý do gì, có thể tự chọn dùng lá chắn để chặn TRỌN cả đòn đó (kể cả Thuốc nổ 3 máu).",
+  the_dealer:
+    "Mỗi khi bị nhắm bởi 1 đòn kiểu Bang! (Bang!, Gatling, Springfield, Derringer...) mà không đỡ được, có thể chọn đưa 2 lá ngẫu nhiên trên tay cho người vừa đánh mình để vô hiệu đòn đó — không giới hạn số lần, miễn còn đủ 2 lá.",
 };
 
 function characterImageUrl(characterId: string): string {
@@ -738,18 +750,23 @@ const HOUSE_RULE_LABELS: Record<HouseRuleId, string> = {
   require_weapon_for_bang: "Bắt buộc có súng mới đánh Bang!",
   no_duplicate_card_names: "Cấm dùng 2 lá trùng tên/lượt",
   beer_below_two: "Bia vẫn có tác dụng dù chỉ còn 2 người sống",
+  double_timers: "Gấp đôi thời gian đếm ngược (chỉ qua mạng)",
 };
 const HOUSE_RULE_DESCRIPTIONS: Record<HouseRuleId, string> = {
   extra_distance: "Mọi khoảng cách vòng tròn (tầm bắn Bang!, khoảng cách 1 của Panic!...) đều +1 so với luật gốc.",
   require_weapon_for_bang: "Bỏ 'súng ngầm định tầm 1' — phải trang bị 1 lá súng thật mới đánh Bang! được.",
   no_duplicate_card_names: "Không được đánh chủ động 2 lá NÂU trùng tên trong cùng 1 lượt (lá trang bị không tính).",
   beer_below_two: "Bỏ ngoại lệ luật gốc — Bia vẫn hồi máu/cứu mạng bình thường kể cả khi chỉ còn 2 người sống.",
+  double_timers:
+    "Gấp đôi MỌI mốc thời gian đếm ngược: lượt đánh 60s→120s, phản hồi 15s→30s, bỏ bài thừa 15s→30s, chọn nhân " +
+    "vật 30s→60s. Chỉ có tác dụng khi chơi qua mạng — hotseat không có đồng hồ đếm ngược nào cả.",
 };
 const HOUSE_RULE_IDS: HouseRuleId[] = [
   "extra_distance",
   "require_weapon_for_bang",
   "no_duplicate_card_names",
   "beer_below_two",
+  "double_timers",
 ];
 
 // Mở rộng Dodge City — TÁCH RIÊNG khỏi house rules ở trên (xem ExpansionId ở
@@ -802,8 +819,20 @@ const EVENT_CARDS_EXPANSION_LABEL = "Lá sự kiện — High Noon + A Fistful o
 const EVENT_CARDS_EXPANSION_DESCRIPTION =
   "Gộp chung 2 bộ lá sự kiện thành 1 (tạm thời, vì mỗi bộ riêng còn thiếu vài lá): High Noon (11/13 lá, thiếu Ghost " +
   "Town) + A Fistful of Cards (11/14 lá, thiếu Dead Man/Law of the West/Peyote/Abandoned Mine). Vẫn giữ đúng luật " +
-  "gốc khi chơi kết hợp 2 bộ: 26 lá thường gộp chung, xáo, cắt còn 12 lá (mặc định), rồi CHỌN NGẪU NHIÊN 1 trong 2 lá " +
-  "cuối 'High Noon'/'A Fistful of Cards' để dùng — lá còn lại không xuất hiện trong ván đó.";
+  "gốc khi chơi kết hợp 2 bộ: gộp chung lá thường của cả 2 bộ, xáo, cắt còn đúng số lá đã chọn bên dưới, rồi CHỌN " +
+  "NGẪU NHIÊN 1 trong 2 lá cuối 'High Noon'/'A Fistful of Cards' để dùng — lá còn lại không xuất hiện trong ván đó " +
+  "(2 lá cuối này KHÔNG tính vào số lá chọn bên dưới, luôn đúng 1 lá/ván).";
+
+// Tổng số lá sự kiện "thường" (không tính 2 lá cuối "high_noon"/
+// "a_fistful_of_cards") THẬT SỰ có trong bộ bốc — đọc thẳng
+// EXPANSION_EVENT_IDS như renderEventReferenceGroup() ở dưới, để số này tự
+// khớp lại khi sau này cài thêm lá (Ghost Town...), không cần sửa tay.
+const TOTAL_REGULAR_EVENT_CARDS =
+  EXPANSION_EVENT_IDS.high_noon.filter((id) => !EVENT_CARDS[id].isFinalCard).length +
+  EXPANSION_EVENT_IDS.a_fistful_of_cards.filter((id) => !EVENT_CARDS[id].isFinalCard).length;
+// Luật gốc mục 1.6 (đã có sẵn ở setup.ts) — tối thiểu 12 lá thường.
+const MIN_EVENT_DECK_SIZE = 12;
+export const DEFAULT_EVENT_DECK_SIZE = 12;
 
 function renderHouseRuleCheckboxes(
   container: HTMLElement,
@@ -849,7 +878,9 @@ function renderActiveHouseRules(container: HTMLElement, houseRules: HouseRuleId[
 function renderExpansionCheckboxes(
   container: HTMLElement,
   selected: ExpansionId[],
-  onToggle: (id: ExpansionId) => void
+  onToggle: (id: ExpansionId) => void,
+  eventDeckSize: number,
+  onEventDeckSizeChange: (size: number) => void
 ): void {
   const wrapper = document.createElement("div");
   wrapper.className = "panel";
@@ -883,6 +914,30 @@ function renderExpansionCheckboxes(
   eventLabel.appendChild(eventCheckbox);
   eventLabel.append(" " + EVENT_CARDS_EXPANSION_LABEL);
   wrapper.appendChild(eventLabel);
+  wrapper.appendChild(document.createElement("br"));
+
+  // Số lá sự kiện "thường" muốn rút vào ván (mục 1.6 file luật) — CHỈ có ý
+  // nghĩa khi bộ trên đang bật (2 lá cuối High Noon/A Fistful of Cards không
+  // tính vào đây, luôn giữ nguyên luật cũ: random 1 trong 2). Disable thay vì
+  // ẩn hẳn khi chưa tick, để không mất giá trị đã chọn nếu tick lại.
+  const sizeLabel = document.createElement("label");
+  sizeLabel.title = `Tối thiểu ${MIN_EVENT_DECK_SIZE}, tối đa ${TOTAL_REGULAR_EVENT_CARDS} (đủ số lá thường thật sự có trong bộ bốc).`;
+  sizeLabel.append("Số lá sự kiện thường trong ván: ");
+  const sizeInput = document.createElement("input");
+  sizeInput.type = "number";
+  sizeInput.min = String(MIN_EVENT_DECK_SIZE);
+  sizeInput.max = String(TOTAL_REGULAR_EVENT_CARDS);
+  sizeInput.value = String(eventDeckSize);
+  sizeInput.disabled = !eventCheckbox.checked;
+  sizeInput.addEventListener("change", () => {
+    const parsed = Number.parseInt(sizeInput.value, 10);
+    if (Number.isNaN(parsed)) return;
+    const clamped = Math.min(TOTAL_REGULAR_EVENT_CARDS, Math.max(MIN_EVENT_DECK_SIZE, parsed));
+    onEventDeckSizeChange(clamped);
+  });
+  sizeLabel.appendChild(sizeInput);
+  sizeLabel.append(` (${MIN_EVENT_DECK_SIZE}-${TOTAL_REGULAR_EVENT_CARDS})`);
+  wrapper.appendChild(sizeLabel);
   wrapper.appendChild(document.createElement("br"));
 
   container.appendChild(wrapper);
@@ -1039,6 +1094,10 @@ export function describeEvent(event: GameEvent, nameOf: (id: string) => string):
       return `${nameOf(event.playerId)} (Mary Rose) bỏ thêm 1 lá Bang! (giá của kỹ năng)`;
     case "MARY_ROSE_REFLECTED":
       return `${nameOf(event.playerId)} (Mary Rose) bắn trả miễn phí vào ${nameOf(event.targetId)}, cần 2 Missed! mới né được`;
+    case "GAMBLER_DISCARDED":
+      return `${nameOf(event.playerId)} (The Gambler) bỏ 2 lá để lật bài kiểm tra`;
+    case "FAIR_KILLER_TRADED_LIFE":
+      return `${nameOf(event.playerId)} (The Fair Killer) mất 1 máu để bắn ${nameOf(event.targetId)}`;
     case "EVENT_REVEALED":
       return `Lá sự kiện mới: ${EVENT_CARDS[event.eventId as EventId]?.name ?? event.eventId}`;
     case "BLOOD_BROTHERS_GIFT":
@@ -1053,6 +1112,10 @@ export function describeEvent(event: GameEvent, nameOf: (id: string) => string):
       return `Russian Roulette: ${cardFaceLabel(event.cardId)} — ${nameOf(event.startPlayerId)} phải bỏ Missed! đầu tiên (chiều ${event.direction === 1 ? "kim đồng hồ" : "ngược kim đồng hồ"})`;
     case "RUSSIAN_ROULETTE_FIRED":
       return `${nameOf(event.playerId)} không né được Russian Roulette, mất ${event.amount} máu`;
+    case "DRIFTER_SHIELD_USED":
+      return `${nameOf(event.playerId)} (The Drifter) dùng lá chắn, chặn trọn ${event.amount} máu`;
+    case "DEALER_TRADE_USED":
+      return `${nameOf(event.playerId)} (The Dealer) đưa ${event.cardIds.map(cardLabel).join(", ")} cho ${nameOf(event.targetId)} để vô hiệu đòn tấn công`;
   }
 }
 
@@ -1094,7 +1157,16 @@ export function describeEvent(event: GameEvent, nameOf: (id: string) => string):
 // gì tới việc nó có che đúng màn hình hay không.
 let openDialog: { title: string; element: HTMLDialogElement; body: HTMLElement } | null = null;
 
-function renderDialog(title: string, onClose: () => void, buildBody: (body: HTMLElement) => void): void {
+// `closeButtonAtTop`: mặc định false (nút "Đóng" nằm CUỐI dialog, sau thân —
+// hành vi cũ). Thư viện bài truyền `true` vì danh sách lá/nhân vật quá dài,
+// nút "Đóng" nằm cuối buộc phải cuộn hết xuống đáy mới bấm được — đẩy lên
+// NGAY SAU tiêu đề, trước thân, để luôn thấy được mà không cần cuộn.
+function renderDialog(
+  title: string,
+  onClose: () => void,
+  buildBody: (body: HTMLElement) => void,
+  closeButtonAtTop = false
+): void {
   if (openDialog && openDialog.title === title) {
     // Cùng dialog đang mở sẵn — chỉ vẽ lại nội dung, không đụng gì tới
     // <dialog>/focus/cuộn đã có.
@@ -1115,16 +1187,18 @@ function renderDialog(title: string, onClose: () => void, buildBody: (body: HTML
   heading.textContent = title;
   dialog.appendChild(heading);
 
+  const closeButton = button("Đóng", () => {
+    dialog.close();
+    onClose();
+  });
+  if (closeButtonAtTop) dialog.appendChild(closeButton);
+
   const body = document.createElement("div");
   buildBody(body);
   dialog.appendChild(body);
 
-  dialog.appendChild(
-    button("Đóng", () => {
-      dialog.close();
-      onClose();
-    })
-  );
+  if (!closeButtonAtTop) dialog.appendChild(closeButton);
+
   dialog.addEventListener("close", () => {
     onClose();
     if (openDialog?.element === dialog) openDialog = null;
@@ -1237,6 +1311,12 @@ function isSoundEnabled(): boolean {
   return localStorage.getItem(SOUND_STORAGE_KEY) !== "off"; // mặc định BẬT
 }
 
+const VIBRATION_STORAGE_KEY = "bang_vibration_enabled";
+
+function isVibrationEnabled(): boolean {
+  return localStorage.getItem(VIBRATION_STORAGE_KEY) !== "off"; // mặc định BẬT
+}
+
 function applyTheme(theme: ThemePreference): void {
   document.documentElement.setAttribute("data-theme", theme);
 }
@@ -1264,6 +1344,34 @@ function playSound(name: string): void {
   if (!isSoundEnabled()) return;
   const audio = new Audio(`/sounds/${name}.mp3`);
   audio.play().catch(() => {});
+}
+
+// Bổ sung — rung màn hình mỗi khi tới lượt mình hoặc cần phản hồi (main.ts
+// gọi hàm này, xem dispatch()/onNetworkMessage()). Dùng thẳng Vibration API
+// chuẩn của trình duyệt (navigator.vibrate) — CHỈ hoạt động trên thiết bị hỗ
+// trợ (đa số Android, KHÔNG có trên iOS Safari/máy tính bàn) nên phải kiểm
+// tra `"vibrate" in navigator` trước, tự im lặng nếu không hỗ trợ hoặc người
+// dùng tắt trong Cài đặt — cùng nguyên tắc an toàn như playSound() ở trên.
+export function vibrateForTurn(): void {
+  if (!isVibrationEnabled()) return;
+  if (typeof navigator === "undefined" || typeof navigator.vibrate !== "function") return;
+  navigator.vibrate(200);
+}
+
+// Bổ sung 2026-08-10 — 2 hiệu ứng hình ảnh đơn giản: tới lượt của mình +
+// thuốc nổ phát nổ (main.ts gọi hàm này, xem dispatch()/onNetworkMessage()).
+// Gắn class TẠM lên <body> thay vì vẽ thêm phần tử trong #game-root — render()
+// dựng lại TOÀN BỘ cây DOM trong #game-root mỗi lần gọi (xem ghi chú ở đầu
+// main.ts) nên 1 phần tử hiệu ứng đặt trong đó sẽ bị xoá ngay giữa chừng
+// animation; <body> không bao giờ bị render() đụng tới. CSS lo toàn bộ hoạt
+// hoạ (xem .effect-my-turn/.effect-dynamite trong style.css) — animation chạy
+// 1 lần rồi tự dừng, không cần setTimeout dọn class. remove() + ép reflow
+// (đọc offsetWidth) trước khi add() lại để phát lại animation nếu hiệu ứng
+// trước đó vừa chạy xong (thêm class đã có sẵn thì trình duyệt không chạy lại).
+export function triggerVisualEffect(name: "effect-my-turn" | "effect-dynamite"): void {
+  document.body.classList.remove(name);
+  void document.body.offsetWidth;
+  document.body.classList.add(name);
 }
 
 // Tham số cho phần "Bắt đầu ván mới" trong dialog Cài đặt (bổ sung) — dùng
@@ -1364,6 +1472,22 @@ function renderSettingsDialogBody(
   soundRow.appendChild(soundLabel);
   body.appendChild(soundRow);
 
+  // Bổ sung — rung màn hình khi tới lượt/cần phản hồi (chỉ thiết bị hỗ trợ
+  // Vibration API mới thấy tác dụng, xem vibrateForTurn() ở trên).
+  const vibrationLabel = document.createElement("label");
+  const vibrationInput = document.createElement("input");
+  vibrationInput.type = "checkbox";
+  vibrationInput.checked = isVibrationEnabled();
+  vibrationInput.addEventListener("change", () => {
+    localStorage.setItem(VIBRATION_STORAGE_KEY, vibrationInput.checked ? "on" : "off");
+    if (vibrationInput.checked) vibrateForTurn(); // rung thử ngay (im lặng nếu thiết bị không hỗ trợ)
+  });
+  vibrationLabel.appendChild(vibrationInput);
+  vibrationLabel.append(" Rung khi tới lượt/cần phản hồi (chỉ có tác dụng trên thiết bị hỗ trợ, vd điện thoại Android)");
+  const vibrationRow = document.createElement("p");
+  vibrationRow.appendChild(vibrationLabel);
+  body.appendChild(vibrationRow);
+
   if (newGame.visible) {
     if (newGame.confirmingNewGame) {
       const warning = document.createElement("p");
@@ -1440,7 +1564,7 @@ function renderCountdown(
 // Mở rộng Dodge City, mục 1.2 — 3 tên nhân vật dùng chung action USE_ABILITY
 // VÀ cần bước "chọn lá trên tay" ở client trước khi gửi đi (Chuck Wengam
 // không cần lá nào — cardIds: [] — nên KHÔNG cần bước chọn, gửi thẳng).
-export type UseAbilityCharacter = "sid_ketchum" | "jose_delgado" | "doc_holyday";
+export type UseAbilityCharacter = "sid_ketchum" | "jose_delgado" | "doc_holyday" | "the_gambler";
 
 export type Selection =
   | { step: "idle" }
@@ -1469,7 +1593,13 @@ export type Selection =
   | { step: "picking-ability-cards"; playerId: string; ability: UseAbilityCharacter; needed: number; selectedCardIds: string[] }
   // Mở rộng Dodge City, mục C nhóm C (Doc Holyday) — đã chọn đủ 2 lá, giờ chọn
   // mục tiêu để bắn.
-  | { step: "picking-ability-target"; playerId: string; cardIds: string[] };
+  | { step: "picking-ability-target"; playerId: string; cardIds: string[] }
+  // Kit Carlson — trả lời NEED_PICK_KEPT_CARDS bằng cách bấm LẦN LƯỢT từng lá
+  // muốn GIỮ (không phải bấm 1 lá để bỏ). Mỗi lần bấm 1 lá CHƯA chọn thì thêm
+  // vào `selectedCardIds`; bấm lại lá ĐÃ chọn thì bỏ chọn (sửa lại nếu lỡ tay).
+  // Đủ `top.keepCount` lá thì gửi RESPOND ngay, không cần nút xác nhận riêng —
+  // xem onPickKeptCard()/onNetworkPickKeptCard() trong main.ts.
+  | { step: "picking-kit-carlson-kept"; selectedCardIds: string[] };
 
 // Dòng gợi ý trong băng "Đang chọn... Huỷ" — trước đây LUÔN là "mục tiêu" (chỉ
 // có 1 loại bước chọn), giờ có thêm bước chọn lá/vùng nên cần đúng chữ hơn.
@@ -1483,6 +1613,8 @@ function selectionHintText(selection: Selection): string {
       return "Đang chọn lá để dùng kỹ năng...";
     case "picking-ability-target":
       return "Đang chọn mục tiêu cho kỹ năng...";
+    case "picking-kit-carlson-kept":
+      return "Đang chọn lần lượt từng lá muốn giữ (Kit Carlson)...";
     default:
       return "Đang chọn mục tiêu...";
   }
@@ -1513,6 +1645,12 @@ export interface UiHandlers {
   // chọn lá gì nên dùng thẳng `onUseChuckWengamAbility`, gửi đi ngay).
   onArmAbility(playerId: string, ability: UseAbilityCharacter): void;
   onUseChuckWengamAbility(playerId: string): void;
+  // Bộ mở rộng "custom_characters" (The Fair Killer, xem House_Rule.txt mục
+  // I) — không cần bỏ lá nào (giống Chuck Wengam) NHƯNG cần chọn mục tiêu
+  // (giống Doc Holyday) — nhảy THẲNG sang bước "picking-ability-target" với
+  // cardIds rỗng, bỏ qua hẳn bước "picking-ability-cards" (0 lá thì không có
+  // gì để chọn).
+  onArmFairKillerAbility(playerId: string): void;
   onToggleAbilityCard(cardId: string): void;
   onConfirmAbilityCards(): void;
   onAbilityTargetClick(targetId: string): void;
@@ -1534,10 +1672,24 @@ export interface UiHandlers {
   // KHÔNG tái dùng onRespondTakeConsequence dù kết quả cuối tương đương, để
   // nút bấm rõ nghĩa hơn là "chọn không" thay vì "mặc định/hết giờ").
   onPickArmed(armed: boolean): void;
+  // Bộ mở rộng "custom_characters" (The Drifter, xem House_Rule.txt mục I) —
+  // trả lời NEED_USE_DRIFTER_SHIELD: muốn dùng lá chắn. Nút "Không dùng" tái
+  // dùng onRespondTakeConsequence() (RESPOND không kèm useShield = từ chối),
+  // KHÔNG cần tham số boolean như onPickArmed — chỉ 1 nhánh cần handler mới.
+  onUseDrifterShield(): void;
+  // Bộ mở rộng "custom_characters" (The Dealer, xem House_Rule.txt mục I) —
+  // trả lời NEED_USE_DEALER_TRADE: muốn đưa 2 lá ngẫu nhiên cho người vừa
+  // đánh mình. Nút "Không, chịu mất máu" tái dùng onRespondTakeConsequence().
+  onUseDealerTrade(): void;
   // Bộ mở rộng "custom_characters" (Marcel Marcelo, xem House_Rule.txt mục I)
   // — trả lời NEED_PICK_MARCEL_COMPANION: chọn `targetId` làm người "cùng vào
   // tù" (bắt buộc chọn, không có lựa chọn "không chọn ai").
   onPickMarcelCompanion(targetId: string): void;
+  // Bộ mở rộng "custom_characters" (The Thief, xem House_Rule.txt mục I) —
+  // trả lời NEED_PICK_THIEF_TARGET: chọn `targetId` để cướp ngẫu nhiên 1 lá.
+  // "Bỏ qua" dùng onRespondTakeConsequence() (KHÔNG bắt buộc chọn, khác Marcel
+  // Marcelo ở trên).
+  onPickThiefTarget(targetId: string): void;
   // Đợt 2 UI/UX (mục 4) — bấm "nở"/"thu gọn" khu trang bị của 1 seat khi bàn
   // >6 người. Client-only, không phải hành động ván đấu, không gửi lên server.
   onToggleSeatExpanded(playerId: string): void;
@@ -2116,6 +2268,23 @@ function renderAbilitySection(
       container.appendChild(
         button("Dùng kỹ năng: bỏ 2 lá bắn Bang!", () => handlers.onArmAbility(player.id, "doc_holyday"))
       );
+    } else if (def.canDiscardTwoToGambleDraw && isMyTurnNoPending && player.hand.length >= 2) {
+      container.appendChild(
+        button("Dùng kỹ năng: bỏ 2 lá, lật bài (đỏ rút 3, đen rút 1)", () =>
+          handlers.onArmAbility(player.id, "the_gambler")
+        )
+      );
+    } else if (
+      def.canShootByLosingLife &&
+      isMyTurnNoPending &&
+      !state.fairKillerUsedThisTurn &&
+      player.hp > 1
+    ) {
+      container.appendChild(
+        button("Dùng kỹ năng: mất 1 máu bắn Bang! (bỏ qua khoảng cách)", () =>
+          handlers.onArmFairKillerAbility(player.id)
+        )
+      );
     }
   }
 
@@ -2164,6 +2333,8 @@ function pendingDescription(state: GameState, item: PendingAction): string {
       return `${player} (Elena Noir) chọn vũ trang khả năng Miễn Tử cho lượt này hay không`;
     case "NEED_PICK_MARCEL_COMPANION":
       return `${player} (Marcel Marcelo) chọn 1 người cùng vào tù`;
+    case "NEED_PICK_THIEF_TARGET":
+      return `${player} (The Thief) chọn 1 người để cướp bài (hoặc bỏ qua)`;
     case "NEED_BLOOD_BROTHERS_GIFT":
       return `${player} chọn tặng 1 máu cho ai đó (hoặc bỏ qua)`;
     case "NEED_PICK_HARD_LIQUOR":
@@ -2174,6 +2345,10 @@ function pendingDescription(state: GameState, item: PendingAction): string {
       return `${player} chọn đổi bài (hoặc bỏ qua)`;
     case "NEED_DISCARD_MISSED_OR_DAMAGE":
       return `${player} bỏ 1 lá Missed! (Russian Roulette, hoặc chịu mất 2 máu)`;
+    case "NEED_USE_DRIFTER_SHIELD":
+      return `${player} chọn dùng lá chắn hay không (bí mật)`;
+    case "NEED_USE_DEALER_TRADE":
+      return `${player} (The Dealer) chọn đưa 2 lá cho người vừa đánh mình hay chịu mất máu`;
     default: {
       const neverKind: never = item;
       throw new Error(`Chưa biết mô tả cho pending: ${JSON.stringify(neverKind)}`);
@@ -2186,7 +2361,7 @@ function pendingDescription(state: GameState, item: PendingAction): string {
 // tử cuối mảng) là việc đang chờ THẬT SỰ, có nút bấm phản hồi; các mục còn lại
 // chỉ để NGƯỜI CHƠI BIẾT trước việc gì sẽ tới, không bấm được (bấm sai thứ tự
 // stack là sai luật — xem mục 5 CLAUDE.md).
-function renderPendingPanel(container: HTMLElement, state: GameState, handlers: UiHandlers): void {
+function renderPendingPanel(container: HTMLElement, state: GameState, handlers: UiHandlers, selection: Selection): void {
   if (state.pending.length === 0) return;
 
   // Mục 8 UI/UX — "băng thông báo đầu bàn": luôn hiện ĐỈNH stack làm dòng
@@ -2258,13 +2433,23 @@ function renderPendingPanel(container: HTMLElement, state: GameState, handlers: 
   } else if (top.kind === "NEED_GIVE_CARD_TO_PLAYER") {
     panel.appendChild(button("Không chọn — rút ngẫu nhiên thay tôi", () => handlers.onRespondTakeConsequence()));
   } else if (top.kind === "NEED_PICK_KEPT_CARDS") {
+    const selectedIds = selection.step === "picking-kit-carlson-kept" ? selection.selectedCardIds : [];
     const wrapper = document.createElement("div");
     wrapper.className = "cards";
     for (const cardId of top.cards) {
-      wrapper.appendChild(cardButton(cardId, () => handlers.onPickKeptCard(cardId)));
+      const checked = selectedIds.includes(cardId);
+      wrapper.appendChild(
+        cardButton(cardId, () => handlers.onPickKeptCard(cardId), checked ? "card-box--checked" : undefined)
+      );
     }
     panel.appendChild(wrapper);
-    panel.appendChild(button("Giữ 2 lá đầu (bỏ lá thứ 3)", () => handlers.onRespondTakeConsequence()));
+    const info = document.createElement("p");
+    info.className = "reaction-banner__note";
+    info.textContent = `Bấm lần lượt từng lá muốn giữ — đã chọn ${selectedIds.length}/${top.keepCount}.`;
+    panel.appendChild(info);
+    panel.appendChild(
+      button(`Giữ ${top.keepCount} lá đầu (mặc định, hết giờ)`, () => handlers.onRespondTakeConsequence())
+    );
   } else if (top.kind === "NEED_PICK_DRAW_OR_EQUIPMENT") {
     panel.appendChild(button("Rút bộ bài", () => handlers.onRespondTakeConsequence()));
     for (const p of state.players) {
@@ -2291,10 +2476,33 @@ function renderPendingPanel(container: HTMLElement, state: GameState, handlers: 
   } else if (top.kind === "NEED_PICK_ARMED") {
     panel.appendChild(button("Vũ trang (rút 1 lá)", () => handlers.onPickArmed(true)));
     panel.appendChild(button("Không vũ trang (rút 2 lá)", () => handlers.onPickArmed(false)));
+  } else if (top.kind === "NEED_USE_DRIFTER_SHIELD") {
+    // Bộ mở rộng "custom_characters" (The Drifter) — hotseat dùng chung 1 màn
+    // hình nên không có bí mật thật (đúng tiền lệ NEED_PICK_KEPT_CARDS/Kit
+    // Carlson), cứ đọc thẳng state.drifterShield để gợi ý cho tiện.
+    const hint = document.createElement("p");
+    hint.textContent = state.drifterShield[top.player]
+      ? "(Đang có lá chắn.)"
+      : "(Hiện KHÔNG có lá chắn — dùng cũng vô tác dụng.)";
+    panel.appendChild(hint);
+    panel.appendChild(button("Dùng lá chắn (chặn trọn đòn)", () => handlers.onUseDrifterShield()));
+    panel.appendChild(button("Không dùng (để dành)", () => handlers.onRespondTakeConsequence()));
+  } else if (top.kind === "NEED_USE_DEALER_TRADE") {
+    const attackerName = state.players.find((p) => p.id === top.missedTop.source.from)?.name ?? "?";
+    panel.appendChild(
+      button(`Đưa 2 lá ngẫu nhiên cho ${attackerName} (vô hiệu đòn)`, () => handlers.onUseDealerTrade())
+    );
+    panel.appendChild(button("Không, chịu mất máu", () => handlers.onRespondTakeConsequence()));
   } else if (top.kind === "NEED_PICK_MARCEL_COMPANION") {
     for (const p of state.players) {
       if (!p.alive || p.id === top.player) continue;
       panel.appendChild(button(`Chỉ định ${p.name} cùng vào tù`, () => handlers.onPickMarcelCompanion(p.id)));
+    }
+  } else if (top.kind === "NEED_PICK_THIEF_TARGET") {
+    panel.appendChild(button("Bỏ qua", () => handlers.onRespondTakeConsequence()));
+    for (const p of state.players) {
+      if (!p.alive || p.id === top.player) continue;
+      panel.appendChild(button(`Cướp 1 lá của ${p.name}`, () => handlers.onPickThiefTarget(p.id)));
     }
   }
 
@@ -2509,7 +2717,7 @@ export function renderApp(
     container.appendChild(hint);
   }
 
-  renderPendingPanel(container, state, handlers);
+  renderPendingPanel(container, state, handlers, options.selection);
   renderPhaseActions(container, state, options, handlers);
 
   const playersEl = document.createElement("div");
@@ -2523,10 +2731,15 @@ export function renderApp(
     renderDialog("Nhật ký ván đấu", handlers.onCloseLogDialog, (body) => renderLogDialogBody(body, options.log));
   }
   if (options.cardReferenceDialogOpen) {
-    renderDialog("Thư viện bài", handlers.onCloseCardReferenceDialog, (body) => {
-      renderCardReferenceSearchBox(body, options.cardReferenceSearchQuery, handlers.onCardReferenceSearchChange);
-      renderCardReferenceBody(body, options.cardReferenceSearchQuery);
-    });
+    renderDialog(
+      "Thư viện bài",
+      handlers.onCloseCardReferenceDialog,
+      (body) => {
+        renderCardReferenceSearchBox(body, options.cardReferenceSearchQuery, handlers.onCardReferenceSearchChange);
+        renderCardReferenceBody(body, options.cardReferenceSearchQuery);
+      },
+      true
+    );
   }
   if (options.settingsDialogOpen) {
     renderDialog("Cài đặt", handlers.onCloseSettingsDialog, (body) =>
@@ -2561,6 +2774,7 @@ export interface SetupHandlers {
   onRemovePlayer(): void;
   onToggleHouseRule(id: HouseRuleId): void;
   onToggleExpansion(id: ExpansionId): void;
+  onEventDeckSizeChange(size: number): void;
   onStartGame(): void;
 }
 
@@ -2573,6 +2787,7 @@ export function renderSetupScreen(
   error: string | null,
   selectedHouseRules: HouseRuleId[],
   selectedExpansions: ExpansionId[],
+  eventDeckSize: number,
   handlers: SetupHandlers
 ): void {
   container.replaceChildren();
@@ -2617,7 +2832,13 @@ export function renderSetupScreen(
   container.appendChild(controls);
 
   renderHouseRuleCheckboxes(container, selectedHouseRules, handlers.onToggleHouseRule);
-  renderExpansionCheckboxes(container, selectedExpansions, handlers.onToggleExpansion);
+  renderExpansionCheckboxes(
+    container,
+    selectedExpansions,
+    handlers.onToggleExpansion,
+    eventDeckSize,
+    handlers.onEventDeckSizeChange
+  );
 
   container.appendChild(button("Bắt đầu ván", () => handlers.onStartGame()));
 }
@@ -2950,6 +3171,7 @@ export interface LobbyPlayer {
 export interface NetworkLobbyHandlers {
   onToggleHouseRule(id: HouseRuleId): void;
   onToggleExpansion(id: ExpansionId): void;
+  onEventDeckSizeChange(size: number): void;
   onStartGame(): void;
 }
 
@@ -2972,6 +3194,7 @@ export function renderNetworkLobby(
   selectedHouseRules: HouseRuleId[],
   // Mở rộng Dodge City — cùng quy tắc hiển thị/gửi như selectedHouseRules ở trên.
   selectedExpansions: ExpansionId[],
+  eventDeckSize: number,
   handlers: NetworkLobbyHandlers
 ): void {
   container.replaceChildren();
@@ -3016,7 +3239,13 @@ export function renderNetworkLobby(
   // nút ẩn ở đây chỉ để đỡ bấm nhầm, không phải chốt chặn duy nhất.
   if (viewerId === ownerId) {
     renderHouseRuleCheckboxes(container, selectedHouseRules, handlers.onToggleHouseRule);
-    renderExpansionCheckboxes(container, selectedExpansions, handlers.onToggleExpansion);
+    renderExpansionCheckboxes(
+      container,
+      selectedExpansions,
+      handlers.onToggleExpansion,
+      eventDeckSize,
+      handlers.onEventDeckSizeChange
+    );
 
     const startBtn = button("Bắt đầu ván", () => handlers.onStartGame());
     startBtn.disabled = players.length < MIN_NETWORK_PLAYERS;
@@ -3067,12 +3296,20 @@ export interface NetworkGameHandlers {
   // Bộ mở rộng "custom_characters" (Elena Noir/Marcel Marcelo) — giống hệt
   // UiHandlers (hotseat), xem ghi chú ở đó.
   onPickArmed(armed: boolean): void;
+  // Bộ mở rộng "custom_characters" (The Drifter) — giống hệt UiHandlers
+  // (hotseat), xem ghi chú ở đó.
+  onUseDrifterShield(): void;
+  // Bộ mở rộng "custom_characters" (The Dealer) — giống hệt UiHandlers
+  // (hotseat), xem ghi chú ở đó.
+  onUseDealerTrade(): void;
   onPickMarcelCompanion(targetId: string): void;
+  onPickThiefTarget(targetId: string): void;
   onBrawlZonePick(targetId: string, zone: "hand" | "equipment"): void;
   onBrawlZonesConfirmed(): void;
   onExtraDiscardCardClick(cardId: string): void;
   onArmAbility(playerId: string, ability: UseAbilityCharacter): void;
   onUseChuckWengamAbility(playerId: string): void;
+  onArmFairKillerAbility(playerId: string): void;
   onToggleAbilityCard(cardId: string): void;
   onConfirmAbilityCards(): void;
   onAbilityTargetClick(targetId: string): void;
@@ -3546,6 +3783,23 @@ function networkRenderAbilitySection(
       container.appendChild(
         button("Dùng kỹ năng: bỏ 2 lá bắn Bang!", () => handlers.onArmAbility(player.id, "doc_holyday"))
       );
+    } else if (def.canDiscardTwoToGambleDraw && isMyTurnNoPending && player.hand.length >= 2) {
+      container.appendChild(
+        button("Dùng kỹ năng: bỏ 2 lá, lật bài (đỏ rút 3, đen rút 1)", () =>
+          handlers.onArmAbility(player.id, "the_gambler")
+        )
+      );
+    } else if (
+      def.canShootByLosingLife &&
+      isMyTurnNoPending &&
+      !view.fairKillerUsedThisTurn &&
+      player.hp > 1
+    ) {
+      container.appendChild(
+        button("Dùng kỹ năng: mất 1 máu bắn Bang! (bỏ qua khoảng cách)", () =>
+          handlers.onArmFairKillerAbility(player.id)
+        )
+      );
     }
   }
 
@@ -3568,7 +3822,8 @@ function networkRenderPendingPanel(
   container: HTMLElement,
   view: PlayerView,
   handlers: NetworkGameHandlers,
-  deadline: DeadlineInfo | null
+  deadline: DeadlineInfo | null,
+  selection: Selection
 ): void {
   if (view.pending.length === 0) return;
 
@@ -3604,6 +3859,8 @@ function networkRenderPendingPanel(
         return `${name} (Elena Noir) chọn vũ trang khả năng Miễn Tử cho lượt này hay không`;
       case "NEED_PICK_MARCEL_COMPANION":
         return `${name} (Marcel Marcelo) chọn 1 người cùng vào tù`;
+      case "NEED_PICK_THIEF_TARGET":
+        return `${name} (The Thief) chọn 1 người để cướp bài (hoặc bỏ qua)`;
       case "NEED_BLOOD_BROTHERS_GIFT":
         return `${name} chọn tặng 1 máu cho ai đó (hoặc bỏ qua)`;
       case "NEED_PICK_HARD_LIQUOR":
@@ -3614,6 +3871,10 @@ function networkRenderPendingPanel(
         return `${name} chọn đổi bài (hoặc bỏ qua)`;
       case "NEED_DISCARD_MISSED_OR_DAMAGE":
         return `${name} bỏ 1 lá Missed! (Russian Roulette, hoặc chịu mất 2 máu)`;
+      case "NEED_USE_DRIFTER_SHIELD":
+        return `${name} chọn dùng lá chắn hay không (bí mật)`;
+      case "NEED_USE_DEALER_TRADE":
+        return `${name} (The Dealer) chọn đưa 2 lá cho người vừa đánh mình hay chịu mất máu`;
       default: {
         const neverKind: never = item;
         throw new Error(`Chưa biết mô tả cho pending: ${JSON.stringify(neverKind)}`);
@@ -3704,15 +3965,25 @@ function networkRenderPendingPanel(
     } else if (top.kind === "NEED_GIVE_CARD_TO_PLAYER") {
       panel.appendChild(button("Không chọn — rút ngẫu nhiên thay tôi", () => handlers.onRespondTakeConsequence()));
     } else if (top.kind === "NEED_PICK_KEPT_CARDS") {
+      const selectedIds = selection.step === "picking-kit-carlson-kept" ? selection.selectedCardIds : [];
       if (top.cards) {
         const wrapper = document.createElement("div");
         wrapper.className = "cards";
         for (const cardId of top.cards) {
-          wrapper.appendChild(cardButton(cardId, () => handlers.onPickKeptCard(cardId)));
+          const checked = selectedIds.includes(cardId);
+          wrapper.appendChild(
+            cardButton(cardId, () => handlers.onPickKeptCard(cardId), checked ? "card-box--checked" : undefined)
+          );
         }
         panel.appendChild(wrapper);
+        const info = document.createElement("p");
+        info.className = "reaction-banner__note";
+        info.textContent = `Bấm lần lượt từng lá muốn giữ — đã chọn ${selectedIds.length}/${top.keepCount}.`;
+        panel.appendChild(info);
       }
-      panel.appendChild(button("Giữ 2 lá đầu (bỏ lá thứ 3)", () => handlers.onRespondTakeConsequence()));
+      panel.appendChild(
+        button(`Giữ ${top.keepCount} lá đầu (mặc định, hết giờ)`, () => handlers.onRespondTakeConsequence())
+      );
     } else if (top.kind === "NEED_PICK_DRAW_OR_EQUIPMENT") {
       panel.appendChild(button("Rút bộ bài", () => handlers.onRespondTakeConsequence()));
       for (const p of view.players) {
@@ -3739,10 +4010,34 @@ function networkRenderPendingPanel(
     } else if (top.kind === "NEED_PICK_ARMED") {
       panel.appendChild(button("Vũ trang (rút 1 lá)", () => handlers.onPickArmed(true)));
       panel.appendChild(button("Không vũ trang (rút 2 lá)", () => handlers.onPickArmed(false)));
+    } else if (top.kind === "NEED_USE_DRIFTER_SHIELD") {
+      // Bộ mở rộng "custom_characters" (The Drifter) — chỉ tới đây khi
+      // top.player === view.viewerId (đúng khối if bao ngoài), nên
+      // view.drifterShield[view.viewerId] LUÔN có entry đúng của chính mình
+      // (xem viewFor() ở view.ts — lọc riêng tư, người khác không thấy).
+      const hint = document.createElement("p");
+      hint.textContent = view.drifterShield[view.viewerId]
+        ? "(Đang có lá chắn.)"
+        : "(Hiện KHÔNG có lá chắn — dùng cũng vô tác dụng.)";
+      panel.appendChild(hint);
+      panel.appendChild(button("Dùng lá chắn (chặn trọn đòn)", () => handlers.onUseDrifterShield()));
+      panel.appendChild(button("Không dùng (để dành)", () => handlers.onRespondTakeConsequence()));
+    } else if (top.kind === "NEED_USE_DEALER_TRADE") {
+      const attackerName = findName(top.missedTop.source.from ?? "");
+      panel.appendChild(
+        button(`Đưa 2 lá ngẫu nhiên cho ${attackerName} (vô hiệu đòn)`, () => handlers.onUseDealerTrade())
+      );
+      panel.appendChild(button("Không, chịu mất máu", () => handlers.onRespondTakeConsequence()));
     } else if (top.kind === "NEED_PICK_MARCEL_COMPANION") {
       for (const p of view.players) {
         if (!p.alive || p.id === top.player) continue;
         panel.appendChild(button(`Chỉ định ${p.name} cùng vào tù`, () => handlers.onPickMarcelCompanion(p.id)));
+      }
+    } else if (top.kind === "NEED_PICK_THIEF_TARGET") {
+      panel.appendChild(button("Bỏ qua", () => handlers.onRespondTakeConsequence()));
+      for (const p of view.players) {
+        if (!p.alive || p.id === top.player) continue;
+        panel.appendChild(button(`Cướp 1 lá của ${p.name}`, () => handlers.onPickThiefTarget(p.id)));
       }
     }
   }
@@ -3935,7 +4230,13 @@ export function renderNetworkGame(
     container.appendChild(hint);
   }
 
-  networkRenderPendingPanel(container, view, handlers, view.pending.length > 0 ? options.deadline : null);
+  networkRenderPendingPanel(
+    container,
+    view,
+    handlers,
+    view.pending.length > 0 ? options.deadline : null,
+    options.selection
+  );
   networkRenderPhaseActions(container, view, options, handlers);
 
   // Bug đã sửa (báo lỗi thật từ chủ dự án — 5 người chơi, 4 đối thủ bị tách
@@ -3978,10 +4279,15 @@ export function renderNetworkGame(
     renderDialog("Nhật ký ván đấu", handlers.onCloseLogDialog, (body) => renderLogDialogBody(body, options.log));
   }
   if (options.cardReferenceDialogOpen) {
-    renderDialog("Thư viện bài", handlers.onCloseCardReferenceDialog, (body) => {
-      renderCardReferenceSearchBox(body, options.cardReferenceSearchQuery, handlers.onCardReferenceSearchChange);
-      renderCardReferenceBody(body, options.cardReferenceSearchQuery);
-    });
+    renderDialog(
+      "Thư viện bài",
+      handlers.onCloseCardReferenceDialog,
+      (body) => {
+        renderCardReferenceSearchBox(body, options.cardReferenceSearchQuery, handlers.onCardReferenceSearchChange);
+        renderCardReferenceBody(body, options.cardReferenceSearchQuery);
+      },
+      true
+    );
   }
   if (options.settingsDialogOpen) {
     renderDialog("Cài đặt", handlers.onCloseSettingsDialog, (body) =>

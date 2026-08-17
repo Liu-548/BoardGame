@@ -138,7 +138,14 @@ export class Room {
         this.broadcastChat(ws, parsed.text, parsed.to);
         return;
       case "start_game":
-        await this.handleStartGame(ws, parsed.seed, parsed.houseRules, parsed.expansions, parsed.force);
+        await this.handleStartGame(
+          ws,
+          parsed.seed,
+          parsed.houseRules,
+          parsed.expansions,
+          parsed.eventDeckSize,
+          parsed.force
+        );
         return;
       case "action":
         await this.handleAction(ws, parsed.action);
@@ -195,6 +202,7 @@ export class Room {
     seed: number,
     houseRules?: HouseRuleId[],
     expansions?: ExpansionId[],
+    eventDeckSize?: number,
     force?: boolean
   ): Promise<void> {
     const attachment = ws.deserializeAttachment() as SocketAttachment | null;
@@ -226,7 +234,7 @@ export class Room {
       // còn kết nối nhưng cứ không bấm chọn, ván sẽ chờ vô thời hạn ở bước
       // này (mất kết nối thì cơ chế huỷ ván có sẵn từ việc 4.3 vẫn hoạt động
       // bình thường, không liên quan gì tới field mới này).
-      state = setupGame(playerIds, seed, { dealCharacterCards: true, houseRules, expansions });
+      state = setupGame(playerIds, seed, { dealCharacterCards: true, houseRules, expansions, eventDeckSize });
     } catch (e) {
       this.sendError(ws, e instanceof Error ? e.message : "Không tạo được ván mới");
       return;
@@ -410,20 +418,37 @@ export class Room {
       expiresAt = Date.now() + pausedPlay.remainingMs;
       await this.ctx.storage.delete(PAUSED_PLAY_KEY);
     } else {
+      // BUG thật (báo từ chủ dự án 2026-08-11, sửa cùng ngày) — lá đánh NHIỀU
+      // người liền (Gatling/Indians!/Brawl...) đẩy 1 LOẠT pending "reactive"
+      // riêng cho từng nạn nhân, giải quyết LẦN LƯỢT từng người (xem
+      // CLAUDE.md's "Mô hình chờ"). Bản cũ chỉ lưu pausedPlay ĐÚNG lúc chuyển
+      // TỪ "play" SANG "reactive" (nạn nhân đầu tiên) — mọi lần chuyển tiếp
+      // theo SAU đó (reactive người này -> reactive người kế) đều rơi vào
+      // nhánh else bên dưới và XOÁ MẤT pausedPlay đang giữ số giây còn lại
+      // của người vừa đánh, dù lượt đánh của họ CHƯA hề quay lại. Tới lúc nạn
+      // nhân CUỐI cùng phản hồi xong, quay về "play" thì pausedPlay đã rỗng ->
+      // cấp NHẦM 60 giây mới hoàn toàn thay vì đúng số giây còn lại. Sửa:
+      // pausedPlay phải sống sót qua SUỐT chuỗi reactive->reactive (không
+      // đụng gì tới nó), CHỈ xoá khi quyết định mới KHÔNG còn là "reactive"
+      // (đổi lượt/pha bỏ bài/chọn nhân vật, hoặc "play" nhưng lệch người —
+      // trường hợp resume ĐÚNG người đã được nhánh if ở trên xử lý riêng).
       if (previous?.kind === "play" && decision.kind === "reactive") {
         // Lượt đánh đang chạy bị ngắt ngang vì có người khác phải phản hồi ->
         // tạm giữ số giây CÒN LẠI, không cho trôi mất trong lúc chờ.
         const remainingMs = Math.max(0, previous.expiresAt - Date.now());
         const paused: PausedPlay = { playerId: previous.playerId, remainingMs };
         await this.ctx.storage.put(PAUSED_PLAY_KEY, paused);
-      } else {
-        // Mọi trường hợp khác (lượt đánh đổi sang người khác, sang pha bỏ bài
-        // thừa, hay pausedPlay không khớp người) -> dữ liệu tạm giữ cũ (nếu
-        // có) đã hết ý nghĩa, dọn đi tránh dùng nhầm về sau.
+      } else if (decision.kind !== "reactive") {
+        // Quyết định mới không còn là "reactive" (và không khớp nhánh resume
+        // ở trên) -> dữ liệu tạm giữ cũ (nếu có) đã hết ý nghĩa thật, dọn đi
+        // tránh dùng nhầm về sau.
         await this.ctx.storage.delete(PAUSED_PLAY_KEY);
       }
+      // else: decision.kind === "reactive" nhưng KHÔNG phải lần đầu ngắt lượt
+      // đánh (previous cũng đã là "reactive") -> đang giữa chuỗi nhiều nạn
+      // nhân của cùng 1 lá, GIỮ NGUYÊN pausedPlay đang có, không đụng vào.
 
-      const durationMs =
+      const baseDurationMs =
         decision.kind === "play"
           ? PLAY_PHASE_MS
           : decision.kind === "discard"
@@ -431,6 +456,11 @@ export class Room {
             : decision.kind === "character_selection"
               ? CHARACTER_SELECTION_MS
               : REACTIVE_MS;
+      // House rule "double_timers" (xem types.ts) — gấp đôi mốc GỐC trước khi
+      // cấp đồng hồ mới. KHÔNG đụng nhánh resume-từ-pausedPlay ở trên: số
+      // giây còn lại ở đó vốn đã được tính từ 1 lần cấp mới TRƯỚC ĐÓ (đã nhân
+      // đôi sẵn nếu luật này đang bật lúc đó), nhân lại lần nữa sẽ SAI.
+      const durationMs = state.houseRules.includes("double_timers") ? baseDurationMs * 2 : baseDurationMs;
       expiresAt = Date.now() + durationMs;
     }
 
@@ -608,6 +638,21 @@ export class Room {
         return { type: "RESPOND", playerId: top.player, targetId: target.id };
       }
 
+      // Bộ mở rộng "custom_characters" (The Thief) — KHÁC mọi pending "tự
+      // chọn" khác ở trên: hết giờ KHÔNG mặc định "bỏ qua" (RESPOND không kèm
+      // targetId vẫn hợp lệ, nhưng đó là lựa chọn TỰ NGUYỆN của người chơi,
+      // không phải hành vi mặc định lúc hết giờ) — house rule đã chốt tự chọn
+      // NGẪU NHIÊN 1 người còn sống CÓ BÀI, chỉ rơi về "không chọn ai" khi thật
+      // sự không còn ai có bài (xem House_Rule.txt mục I).
+      case "NEED_PICK_THIEF_TARGET": {
+        const player = state.players.find((p) => p.id === top.player);
+        if (!player) return null;
+        const candidates = state.players.filter((p) => p.alive && p.id !== player.id && p.hand.length > 0);
+        if (candidates.length === 0) return { type: "RESPOND", playerId: top.player };
+        const target = candidates[Math.floor(Math.random() * candidates.length)];
+        return { type: "RESPOND", playerId: top.player, targetId: target.id };
+      }
+
       // Mở rộng A Fistful of Cards (Blood Brothers) — hết giờ thì mặc định bỏ
       // qua, không tặng ai (không kèm targetId) — an toàn hơn tự ý chọn người
       // nhận thay người chơi.
@@ -635,6 +680,18 @@ export class Room {
       // (chịu mất 2 máu, chuỗi dừng lại), giống hệt NEED_MISSED — RESPOND
       // không kèm cardId.
       case "NEED_DISCARD_MISSED_OR_DAMAGE":
+        return { type: "RESPOND", playerId: top.player };
+
+      // Bộ mở rộng "custom_characters" (The Drifter) — hết giờ mặc định TỪ
+      // CHỐI (không kèm useShield) — giữ khiên lại để dành, an toàn hơn tự ý
+      // dùng thay người chơi.
+      case "NEED_USE_DRIFTER_SHIELD":
+        return { type: "RESPOND", playerId: top.player };
+
+      // Bộ mở rộng "custom_characters" (The Dealer) — hết giờ mặc định TỪ
+      // CHỐI (không kèm useDealerTrade) — an toàn hơn tự ý tiêu 2 lá bài thay
+      // người chơi.
+      case "NEED_USE_DEALER_TRADE":
         return { type: "RESPOND", playerId: top.player };
     }
   }
