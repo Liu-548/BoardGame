@@ -458,6 +458,10 @@ const CHARACTER_DESCRIPTIONS: Record<string, string> = {
     "Đầu mỗi lượt của mình, lật bài kiểm tra NGẦM (chỉ mình biết): ra Cơ/Rô thì có 1 lá chắn tới đầu lượt kế tiếp của chính mình. Khi sắp mất máu vì bất cứ lý do gì, có thể tự chọn dùng lá chắn để chặn TRỌN cả đòn đó (kể cả Thuốc nổ 3 máu).",
   the_dealer:
     "Mỗi khi bị nhắm bởi 1 đòn kiểu Bang! (Bang!, Gatling, Springfield, Derringer...) mà không đỡ được, có thể chọn đưa 2 lá ngẫu nhiên trên tay cho người vừa đánh mình để vô hiệu đòn đó — không giới hạn số lần, miễn còn đủ 2 lá.",
+  the_sentinel:
+    "Bất kỳ lúc nào có 1 người chơi (kể cả chính mình) sắp bị ghi nhận CHẾT (Bia/Miễn Tử đều không cứu được), được hỏi có muốn trả 2 máu tối đa VĨNH VIỄN để hồi sinh người đó ngay với 1 máu hay không — ĐÚNG 1 LẦN CẢ VÁN.",
+  the_nobody:
+    "Mỗi khi bị nhắm tới bởi bất kỳ lá nào (Bang!, Gatling, Indians!, Đấu tay đôi, Cat Balou...), BẮT BUỘC lật 1 lá kiểm tra: ra Bích thì lá đó VÔ HIỆU HOÀN TOÀN với riêng mình — không mất máu, không bị cướp/bắt bỏ bài.",
 };
 
 function characterImageUrl(characterId: string): string {
@@ -1116,6 +1120,10 @@ export function describeEvent(event: GameEvent, nameOf: (id: string) => string):
       return `${nameOf(event.playerId)} (The Drifter) dùng lá chắn, chặn trọn ${event.amount} máu`;
     case "DEALER_TRADE_USED":
       return `${nameOf(event.playerId)} (The Dealer) đưa ${event.cardIds.map(cardLabel).join(", ")} cho ${nameOf(event.targetId)} để vô hiệu đòn tấn công`;
+    case "SENTINEL_REVIVED":
+      return `${nameOf(event.sentinelId)} (The Sentinel) trả 2 máu tối đa vĩnh viễn (còn ${event.sentinelNewMaxHp}) để hồi sinh ${nameOf(event.playerId)}`;
+    case "THE_NOBODY_IMMUNE":
+      return `${nameOf(event.playerId)} (The Nobody) draw! ra Bích — lá vừa nhắm tới vô hiệu hoàn toàn`;
   }
 }
 
@@ -1681,6 +1689,10 @@ export interface UiHandlers {
   // trả lời NEED_USE_DEALER_TRADE: muốn đưa 2 lá ngẫu nhiên cho người vừa
   // đánh mình. Nút "Không, chịu mất máu" tái dùng onRespondTakeConsequence().
   onUseDealerTrade(): void;
+  // Bộ mở rộng "custom_characters" (The Sentinel, xem House_Rule.txt mục I) —
+  // trả lời NEED_SENTINEL_REVIVE: đồng ý trả 2 máu tối đa vĩnh viễn để hồi
+  // sinh. Nút "Từ chối" tái dùng onRespondTakeConsequence().
+  onUseSentinelRevive(): void;
   // Bộ mở rộng "custom_characters" (Marcel Marcelo, xem House_Rule.txt mục I)
   // — trả lời NEED_PICK_MARCEL_COMPANION: chọn `targetId` làm người "cùng vào
   // tù" (bắt buộc chọn, không có lựa chọn "không chọn ai").
@@ -2349,6 +2361,10 @@ function pendingDescription(state: GameState, item: PendingAction): string {
       return `${player} chọn dùng lá chắn hay không (bí mật)`;
     case "NEED_USE_DEALER_TRADE":
       return `${player} (The Dealer) chọn đưa 2 lá cho người vừa đánh mình hay chịu mất máu`;
+    case "NEED_SENTINEL_REVIVE": {
+      const targetName = state.players.find((p) => p.id === item.targetId)?.name ?? "?";
+      return `${player} (The Sentinel) chọn trả 2 máu tối đa vĩnh viễn để hồi sinh ${targetName} hay không`;
+    }
     default: {
       const neverKind: never = item;
       throw new Error(`Chưa biết mô tả cho pending: ${JSON.stringify(neverKind)}`);
@@ -2493,6 +2509,17 @@ function renderPendingPanel(container: HTMLElement, state: GameState, handlers: 
       button(`Đưa 2 lá ngẫu nhiên cho ${attackerName} (vô hiệu đòn)`, () => handlers.onUseDealerTrade())
     );
     panel.appendChild(button("Không, chịu mất máu", () => handlers.onRespondTakeConsequence()));
+  } else if (top.kind === "NEED_SENTINEL_REVIVE") {
+    const targetName = state.players.find((p) => p.id === top.targetId)?.name ?? "?";
+    const sentinel = state.players.find((p) => p.id === top.player);
+    const newMaxHp = sentinel ? sentinel.maxHp - 2 : null;
+    panel.appendChild(
+      button(
+        `Trả 2 máu tối đa vĩnh viễn (còn ${newMaxHp}) để hồi sinh ${targetName} (1 máu)`,
+        () => handlers.onUseSentinelRevive()
+      )
+    );
+    panel.appendChild(button("Từ chối", () => handlers.onRespondTakeConsequence()));
   } else if (top.kind === "NEED_PICK_MARCEL_COMPANION") {
     for (const p of state.players) {
       if (!p.alive || p.id === top.player) continue;
@@ -3302,6 +3329,9 @@ export interface NetworkGameHandlers {
   // Bộ mở rộng "custom_characters" (The Dealer) — giống hệt UiHandlers
   // (hotseat), xem ghi chú ở đó.
   onUseDealerTrade(): void;
+  // Bộ mở rộng "custom_characters" (The Sentinel) — giống hệt UiHandlers
+  // (hotseat), xem ghi chú ở đó.
+  onUseSentinelRevive(): void;
   onPickMarcelCompanion(targetId: string): void;
   onPickThiefTarget(targetId: string): void;
   onBrawlZonePick(targetId: string, zone: "hand" | "equipment"): void;
@@ -3875,6 +3905,8 @@ function networkRenderPendingPanel(
         return `${name} chọn dùng lá chắn hay không (bí mật)`;
       case "NEED_USE_DEALER_TRADE":
         return `${name} (The Dealer) chọn đưa 2 lá cho người vừa đánh mình hay chịu mất máu`;
+      case "NEED_SENTINEL_REVIVE":
+        return `${name} (The Sentinel) chọn trả 2 máu tối đa vĩnh viễn để hồi sinh ${findName(item.targetId)} hay không`;
       default: {
         const neverKind: never = item;
         throw new Error(`Chưa biết mô tả cho pending: ${JSON.stringify(neverKind)}`);
@@ -4028,6 +4060,17 @@ function networkRenderPendingPanel(
         button(`Đưa 2 lá ngẫu nhiên cho ${attackerName} (vô hiệu đòn)`, () => handlers.onUseDealerTrade())
       );
       panel.appendChild(button("Không, chịu mất máu", () => handlers.onRespondTakeConsequence()));
+    } else if (top.kind === "NEED_SENTINEL_REVIVE") {
+      const targetName = findName(top.targetId);
+      const sentinel = view.players.find((p) => p.id === view.viewerId);
+      const newMaxHp = sentinel ? sentinel.maxHp - 2 : null;
+      panel.appendChild(
+        button(
+          `Trả 2 máu tối đa vĩnh viễn (còn ${newMaxHp}) để hồi sinh ${targetName} (1 máu)`,
+          () => handlers.onUseSentinelRevive()
+        )
+      );
+      panel.appendChild(button("Từ chối", () => handlers.onRespondTakeConsequence()));
     } else if (top.kind === "NEED_PICK_MARCEL_COMPANION") {
       for (const p of view.players) {
         if (!p.alive || p.id === top.player) continue;

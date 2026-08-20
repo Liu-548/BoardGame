@@ -367,6 +367,7 @@ function renderScreen(): void {
           onPickArmed,
           onUseDrifterShield,
           onUseDealerTrade,
+          onUseSentinelRevive,
           onPickMarcelCompanion,
           onPickThiefTarget,
           onBrawlZonePick,
@@ -474,6 +475,7 @@ function renderScreen(): void {
             onPickArmed: onNetworkPickArmed,
             onUseDrifterShield: onNetworkUseDrifterShield,
             onUseDealerTrade: onNetworkUseDealerTrade,
+            onUseSentinelRevive: onNetworkUseSentinelRevive,
             onPickMarcelCompanion: onNetworkPickMarcelCompanion,
             onPickThiefTarget: onNetworkPickThiefTarget,
             onBrawlZonePick: onNetworkBrawlZonePick,
@@ -1048,6 +1050,14 @@ function onUseDrifterShield(): void {
 function onUseDealerTrade(): void {
   const top = state.pending[state.pending.length - 1];
   if (top) dispatch({ type: "RESPOND", playerId: top.player, useDealerTrade: true });
+}
+
+// Bộ mở rộng "custom_characters" (The Sentinel) — trả lời NEED_SENTINEL_REVIVE
+// đồng ý trả 2 máu tối đa vĩnh viễn để hồi sinh. Nút "Từ chối" tái dùng
+// onRespondTakeConsequence().
+function onUseSentinelRevive(): void {
+  const top = state.pending[state.pending.length - 1];
+  if (top) dispatch({ type: "RESPOND", playerId: top.player, reviveTarget: true });
 }
 
 // Bộ mở rộng "custom_characters" (Marcel Marcelo) — trả lời NEED_PICK_MARCEL_COMPANION.
@@ -1751,6 +1761,14 @@ function onNetworkUseDealerTrade(): void {
   if (!networkView) return;
   const top = networkView.pending[networkView.pending.length - 1];
   if (top) networkDispatch({ type: "RESPOND", playerId: top.player, useDealerTrade: true });
+}
+
+// Bộ mở rộng "custom_characters" (The Sentinel) — giống hệt onUseSentinelRevive
+// (hotseat).
+function onNetworkUseSentinelRevive(): void {
+  if (!networkView) return;
+  const top = networkView.pending[networkView.pending.length - 1];
+  if (top) networkDispatch({ type: "RESPOND", playerId: top.player, reviveTarget: true });
 }
 
 // Bộ mở rộng "custom_characters" (Marcel Marcelo) — giống hệt

@@ -40,6 +40,8 @@ function makeState(overrides: Partial<GameState> = {}): GameState {
     fairKillerUsedThisTurn: false,
     vendettaUsedThisTurn: false,
     duelBangDrawPending: null,
+    pendingGeneralStore: null,
+    pendingNobodyCheck: null,
     veraCusterBorrowedCharacterId: null,
     elenaNoirArmed: {},
     elenaNoirImmortalTurnsLeft: {},
@@ -48,6 +50,7 @@ function makeState(overrides: Partial<GameState> = {}): GameState {
     marcelJailCompanion: {},
     marcelCompanionSkipNextTurn: {},
     marcelJailBonusDrawThisTurn: {},
+    sentinelUsed: {},
     eventDeck: [], // "high_noon" đã lật từ trước (lá cuối, không lật lại)
     activeEventId: "high_noon",
     eventDiscard: [],
