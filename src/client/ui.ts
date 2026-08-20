@@ -212,40 +212,50 @@ function cardImageUrl(name: CardName): string {
 //   không cần code gì thêm.
 // - Thiết bị cảm ứng KHÔNG có "rê chuột", `title` gần như vô dụng ở đó — phải
 //   tự bắt "nhấn giữ" (long-press) bằng touch event: giữ đủ LONG_PRESS_MS hiện
-//   1 popup nhỏ cạnh lá, nhả tay hoặc trượt ngón tay thì tắt. `touchend` gọi
+//   mô tả NGAY TRÊN vị trí lá (lớp phủ `.hold-description-overlay`, xem
+//   style.css), nhả tay hoặc trượt ngón tay thì tắt. `touchend` gọi
 //   preventDefault() để CHẶN LUÔN sự kiện "click" giả lập trình duyệt tự sinh
 //   ra sau đó — không chặn thì nhả tay sau khi xem xong sẽ vô tình bấm luôn lá
 //   (đánh bài/tick chọn bỏ...), không phải điều người dùng muốn.
+// Bổ sung sau (báo lỗi thật từ chủ dự án): trước đây các listener touch* gắn
+// trên `el`, nhưng chạm THẬT lại rơi thẳng vào <img> con bên trong — nhiều
+// trình duyệt di động tự bật menu "lưu ảnh"/xem trước ảnh khi giữ tay trên
+// đúng 1 thẻ <img>, chen ngang làm khó đọc mô tả hoặc huỷ luôn thao tác giữ.
+// Lớp phủ trong suốt PHỦ TOÀN BỘ lá (append SAU CÙNG nên luôn nằm trên ảnh)
+// hứng chạm thay cho <img>, đồng thời chính nó đổi màu nền + hiện chữ khi giữ
+// đủ lâu — khỏi cần tạo/gỡ 1 popup rời rạc gắn vào document.body như trước.
 const LONG_PRESS_MS = 500;
-// Fix lỗi thật #1 (báo từ chủ dự án): popup "đôi khi biến mất ngay lập tức dù
-// vẫn đang giữ tay" — trước đây CHỈ CẦN 1 sự kiện "touchmove" (bất kể di
-// chuyển bao xa) là huỷ/ẩn popup ngay. Ngón tay người thật KHÔNG BAO GIỜ đứng
-// yên tuyệt đối lúc giữ — luôn có rung nhẹ vài pixel, nên gần như lần giữ nào
+// Fix lỗi thật #1 (báo từ chủ dự án): lớp phủ "đôi khi biến mất ngay lập tức
+// dù vẫn đang giữ tay" — trước đây CHỈ CẦN 1 sự kiện "touchmove" (bất kể di
+// chuyển bao xa) là huỷ/ẩn ngay. Ngón tay người thật KHÔNG BAO GIỜ đứng yên
+// tuyệt đối lúc giữ — luôn có rung nhẹ vài pixel, nên gần như lần giữ nào
 // cũng dính "touchmove" ngay cả khi người dùng không hề có ý định trượt tay.
-// Sửa: chỉ coi là "trượt tay thật" (huỷ popup) khi di chuyển QUÁ 1 ngưỡng nhỏ
-// tính từ điểm chạm ban đầu — dưới ngưỡng đó coi là rung tay bình thường,
-// KHÔNG huỷ.
+// Sửa: chỉ coi là "trượt tay thật" (huỷ) khi di chuyển QUÁ 1 ngưỡng nhỏ tính
+// từ điểm chạm ban đầu — dưới ngưỡng đó coi là rung tay bình thường, KHÔNG
+// huỷ.
 const MOVE_CANCEL_THRESHOLD_PX = 10;
-// Fix lỗi thật #2: popup "hiện vĩnh viễn, không biến mất kể cả khi đã bỏ tay
-// ra". Nguyên nhân: `render()` (main.ts) vẽ lại TOÀN BỘ cây DOM mỗi ~1 giây —
-// nếu đúng lúc đó xảy ra NGAY GIỮA 1 lần đang giữ (đã qua LONG_PRESS_MS, popup
-// đang hiện), phần tử `el` đang gắn các listener touchmove/touchend NÀY bị gỡ
-// khỏi trang và thay bằng phần tử MỚI (có closure/state RIÊNG, không biết gì
-// về popup cũ) — sự kiện `touchend` thật của ngón tay khi bỏ ra sẽ không còn
-// nơi nào để bắt nữa (el cũ đã biến mất khỏi DOM), popup (gắn thẳng vào
-// `document.body`, không bị `replaceChildren()` đụng tới) bị "mồ côi" mãi
-// mãi. Sửa: cứ hiện popup lên là tự đặt hẹn giờ TỰ ẩn sau
-// AUTO_HIDE_MS — không phụ thuộc gì vào việc có bắt được touchend hay không,
-// đảm bảo popup KHÔNG BAO GIỜ bị kẹt vĩnh viễn dù mất dấu sự kiện thật.
+// Fix lỗi thật #2 (thời điểm còn dùng popup nổi gắn vào document.body, xem
+// git log): "hiện vĩnh viễn, không biến mất kể cả khi đã bỏ tay ra". Nguyên
+// nhân lúc đó: `render()` (main.ts) vẽ lại TOÀN BỘ cây DOM mỗi ~1 giây, popup
+// gắn thẳng vào `document.body` (ngoài cây bị vẽ lại) nên bị "mồ côi" nếu xảy
+// ra đúng lúc đang giữ. Giờ overlay là CON của chính `el` (append trong hàm
+// này) nên khi `el` bị `replaceChildren()` gỡ khỏi trang, overlay biến mất
+// theo — không còn mồ côi được nữa. Vẫn giữ nguyên hẹn giờ tự ẩn sau
+// AUTO_HIDE_MS làm lưới an toàn thứ 2 (vd trường hợp mất dấu sự kiện
+// touchend/touchcancel thật vì lý do khác).
 const AUTO_HIDE_MS = 4000;
 
 function attachDescriptionReveal(el: HTMLElement, description: string | undefined): void {
   if (!description) return;
   el.title = description;
 
+  const overlay = document.createElement("span");
+  overlay.className = "hold-description-overlay";
+  overlay.textContent = description;
+  el.appendChild(overlay);
+
   let timer: ReturnType<typeof setTimeout> | null = null;
   let autoHideTimer: ReturnType<typeof setTimeout> | null = null;
-  let popup: HTMLElement | null = null;
   let triggered = false;
   let startX = 0;
   let startY = 0;
@@ -256,24 +266,19 @@ function attachDescriptionReveal(el: HTMLElement, description: string | undefine
       timer = null;
     }
   };
-  const hidePopup = () => {
+  const hideOverlay = () => {
     if (autoHideTimer !== null) {
       clearTimeout(autoHideTimer);
       autoHideTimer = null;
     }
-    popup?.remove();
-    popup = null;
+    overlay.classList.remove("hold-description-overlay--active");
+    el.classList.remove("card-box--holding");
   };
-  const showPopup = () => {
+  const showOverlay = () => {
     triggered = true;
-    popup = document.createElement("div");
-    popup.className = "card-description-popup";
-    popup.textContent = description;
-    document.body.appendChild(popup);
-    const rect = el.getBoundingClientRect();
-    popup.style.left = `${rect.left}px`;
-    popup.style.top = `${rect.bottom + 4}px`;
-    autoHideTimer = setTimeout(hidePopup, AUTO_HIDE_MS);
+    overlay.classList.add("hold-description-overlay--active");
+    el.classList.add("card-box--holding");
+    autoHideTimer = setTimeout(hideOverlay, AUTO_HIDE_MS);
   };
 
   el.addEventListener(
@@ -284,16 +289,25 @@ function attachDescriptionReveal(el: HTMLElement, description: string | undefine
       const touch = event.touches[0];
       startX = touch.clientX;
       startY = touch.clientY;
-      timer = setTimeout(showPopup, LONG_PRESS_MS);
+      timer = setTimeout(showOverlay, LONG_PRESS_MS);
     },
     { passive: true }
   );
   el.addEventListener("touchmove", (event) => {
+    // Lớp phủ ĐÃ hiện rồi (qua ngưỡng LONG_PRESS_MS) thì bỏ qua trượt tay
+    // hoàn toàn — chủ dự án báo ngón tay đang giữ che mất chữ, cần cho phép
+    // kéo tay ra chỗ khác (không nhấc lên) để đọc được. Sự kiện touch luôn
+    // bám theo đúng `el` bắt đầu chạm dù ngón tay di chuyển tới đâu trên màn
+    // hình, nên không cần re-target gì thêm — chỉ còn touchend/touchcancel
+    // (nhấc tay) mới ẩn. Ngưỡng MOVE_CANCEL_THRESHOLD_PX bên dưới CHỈ áp dụng
+    // TRƯỚC khi lớp phủ hiện (phân biệt rung tay bình thường với trượt tay
+    // thật để huỷ chờ giữ, xem Fix lỗi thật #1).
+    if (triggered) return;
     const touch = event.touches[0];
     const movedPx = Math.hypot(touch.clientX - startX, touch.clientY - startY);
     if (movedPx > MOVE_CANCEL_THRESHOLD_PX) {
       clearTimer();
-      hidePopup();
+      hideOverlay();
     }
   });
   el.addEventListener(
@@ -302,14 +316,14 @@ function attachDescriptionReveal(el: HTMLElement, description: string | undefine
       clearTimer();
       if (triggered) {
         event.preventDefault();
-        hidePopup();
+        hideOverlay();
       }
     },
     { passive: false }
   );
   el.addEventListener("touchcancel", () => {
     clearTimer();
-    hidePopup();
+    hideOverlay();
   });
 }
 
