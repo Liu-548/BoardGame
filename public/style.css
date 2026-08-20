@@ -362,6 +362,16 @@ body.effect-dynamite {
   overflow: hidden;
   background: var(--color-bg);
   flex-shrink: 0;
+  position: relative; /* làm mốc cho .hold-description-overlay phủ toàn bộ lá, xem bên dưới */
+}
+
+/* Đang giữ lá để xem mô tả (xem attachDescriptionReveal() ở ui.ts) — lớp phủ
+   có thể cao hơn khung lá gốc (mô tả dài), nên phải tạm bỏ overflow: hidden
+   (mặc định ở trên, dùng để cắt góc bo tròn) và đẩy lá này lên trên các lá kế
+   bên, không thì chữ bị cắt cụt hoặc bị lá bên cạnh đè lên. */
+.card-box--holding {
+  overflow: visible;
+  z-index: 20;
 }
 
 button.card-box {
@@ -382,6 +392,20 @@ button.card-box {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  /* Chặn menu "lưu ảnh"/callout gốc của trình duyệt khi nhấn giữ — PHẢI đặt
+     trực tiếp trên chính <img> (không phải trên .hold-description-overlay,
+     phần tử anh em bên cạnh): các thuộc tính -webkit-touch-callout/
+     -webkit-user-select CHỈ lan xuống con cháu, không lan sang phần tử khác,
+     nên đặt ở overlay là vô tác dụng với chính tấm ảnh (bug thật, chủ dự án
+     báo lại sau lần sửa đầu: nhấn vẫn hiện menu lưu ảnh như cũ). pointer-events:
+     none đảm bảo MỌI chạm luôn rơi vào .hold-description-overlay (nằm trên,
+     z-index cao hơn) thay vì rơi vào <img>. */
+  pointer-events: none;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-user-drag: none;
+  user-drag: none;
 }
 
 .card-box__name {
@@ -450,12 +474,21 @@ button.card-box {
   text-align: center;
   border-radius: 0.35rem;
   border: 2px solid var(--color-border);
+  position: relative; /* làm mốc cho .hold-description-overlay, xem card-box ở trên */
 }
 
 .table-center__event-image {
   width: 2.1rem;
   height: 2.1rem;
   object-fit: contain;
+  /* Cùng lý do với .card-box__image ở trên — chặn menu "lưu ảnh" gốc ngay
+     trên chính <img>, không phải trên .hold-description-overlay. */
+  pointer-events: none;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-user-drag: none;
+  user-drag: none;
 }
 
 .table-center__event-box--active {
@@ -619,19 +652,46 @@ button.card-box {
 
 /* Nhấn giữ (thiết bị cảm ứng) hiện mô tả chức năng — xem attachDescriptionReveal()
    ở ui.ts. Máy tính dùng luôn tooltip `title` có sẵn của trình duyệt, không
-   cần popup này. */
-.card-description-popup {
-  position: fixed;
-  z-index: 50;
-  max-width: 14rem;
-  background: #222;
-  color: #fff;
-  font-size: 0.78rem;
+   cần lớp phủ này.
+   LUÔN hiện diện (không display: none khi ẩn) — đây chính là "lớp phủ" nằm
+   TRÊN tấm hình (<img>) để hứng sự kiện chạm thay cho tấm hình: chạm thẳng
+   vào <img> trên di động dễ bật menu "lưu ảnh"/callout riêng của trình duyệt,
+   che mất/làm gián đoạn việc đọc mô tả. Ở trạng thái nghỉ, lớp phủ trong suốt
+   (nền + chữ transparent) nên không ai nhìn thấy gì khác thường, nhưng vẫn
+   nằm trên cùng để nhận touchstart/touchmove/touchend — xem
+   attachDescriptionReveal(). */
+.hold-description-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background: transparent;
+  color: transparent;
+  font-size: 0.68rem;
   line-height: 1.3;
-  padding: 0.4rem 0.6rem;
-  border-radius: 0.35rem;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
-  pointer-events: none;
+  text-align: center;
+  border-radius: 0.3rem;
+  overflow-wrap: break-word;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Đã giữ đủ lâu — hiện chữ mô tả NGAY TRÊN vị trí lá bài, thay cho hình ảnh,
+   thay vì bung 1 popup rời rạc ở chỗ khác trên màn hình (dễ bị ngón tay đang
+   giữ che mất). Chỉ khoá "bottom" về auto (giữ nguyên top/left/right: 0 từ
+   trên) để chiều cao co giãn theo độ dài mô tả — mô tả dài (vd Vera Custer)
+   sẽ tự tràn xuống dưới khung lá gốc thay vì bị cắt cụt. */
+.hold-description-overlay--active {
+  bottom: auto;
+  min-height: 100%;
+  padding: 0.35rem;
+  background: rgba(20, 20, 20, 0.94);
+  color: #fff;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.35);
 }
 
 /* Màn hình "Chú giải lá bài" (việc 4.6) — khung to hơn kèm mô tả đầy đủ bên
