@@ -1544,3 +1544,260 @@ Roulette" — 11/13 lá, chỉ còn Dead Man/Law of the West):**
 - `npx tsc --noEmit` sạch, 657 test đều pass (không đổi — batch này thuần UI,
   không đụng `core/`).
 
+**The Sentinel *ex (2026-08-20) — CODE XONG** (core + UI hotseat/qua mạng +
+test — xem đặc tả đã CHỐT ở `House_Rule.txt` mục I, đoạn "The Sentinel").
+**3 máu** (đã hỏi lại chủ dự án để chốt số liệu — dòng đặc tả chính ghi 3 máu,
+nhưng phần đánh giá sức mạnh ở dưới file lại ghi nhầm 4 máu do viết từ bản
+nháp cũ chưa cập nhật). Bất kỳ lúc nào có 1 người chơi (kể cả chính The
+Sentinel) sắp bị ghi nhận CHẾT (đã hết mọi cách tự cứu — Bia/Elena Noir Miễn
+Tử đều không cứu được), hỏi SAU CÙNG có muốn trả 2 máu tối đa VĨNH VIỄN để hồi
+sinh người đó ngay với ĐÚNG 1 máu hay không — ĐÚNG 1 LẦN CẢ VÁN. Người được
+hồi sinh giữ nguyên bài trên tay lẫn trang bị (hệ quả tự nhiên của việc chặn
+TRƯỚC `eliminatePlayer()`, không cần code thêm).
+
+**Đây là lần ĐẦU TIÊN dự án sửa `maxHp` giữa ván** — đã rà: `renderHpTrack()`
+(`ui.ts`) vẽ số viên đạn theo ĐÚNG `player.maxHp` hiện tại nên tự động đúng,
+không cần sửa gì; `computeStartingHp()` chỉ chạy lúc setup nên không ảnh
+hưởng; `getHandLimit()` tính theo hp hiện tại nên cũng không sao.
+
+**Kiến trúc — điểm khó nhất của cả nhân vật *ex từ trước tới nay** (đúng như
+cảnh báo trong file luật): `eliminateIfDead()` là điểm DUY NHẤT xử lý "ai
+chết" cho cả 6 nguồn sát thương (Indians!/Bang!-Gatling/Duel/High Noon
+turn-start/Dynamite/Russian Roulette) — The Sentinel phải hỏi SAU CÙNG, ngay
+trước fallback `eliminatePlayer()`, NHƯNG ở nhiều điểm trong 6 nguồn đó, code
+gốc chạy tiếp một số bước NGAY SAU khi máu về 0 (`continueTurnStartAfterHighNoonDamage()`,
+`drainDuelBangDrawPending()`, `applyJailCheck()` sau Thuốc nổ) mà không chờ ai
+— nếu cứ chạy tiếp trong lúc đang chờ Sentinel trả lời thì sai quy tắc ngăn
+xếp (pending mới đẩy lên phải xử lý trước, mục 5 CLAUDE.md). Giải pháp: tái
+dùng NGUYÊN kiểu `resume` The Drifter đã có sẵn cho ĐÚNG 6 điểm này (đổi tên
+`DrifterShieldResume` → `DamageResume`, dùng chung cho cả 2 nhân vật —
+`NEED_USE_DRIFTER_SHIELD`/`NEED_SENTINEL_REVIVE` đều mang field `resume` cùng
+kiểu). `applyDamage()`/`eliminateIfDead()` nhận thêm tham số `resume`; hàm
+`sentinelReviveIsPending()` mới (đọc đỉnh ngăn xếp) — người gọi PHẢI kiểm tra
+ngay sau mỗi lời gọi, `true` thì dừng ngay không chạy tiếp epilogue.
+
+**Phát hiện lúc rà 13 điểm gọi `applyDamage()`/`eliminateIfDead()` (không phải
+6 như dự tính ban đầu — còn cả nhánh `NEED_USE_DEALER_TRADE` "không đổi lá,
+chịu mất máu" của The Dealer)**: KHÔNG PHẢI epilogue nào cũng cần hoãn lại —
+chỉ những đoạn PHỤ THUỘC `target.alive` mới sai (vì alive vẫn `true` giả tạo
+suốt lúc chờ Sentinel, chưa gọi `eliminatePlayer()`) — đó là
+`continueAfterMissedResolved()`/`continueTurnStartAfterHighNoonDamage()`
+(đều tự kiểm `!player.alive` ở đầu hàm) và `applyJailCheck()` (gọi có điều
+kiện `if (player.alive) ...`). Ngược lại, phản đòn Mary Rose và
+`drainDuelBangDrawPending()` (Molly Stark) hoàn toàn KHÔNG phụ thuộc alive —
+chỉ cần "đã THẬT SỰ mất máu", nên vẫn chạy NGAY tại điểm gọi gốc, không cần
+hoãn/lặp lại trong `respondToSentinelRevive()` — tránh được 1 lớp phức tạp
+không cần thiết so với dự tính ban đầu.
+
+`maybeAskSentinelRevive()` tìm TẤT CẢ người còn sống có `canReviveOthers`
+(field mới ở `CharacterDefinition`) và CHƯA dùng (`GameState.sentinelUsed`,
+Record theo playerId — cùng lý do Vera Custer như `elenaNoirArmed`), kể cả
+CHÍNH target (tự cứu mình) — đẩy `NEED_SENTINEL_REVIVE` hỏi người đầu tiên,
+giữ phần còn lại trong `remainingSentinelIds` để hỏi TIẾP nếu người này từ
+chối (ca hiếm: vừa có Sentinel thật vừa có Vera Custer mượn cùng lúc). Từ
+chối KHÔNG tiêu hao lượt dùng (chỉ đồng ý mới set `sentinelUsed`), đúng
+nguyên tắc `drifterShield` chỉ mất khi THẬT SỰ dùng.
+
+Test: `test/the-sentinel.test.ts` (10 test) — đồng ý/từ chối/đã dùng hết
+lượt/tự cứu chính mình/resume "indians"/resume "dynamite" (xác nhận Jail-check
+vẫn chạy lại đúng sau khi hồi sinh, không bị bỏ qua)/Vera Custer mượn/không có
+Sentinel trong ván/thứ tự `checkWinCondition()` (không chạy trước khi Sentinel
+trả lời, GAME_ENDED chỉ bắn ĐÚNG lúc quyết định xong).
+
+Đã tự kiểm bằng trình duyệt thật (`npm run dev`, hotseat 6 người, bật "Nhân
+vật *ex"): random trúng ĐÚNG The Sentinel, chơi nhiều lượt hạ máu chính The
+Sentinel về 0 (không đỡ được, không có Bia), pending hỏi đúng "Dũng (The
+Sentinel) chọn trả 2 máu tối đa vĩnh viễn để hồi sinh Dũng hay không", bấm
+đồng ý → máu tối đa giảm đúng 3→1, máu hiện tại 1/1, còn sống, giữ nguyên bài
+trên tay, nhật ký ghi đúng "Dũng (The Sentinel) trả 2 máu tối đa vĩnh viễn
+(còn 1) để hồi sinh Dũng" — không lỗi console trong suốt ván.
+
+`npx tsc --noEmit` sạch, 741 test đều pass.
+
+**The Nobody *ex — NHÓM A (2026-08-20) — CODE XONG** (core + test — xem đặc
+tả đã CHỐT ở `House_Rule.txt` mục I, đoạn "The Nobody"; giữ nguyên thiết kế
+gốc "draw! mỗi lần bị nhắm tới", KHÔNG đổi sang phương án rút-trước như đã
+cân nhắc lúc đầu — phương án đó tách hẳn ra thành The Drifter). 3 máu. Bị
+nhắm tới bởi bất kỳ lá nào, BẮT BUỘC draw! 1 lá — ra Bích thì lá đó VÔ HIỆU
+HOÀN TOÀN với riêng anh ta (không mất máu, không bị cướp/bắt bỏ bài, không bị
+nhốt tù). File luật tự nhận đây là **nhân vật *ex tốn công nhất từ trước tới
+nay** và chia làm 2 nhóm điểm cắm — **đợt này CHỈ làm NHÓM A** (4 điểm dễ hơn,
+lá vốn đã có 1 pending sẵn để huỷ): Bang!/Gatling/Punch/Springfield/
+Derringer/Knife/Pepperbox/Buffalo Rifle/Howitzer/Doc Holyday/Fair Killer/
+Sniper/A Fistful of Cards (→ `NEED_MISSED`), Indians! (→ `NEED_DISCARD_BANG`),
+Đấu tay đôi (→ `NEED_DUEL_RESPONSE`), Cat Balou/Can Can/Brawl (→
+`NEED_DISCARD_FROM_ZONE`). **Cửa hàng tổng hợp (phần còn lại của nhóm A, cần
+tách `playGeneralStore()` thành 2 giai đoạn) VÀ toàn bộ NHÓM B (Panic!/Jail/
+Saloon/Tequila/Marcel companion — lá áp dụng NGAY LẬP TỨC, không có pending
+sẵn để huỷ, phải viết lại thành "hoãn rồi mới áp dụng") ĐỂ DÀNH ĐỢT SAU** —
+quyết định phạm vi đã hỏi và chốt với chủ dự án trước khi code, đúng tinh
+thần "mỗi lần một việc" (CLAUDE.md).
+
+**Kiến trúc:** không dùng được hook `isImmuneToCard` có sẵn (hook đó THUẦN/
+ĐỒNG BỘ, còn draw! phải đẩy pending rồi dừng hàm — quy tắc 4 CLAUDE.md cấm
+await). Tái dùng ĐÚNG mẫu Barrel đã có sẵn trong `pushMissedReactionUnconditional()`
+("đẩy thêm 1 NEED_DRAW_CHECK lên TRÊN pending vừa đẩy"): hàm mới
+`maybePushNobodyDrawCheck(next, target)` — đẩy `NEED_DRAW_CHECK` (source.card
+= `"the_nobody"`, matchSuits `["spades"]`) ngay sau khi pending gốc vừa được
+đẩy. Gọi Ở ĐÚNG 4 điểm cắm DÙNG CHUNG (không rải theo từng lá):
+`pushMissedReactionUnconditional()` (cả nhóm "kiểu Bang!" chỉ 1 điểm cắm, SAU
+CÙNG — đè lên cả Barrel, đúng thứ tự "The Nobody chạy TRƯỚC Barrel" đã chốt
+trước đó lúc thiết kế), `playIndians()` (trong vòng lặp, mỗi mục tiêu), 2 chỗ
+của Duel (`playDuel()` lúc khởi xướng VÀ `respondToDuel()` lúc đổi vai qua lại
+— The Nobody có thể trở thành người phải đáp trả ở CẢ 2 phía), và
+`pushDiscardFromZoneReaction()` (dùng chung cho Cat Balou/Can Can/Brawl).
+
+**`resolveDrawCheck()` — 2 việc:** (1) nhánh `source.card === "the_nobody"`
+mới: khớp thì `findIndex` tìm đúng pending gốc của CHÍNH người này
+(`NEED_MISSED`/`NEED_DISCARD_BANG`/`NEED_DUEL_RESPONSE`/`NEED_DISCARD_FROM_ZONE`),
+bỏ hẳn, dọn nốt mọi `NEED_DRAW_CHECK` Barrel còn sót (đúng mẫu dọn dẹp đã có
+cho Barrel-né-trọn-vẹn), rồi chỉ chạy tiếp `continueAfterMissedResolved()`/
+`drainDuelBangDrawPending()` nếu cần (2 hàm này KHÔNG phụ thuộc "The Nobody
+có bị gì không" — đúng nguyên tắc vừa dùng cho Mary Rose/Molly Stark ở The
+Sentinel, không cần hoãn/lặp lại gì thêm); không khớp thì không làm gì, để
+pending gốc chờ giải quyết bình thường. (2) **Bẫy Blessing/Curse đã chốt
+trong file luật**: draw! của The Nobody đọc THẲNG chất thật qua
+`cardSuitRankFromId()`, KHÔNG qua `getEffectiveSuit()` — vì Curse biến MỌI lá
+thành Bích, đọc chất đã đổi sẽ khiến anh ta miễn nhiễm 100% suốt vòng Curse
+(chỉ dời bẫy từ Blessing sang Curse, không gỡ được). Blessing/Curse vẫn áp
+bình thường cho MỌI draw! khác (Barrel/Jail/Dynamite).
+
+Event mới `THE_NOBODY_IMMUNE` (không kèm cardId/cardName — nguồn có thể là kỹ
+năng nhân vật không gắn lá bài thật nào như Doc Holyday/Fair Killer, không có
+gì nhất quán để hiển thị, đúng tiền lệ `ELENA_NOIR_IMMORTAL_TRIGGERED`).
+**Không cần đổi UI/room.ts gì cả** — `NEED_DRAW_CHECK` vốn đã tự động giải
+quyết hoàn toàn qua mạng (`afterStateChange()`'s vòng "cuốn") và có nút "Lật
+bài" chung cho hotseat, không phân biệt theo `source.card`.
+
+Test: `test/the-nobody.test.ts` (9 test) — Bang! khớp/không khớp, Gatling (chỉ
+ảnh hưởng đúng The Nobody, người khác vẫn phải đỡ bình thường), Indians!, Duel
+(cả 2 hướng — mục tiêu ban đầu VÀ sau khi đổi vai), Cat Balou, thứ tự với
+Barrel (huỷ luôn cả Barrel draw! chưa xử lý), bẫy Blessing/Curse (đọc chất
+thật, không bị Curse "biến thành Bích" đánh lừa).
+
+Đã tự kiểm bằng trình duyệt thật (`npm run dev`, hotseat 8 người, bật "Nhân
+vật *ex"): random trúng đúng The Nobody, đánh Cat Balou nhắm vào anh ta — băng
+thông báo hiện đúng "Đang chờ: Binh lật bài kiểm tra (draw!)" Ở TRÊN "Sắp tới:
+Binh chọn 1 lá để bỏ" (đúng thứ tự ngăn xếp), lật ra không khớp thì rơi đúng
+xuống bước bỏ bài gốc — không lỗi console trong suốt ván.
+
+`npx tsc --noEmit` sạch, 750 test đều pass.
+
+**The Nobody *ex — Cửa hàng tổng hợp (2026-08-20) — CODE XONG, HOÀN TẤT NHÓM
+A** (core + test — xem changelog "The Nobody *ex — NHÓM A" phía trên để biết
+bối cảnh đầy đủ). Lá cuối cùng còn thiếu của nhóm A, đúng như file luật cảnh
+báo "khó nhất trong cả nhóm A": Cửa hàng tổng hợp "nhắm CẢ BÀN" và số lá lật
+ra = số người sống — nếu The Nobody bị bỏ qua thì phải lật ÍT HƠN 1 lá, nghĩa
+là draw! của anh ta phải xong TRƯỚC KHI biết lật mấy lá, KHÁC hẳn 4 điểm còn
+lại của nhóm A (chỉ cần đẩy `NEED_DRAW_CHECK` lên trên 1 pending có sẵn).
+
+**Kiến trúc — tách `playGeneralStore()` thành 2 giai đoạn đúng như đề xuất
+trong file luật:**
+- Giai đoạn 1 (`playGeneralStore()`): có ai còn sống mang `hasNobodyImmunity`
+  (thường 1, hiếm 2 — The Nobody thật + Vera Custer mượn) thì HOÃN hẳn phần
+  lật bài — chỉ bắn `CARD_PLAYED`, đẩy `NEED_DRAW_CHECK` (source.card =
+  `"the_nobody_store"`, KHÁC `"the_nobody"` của nhóm A — hậu quả khớp hoàn
+  toàn khác nhau: nhóm A khớp thì HUỶ 1 pending có sẵn, còn ở đây khớp thì chỉ
+  ghi nhận "bị bỏ qua" rồi chạy tiếp giai đoạn 2). Phần "còn phải làm gì tiếp"
+  (lá General Store, ai đánh, còn ai phải kiểm, đã bỏ qua những ai) giữ ở
+  `GameState.pendingGeneralStore` — field side-channel mới, CÙNG KHUÔN
+  `duelBangDrawPending` (Molly Stark) đã có sẵn, không phải phát minh cơ chế
+  mới.
+- `resolveDrawCheck()` nhánh `"the_nobody_store"`: khớp thì gộp `top.player`
+  vào `skippedIds`; còn `remainingCheckIds` thì hỏi tiếp người kế (chain,
+  đúng mẫu `remainingSentinelIds` của The Sentinel); hết thì gọi
+  `revealGeneralStoreCards()` (giai đoạn 2, TÁCH RIÊNG để dùng CHUNG cho cả
+  đường không có The Nobody — lật ngay như cũ, không hoãn gì).
+- `revealGeneralStoreCards(next, initiatorId, skippedIds)`: số lá lật = số
+  người sống TRỪ `skippedIds.length`. Người chọn ĐẦU TIÊN = `initiatorId` nếu
+  không bị bỏ qua, hoặc người kế tiếp theo chiều ghế (hàm mới
+  `firstEligibleStorePickerIndex()`, có tham số `inclusive` — TÍNH CẢ chỗ bắt
+  đầu cho giai đoạn "ai chọn đầu tiên", KHÔNG tính cho
+  `respondToStorePick()`'s "ai chọn kế tiếp", cùng 1 hàm dùng cho cả 2 việc).
+- `NEED_PICK_STORE_CARD` thêm field mới `skippedIds?: string[]` (rỗng/vắng
+  mặt ở MỌI ván không có The Nobody) — mang theo suốt vòng chọn để
+  `respondToStorePick()` biết loại tiếp ai (không chỉ người đã chết) khi tính
+  người chọn kế tiếp, và bản thân The Nobody KHÔNG BAO GIỜ xuất hiện trong
+  toàn bộ vòng chọn, kể cả khi CHÍNH anh ta là người đánh lá General Store
+  (trường hợp này người chọn đầu tiên nhường sang người kế tiếp theo chiều
+  ghế).
+
+Test: bổ sung 3 test vào `test/the-nobody.test.ts` (tổng 12 test cho cả file)
+— không ai bị bỏ qua (lật đủ số người sống, không đổi gì so với luật gốc), bị
+bỏ qua (lật ít hơn 1 lá, loại khỏi vòng chọn, không mất máu/không phát bài,
+chơi hết vòng xác nhận không bao giờ tới lượt anh ta), và chính The Nobody là
+người đánh lá VÀ bị bỏ qua (người chọn đầu tiên nhường sang người kế).
+
+Đã tự kiểm bằng trình duyệt thật (`npm run dev`, hotseat 8 người, bật "Nhân
+vật *ex"): random trúng đúng The Nobody (Giang), Giang tự đánh Cửa hàng tổng
+hợp — draw! kiểm tra chạy đúng TRƯỚC khi lật bài, ra Bích, nhật ký ghi đúng
+"Cửa hàng tổng hợp lật 7 lá" (8 người sống - 1 bị bỏ qua) và "Giang (The
+Nobody) draw! ra Bích — lá vừa nhắm tới vô hiệu hoàn toàn", người chọn đầu
+tiên chuyển đúng sang người kế tiếp (Hoa) thay vì Giang — không lỗi console.
+
+`npx tsc --noEmit` sạch, 753 test đều pass. **NHÓM A của The Nobody coi như
+HOÀN TẤT đủ 5/5 điểm cắm** (Bang!/Gatling, Indians!, Đấu tay đôi, Cat
+Balou/Can Can/Brawl, Cửa hàng tổng hợp). Còn lại NHÓM B (Panic!/Jail/
+Saloon/Tequila/Marcel companion — lá áp dụng ngay lập tức, phải viết lại
+thành "hoãn rồi mới áp dụng") để dành đợt sau.
+
+**The Nobody *ex — NHÓM B (2026-08-20) — CODE XONG, HOÀN TẤT TOÀN BỘ NHÂN
+VẬT** (core + test — xem changelog "The Nobody *ex — NHÓM A" phía trên để
+biết bối cảnh). 5 lá cuối cùng, đúng như file luật mô tả: "áp dụng NGAY LẬP
+TỨC, KHÔNG có pending sẵn để huỷ" — khác hẳn nhóm A (chỉ cần đẩy
+`NEED_DRAW_CHECK` lên trên 1 pending có sẵn), phải "viết lại thành hoãn lại
+rồi mới áp dụng" cho riêng trường hợp mục tiêu là The Nobody.
+
+**State mới `GameState.pendingNobodyCheck`** — GỘP CHUNG 1 field
+discriminated union (4 kind: `panic`/`jail`/`saloon`/`marcel_companion`) thay
+vì 5 field riêng biệt, tránh phình `GameState` — Tequila KHÔNG cần field này
+(chỉ 1 mục tiêu duy nhất, `top.player` lúc giải quyết draw! là đủ thông tin).
+5 điểm cắm, mỗi lá 1 nhánh riêng trong `resolveDrawCheck()`
+(`"the_nobody_panic"`/`"the_nobody_jail"`/`"the_nobody_saloon"`/
+`"the_nobody_tequila"`/`"the_nobody_marcel_companion"`):
+
+- **Panic!/Rag Time/Conestoga** (`applyPanicEffect()`, dùng chung cho cả 3
+  lá — đúng 1 điểm cắm): tách hàm thành 2 — phần XÁC ĐỊNH lá sẽ bị cướp (kể
+  cả rút RNG cho ca ngẫu nhiên từ tay) chạy NGAY, giữ tính TẤT ĐỊNH của RNG,
+  không phụ thuộc The Nobody có bị nhắm hay không; chỉ hoãn phần THẬT SỰ
+  chuyển lá (`performPanicSteal()`, tách riêng để dùng lại sau khi draw!
+  giải quyết xong).
+- **Jail** (`playJail()`): hoãn phần gắn lá lên sân — khớp thì lá phải có
+  chỗ đi (bỏ vào chồng bỏ, đúng quy tắc 3 "bảo toàn tổng số lá bài"), KHÔNG
+  xét Marcel companion (không có gì để "cùng vào tù" nếu Jail không thật sự
+  gắn được); không khớp thì gắn bình thường + xét Marcel companion y hệt
+  luồng gốc.
+- **Saloon** (`playSaloon()`): KHÁC Cửa hàng tổng hợp (nhóm A) — hồi máu
+  từng người KHÔNG phụ thuộc lẫn nhau (không cần biết trước như số lá General
+  Store lật ra), nên người khác hồi máu NGAY LẬP TỨC bình thường, CHỈ hoãn
+  riêng phần của (những) The Nobody — chuỗi `remainingCheckIds` nếu >1 người
+  có khả năng này, đúng mẫu `GameState.pendingGeneralStore`.
+- **Tequila** (`playTequila()`): đơn giản nhất — lá phụ bỏ kèm KHÔNG phụ
+  thuộc The Nobody (cái giá cho người đánh luôn phải trả), chỉ hoãn phần hồi
+  máu; không cần `pendingNobodyCheck` gì thêm.
+- **Marcel "cùng vào tù"** (`respondToPickMarcelCompanion()`): hoãn việc GHI
+  NHẬN companion (`GameState.marcelJailCompanion`) — khớp thì Marcel coi như
+  KHÔNG có ai cùng vào tù lần này (không hỏi lại người khác); không khớp thì
+  ghi nhận bình thường, bắn `MARCEL_COMPANION_PICKED` như luồng gốc.
+
+Bẫy Blessing/Curse (đọc chất thật, không qua `getEffectiveSuit()`) gộp
+chung cho MỌI draw! của The Nobody bằng `source.card.startsWith("the_nobody")`
+— thay vì liệt kê từng chuỗi ("the_nobody"/"the_nobody_store"/5 chuỗi mới),
+gọn hơn và tự động áp dụng cho cả những điểm cắm sau này nếu có.
+
+Test: bổ sung 10 test vào `test/the-nobody.test.ts` (tổng 22 test cho cả
+file) — mỗi lá 2 test (khớp/không khớp), riêng Saloon có thêm xác nhận người
+khác hồi máu NGAY không chờ The Nobody.
+
+Đã tự kiểm bằng trình duyệt thật (`npm run dev`, hotseat 8 người, bật "Nhân
+vật *ex"): random trúng đúng The Nobody (Bình) — đánh Nhà tù lên Bình (băng
+thông báo hiện đúng "Đang chờ: Binh lật bài kiểm tra (draw!)" ngay khi nhắm
+tới, không khớp thì gắn Jail bình thường, "Trang bị: 1 lá" xác nhận đúng) và
+đánh Saloon (người khác hồi máu ngay lập tức, chỉ Bình chờ draw!, không khớp
+thì Bình cũng được hồi) — không lỗi console trong suốt ván. Nhánh "khớp Bích"
+(miễn nhiễm) đã được 10 test mới phủ đầy đủ và tất định cho cả 5 lá.
+
+`npx tsc --noEmit` sạch, 763 test đều pass. **NHÓM B COI NHƯ HOÀN TẤT ĐỦ
+5/5 — THE NOBODY *EX HOÀN TẤT TOÀN BỘ 10/10 ĐIỂM CẮM** (5 nhóm A + 5 nhóm B),
+không còn phần nào của nhân vật này bị bỏ dở.
+

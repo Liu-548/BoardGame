@@ -96,7 +96,13 @@ export type PendingAction =
   // lên với `player`/`opponent` đổi chỗ cho nhau — không tạo 2 mục riêng.
   | { kind: "NEED_DUEL_RESPONSE"; player: string; opponent: string; source: { card: string; from: string } }
   // General Store: `options` là các id bài đã lật, vơi dần khi từng người chọn.
-  | { kind: "NEED_PICK_STORE_CARD"; player: string; options: string[] }
+  // Bộ mở rộng "custom_characters" (The Nobody, xem House_Rule.txt mục I) —
+  // `skippedIds` (không có/rỗng ở mọi ván không có The Nobody) = playerId của
+  // những người đã bị "bỏ qua hoàn toàn" (draw! ra Bích TRƯỚC khi lá lật —
+  // xem GameState.pendingGeneralStore/playGeneralStore()/resolveDrawCheck()
+  // nhánh "the_nobody_store") — KHÔNG được phát bài, phải loại khỏi vòng chọn
+  // (respondToStorePick() dùng field này để bỏ qua khi tính người chọn kế tiếp).
+  | { kind: "NEED_PICK_STORE_CARD"; player: string; options: string[]; skippedIds?: string[] }
   // Cat Balou: `player` (mục tiêu bị bắt bỏ bài) tự chọn đúng 1 lá trong `zone`
   // (tay hoặc sân) do người đánh Cat Balou chỉ định trước — không phải người
   // đánh chọn lá cụ thể, cũng không có lựa chọn "từ chối" (bị ép buộc).
@@ -274,7 +280,7 @@ export type PendingAction =
   // drifterShield[player] đang true — nếu không, coi như từ chối, KHÔNG báo
   // lỗi khác biệt, để không tạo tín hiệu phân biệt được); không kèm/false =
   // từ chối (để dành).
-  | { kind: "NEED_USE_DRIFTER_SHIELD"; player: string; amount: number; killerId: string | null; resume: DrifterShieldResume }
+  | { kind: "NEED_USE_DRIFTER_SHIELD"; player: string; amount: number; killerId: string | null; resume: DamageResume }
   // Bộ mở rộng "custom_characters" (The Dealer, xem House_Rule.txt mục I) —
   // hỏi TRƯỚC KHI 1 đòn "kiểu Bang!" (Bang!/Gatling/Punch/Springfield/
   // Derringer/Knife/Pepperbox/Buffalo Rifle/Howitzer/Doc Holyday...) THẬT SỰ
@@ -291,21 +297,67 @@ export type PendingAction =
   // RESPOND kèm `useDealerTrade: true` = đưa 2 lá ngẫu nhiên cho người vừa
   // đánh mình để vô hiệu đòn; không kèm/false = từ chối, chịu mất máu bình
   // thường.
-  | { kind: "NEED_USE_DEALER_TRADE"; player: string; missedTop: PendingAction & { kind: "NEED_MISSED" } };
+  | { kind: "NEED_USE_DEALER_TRADE"; player: string; missedTop: PendingAction & { kind: "NEED_MISSED" } }
+  // Bộ mở rộng "custom_characters" (The Sentinel, xem House_Rule.txt mục I) —
+  // hỏi SAU CÙNG, ngay trước khi 1 người chơi bị ghi nhận CHẾT thật sự (ngăn
+  // xếp pending đã rỗng, Bia/Elena Noir Miễn Tử đều đã không cứu được) — xem
+  // eliminateIfDead()/maybeAskSentinelRevive() trong reduce.ts. `player` =
+  // NGƯỜI ĐƯỢC HỎI (chính The Sentinel, hoặc Vera Custer đang mượn khả năng
+  // này — KHÔNG PHẢI người sắp chết). `targetId` = người sắp chết.
+  // `resume` = TÁI DÙNG NGUYÊN DamageResume của Drifter (đúng 6 điểm áp sát
+  // thương y hệt) — biết chạy tiếp phần "sau đó" nào (Mary Rose reflect,
+  // continueAfterMissedResolved(), drainDuelBangDrawPending(),
+  // continueTurnStartAfterHighNoonDamage(), applyJailCheck()...) sau khi
+  // Sentinel trả lời xong. `remainingSentinelIds` = danh sách những người
+  // KHÁC cũng đủ điều kiện được hỏi TIẾP nếu người này từ chối (ca hiếm: vừa
+  // có The Sentinel thật vừa có Vera Custer mượn đúng khả năng này, cả 2 đều
+  // chưa dùng) — rỗng thì từ chối = chết thật.
+  //
+  // RESPOND kèm `reviveTarget: true` = đồng ý trả 2 máu tối đa vĩnh viễn để
+  // hồi sinh `targetId` với ĐÚNG 1 máu (chỉ thật sự có tác dụng nếu
+  // sentinelUsed[player] hiện đang false — nếu không, coi như từ chối, không
+  // báo lỗi khác biệt); không kèm/false = từ chối (KHÔNG tiêu hao lượt dùng —
+  // chỉ đồng ý mới đánh dấu sentinelUsed, giống nguyên tắc drifterShield chỉ
+  // mất khi THẬT SỰ dùng).
+  | {
+      kind: "NEED_SENTINEL_REVIVE";
+      player: string;
+      targetId: string;
+      killerId: string | null;
+      resume: DamageResume;
+      remainingSentinelIds: string[];
+    };
 
-// Bộ mở rộng "custom_characters" (The Drifter) — dữ liệu mô tả "làm gì tiếp"
-// sau khi biết dùng khiên hay không, tách riêng khỏi PendingAction để dễ đọc.
-// THUẦN JSON (missedTop lồng 1 PendingAction khác — hợp lệ, không phải
-// closure). Mỗi case ứng với đúng 1 trong 6 điểm áp sát thương đã rà trong
-// reduce.ts (Indians!/Bang!-Gatling/Duel/High Noon turn-start/Dynamite/
-// Russian Roulette).
-export type DrifterShieldResume =
+// Bộ mở rộng "custom_characters" (The Drifter/The Sentinel) — dữ liệu mô tả
+// "làm gì tiếp" sau khi biết 1 cụm sát thương có bị chặn/né được hay không
+// (Drifter: có dùng khiên?; Sentinel: có được hồi sinh?), tách riêng khỏi
+// PendingAction để dễ đọc. THUẦN JSON (missedTop lồng 1 PendingAction khác —
+// hợp lệ, không phải closure). Mỗi case ứng với đúng 1 trong 6 điểm áp sát
+// thương đã rà trong reduce.ts (Indians!/Bang!-Gatling/Duel/High Noon
+// turn-start/Dynamite/Russian Roulette).
+export type DamageResume =
   | { kind: "indians" }
   | { kind: "bang_missed"; missedTop: PendingAction & { kind: "NEED_MISSED" } }
   | { kind: "duel"; opponent: string }
   | { kind: "high_noon_turn_start" }
   | { kind: "dynamite" }
   | { kind: "russian_roulette" };
+
+// Bộ mở rộng "custom_characters" (The Nobody, xem House_Rule.txt mục I, NHÓM
+// B) — dữ liệu "còn phải làm gì tiếp" cho 4/5 lá cần hoãn (Tequila không cần,
+// xem GameState.pendingNobodyCheck). `stolenCardId`/`stolenFromHand` (Panic!)
+// đã XÁC ĐỊNH SẴN lúc đánh bài (giữ tính tất định của RNG — không phụ thuộc
+// draw! của The Nobody), chỉ hoãn phần THẬT SỰ chuyển lá. `cardId` (Jail) =
+// chính lá Jail đang chờ gắn lên sân hoặc bỏ vào chồng bỏ. `remainingCheckIds`
+// (Saloon) = những người khác còn phải hỏi tiếp (hiếm — Vera Custer mượn
+// cùng lúc The Nobody thật), đúng mẫu remainingCheckIds của
+// GameState.pendingGeneralStore. `marcelId` (Marcel companion) = ai đang chờ
+// biết "cùng vào tù" với mình.
+export type PendingNobodyCheck =
+  | { kind: "panic"; playerId: string; stolenCardId: string; stolenFromHand: boolean }
+  | { kind: "jail"; cardId: string }
+  | { kind: "saloon"; remainingCheckIds: string[] }
+  | { kind: "marcel_companion"; marcelId: string };
 
 // ----- Hành động -----
 // Các hành động cho vòng lượt (việc 1.5) và đánh bài (việc 1.7/1.8, hiện chỉ hỗ
@@ -370,6 +422,11 @@ export type Action =
       // mình; bỏ trống/false = từ chối, chịu mất máu bình thường. Xem
       // respondToUseDealerTrade() trong reduce.ts.
       useDealerTrade?: boolean;
+      // Bộ mở rộng "custom_characters" (The Sentinel) — trả lời
+      // NEED_SENTINEL_REVIVE: true = đồng ý trả 2 máu tối đa vĩnh viễn để hồi
+      // sinh targetId; bỏ trống/false = từ chối. Xem respondToSentinelRevive()
+      // trong reduce.ts.
+      reviveTarget?: boolean;
     }
   // Kỹ năng CHỦ ĐỘNG dùng chung cho 3 nhân vật khác nhau — `cardIds` đổi ý
   // nghĩa/độ dài tuỳ nhân vật đang dùng (xem handleUseAbility() trong
@@ -636,6 +693,20 @@ export type GameEvent =
   // RIÊNG (không tái dùng CARD_STOLEN) vì ngữ nghĩa khác hẳn — đây là hành
   // động TỰ NGUYỆN đưa bài để phòng thủ, không phải bị cướp.
   | { type: "DEALER_TRADE_USED"; playerId: string; targetId: string; cardIds: [string, string] }
+  // Bộ mở rộng "custom_characters" (The Sentinel, xem House_Rule.txt mục I) —
+  // vừa trả 2 máu tối đa vĩnh viễn (`sentinelNewMaxHp` = maxHp MỚI của chính
+  // The Sentinel sau khi trừ) để hồi sinh `playerId` (người vừa được cứu) với
+  // ĐÚNG 1 máu. Bắn event này THAY VÌ PLAYER_ELIMINATED, giống cách
+  // BEER_SAVED_FROM_DEATH/ELENA_NOIR_IMMORTAL_TRIGGERED đang thay thế. Cố
+  // tình KHÔNG có event nào báo "từ chối" — im lặng, chết bình thường
+  // (PLAYER_ELIMINATED vẫn bắn như mọi ca chết khác).
+  | { type: "SENTINEL_REVIVED"; playerId: string; sentinelId: string; sentinelNewMaxHp: number }
+  // Bộ mở rộng "custom_characters" (The Nobody, xem House_Rule.txt mục I) —
+  // vừa draw! ra Bích, lá vừa nhắm tới `playerId` bị vô hiệu HOÀN TOÀN. Không
+  // kèm cardId/cardName cụ thể (khác APACHE_KID_IMMUNE) — nguồn có thể là kỹ
+  // năng nhân vật không gắn với lá bài thật nào (Doc Holyday/Fair Killer),
+  // không có gì nhất quán để hiển thị, đúng tiền lệ ELENA_NOIR_IMMORTAL_TRIGGERED.
+  | { type: "THE_NOBODY_IMMUNE"; playerId: string }
   | { type: "GAME_ENDED"; winner: Winner };
 
 // ----- State tổng -----
@@ -741,6 +812,28 @@ export interface GameState {
   // tình KHÔNG so khớp cứng characterId ở nơi tiêu thụ (drainDuelBangDrawPending()),
   // để không phá vỡ quy ước "tra qua hook/field, không so khớp tên nhân vật".
   duelBangDrawPending: { playerId: string; count: number } | null;
+  // Bộ mở rộng "custom_characters" (The Nobody, xem House_Rule.txt mục I) —
+  // Cửa hàng tổng hợp cần BIẾT TRƯỚC có ai bị "bỏ qua" (draw! ra Bích) hay
+  // không TRƯỚC KHI lật bài (số lá lật = số người sống - số người bị bỏ qua),
+  // nên playGeneralStore() không lật ngay như bình thường — đẩy CHUỖI
+  // NEED_DRAW_CHECK (source.card = "the_nobody_store") cho TỪNG người có khả
+  // năng này (thường chỉ 1, hiếm khi 2 — The Nobody thật VÀ Vera Custer đang
+  // mượn), field này giữ phần "còn phải làm gì tiếp" giữa các lần draw! đó.
+  // null = không có Cửa hàng tổng hợp nào đang ở giai đoạn kiểm tra The Nobody
+  // (dùng bình thường, một-giai-đoạn, ở MỌI ván không có The Nobody).
+  pendingGeneralStore: { cardId: string; initiatorId: string; remainingCheckIds: string[]; skippedIds: string[] } | null;
+  // Bộ mở rộng "custom_characters" (The Nobody, xem House_Rule.txt mục I,
+  // NHÓM B) — 5 lá "áp dụng NGAY LẬP TỨC, không có pending sẵn để huỷ" (khác
+  // hẳn nhóm A, chỉ cần đẩy NEED_DRAW_CHECK lên trên 1 pending có sẵn) — phải
+  // HOÃN LẠI phần áp dụng, giữ "còn phải làm gì tiếp" ở đây trong lúc chờ
+  // draw! của The Nobody giải quyết xong (xem resolveDrawCheck() các nhánh
+  // "the_nobody_panic"/"the_nobody_jail"/"the_nobody_saloon"/
+  // "the_nobody_marcel_companion" — Tequila KHÔNG cần field này, chỉ cần
+  // top.player là đủ, xem playTequila()). GỘP CHUNG 1 field discriminated
+  // union (thay vì 5 field riêng) — tránh phình GameState với nhiều field
+  // gần giống nhau, giống PendingAction ở trên. null = không có lá nào trong
+  // 5 lá này đang ở giai đoạn chờ draw! kiểm tra The Nobody.
+  pendingNobodyCheck: PendingNobodyCheck | null;
   // Mở rộng Dodge City, mục C nhóm C — Vera Custer: characterId đang MƯỢN
   // (hoặc null nếu chưa mượn/chưa tới lượt cô lần nào) — hiệu lực từ lúc chọn
   // tới tận lượt KẾ TIẾP của chính cô (không tự hết hạn giữa chừng, chỉ bị GHI
@@ -821,6 +914,17 @@ export interface GameState {
   // reduce.ts) phải rút 3 lá thay vì 2 (Phương án C, xem House_Rule.txt mục
   // I). Tiêu thụ (xoá key) đúng 1 lần ngay khi handleDrawCards() đọc thấy.
   marcelJailBonusDrawThisTurn: Record<string, boolean>;
+  // Bộ mở rộng "custom_characters" (The Sentinel, xem House_Rule.txt mục I) —
+  // playerId (của người có khả năng này — thường là The Sentinel, có thể là
+  // Vera Custer đang mượn) -> ĐÃ dùng khả năng "trả 2 máu tối đa vĩnh viễn để
+  // hồi sinh người khác" hay chưa (ĐÚNG 1 LẦN CẢ VÁN). THEO PLAYERID cùng lý
+  // do elenaNoirArmed ở trên (Vera Custer có entry RIÊNG với Sentinel thật,
+  // không tranh nhau). CÔNG KHAI (không cần giấu, giống elenaNoirArmed) — chỉ
+  // set true khi THẬT SỰ đồng ý hồi sinh (từ chối KHÔNG tiêu hao lượt dùng),
+  // xem respondToSentinelRevive() trong reduce.ts. Không có entry coi như
+  // false — không bao giờ xoá key (khác các Record "tạm thời" khác ở trên,
+  // đây là dấu vết VĨNH VIỄN của cả ván).
+  sentinelUsed: Record<string, boolean>;
   // Mở rộng High Noon/A Fistful of Cards (xem core/events.ts + mục 1.2
   // Luat_Bang_Mo_Rong_HighNoon.txt) — chồng lá sự kiện chưa lật. Kiểu
   // `string[]` (không phải `EventId[]`) để giữ đúng quy ước "types.ts không

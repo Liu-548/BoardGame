@@ -176,10 +176,19 @@ mà không ảnh hưởng nhân vật *ex khác.
 	  bình thường. Không đủ 2 lá Bang! trên tay thì không đánh Bang!
 	  được lượt đó, dù chỉ có 1 lá.
 
-	- The Nobody 3 máu — ⬜ CHƯA CODE (mới là đặc tả, chủ dự án đã chốt
-	GIỮ NGUYÊN thiết kế gốc "draw! mỗi lần bị nhắm tới", KHÔNG đổi sang
-	phương án rút-trước — phương án đó tách ra làm nhân vật riêng, xem
-	The Drifter bên dưới). Đánh giá sức mạnh ở mục IV.
+	- The Nobody 3 máu — ✅ ĐÃ CODE XONG ĐỦ 10/10 (2026-08-20, core + test
+	  — xem changelog "The Nobody *ex — NHÓM A", "— Cửa hàng tổng hợp",
+	  "— NHÓM B" trong CHANGELOG.md): NHÓM A đủ 5/5 (Bang!/Gatling nhóm
+	  "kiểu Bang!", Indians!, Đấu tay đôi, Cat Balou/Can Can/Brawl, Cửa
+	  hàng tổng hợp — lá khó nhất nhóm, đã tách playGeneralStore() thành
+	  2 giai đoạn đúng như đề xuất bên dưới) VÀ NHÓM B đủ 5/5 (Panic!/Rag
+	  Time/Conestoga, Jail, Saloon, Tequila, Marcel "cùng vào tù" — đã
+	  viết lại thành "hoãn rồi mới áp dụng" đúng như đề xuất bên dưới,
+	  state mới GameState.pendingNobodyCheck). HOÀN TẤT TOÀN BỘ NHÂN VẬT,
+	  không còn điểm cắm nào bị bỏ dở. (Đặc tả gốc, chủ dự án đã chốt GIỮ NGUYÊN thiết kế
+	  gốc "draw! mỗi lần bị nhắm tới", KHÔNG đổi sang phương án rút-trước
+	  — phương án đó tách ra làm nhân vật riêng, xem The Drifter bên
+	  dưới). Đánh giá sức mạnh ở mục IV.
 	  Tên hiệu ứng: "chẳng ai nhắm trúng kẻ vô danh".
 
 	  Khả năng: nếu The Nobody BỊ NHẮM TỚI vì bất cứ lý do gì (Bang!,
@@ -440,8 +449,9 @@ mà không ảnh hưởng nhân vật *ex khác.
 	  - Lucky Duke áp dụng cho draw! này ⇒ lật 2 lá chọn lá có lợi. Tự
 	    đúng nếu đi qua resolveDrawCheck().
 
-	- The Sentinel 3 máu — ⬜ CHƯA CODE. (Chính tả: "Sentinel", bản gốc
-	  ghi "Sentinal".)
+	- The Sentinel 3 máu — ✅ ĐÃ CODE XONG (2026-08-20, core + UI hotseat/
+	  qua mạng + test — xem changelog "The Sentinel *ex" trong CHANGELOG.md).
+	  (Chính tả: "Sentinel", bản gốc ghi "Sentinal".)
 	  - *dev đã chốt: Chỉ được dùng khả năng ĐÚNG 1 LẦN CẢ VÁN. Như vậy
 		3 máu tối đa -> còn 1, vẫn chơi tiếp được thay vì gần như chết theo.
 

@@ -44,6 +44,8 @@ function makeState(overrides: Partial<GameState> = {}): GameState {
     fairKillerUsedThisTurn: false,
     vendettaUsedThisTurn: false,
     duelBangDrawPending: null,
+    pendingGeneralStore: null,
+    pendingNobodyCheck: null,
     veraCusterBorrowedCharacterId: null,
     elenaNoirArmed: {},
     elenaNoirImmortalTurnsLeft: {},
@@ -52,6 +54,7 @@ function makeState(overrides: Partial<GameState> = {}): GameState {
     marcelJailCompanion: {},
     marcelCompanionSkipNextTurn: {},
     marcelJailBonusDrawThisTurn: {},
+    sentinelUsed: {},
     eventDeck: ["high_noon", "russian_roulette"], // "russian_roulette" = lá kế tiếp
     activeEventId: null,
     eventDiscard: [],

@@ -693,6 +693,12 @@ export class Room {
       // người chơi.
       case "NEED_USE_DEALER_TRADE":
         return { type: "RESPOND", playerId: top.player };
+
+      // Bộ mở rộng "custom_characters" (The Sentinel) — hết giờ mặc định TỪ
+      // CHỐI (không kèm reviveTarget) — an toàn hơn tự ý trừ 2 máu tối đa
+      // VĨNH VIỄN của người chơi thay họ (từ chối không tiêu hao lượt dùng).
+      case "NEED_SENTINEL_REVIVE":
+        return { type: "RESPOND", playerId: top.player };
     }
   }
 

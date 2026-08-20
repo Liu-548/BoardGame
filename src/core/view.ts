@@ -118,6 +118,11 @@ export interface PlayerView {
   // với ai, và ai sắp mất lượt kế tiếp, đều công khai (không liên quan bài úp).
   marcelJailCompanion: GameState["marcelJailCompanion"];
   marcelCompanionSkipNextTurn: GameState["marcelCompanionSkipNextTurn"];
+  // Bộ mở rộng "custom_characters" (The Sentinel, xem House_Rule.txt mục I) —
+  // client cần biết đúng như core để tự ẩn nút "hồi sinh" nếu đã dùng hết
+  // lượt. KHÔNG bí mật gì (giống elenaNoirArmed/marcelJailCompanion — công
+  // khai, không cần lọc theo viewerId).
+  sentinelUsed: GameState["sentinelUsed"];
   // Mở rộng High Noon/A Fistful of Cards, mục 1.2 — CHỈ lộ lá ĐANG chạy + lá
   // KẾ TIẾP (đã hỏi lại và chốt: đây là điểm bán-ẩn thứ 2 trong dự án, tiền lệ
   // NEED_PICK_KEPT_CARDS của Kit Carlson) — phần CÒN LẠI của eventDeck (thứ tự
@@ -197,6 +202,7 @@ export function viewFor(state: GameState, viewerId: string): PlayerView {
       state.drifterShield[viewerId] !== undefined ? { [viewerId]: state.drifterShield[viewerId] } : {},
     marcelJailCompanion: state.marcelJailCompanion,
     marcelCompanionSkipNextTurn: state.marcelCompanionSkipNextTurn,
+    sentinelUsed: state.sentinelUsed,
     activeEventId: state.activeEventId,
     nextEventId: state.eventDeck.length > 0 ? state.eventDeck[state.eventDeck.length - 1] : null,
     eventDiscard: [...state.eventDiscard],

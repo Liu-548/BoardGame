@@ -286,6 +286,11 @@ function chooseRespondAction(state: GameState): Action {
       // này nên pending không thực sự phát sinh, nhưng vẫn xử lý an toàn: cứ
       // từ chối (không kèm useDealerTrade, an toàn, luôn hợp lệ).
       return { type: "RESPOND", playerId: top.player };
+    case "NEED_SENTINEL_REVIVE":
+      // Bộ mở rộng "custom_characters" (The Sentinel) — bot không dùng nhân
+      // vật này nên pending không thực sự phát sinh, nhưng vẫn xử lý an toàn:
+      // cứ từ chối (không kèm reviveTarget, an toàn, luôn hợp lệ).
+      return { type: "RESPOND", playerId: top.player };
     default: {
       const neverKind: never = top;
       throw new Error(`Bot chưa biết cách phản hồi: ${JSON.stringify(neverKind)}`);

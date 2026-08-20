@@ -469,6 +469,32 @@ export interface CharacterDefinition {
   // phải giấu). Xem maybeAskDealerTrade()/respondToUseDealerTrade() trong
   // reduce.ts.
   hasDealerTrade?: boolean;
+  // Bộ mở rộng "custom_characters" (The Sentinel, xem House_Rule.txt mục I) —
+  // cờ tĩnh: bất kỳ lúc nào có 1 người chơi (kể cả chính The Sentinel) sắp bị
+  // ghi nhận CHẾT (đã hết mọi cách tự cứu — Bia/Elena Noir Miễn Tử), được hỏi
+  // SAU CÙNG có muốn trả 2 máu tối đa vĩnh viễn để hồi sinh người đó với ĐÚNG
+  // 1 máu hay không — ĐÚNG 1 LẦN CẢ VÁN (xem GameState.sentinelUsed). KHÔNG
+  // cần state gì riêng ở field này (giống hasDrifterShield/hasDealerTrade) —
+  // sentinelUsed mới là nơi lưu trạng thái. Xem eliminateIfDead()/
+  // maybeAskSentinelRevive()/respondToSentinelRevive() trong reduce.ts.
+  canReviveOthers?: boolean;
+  // Bộ mở rộng "custom_characters" (The Nobody, xem House_Rule.txt mục I) —
+  // cờ tĩnh: bị NHẮM TỚI bởi bất kỳ lá nào (Bang!/Gatling/Punch/Springfield/
+  // Derringer/Knife/Pepperbox/Buffalo Rifle/Howitzer/Doc Holyday/Fair
+  // Killer/Indians!/Đấu tay đôi/Cat Balou/Can Can/Brawl — NHÓM A, đợt đầu;
+  // Panic!/Jail/Saloon/Tequila/Marcel companion — NHÓM B, ĐỂ DÀNH ĐỢT SAU,
+  // CHƯA cài), BẮT BUỘC draw! 1 lá — ra Bích thì lá đó VÔ HIỆU HOÀN TOÀN.
+  // KHÔNG dùng được hook isImmuneToCard có sẵn (hook đó THUẦN/ĐỒNG BỘ, còn
+  // draw! phải đẩy pending rồi dừng hàm — quy tắc 4 CLAUDE.md). Cách cài:
+  // đẩy NEED_DRAW_CHECK (source.card = "the_nobody") LÊN TRÊN pending gốc
+  // (NEED_MISSED/NEED_DISCARD_BANG/NEED_DUEL_RESPONSE/NEED_DISCARD_FROM_ZONE)
+  // ngay sau khi pending đó vừa được đẩy — đúng mẫu Barrel đã có sẵn trong
+  // pushMissedReactionUnconditional(). Xem maybePushNobodyDrawCheck() trong
+  // reduce.ts — gọi Ở ĐÚNG 4 điểm cắm dùng chung (không rải theo từng lá):
+  // pushMissedReactionUnconditional() (NHÓM Bang!)/playIndians()/playDuel()+
+  // respondToDuel()/pushDiscardFromZoneReaction(). KHÔNG cần state gì riêng
+  // (tính lại mỗi lần), không xung đột Vera Custer.
+  hasNobodyImmunity?: boolean;
   hooks: CharacterHooks;
 }
 
@@ -968,6 +994,22 @@ export const CHARACTERS: Record<string, CharacterDefinition> = {
     hasDealerTrade: true,
     hooks: {},
   },
+
+  the_sentinel: {
+    id: "the_sentinel",
+    name: "The Sentinel *ex",
+    bullets: 3,
+    canReviveOthers: true,
+    hooks: {},
+  },
+
+  the_nobody: {
+    id: "the_nobody",
+    name: "The Nobody *ex",
+    bullets: 3,
+    hasNobodyImmunity: true,
+    hooks: {},
+  },
 };
 
 // Id nhân vật do từng BỘ MỞ RỘNG đóng góp (xem ExpansionId ở types.ts +
@@ -1004,6 +1046,8 @@ export const EXPANSION_CHARACTER_IDS: Record<ExpansionId, string[]> = {
     "the_drunker",
     "the_drifter",
     "the_dealer",
+    "the_sentinel",
+    "the_nobody",
   ],
   // Mở rộng High Noon/A Fistful of Cards — CHỈ lá sự kiện (core/events.ts),
   // không có nhân vật mới nào.
