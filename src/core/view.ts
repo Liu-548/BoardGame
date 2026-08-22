@@ -131,6 +131,12 @@ export interface PlayerView {
   activeEventId: GameState["activeEventId"];
   nextEventId: string | null;
   eventDiscard: GameState["eventDiscard"];
+  // Mở rộng Dodge City, mục C (Vera Custer) — client cần biết đúng như core
+  // (getEffectiveCharacterId() ở characters.ts) để tự vẽ nút/badge theo ĐÚNG
+  // khả năng đang mượn, không phải characterId thật của Vera. KHÔNG bí mật gì
+  // (giống elenaNoirArmed/marcelJailCompanion — ai mượn khả năng gì công khai,
+  // như bài Vera Custer lật ngửa ngoài đời thật).
+  veraCusterBorrowedCharacterId: GameState["veraCusterBorrowedCharacterId"];
 }
 
 function viewRole(player: PlayerState, viewerId: string): Role | null {
@@ -206,5 +212,6 @@ export function viewFor(state: GameState, viewerId: string): PlayerView {
     activeEventId: state.activeEventId,
     nextEventId: state.eventDeck.length > 0 ? state.eventDeck[state.eventDeck.length - 1] : null,
     eventDiscard: [...state.eventDiscard],
+    veraCusterBorrowedCharacterId: state.veraCusterBorrowedCharacterId,
   };
 }

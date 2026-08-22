@@ -1607,7 +1607,31 @@ export type Selection =
       targetId?: string;
       targetCardId?: string;
       brawlZones?: Record<string, "hand" | "equipment">;
+      // Mở rộng A Fistful of Cards, lá "Sniper" — CHỈ khi bước này tới từ
+      // onConfirmBangMode() (bắn kiểu Sniper cần bỏ ĐÚNG 1 lá Bang! phụ, khác
+      // Brawl/Rag Time/Springfield/Tequila/Whisky cho bỏ BẤT KỲ lá nào). Có
+      // giá trị thì renderHandSection() chỉ cho bấm lá TRÙNG tên này, lá khác
+      // hiện dạng chip — server (discardExtraCard→playSniperShot) vẫn tự kiểm
+      // tra lại, đây chỉ để khỏi bấm nhầm rồi bị dội lỗi.
+      restrictToCardName?: CardName;
     }
+  // Mở rộng A Fistful of Cards, lá "Sniper" — đã chọn Bang! + mục tiêu (qua
+  // đúng luồng "picking-target" như Bang! thường), sự kiện "sniper" đang chạy
+  // VÀ còn ≥1 lá Bang! khác trên tay: hỏi thêm đánh Bang! thường hay bắn kiểu
+  // Sniper (xem onConfirmBangMode() ở main.ts).
+  | { step: "picking-sniper-confirm"; cardId: string; targetId: string }
+  // Mở rộng A Fistful of Cards, lá "Ricochet" — cùng thời điểm hỏi như Sniper
+  // ở trên (sau khi chọn Bang! + mục tiêu), nhưng chỉ hỏi khi mục tiêu có ít
+  // nhất 1 lá trang bị để bắn rụng.
+  | { step: "picking-ricochet-confirm"; cardId: string; targetId: string }
+  // Mở rộng A Fistful of Cards, lá "Ricochet" — đã chọn "Bắn kiểu Ricochet" ở
+  // bước trên, giờ chọn ĐÚNG 1 lá trang bị của `targetId` để bắn rụng.
+  | { step: "picking-ricochet-equipment"; cardId: string; targetId: string }
+  // Mở rộng A Fistful of Cards, lá "Ranch" — trả lời NEED_RANCH_EXCHANGE: bấm
+  // TỪNG lá trên tay muốn đổi (0 lá cũng hợp lệ — khác Kit Carlson không có số
+  // lá cố định phải chọn nên KHÔNG tự gửi khi "đủ", cần nút "Đổi bài" riêng ở
+  // renderPendingPanel(), xem onToggleRanchCard()/onConfirmRanchExchange()).
+  | { step: "picking-ranch-exchange"; selectedCardIds: string[] }
   // Mở rộng Dodge City, mục 1.2 — USE_ABILITY (Sid Ketchum/José Delgado/Doc
   // Holyday) cần chọn ĐỦ `needed` lá trên tay TRƯỚC khi gửi đi. `playerId`:
   // chủ nhân kỹ năng — KHÔNG chắc là người đang tới lượt (Sid Ketchum dùng
@@ -1637,6 +1661,14 @@ function selectionHintText(selection: Selection): string {
       return "Đang chọn mục tiêu cho kỹ năng...";
     case "picking-kit-carlson-kept":
       return "Đang chọn lần lượt từng lá muốn giữ (Kit Carlson)...";
+    case "picking-sniper-confirm":
+      return "Bang! thường hay bắn kiểu Sniper?";
+    case "picking-ricochet-confirm":
+      return "Bang! thường hay bắn kiểu Ricochet?";
+    case "picking-ricochet-equipment":
+      return "Đang chọn lá trang bị để bắn rụng (Ricochet)...";
+    case "picking-ranch-exchange":
+      return "Đang chọn lá muốn đổi (Ranch)...";
     default:
       return "Đang chọn mục tiêu...";
   }
@@ -1716,6 +1748,25 @@ export interface UiHandlers {
   // "Bỏ qua" dùng onRespondTakeConsequence() (KHÔNG bắt buộc chọn, khác Marcel
   // Marcelo ở trên).
   onPickThiefTarget(targetId: string): void;
+  // Mở rộng A Fistful of Cards, lá "Hard Liquor" — trả lời
+  // NEED_PICK_HARD_LIQUOR: bỏ qua pha rút để hồi 1 máu. Nút "Rút bài bình
+  // thường" tái dùng onRespondTakeConsequence().
+  onPickHardLiquor(): void;
+  // Mở rộng A Fistful of Cards, lá "Blood Brothers" — trả lời
+  // NEED_BLOOD_BROTHERS_GIFT: tặng 1 máu cho `targetId`. Nút "Không tặng ai"
+  // tái dùng onRespondTakeConsequence().
+  onGiveBloodBrothersGift(targetId: string): void;
+  // Mở rộng A Fistful of Cards, lá "Ranch" — trả lời NEED_RANCH_EXCHANGE: bấm
+  // TỪNG lá muốn đổi (tích luỹ vào selection, không tự gửi), rồi bấm nút "Đổi
+  // bài" (onConfirmRanchExchange) để gửi thật — khác Kit Carlson (tự gửi khi
+  // đủ số lá) vì Ranch không có số lá cố định phải chọn.
+  onToggleRanchCard(cardId: string): void;
+  onConfirmRanchExchange(): void;
+  // Mở rộng A Fistful of Cards, lá "Sniper"/"Ricochet" — đã chọn Bang! + mục
+  // tiêu, sự kiện tương ứng đang chạy: hỏi dùng cách bắn đặc biệt hay Bang!
+  // bình thường. `false` = Bang! thường (gửi PLAY_CARD ngay); `true` = chuyển
+  // tiếp bước kế (chọn lá Bang! phụ cho Sniper, chọn trang bị cho Ricochet).
+  onConfirmBangMode(useSpecial: boolean): void;
   // Đợt 2 UI/UX (mục 4) — bấm "nở"/"thu gọn" khu trang bị của 1 seat khi bàn
   // >6 người. Client-only, không phải hành động ván đấu, không gửi lên server.
   onToggleSeatExpanded(playerId: string): void;
@@ -1766,6 +1817,21 @@ function linkButton(label: string, href: string): HTMLAnchorElement {
   el.rel = "noopener noreferrer";
   el.className = "link-button";
   return el;
+}
+
+// Mở rộng Dodge City, mục C (Vera Custer) — mirror ĐÚNG logic
+// getEffectiveCharacterId() (core/characters.ts): Vera đang mượn ai thì MỌI
+// hook/khả năng tính theo nhân vật đang mượn, không phải characterId thật của
+// cô ta. Core nhận GameState/PlayerState đầy đủ nên gọi thẳng hàm đó được;
+// client (nhất là phía qua mạng) chỉ có 2 giá trị rời (PlayerView không có
+// method), nên viết lại đúng cùng 1 điều kiện ở đây — dùng CHUNG cho mọi nơi
+// bên dưới từng đọc thẳng `player.characterId` (Elena Fuente/Elena Noir/
+// Calamity Janet/4 nút "Dùng kỹ năng").
+function effectiveCharacterId(borrowedCharacterId: string | null, characterId: string | null): string | null {
+  if (getCharacterDefinition(characterId)?.canBorrowCharacterAbilities === true && borrowedCharacterId) {
+    return borrowedCharacterId;
+  }
+  return characterId;
 }
 
 // Giai đoạn 5 (Calamity Janet) — lá `cardId` có ĐÓNG VAI Bang!/Missed! được
@@ -1908,6 +1974,10 @@ function renderHandSection(
   // Holyday) chọn ĐỦ số lá cần trước khi gửi đi. José Delgado CHỈ được chọn
   // lá xanh dương (equipment "instant") — lá khác hiện dạng chip, không bấm được.
   const isPickingAbilityCards = selection.step === "picking-ability-cards" && selection.playerId === player.id;
+  // Mở rộng A Fistful of Cards, lá "Ranch" — trả lời NEED_RANCH_EXCHANGE: bấm
+  // TỪNG lá muốn đổi ngay trên khu bài của chính mình, y hệt isDiscarding
+  // nhưng KHÔNG tự gửi (xem onToggleRanchCard()/renderPendingPanel()).
+  const isPickingRanchExchange = isResponding && top!.kind === "NEED_RANCH_EXCHANGE";
 
   for (const cardId of player.hand) {
     const name = cardNameFromId(cardId);
@@ -1920,8 +1990,20 @@ function renderHandSection(
       continue;
     }
 
+    if (isPickingRanchExchange) {
+      const selectedIds = selection.step === "picking-ranch-exchange" ? selection.selectedCardIds : [];
+      const checked = selectedIds.includes(cardId);
+      wrapper.appendChild(
+        cardButton(cardId, () => handlers.onToggleRanchCard(cardId), checked ? "card-box--checked" : undefined)
+      );
+      continue;
+    }
+
     if (isPickingExtraDiscard) {
-      if (cardId === selection.cardId) {
+      if (
+        cardId === selection.cardId ||
+        (selection.restrictToCardName !== undefined && name !== selection.restrictToCardName)
+      ) {
         wrapper.appendChild(cardChip(cardId));
       } else {
         wrapper.appendChild(cardButton(cardId, () => handlers.onExtraDiscardCardClick(cardId)));
@@ -1947,9 +2029,10 @@ function renderHandSection(
     }
 
     if (respondableName !== null) {
+      const effChar = effectiveCharacterId(state.veraCusterBorrowedCharacterId, player.characterId);
       if (
-        cardMatchesRespondable(cardId, player.characterId, respondableName) &&
-        hasEnoughMissedToRespond(top, player.hand, player.equipment, player.characterId, state.equipmentPlayedTurn, state.turnNumber)
+        cardMatchesRespondable(cardId, effChar, respondableName) &&
+        hasEnoughMissedToRespond(top, player.hand, player.equipment, effChar, state.equipmentPlayedTurn, state.turnNumber)
       ) {
         wrapper.appendChild(cardButton(cardId, () => handlers.onHandCardClick(cardId)));
       } else {
@@ -1960,8 +2043,13 @@ function renderHandSection(
 
     // Giai đoạn 5 (Calamity Janet) — Missed! của Janet ĐÓNG VAI Bang! nên vẫn
     // bấm được chủ động trong lượt mình, khác Missed! thường (không bao giờ
-    // đánh chủ động được).
-    if (isCurrentTurnToPlay && (name !== "missed" || cardActsAsBang(cardId, player.characterId))) {
+    // đánh chủ động được). Đọc theo effectiveCharacterId() — Vera Custer mượn
+    // Janet cũng phải bấm được y hệt.
+    if (
+      isCurrentTurnToPlay &&
+      (name !== "missed" ||
+        cardActsAsBang(cardId, effectiveCharacterId(state.veraCusterBorrowedCharacterId, player.characterId)))
+    ) {
       const armed = selection.step === "picking-target" && selection.cardId === cardId;
       wrapper.appendChild(cardButton(cardId, () => handlers.onHandCardClick(cardId), armed ? "card-box--armed" : undefined));
       continue;
@@ -1987,6 +2075,12 @@ function renderEquipmentSection(
   const isDiscardFromEquipment =
     top !== undefined && top.player === player.id && top.kind === "NEED_DISCARD_FROM_ZONE" && top.zone === "equipment";
   const isPickingPanicTarget = selection.step === "picking-panic-equipment" && selection.targetId === player.id;
+  // Mở rộng A Fistful of Cards, lá "Ricochet" — đã chọn "Bắn kiểu Ricochet",
+  // giờ chọn ĐÚNG 1 lá trang bị của người này để bắn rụng. KHÔNG loại
+  // Dynamite (khác isPickingPanicTarget ngay dưới) — playRicochetShot() ở
+  // reduce.ts không cấm bắn Dynamite qua Ricochet.
+  const isPickingRicochetEquipment =
+    selection.step === "picking-ricochet-equipment" && selection.targetId === player.id;
   // Mở rộng Dodge City, mục 1.1 — đang chờ ĐÚNG người này đỡ Bang!/Gatling
   // (NEED_MISSED): lá vàng trên sân dùng được như Missed! bấm được luôn, y
   // hệt lá trên tay (xem respondableCardName()/hasEnoughMissedToRespond() ở trên).
@@ -2008,6 +2102,11 @@ function renderEquipmentSection(
     const isDynamite = name === "dynamite";
     const dangerClass = equipmentDangerClass(name);
 
+    if (isPickingRicochetEquipment) {
+      wrapper.appendChild(cardButton(cardId, () => handlers.onEquipmentClick(player.id, cardId), dangerClass));
+      continue;
+    }
+
     if (!isDynamite && (isDiscardFromEquipment || isPickingPanicTarget)) {
       wrapper.appendChild(cardButton(cardId, () => handlers.onEquipmentClick(player.id, cardId), dangerClass));
       continue;
@@ -2015,7 +2114,12 @@ function renderEquipmentSection(
 
     if (
       isRespondingWithMissed &&
-      equipmentActsAsMissed(cardId, player.characterId, state.equipmentPlayedTurn, state.turnNumber)
+      equipmentActsAsMissed(
+        cardId,
+        effectiveCharacterId(state.veraCusterBorrowedCharacterId, player.characterId),
+        state.equipmentPlayedTurn,
+        state.turnNumber
+      )
     ) {
       wrapper.appendChild(cardButton(cardId, () => handlers.onEquipmentClick(player.id, cardId), dangerClass));
       continue;
@@ -2121,15 +2225,12 @@ function renderPlayer(
   el.appendChild(roleAndHp);
 
   // Bộ mở rộng "custom_characters" (Elena Noir, xem House_Rule.txt mục I) —
-  // đọc THẲNG player.characterId (không qua getEffectiveCharacterDefinition/
-  // getEffectiveCharacterId, 2 hàm đó cần GameState đầy đủ, phía network chỉ
-  // có PlayerView không đủ dữ liệu) — CÙNG giới hạn có sẵn với MỌI nút bấm
-  // khả năng "mượn" khác của Vera Custer trong file này (vd renderAbilitySection,
-  // đều đọc player.characterId thật, chưa có hàm "effective" phía client),
-  // không phải giới hạn MỚI riêng của Elena Noir. Dữ liệu cốt lõi (reduce.ts)
-  // đã tách theo playerId, đúng cho cả trường hợp Vera Custer mượn — chỉ badge
-  // hiển thị này chưa vẽ ra cho ca đó.
-  if (player.characterId === "elena_noir" && state.elenaNoirImmortalTurnsLeft[player.id] !== undefined) {
+  // đọc theo effectiveCharacterId() (Vera Custer mượn khả năng Elena Noir vẫn
+  // phải hiện đúng badge này).
+  if (
+    effectiveCharacterId(state.veraCusterBorrowedCharacterId, player.characterId) === "elena_noir" &&
+    state.elenaNoirImmortalTurnsLeft[player.id] !== undefined
+  ) {
     const immortalLabel = document.createElement("p");
     immortalLabel.className = "player--targeted-label";
     immortalLabel.textContent = `☠ Miễn Tử — còn ${state.elenaNoirImmortalTurnsLeft[player.id]} lượt`;
@@ -2177,7 +2278,9 @@ function renderPlayer(
       ((topPending.kind === "NEED_DISCARD_FROM_ZONE" && topPending.zone === "equipment") ||
         topPending.kind === "NEED_MISSED" ||
         topPending.kind === "NEED_DISCARD_MISSED_OR_DAMAGE")) ||
-    (selection.step === "picking-panic-equipment" && selection.targetId === player.id);
+    (selection.step === "picking-panic-equipment" && selection.targetId === player.id) ||
+    // Lá "Ricochet" — cùng lý do Panic! ở trên.
+    (selection.step === "picking-ricochet-equipment" && selection.targetId === player.id);
   renderPlayerEquipmentArea(
     el,
     state.players.length,
@@ -2259,7 +2362,10 @@ function renderAbilitySection(
   handlers: UiHandlers
 ): void {
   if (!player.alive || !player.characterId) return;
-  const def = getCharacterDefinition(player.characterId);
+  // effectiveCharacterId() — Vera Custer mượn khả năng chủ động của Sid
+  // Ketchum/Chuck Wengam/José Delgado/Doc Holyday/The Gambler/The Fair Killer
+  // vẫn phải hiện đúng nút "Dùng kỹ năng".
+  const def = getCharacterDefinition(effectiveCharacterId(state.veraCusterBorrowedCharacterId, player.characterId));
   if (!def) return;
 
   const isMyTurnNoPending =
@@ -2545,6 +2651,22 @@ function renderPendingPanel(container: HTMLElement, state: GameState, handlers: 
       if (!p.alive || p.id === top.player) continue;
       panel.appendChild(button(`Cướp 1 lá của ${p.name}`, () => handlers.onPickThiefTarget(p.id)));
     }
+  } else if (top.kind === "NEED_PICK_HARD_LIQUOR") {
+    panel.appendChild(button("Bỏ qua rút bài, hồi 1 máu", () => handlers.onPickHardLiquor()));
+    panel.appendChild(button("Rút bài bình thường", () => handlers.onRespondTakeConsequence()));
+  } else if (top.kind === "NEED_BLOOD_BROTHERS_GIFT") {
+    panel.appendChild(button("Không tặng ai", () => handlers.onRespondTakeConsequence()));
+    for (const p of state.players) {
+      if (!p.alive || p.id === top.player || p.hp >= p.maxHp) continue;
+      panel.appendChild(button(`Tặng 1 máu cho ${p.name}`, () => handlers.onGiveBloodBrothersGift(p.id)));
+    }
+  } else if (top.kind === "NEED_RANCH_EXCHANGE") {
+    const selectedCount = selection.step === "picking-ranch-exchange" ? selection.selectedCardIds.length : 0;
+    const info = document.createElement("p");
+    info.textContent = `Bấm từng lá trên tay muốn đổi — đã chọn ${selectedCount} lá.`;
+    panel.appendChild(info);
+    panel.appendChild(button(`Đổi ${selectedCount} lá đã chọn`, () => handlers.onConfirmRanchExchange()));
+    panel.appendChild(button("Không đổi lá nào", () => handlers.onRespondTakeConsequence()));
   }
 
   container.appendChild(panel);
@@ -2753,6 +2875,16 @@ export function renderApp(
       if (others.length > 0 && others.every((p) => sel.zones[p.id] !== undefined)) {
         hint.appendChild(button("Tiếp tục — chọn lá phụ", () => handlers.onBrawlZonesConfirmed()));
       }
+    }
+    // Mở rộng A Fistful of Cards, lá "Sniper"/"Ricochet" — hỏi dùng cách bắn
+    // đặc biệt hay Bang! bình thường (xem onConfirmBangMode() ở main.ts).
+    if (options.selection.step === "picking-sniper-confirm") {
+      hint.appendChild(button("Bang! thường (không dùng Sniper)", () => handlers.onConfirmBangMode(false)));
+      hint.appendChild(button("Bắn kiểu Sniper (bỏ thêm 1 Bang!)", () => handlers.onConfirmBangMode(true)));
+    }
+    if (options.selection.step === "picking-ricochet-confirm") {
+      hint.appendChild(button("Bang! thường (gây sát thương)", () => handlers.onConfirmBangMode(false)));
+      hint.appendChild(button("Bắn kiểu Ricochet (bắn rụng trang bị)", () => handlers.onConfirmBangMode(true)));
     }
     hint.appendChild(button("Huỷ", () => handlers.onCancelSelection()));
     container.appendChild(hint);
@@ -3357,6 +3489,13 @@ export interface NetworkGameHandlers {
   onToggleAbilityCard(cardId: string): void;
   onConfirmAbilityCards(): void;
   onAbilityTargetClick(targetId: string): void;
+  // Mở rộng A Fistful of Cards (Hard Liquor/Blood Brothers/Ranch/Sniper/
+  // Ricochet) — giống hệt UiHandlers (hotseat), xem ghi chú ở đó.
+  onPickHardLiquor(): void;
+  onGiveBloodBrothersGift(targetId: string): void;
+  onToggleRanchCard(cardId: string): void;
+  onConfirmRanchExchange(): void;
+  onConfirmBangMode(useSpecial: boolean): void;
   // Đợt 2 UI/UX (mục 4) — giống hệt UiHandlers (hotseat), xem ghi chú ở đó.
   onToggleSeatExpanded(playerId: string): void;
   // Đợt 3 UI/UX (mục 9) — giống UiHandlers (hotseat), cộng thêm dialog Mã
@@ -3449,6 +3588,9 @@ function networkRenderHandSection(
   const isPickingExtraDiscard =
     selection.step === "picking-extra-discard" && player.id === view.players[view.currentPlayerIndex]?.id;
   const isPickingAbilityCards = selection.step === "picking-ability-cards" && selection.playerId === player.id;
+  // Mở rộng A Fistful of Cards, lá "Ranch" — xem ghi chú y hệt ở
+  // renderHandSection() (hotseat).
+  const isPickingRanchExchange = isResponding && top!.kind === "NEED_RANCH_EXCHANGE";
 
   for (const cardId of player.hand) {
     const name = cardNameFromId(cardId);
@@ -3461,8 +3603,20 @@ function networkRenderHandSection(
       continue;
     }
 
+    if (isPickingRanchExchange) {
+      const selectedIds = selection.step === "picking-ranch-exchange" ? selection.selectedCardIds : [];
+      const checked = selectedIds.includes(cardId);
+      wrapper.appendChild(
+        cardButton(cardId, () => handlers.onToggleRanchCard(cardId), checked ? "card-box--checked" : undefined)
+      );
+      continue;
+    }
+
     if (isPickingExtraDiscard) {
-      if (cardId === selection.cardId) {
+      if (
+        cardId === selection.cardId ||
+        (selection.restrictToCardName !== undefined && name !== selection.restrictToCardName)
+      ) {
         wrapper.appendChild(cardChip(cardId));
       } else {
         wrapper.appendChild(cardButton(cardId, () => handlers.onExtraDiscardCardClick(cardId)));
@@ -3488,9 +3642,10 @@ function networkRenderHandSection(
     }
 
     if (respondableName !== null) {
+      const effChar = effectiveCharacterId(view.veraCusterBorrowedCharacterId, player.characterId);
       if (
-        cardMatchesRespondable(cardId, player.characterId, respondableName) &&
-        hasEnoughMissedToRespond(top, player.hand, player.equipment, player.characterId, view.equipmentPlayedTurn, view.turnNumber)
+        cardMatchesRespondable(cardId, effChar, respondableName) &&
+        hasEnoughMissedToRespond(top, player.hand, player.equipment, effChar, view.equipmentPlayedTurn, view.turnNumber)
       ) {
         wrapper.appendChild(cardButton(cardId, () => handlers.onHandCardClick(cardId)));
       } else {
@@ -3500,7 +3655,11 @@ function networkRenderHandSection(
     }
 
     // Giai đoạn 5 (Calamity Janet) — xem ghi chú y hệt ở renderHandSection().
-    if (isCurrentTurnToPlay && (name !== "missed" || cardActsAsBang(cardId, player.characterId))) {
+    if (
+      isCurrentTurnToPlay &&
+      (name !== "missed" ||
+        cardActsAsBang(cardId, effectiveCharacterId(view.veraCusterBorrowedCharacterId, player.characterId)))
+    ) {
       const armed = selection.step === "picking-target" && selection.cardId === cardId;
       wrapper.appendChild(cardButton(cardId, () => handlers.onHandCardClick(cardId), armed ? "card-box--armed" : undefined));
       continue;
@@ -3532,6 +3691,12 @@ function networkRenderEquipmentSection(
     top.kind === "NEED_DISCARD_FROM_ZONE" &&
     top.zone === "equipment";
   const isPickingPanicTarget = selection.step === "picking-panic-equipment" && selection.targetId === player.id;
+  // Mở rộng A Fistful of Cards, lá "Ricochet" — xem ghi chú y hệt ở
+  // renderEquipmentSection() (hotseat). Cùng KHÔNG check viewerId như
+  // isPickingPanicTarget — người BẤM là người đánh (viewer), người SỞ HỮU
+  // trang bị (player) là mục tiêu, 2 vai khác nhau.
+  const isPickingRicochetEquipment =
+    selection.step === "picking-ricochet-equipment" && selection.targetId === player.id;
   // Mở rộng Dodge City, mục 1.1 — xem ghi chú y hệt ở renderEquipmentSection()
   // (hotseat). player.id === view.viewerId: chỉ CHÍNH nạn nhân mới bấm được.
   const isRespondingWithMissed =
@@ -3551,6 +3716,11 @@ function networkRenderEquipmentSection(
     const isDynamite = name === "dynamite";
     const dangerClass = equipmentDangerClass(name);
 
+    if (isPickingRicochetEquipment) {
+      wrapper.appendChild(cardButton(cardId, () => handlers.onEquipmentClick(player.id, cardId), dangerClass));
+      continue;
+    }
+
     if (!isDynamite && (isDiscardFromEquipment || isPickingPanicTarget)) {
       wrapper.appendChild(cardButton(cardId, () => handlers.onEquipmentClick(player.id, cardId), dangerClass));
       continue;
@@ -3558,7 +3728,12 @@ function networkRenderEquipmentSection(
 
     if (
       isRespondingWithMissed &&
-      equipmentActsAsMissed(cardId, player.characterId, view.equipmentPlayedTurn, view.turnNumber)
+      equipmentActsAsMissed(
+        cardId,
+        effectiveCharacterId(view.veraCusterBorrowedCharacterId, player.characterId),
+        view.equipmentPlayedTurn,
+        view.turnNumber
+      )
     ) {
       wrapper.appendChild(cardButton(cardId, () => handlers.onEquipmentClick(player.id, cardId), dangerClass));
       continue;
@@ -3673,8 +3848,11 @@ function networkRenderPlayer(
   el.appendChild(roleAndHp);
 
   // Bộ mở rộng "custom_characters" (Elena Noir) — giống hệt renderPlayer()
-  // (hotseat), xem ghi chú ở đó (giới hạn Vera Custer).
-  if (player.characterId === "elena_noir" && view.elenaNoirImmortalTurnsLeft[player.id] !== undefined) {
+  // (hotseat), xem ghi chú ở đó (effectiveCharacterId() — Vera Custer mượn).
+  if (
+    effectiveCharacterId(view.veraCusterBorrowedCharacterId, player.characterId) === "elena_noir" &&
+    view.elenaNoirImmortalTurnsLeft[player.id] !== undefined
+  ) {
     const immortalLabel = document.createElement("p");
     immortalLabel.className = "player--targeted-label";
     immortalLabel.textContent = `☠ Miễn Tử — còn ${view.elenaNoirImmortalTurnsLeft[player.id]} lượt`;
@@ -3713,7 +3891,10 @@ function networkRenderPlayer(
   // đã đủ bao quát ca "chính mình đang cần bấm bỏ trang bị" nên không cần lặp
   // lại điều kiện NEED_DISCARD_FROM_ZONE riêng như bên hotseat.
   const forceShowEquipment =
-    player.id === view.viewerId || (selection.step === "picking-panic-equipment" && selection.targetId === player.id);
+    player.id === view.viewerId ||
+    (selection.step === "picking-panic-equipment" && selection.targetId === player.id) ||
+    // Lá "Ricochet" — cùng lý do Panic! ở trên.
+    (selection.step === "picking-ricochet-equipment" && selection.targetId === player.id);
   renderPlayerEquipmentArea(
     el,
     view.players.length,
@@ -3794,7 +3975,8 @@ function networkRenderAbilitySection(
   handlers: NetworkGameHandlers
 ): void {
   if (!player.alive || !player.characterId || player.id !== view.viewerId || player.hand === null) return;
-  const def = getCharacterDefinition(player.characterId);
+  // effectiveCharacterId() — xem ghi chú y hệt ở renderAbilitySection() (hotseat).
+  const def = getCharacterDefinition(effectiveCharacterId(view.veraCusterBorrowedCharacterId, player.characterId));
   if (!def) return;
 
   const isMyTurnNoPending =
@@ -4096,6 +4278,22 @@ function networkRenderPendingPanel(
         if (!p.alive || p.id === top.player) continue;
         panel.appendChild(button(`Cướp 1 lá của ${p.name}`, () => handlers.onPickThiefTarget(p.id)));
       }
+    } else if (top.kind === "NEED_PICK_HARD_LIQUOR") {
+      panel.appendChild(button("Bỏ qua rút bài, hồi 1 máu", () => handlers.onPickHardLiquor()));
+      panel.appendChild(button("Rút bài bình thường", () => handlers.onRespondTakeConsequence()));
+    } else if (top.kind === "NEED_BLOOD_BROTHERS_GIFT") {
+      panel.appendChild(button("Không tặng ai", () => handlers.onRespondTakeConsequence()));
+      for (const p of view.players) {
+        if (!p.alive || p.id === top.player || p.hp >= p.maxHp) continue;
+        panel.appendChild(button(`Tặng 1 máu cho ${p.name}`, () => handlers.onGiveBloodBrothersGift(p.id)));
+      }
+    } else if (top.kind === "NEED_RANCH_EXCHANGE") {
+      const selectedCount = selection.step === "picking-ranch-exchange" ? selection.selectedCardIds.length : 0;
+      const info = document.createElement("p");
+      info.textContent = `Bấm từng lá trên tay muốn đổi — đã chọn ${selectedCount} lá.`;
+      panel.appendChild(info);
+      panel.appendChild(button(`Đổi ${selectedCount} lá đã chọn`, () => handlers.onConfirmRanchExchange()));
+      panel.appendChild(button("Không đổi lá nào", () => handlers.onRespondTakeConsequence()));
     }
   }
 
@@ -4282,6 +4480,16 @@ export function renderNetworkGame(
       if (others.length > 0 && others.every((p) => sel.zones[p.id] !== undefined)) {
         hint.appendChild(button("Tiếp tục — chọn lá phụ", () => handlers.onBrawlZonesConfirmed()));
       }
+    }
+    // Mở rộng A Fistful of Cards, lá "Sniper"/"Ricochet" — xem ghi chú y hệt ở
+    // renderApp() (hotseat).
+    if (options.selection.step === "picking-sniper-confirm") {
+      hint.appendChild(button("Bang! thường (không dùng Sniper)", () => handlers.onConfirmBangMode(false)));
+      hint.appendChild(button("Bắn kiểu Sniper (bỏ thêm 1 Bang!)", () => handlers.onConfirmBangMode(true)));
+    }
+    if (options.selection.step === "picking-ricochet-confirm") {
+      hint.appendChild(button("Bang! thường (gây sát thương)", () => handlers.onConfirmBangMode(false)));
+      hint.appendChild(button("Bắn kiểu Ricochet (bắn rụng trang bị)", () => handlers.onConfirmBangMode(true)));
     }
     hint.appendChild(button("Huỷ", () => handlers.onCancelSelection()));
     container.appendChild(hint);
