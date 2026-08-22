@@ -285,7 +285,19 @@ function restoreFocusState(saved: { selectionStart: number | null; selectionEnd:
   }
 }
 
+// BUG thật (báo từ chủ dự án): nhấn giữ 1 lá bài trên di động để xem mô tả
+// (xem attachDescriptionReveal() ở ui.ts) — chữ vừa hiện ra đã mất ngay lập
+// tức. Nguyên nhân: render() dựng lại TOÀN BỘ DOM (kể cả chính lá đang giữ),
+// và countdownTickId ở dưới gọi render() mỗi giây liên tục suốt lúc có đồng
+// hồ đếm ngược (gần như suốt ván qua mạng) — lá bài cũ (đang mang lớp phủ
+// mô tả "card-box--holding") bị xoá, lá MỚI dựng lên không có gì đang hiện,
+// dù ngón tay vẫn giữ nguyên (không có touchstart mới để kích lại). Chặn hẳn
+// render() không vẽ lại trong lúc đang có overlay mô tả hiện — giữ nguyên
+// lớp phủ, không đụng DOM. Lượt render() kế tiếp SAU khi nhả tay (touchend/
+// touchcancel/tự ẩn sau AUTO_HIDE_MS gọi hideOverlay(), xem ui.ts) sẽ vẽ lại
+// bình thường, cập nhật bù mọi thay đổi bị hoãn trong lúc giữ.
 function render(): void {
+  if (document.querySelector(".card-box--holding")) return;
   const scrollPositions = captureScrollPositions();
   const focusState = captureFocusState();
   renderScreen();
@@ -370,6 +382,11 @@ function renderScreen(): void {
           onUseSentinelRevive,
           onPickMarcelCompanion,
           onPickThiefTarget,
+          onPickHardLiquor,
+          onGiveBloodBrothersGift,
+          onToggleRanchCard,
+          onConfirmRanchExchange,
+          onConfirmBangMode,
           onBrawlZonePick,
           onBrawlZonesConfirmed,
           onExtraDiscardCardClick,
@@ -478,6 +495,11 @@ function renderScreen(): void {
             onUseSentinelRevive: onNetworkUseSentinelRevive,
             onPickMarcelCompanion: onNetworkPickMarcelCompanion,
             onPickThiefTarget: onNetworkPickThiefTarget,
+            onPickHardLiquor: onNetworkPickHardLiquor,
+            onGiveBloodBrothersGift: onNetworkGiveBloodBrothersGift,
+            onToggleRanchCard: onNetworkToggleRanchCard,
+            onConfirmRanchExchange: onNetworkConfirmRanchExchange,
+            onConfirmBangMode: onNetworkConfirmBangMode,
             onBrawlZonePick: onNetworkBrawlZonePick,
             onBrawlZonesConfirmed: onNetworkBrawlZonesConfirmed,
             onExtraDiscardCardClick: onNetworkExtraDiscardCardClick,
@@ -774,6 +796,19 @@ function onHandCardClick(cardId: string): void {
 // (PLAY_CARD — reduce() tự nhận ra đây là kích hoạt vì cardId không còn trong
 // tay, xem activateDelayedEquipment() trong reduce.ts).
 function onEquipmentClick(ownerId: string, cardId: string): void {
+  // Mở rộng A Fistful of Cards, lá "Ricochet" — đã chọn "Bắn kiểu Ricochet",
+  // bấm ĐÚNG 1 lá trang bị của mục tiêu để bắn rụng.
+  if (selection.step === "picking-ricochet-equipment" && ownerId === selection.targetId) {
+    dispatch({
+      type: "PLAY_CARD",
+      playerId: currentPlayerId(),
+      cardId: selection.cardId,
+      targetId: selection.targetId,
+      targetCardId: cardId,
+    });
+    return;
+  }
+
   if (selection.step === "picking-panic-equipment") {
     // Rag Time (mở rộng Dodge City) — cùng bước chọn lá trang bị cụ thể như
     // Panic!/Conestoga, nhưng còn PHẢI chọn tiếp lá phụ để bỏ kèm trước khi
@@ -863,6 +898,29 @@ function onPlayerClick(targetId: string): void {
     selection = { step: "picking-extra-discard", cardId, targetId };
     render();
     return;
+  }
+
+  // Mở rộng A Fistful of Cards, lá "Sniper" — đã chọn Bang! + mục tiêu (y hệt
+  // Bang! thường), sự kiện đang chạy VÀ còn ≥1 lá Bang! khác trên tay: hỏi
+  // thêm bắn kiểu Sniper hay Bang! thường (xem onConfirmBangMode()).
+  if (cardName === "bang" && state.activeEventId === "sniper") {
+    const actor = state.players[state.currentPlayerIndex];
+    if (actor.hand.some((id) => id !== cardId && cardNameFromId(id) === "bang")) {
+      selection = { step: "picking-sniper-confirm", cardId, targetId };
+      render();
+      return;
+    }
+  }
+
+  // Lá "Ricochet" — cùng thời điểm hỏi, chỉ khi mục tiêu có ít nhất 1 lá
+  // trang bị để bắn rụng.
+  if (cardName === "bang" && state.activeEventId === "ricochet") {
+    const target = state.players.find((p) => p.id === targetId);
+    if (target && target.equipment.length > 0) {
+      selection = { step: "picking-ricochet-confirm", cardId, targetId };
+      render();
+      return;
+    }
   }
 
   dispatch({ type: "PLAY_CARD", playerId: currentPlayerId(), cardId, targetId });
@@ -1070,6 +1128,66 @@ function onPickMarcelCompanion(targetId: string): void {
 function onPickThiefTarget(targetId: string): void {
   const top = state.pending[state.pending.length - 1];
   if (top) dispatch({ type: "RESPOND", playerId: top.player, targetId });
+}
+
+// Mở rộng A Fistful of Cards, lá "Hard Liquor" — trả lời NEED_PICK_HARD_LIQUOR.
+function onPickHardLiquor(): void {
+  const top = state.pending[state.pending.length - 1];
+  if (top) dispatch({ type: "RESPOND", playerId: top.player, skipDrawForHardLiquor: true });
+}
+
+// Lá "Blood Brothers" — trả lời NEED_BLOOD_BROTHERS_GIFT.
+function onGiveBloodBrothersGift(targetId: string): void {
+  const top = state.pending[state.pending.length - 1];
+  if (top) dispatch({ type: "RESPOND", playerId: top.player, targetId });
+}
+
+// Lá "Ranch" — trả lời NEED_RANCH_EXCHANGE: bấm TỪNG lá muốn đổi (tích luỹ
+// vào selection, KHÔNG tự gửi — khác Kit Carlson không có số lá cố định phải
+// chọn), rồi bấm nút "Đổi bài" riêng (onConfirmRanchExchange).
+function onToggleRanchCard(cardId: string): void {
+  const top = state.pending[state.pending.length - 1];
+  if (!top || top.kind !== "NEED_RANCH_EXCHANGE") return;
+  const selectedCardIds = selection.step === "picking-ranch-exchange" ? [...selection.selectedCardIds] : [];
+  const index = selectedCardIds.indexOf(cardId);
+  if (index === -1) selectedCardIds.push(cardId);
+  else selectedCardIds.splice(index, 1);
+  selection = { step: "picking-ranch-exchange", selectedCardIds };
+  render();
+}
+
+function onConfirmRanchExchange(): void {
+  const top = state.pending[state.pending.length - 1];
+  if (!top || top.kind !== "NEED_RANCH_EXCHANGE") return;
+  const cardIds = selection.step === "picking-ranch-exchange" ? selection.selectedCardIds : [];
+  dispatch({ type: "RESPOND", playerId: top.player, cardIds });
+}
+
+// Lá "Sniper"/"Ricochet" — đã chọn Bang! + mục tiêu, sự kiện tương ứng đang
+// chạy: hỏi dùng cách bắn đặc biệt hay Bang! bình thường (xem
+// onPlayerClick()). `false` gửi PLAY_CARD ngay y hệt Bang! thường; `true`
+// chuyển tiếp bước kế (Sniper: chọn lá Bang! phụ, tái dùng "picking-extra-
+// discard" với restrictToCardName — Ricochet: chọn trang bị của mục tiêu).
+function onConfirmBangMode(useSpecial: boolean): void {
+  if (selection.step === "picking-sniper-confirm") {
+    const { cardId, targetId } = selection;
+    if (useSpecial) {
+      selection = { step: "picking-extra-discard", cardId, targetId, restrictToCardName: "bang" };
+      render();
+    } else {
+      dispatch({ type: "PLAY_CARD", playerId: currentPlayerId(), cardId, targetId });
+    }
+    return;
+  }
+  if (selection.step === "picking-ricochet-confirm") {
+    const { cardId, targetId } = selection;
+    if (useSpecial) {
+      selection = { step: "picking-ricochet-equipment", cardId, targetId };
+      render();
+    } else {
+      dispatch({ type: "PLAY_CARD", playerId: currentPlayerId(), cardId, targetId });
+    }
+  }
 }
 
 function onCancelSelection(): void {
@@ -1501,6 +1619,18 @@ function onNetworkHandCardClick(cardId: string): void {
 
 // Mở rộng Dodge City, mục 1.1 — xem ghi chú y hệt ở onEquipmentClick() (hotseat).
 function onNetworkEquipmentClick(ownerId: string, cardId: string): void {
+  // Lá "Ricochet" — xem ghi chú y hệt ở onEquipmentClick() (hotseat).
+  if (networkSelection.step === "picking-ricochet-equipment" && ownerId === networkSelection.targetId) {
+    networkDispatch({
+      type: "PLAY_CARD",
+      playerId: myPlayerId,
+      cardId: networkSelection.cardId,
+      targetId: networkSelection.targetId,
+      targetCardId: cardId,
+    });
+    return;
+  }
+
   if (networkSelection.step === "picking-panic-equipment") {
     // Rag Time — xem ghi chú y hệt ở onEquipmentClick() (hotseat).
     if (cardNameFromId(networkSelection.cardId) === "rag_time") {
@@ -1584,6 +1714,24 @@ function onNetworkPlayerClick(targetId: string): void {
     networkSelection = { step: "picking-extra-discard", cardId, targetId };
     render();
     return;
+  }
+
+  // Lá "Sniper"/"Ricochet" — xem ghi chú y hệt ở onPlayerClick() (hotseat).
+  if (cardName === "bang" && networkView.activeEventId === "sniper") {
+    const myHand = networkView.players.find((p) => p.id === myPlayerId)?.hand ?? [];
+    if (myHand.some((id) => id !== cardId && cardNameFromId(id) === "bang")) {
+      networkSelection = { step: "picking-sniper-confirm", cardId, targetId };
+      render();
+      return;
+    }
+  }
+  if (cardName === "bang" && networkView.activeEventId === "ricochet") {
+    const target = networkView.players.find((p) => p.id === targetId);
+    if (target && target.equipment.length > 0) {
+      networkSelection = { step: "picking-ricochet-confirm", cardId, targetId };
+      render();
+      return;
+    }
   }
 
   networkDispatch({ type: "PLAY_CARD", playerId: myPlayerId, cardId, targetId });
@@ -1784,6 +1932,62 @@ function onNetworkPickThiefTarget(targetId: string): void {
   if (!networkView) return;
   const top = networkView.pending[networkView.pending.length - 1];
   if (top) networkDispatch({ type: "RESPOND", playerId: top.player, targetId });
+}
+
+// Mở rộng A Fistful of Cards — giống hệt các hàm cùng tên (hotseat), xem ghi
+// chú ở đó.
+function onNetworkPickHardLiquor(): void {
+  if (!networkView) return;
+  const top = networkView.pending[networkView.pending.length - 1];
+  if (top) networkDispatch({ type: "RESPOND", playerId: top.player, skipDrawForHardLiquor: true });
+}
+
+function onNetworkGiveBloodBrothersGift(targetId: string): void {
+  if (!networkView) return;
+  const top = networkView.pending[networkView.pending.length - 1];
+  if (top) networkDispatch({ type: "RESPOND", playerId: top.player, targetId });
+}
+
+function onNetworkToggleRanchCard(cardId: string): void {
+  if (!networkView) return;
+  const top = networkView.pending[networkView.pending.length - 1];
+  if (!top || top.kind !== "NEED_RANCH_EXCHANGE") return;
+  const selectedCardIds = networkSelection.step === "picking-ranch-exchange" ? [...networkSelection.selectedCardIds] : [];
+  const index = selectedCardIds.indexOf(cardId);
+  if (index === -1) selectedCardIds.push(cardId);
+  else selectedCardIds.splice(index, 1);
+  networkSelection = { step: "picking-ranch-exchange", selectedCardIds };
+  render();
+}
+
+function onNetworkConfirmRanchExchange(): void {
+  if (!networkView) return;
+  const top = networkView.pending[networkView.pending.length - 1];
+  if (!top || top.kind !== "NEED_RANCH_EXCHANGE") return;
+  const cardIds = networkSelection.step === "picking-ranch-exchange" ? networkSelection.selectedCardIds : [];
+  networkDispatch({ type: "RESPOND", playerId: top.player, cardIds });
+}
+
+function onNetworkConfirmBangMode(useSpecial: boolean): void {
+  if (networkSelection.step === "picking-sniper-confirm") {
+    const { cardId, targetId } = networkSelection;
+    if (useSpecial) {
+      networkSelection = { step: "picking-extra-discard", cardId, targetId, restrictToCardName: "bang" };
+      render();
+    } else {
+      networkDispatch({ type: "PLAY_CARD", playerId: myPlayerId, cardId, targetId });
+    }
+    return;
+  }
+  if (networkSelection.step === "picking-ricochet-confirm") {
+    const { cardId, targetId } = networkSelection;
+    if (useSpecial) {
+      networkSelection = { step: "picking-ricochet-equipment", cardId, targetId };
+      render();
+    } else {
+      networkDispatch({ type: "PLAY_CARD", playerId: myPlayerId, cardId, targetId });
+    }
+  }
 }
 
 function onNetworkCancelSelection(): void {
