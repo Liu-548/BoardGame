@@ -277,17 +277,17 @@ function chooseRespondAction(state: GameState): Action {
       // trên — an toàn, luôn hợp lệ).
       return { type: "RESPOND", playerId: top.player };
     case "NEED_USE_DRIFTER_SHIELD":
-      // Bộ mở rộng "custom_characters" (The Drifter) — bot không dùng nhân
+      // Bộ mở rộng "custom_characters" (Nomad Norman) — bot không dùng nhân
       // vật này nên pending không thực sự phát sinh, nhưng vẫn xử lý an toàn:
       // cứ từ chối (không kèm useShield, an toàn, luôn hợp lệ).
       return { type: "RESPOND", playerId: top.player };
     case "NEED_USE_DEALER_TRADE":
-      // Bộ mở rộng "custom_characters" (The Dealer) — bot không dùng nhân vật
+      // Bộ mở rộng "custom_characters" (Envoy Evy) — bot không dùng nhân vật
       // này nên pending không thực sự phát sinh, nhưng vẫn xử lý an toàn: cứ
       // từ chối (không kèm useDealerTrade, an toàn, luôn hợp lệ).
       return { type: "RESPOND", playerId: top.player };
     case "NEED_SENTINEL_REVIVE":
-      // Bộ mở rộng "custom_characters" (The Sentinel) — bot không dùng nhân
+      // Bộ mở rộng "custom_characters" (Aura The Soul-Weaver) — bot không dùng nhân
       // vật này nên pending không thực sự phát sinh, nhưng vẫn xử lý an toàn:
       // cứ từ chối (không kèm reviveTarget, an toàn, luôn hợp lệ).
       return { type: "RESPOND", playerId: top.player };

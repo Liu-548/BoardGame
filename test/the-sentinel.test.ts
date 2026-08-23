@@ -1,5 +1,5 @@
-// Bộ mở rộng "custom_characters" (The Sentinel, xem House_Rule.txt mục I) —
-// bất kỳ lúc nào có 1 người chơi (kể cả chính The Sentinel) sắp bị ghi nhận
+// Bộ mở rộng "custom_characters" (Aura The Soul-Weaver, xem House_Rule.txt mục I) —
+// bất kỳ lúc nào có 1 người chơi (kể cả chính Aura The Soul-Weaver) sắp bị ghi nhận
 // CHẾT (đã hết mọi cách tự cứu — Bia/Elena Noir Miễn Tử), hỏi SAU CÙNG có
 // muốn trả 2 máu tối đa VĨNH VIỄN để hồi sinh người đó với ĐÚNG 1 máu hay
 // không — ĐÚNG 1 LẦN CẢ VÁN (đã chốt 3 máu, không phải 4 — xem đoạn "GHI CHÚ
@@ -40,6 +40,7 @@ function makeState(players: PlayerState[], overrides: Partial<GameState> = {}): 
     joseDelgadoUsesThisTurn: 0,
     docHolydayUsedThisTurn: false,
     fairKillerUsedThisTurn: false,
+    gamblerUsesThisTurn: 0,
     vendettaUsedThisTurn: false,
     duelBangDrawPending: null,
     pendingGeneralStore: null,
@@ -63,7 +64,7 @@ function makeState(players: PlayerState[], overrides: Partial<GameState> = {}): 
   };
 }
 
-describe("The Sentinel — hỏi khi có người sắp chết (Bang!, resume bang_missed)", () => {
+describe("Aura The Soul-Weaver — hỏi khi có người sắp chết (Bang!, resume bang_missed)", () => {
   it("Bang! không đỡ, sắp chết -> đẩy NEED_SENTINEL_REVIVE, KHÔNG PLAYER_ELIMINATED, KHÔNG GAME_ENDED", () => {
     const state = makeState([
       makePlayer("a", { hand: ["bang_1"] }),
@@ -75,7 +76,7 @@ describe("The Sentinel — hỏi khi có người sắp chết (Bang!, resume ba
     const { state: next, events } = reduce(played.state, { type: "RESPOND", playerId: "b" });
 
     expect(next.players[1].hp).toBe(0);
-    expect(next.players[1].alive).toBe(true); // chưa ghi nhận chết, đang chờ Sentinel
+    expect(next.players[1].alive).toBe(true); // chưa ghi nhận chết, đang chờ Aura The Soul-Weaver
     expect(next.pending).toEqual([
       {
         kind: "NEED_SENTINEL_REVIVE",
@@ -90,7 +91,7 @@ describe("The Sentinel — hỏi khi có người sắp chết (Bang!, resume ba
     expect(events.some((e) => e.type === "GAME_ENDED")).toBe(false);
   });
 
-  it("đồng ý hồi sinh -> target về 1 máu, còn sống, Sentinel trừ 2 máu tối đa vĩnh viễn, đánh dấu đã dùng", () => {
+  it("đồng ý hồi sinh -> target về 1 máu, còn sống, Aura The Soul-Weaver trừ 2 máu tối đa vĩnh viễn, đánh dấu đã dùng", () => {
     const state = makeState(
       [
         makePlayer("a", { hand: ["bang_1"] }),
@@ -122,7 +123,7 @@ describe("The Sentinel — hỏi khi có người sắp chết (Bang!, resume ba
     expect(events).toEqual([{ type: "SENTINEL_REVIVED", playerId: "b", sentinelId: "c", sentinelNewMaxHp: 1 }]);
   });
 
-  it("từ chối -> chết thật (PLAYER_ELIMINATED), KHÔNG trừ máu Sentinel, KHÔNG đánh dấu đã dùng", () => {
+  it("từ chối -> chết thật (PLAYER_ELIMINATED), KHÔNG trừ máu Aura The Soul-Weaver, KHÔNG đánh dấu đã dùng", () => {
     const state = makeState(
       [
         makePlayer("a", { hand: ["bang_1"] }),
@@ -152,7 +153,7 @@ describe("The Sentinel — hỏi khi có người sắp chết (Bang!, resume ba
   });
 });
 
-describe("The Sentinel — đã dùng hết lượt (1 lần cả ván)", () => {
+describe("Aura The Soul-Weaver — đã dùng hết lượt (1 lần cả ván)", () => {
   it("sentinelUsed[c]=true từ trước -> KHÔNG hỏi nữa, chết thẳng", () => {
     const state = makeState(
       [
@@ -173,8 +174,8 @@ describe("The Sentinel — đã dùng hết lượt (1 lần cả ván)", () => 
   });
 });
 
-describe("The Sentinel — tự cứu chính mình", () => {
-  it("chính The Sentinel sắp chết -> vẫn được hỏi (target === player)", () => {
+describe("Aura The Soul-Weaver — tự cứu chính mình", () => {
+  it("chính Aura The Soul-Weaver sắp chết -> vẫn được hỏi (target === player)", () => {
     const state = makeState([
       makePlayer("a", { hand: ["bang_1"] }),
       makePlayer("b", { characterId: "the_sentinel", hp: 1, maxHp: 3 }),
@@ -201,7 +202,7 @@ describe("The Sentinel — tự cứu chính mình", () => {
   });
 });
 
-describe("The Sentinel — Indians! (resume indians)", () => {
+describe("Aura The Soul-Weaver — Indians! (resume indians)", () => {
   it("không bỏ Bang! để đỡ, sắp chết -> đẩy NEED_SENTINEL_REVIVE với resume indians", () => {
     const state = makeState(
       [
@@ -228,8 +229,8 @@ describe("The Sentinel — Indians! (resume indians)", () => {
   });
 });
 
-describe("The Sentinel — Thuốc nổ (resume dynamite, epilogue Jail-check hoãn lại)", () => {
-  it("nổ chết -> hỏi Sentinel; đồng ý -> hồi sinh, KHÔNG bỏ qua Jail-check nếu holder có Jail", () => {
+describe("Aura The Soul-Weaver — Thuốc nổ (resume dynamite, epilogue Jail-check hoãn lại)", () => {
+  it("nổ chết -> hỏi Aura The Soul-Weaver; đồng ý -> hồi sinh, KHÔNG bỏ qua Jail-check nếu holder có Jail", () => {
     const state = makeState(
       [
         makePlayer("a", { role: "sheriff", hp: 5, maxHp: 5 }),
@@ -252,7 +253,7 @@ describe("The Sentinel — Thuốc nổ (resume dynamite, epilogue Jail-check ho
 
     expect(afterExplosion.players[1]).toMatchObject({ hp: 0, alive: true });
     // Chỉ ĐÚNG quả Dynamite vừa nổ bị bỏ — Jail vẫn còn nguyên (equipment chỉ
-    // bị dọn SẠCH ở eliminatePlayer(), mà b chưa từng qua đó — đang chờ Sentinel).
+    // bị dọn SẠCH ở eliminatePlayer(), mà b chưa từng qua đó — đang chờ Aura The Soul-Weaver).
     expect(afterExplosion.players[1].equipment).toEqual(["jail_2"]);
     expect(afterExplosion.pending).toEqual([
       {
@@ -269,13 +270,13 @@ describe("The Sentinel — Thuốc nổ (resume dynamite, epilogue Jail-check ho
     const { state: revived } = reduce(afterExplosion, { type: "RESPOND", playerId: "c", reviveTarget: true });
     expect(revived.players[1]).toMatchObject({ hp: 1, alive: true });
     // b còn sống VÀ vẫn còn Jail trên sân -> applyJailCheck() chạy lại đúng
-    // bước này (KHÔNG bị bỏ qua chỉ vì vừa trải qua Sentinel) -> đẩy draw!-check Jail.
+    // bước này (KHÔNG bị bỏ qua chỉ vì vừa trải qua Aura The Soul-Weaver) -> đẩy draw!-check Jail.
     expect(revived.pending).toEqual([{ kind: "NEED_DRAW_CHECK", player: "b", source: { card: "jail" }, matchSuits: ["hearts"] }]);
     expect(revived.currentPlayerIndex).toBe(1);
   });
 });
 
-describe("The Sentinel — Vera Custer mượn khả năng", () => {
+describe("Aura The Soul-Weaver — Vera Custer mượn khả năng", () => {
   it("Vera Custer đang mượn the_sentinel -> vẫn được hỏi, trừ máu tối đa CỦA CHÍNH VERA", () => {
     const state = makeState([
       makePlayer("a", { hand: ["bang_1"] }),
@@ -295,8 +296,8 @@ describe("The Sentinel — Vera Custer mượn khả năng", () => {
   });
 });
 
-describe("The Sentinel — không có ai đủ điều kiện thì chết bình thường", () => {
-  it("không có nhân vật The Sentinel trong ván -> PLAYER_ELIMINATED thẳng, không có pending mới", () => {
+describe("Aura The Soul-Weaver — không có ai đủ điều kiện thì chết bình thường", () => {
+  it("không có nhân vật Aura The Soul-Weaver trong ván -> PLAYER_ELIMINATED thẳng, không có pending mới", () => {
     const state = makeState([
       makePlayer("a", { hand: ["bang_1"] }),
       makePlayer("b", { hp: 1, maxHp: 4 }),
@@ -312,9 +313,9 @@ describe("The Sentinel — không có ai đủ điều kiện thì chết bình 
   });
 });
 
-describe("The Sentinel — điều kiện thắng chờ đúng lúc Sentinel quyết định xong", () => {
+describe("Aura The Soul-Weaver — điều kiện thắng chờ đúng lúc Aura The Soul-Weaver quyết định xong", () => {
   it("biến thể 2 người: từ chối -> game kết thúc NGAY tại lúc từ chối, không sớm hơn", () => {
-    // b chính là Sentinel, sắp chết, được hỏi về CHÍNH MÌNH — mô phỏng qua
+    // b chính là Aura The Soul-Weaver, sắp chết, được hỏi về CHÍNH MÌNH — mô phỏng qua
     // pending trực tiếp cho gọn (không cần dựng lại toàn bộ luồng Bang!).
     const dying = makeState(
       [makePlayer("a", { role: null }), makePlayer("b", { role: null, hp: 0, maxHp: 4, characterId: "the_sentinel" })],

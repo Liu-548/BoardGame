@@ -1,4 +1,4 @@
-// Bộ mở rộng "custom_characters" (The Fair Killer, xem House_Rule.txt mục I)
+// Bộ mở rộng "custom_characters" (The DareDevil, xem House_Rule.txt mục I)
 // — mỗi lượt 1 lần, tự mất 1 máu (KHÔNG hoàn lại dù mục tiêu đỡ được) để bắn
 // hiệu ứng Bang! vào BẤT KỲ ai, bỏ qua khoảng cách/tầm súng hoàn toàn, KHÔNG
 // tính vào giới hạn 1 Bang!/lượt. Chặn khi chỉ còn 1 máu (không tự sát được).
@@ -38,6 +38,7 @@ function makeState(players: PlayerState[], overrides: Partial<GameState> = {}): 
     joseDelgadoUsesThisTurn: 0,
     docHolydayUsedThisTurn: false,
     fairKillerUsedThisTurn: false,
+    gamblerUsesThisTurn: 0,
     vendettaUsedThisTurn: false,
     duelBangDrawPending: null,
     pendingGeneralStore: null,
@@ -61,7 +62,7 @@ function makeState(players: PlayerState[], overrides: Partial<GameState> = {}): 
   };
 }
 
-describe("The Fair Killer — dùng kỹ năng (USE_ABILITY): mất 1 máu bắn Bang!", () => {
+describe("The DareDevil — dùng kỹ năng (USE_ABILITY): mất 1 máu bắn Bang!", () => {
   it("mất 1 máu NGAY, đẩy NEED_MISSED cho mục tiêu, đánh dấu đã dùng lượt này", () => {
     const state = makeState([
       makePlayer("a", { characterId: "the_fair_killer", hp: 4, maxHp: 4 }),
@@ -183,8 +184,8 @@ describe("The Fair Killer — dùng kỹ năng (USE_ABILITY): mất 1 máu bắn
   });
 });
 
-describe("The Fair Killer — mất máu KHÔNG hoàn lại dù mục tiêu đỡ được", () => {
-  it("mục tiêu đỡ bằng Missed! -> Fair Killer VẪN mất máu (không hoàn)", () => {
+describe("The DareDevil — mất máu KHÔNG hoàn lại dù mục tiêu đỡ được", () => {
+  it("mục tiêu đỡ bằng Missed! -> DareDevil VẪN mất máu (không hoàn)", () => {
     const state = makeState([
       makePlayer("a", { characterId: "the_fair_killer", hp: 4, maxHp: 4 }),
       makePlayer("b", { hand: ["missed_1"] }),
@@ -205,7 +206,7 @@ describe("The Fair Killer — mất máu KHÔNG hoàn lại dù mục tiêu đ�
   });
 });
 
-describe("The Fair Killer — KHÔNG đi qua Apache Kid / Mary Rose", () => {
+describe("The DareDevil — KHÔNG đi qua Apache Kid / Mary Rose", () => {
   it("mục tiêu là Apache Kid -> VẪN đẩy NEED_MISSED bình thường (không miễn nhiễm)", () => {
     const state = makeState([
       makePlayer("a", { characterId: "the_fair_killer" }),
@@ -239,8 +240,8 @@ describe("The Fair Killer — KHÔNG đi qua Apache Kid / Mary Rose", () => {
   });
 });
 
-describe("The Fair Killer — Vera Custer mượn khả năng", () => {
-  it("Vera Custer mượn The Fair Killer -> dùng được kỹ năng mất máu bắn Bang!", () => {
+describe("The DareDevil — Vera Custer mượn khả năng", () => {
+  it("Vera Custer mượn The DareDevil -> dùng được kỹ năng mất máu bắn Bang!", () => {
     const state = makeState(
       [makePlayer("a", { characterId: "vera_custer", hp: 5, maxHp: 5 }), makePlayer("b")],
       { veraCusterBorrowedCharacterId: "the_fair_killer" }

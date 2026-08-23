@@ -162,7 +162,7 @@ export interface CharacterHooks {
   // chính mình.
   onAnyDeath?(next: GameState, self: PlayerState, deadPlayer: PlayerState): GameEvent[];
 
-  // Bộ mở rộng "custom_characters" (The Drunker, xem House_Rule.txt mục I) —
+  // Bộ mở rộng "custom_characters" (Victor Boozer, xem House_Rule.txt mục I) —
   // gọi ngay khi 1 lá Beer THẬT SỰ hồi máu cho `drinker` (đã trừ maxHp, xem
   // playBeer() trong reduce.ts — CHỈ Beer, không phải mọi nguồn hồi máu).
   // Caller đã tự loại `drinker` ra khỏi vòng lặp (không gọi hook của chính
@@ -433,15 +433,15 @@ export interface CharacterDefinition {
   // completeDrawPhase()/resolveDrawCheck()/respondToPickThiefTarget() trong
   // reduce.ts.
   canStealCardOnRedDraw?: boolean;
-  // Bộ mở rộng "custom_characters" (The Gambler, xem House_Rule.txt mục I) —
+  // Bộ mở rộng "custom_characters" (Jonny Bettor, xem House_Rule.txt mục I) —
   // kỹ năng CHỦ ĐỘNG dùng action USE_ABILITY (giống Sid Ketchum/Chuck Wengam)
   // nhưng CHỈ trong lượt của chính mình (giống Chuck Wengam, khác Sid
   // Ketchum): bỏ ĐÚNG 2 lá bất kỳ trên tay rồi draw!, ra chất đỏ (Cơ/Rô) thì
-  // rút 3 lá, ra chất đen thì rút 1 lá. Không giới hạn số lần, không cần state
-  // gì trong GameState (giống Mary Rose/The Thief). Xem
-  // useGamblerDraw()/resolveDrawCheck() trong reduce.ts.
+  // rút 3 lá, ra chất đen thì rút 1 lá. Tối đa 2 LẦN/lượt (ĐÃ SỬA 2026-08-23,
+  // trước đây không giới hạn — xem GameState.gamblerUsesThisTurn, giống José
+  // Delgado). Xem useGamblerDraw()/resolveDrawCheck() trong reduce.ts.
   canDiscardTwoToGambleDraw?: boolean;
-  // Bộ mở rộng "custom_characters" (The Fair Killer, xem House_Rule.txt mục
+  // Bộ mở rộng "custom_characters" (The DareDevil, xem House_Rule.txt mục
   // I) — kỹ năng CHỦ ĐỘNG dùng action USE_ABILITY (giống Doc Holyday) nhưng
   // KHÔNG cần bỏ lá nào (giống Chuck Wengam): tự mất 1 máu để bắn hiệu ứng
   // Bang! vào `targetId` bất kỳ, bỏ qua khoảng cách/tầm súng hoàn toàn,
@@ -449,7 +449,7 @@ export interface CharacterDefinition {
   // GameState.fairKillerUsedThisTurn), chặn nếu chỉ còn 1 máu (không tự sát
   // được). Xem useFairKillerShot() trong reduce.ts.
   canShootByLosingLife?: boolean;
-  // Bộ mở rộng "custom_characters" (The Drifter, xem House_Rule.txt mục I) —
+  // Bộ mở rộng "custom_characters" (Nomad Norman, xem House_Rule.txt mục I) —
   // cờ tĩnh bật/tắt TOÀN BỘ cơ chế "lá chắn": (1) draw! bí mật đầu lượt CHÍNH
   // mình (completeDrawPhase() trong reduce.ts), (2) mọi điểm áp sát thương
   // đều PHẢI hỏi "dùng khiên?" nếu mục tiêu có cờ này — KỂ CẢ khi
@@ -459,7 +459,7 @@ export interface CharacterDefinition {
   // GameState.drifterShield/drifterHiddenCard mới là nơi lưu trạng thái. Xem
   // maybeAskDrifterShield()/respondToUseDrifterShield() trong reduce.ts.
   hasDrifterShield?: boolean;
-  // Bộ mở rộng "custom_characters" (The Dealer, xem House_Rule.txt mục I) —
+  // Bộ mở rộng "custom_characters" (Envoy Evy, xem House_Rule.txt mục I) —
   // cờ tĩnh: mỗi khi bị nhắm bởi 1 đòn "kiểu Bang!" (đi qua NEED_MISSED —
   // Bang!/Gatling/Punch/Springfield/Derringer/Knife/Pepperbox/Buffalo Rifle/
   // Howitzer/Doc Holyday...) và không đỡ được, được hỏi có muốn đưa 2 lá NGẪU
@@ -469,8 +469,8 @@ export interface CharacterDefinition {
   // phải giấu). Xem maybeAskDealerTrade()/respondToUseDealerTrade() trong
   // reduce.ts.
   hasDealerTrade?: boolean;
-  // Bộ mở rộng "custom_characters" (The Sentinel, xem House_Rule.txt mục I) —
-  // cờ tĩnh: bất kỳ lúc nào có 1 người chơi (kể cả chính The Sentinel) sắp bị
+  // Bộ mở rộng "custom_characters" (Aura The Soul-Weaver, xem House_Rule.txt mục I) —
+  // cờ tĩnh: bất kỳ lúc nào có 1 người chơi (kể cả chính Aura The Soul-Weaver) sắp bị
   // ghi nhận CHẾT (đã hết mọi cách tự cứu — Bia/Elena Noir Miễn Tử), được hỏi
   // SAU CÙNG có muốn trả 2 máu tối đa vĩnh viễn để hồi sinh người đó với ĐÚNG
   // 1 máu hay không — ĐÚNG 1 LẦN CẢ VÁN (xem GameState.sentinelUsed). KHÔNG
@@ -951,7 +951,7 @@ export const CHARACTERS: Record<string, CharacterDefinition> = {
 
   the_gambler: {
     id: "the_gambler",
-    name: "The Gambler *ex",
+    name: "Jonny Bettor *ex",
     bullets: 3,
     canDiscardTwoToGambleDraw: true,
     hooks: {},
@@ -959,7 +959,7 @@ export const CHARACTERS: Record<string, CharacterDefinition> = {
 
   the_fair_killer: {
     id: "the_fair_killer",
-    name: "The Fair Killer *ex",
+    name: "The DareDevil *ex",
     bullets: 4,
     canShootByLosingLife: true,
     hooks: {},
@@ -967,7 +967,7 @@ export const CHARACTERS: Record<string, CharacterDefinition> = {
 
   the_drunker: {
     id: "the_drunker",
-    name: "The Drunker *ex",
+    name: "Victor Boozer *ex",
     bullets: 4,
     hooks: {
       onOtherPlayerHealedByBeer: (_next, self) => {
@@ -981,7 +981,7 @@ export const CHARACTERS: Record<string, CharacterDefinition> = {
 
   the_drifter: {
     id: "the_drifter",
-    name: "The Drifter *ex",
+    name: "Nomad Norman *ex",
     bullets: 3,
     hasDrifterShield: true,
     hooks: {},
@@ -989,7 +989,7 @@ export const CHARACTERS: Record<string, CharacterDefinition> = {
 
   the_dealer: {
     id: "the_dealer",
-    name: "The Dealer *ex",
+    name: "Envoy Evy *ex",
     bullets: 4,
     hasDealerTrade: true,
     hooks: {},
@@ -997,7 +997,7 @@ export const CHARACTERS: Record<string, CharacterDefinition> = {
 
   the_sentinel: {
     id: "the_sentinel",
-    name: "The Sentinel *ex",
+    name: "Aura The Soul-Weaver *ex",
     bullets: 3,
     canReviveOthers: true,
     hooks: {},

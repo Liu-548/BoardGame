@@ -463,7 +463,7 @@ const CHARACTER_DESCRIPTIONS: Record<string, string> = {
   the_thief:
     "Đầu lượt, sau khi rút 2 lá như thường, lật thêm 1 lá kiểm tra: ra Cơ/Rô thì được chọn 1 người khác còn sống để cướp ngẫu nhiên 1 lá của họ (tay rỗng thì thôi, không rút bù).",
   the_gambler:
-    "Trong lượt của mình, bỏ 2 lá bất kỳ trên tay rồi lật bài kiểm tra: ra Cơ/Rô thì rút 3 lá, ra Nhép/Bích thì rút 1 lá — dùng được nhiều lần, miễn còn đủ 2 lá.",
+    "Trong lượt của mình, bỏ 2 lá bất kỳ trên tay rồi lật bài kiểm tra: ra Cơ/Rô thì rút 3 lá, ra Nhép/Bích thì rút 1 lá — tối đa 2 lần/lượt, miễn còn đủ 2 lá.",
   the_fair_killer:
     "Mỗi lượt 1 lần, tự mất 1 máu để bắn 1 phát Bang! vào bất kỳ ai, bỏ qua khoảng cách — mất máu ngay, không hoàn lại dù mục tiêu đỡ được. Không dùng được khi chỉ còn 1 máu.",
   the_drunker:
@@ -1100,8 +1100,6 @@ export function describeEvent(event: GameEvent, nameOf: (id: string) => string):
       return `${nameOf(event.playerId)} (Elena Noir) "dạt ra cho mẹ bắn" — Miễn Tử ${event.turnsLeft} lượt`;
     case "MARCEL_COMPANION_PICKED":
       return `${nameOf(event.playerId)} (Marcel Marcelo) chỉ định ${nameOf(event.companionId)} cùng vào tù`;
-    case "MARCEL_JAIL_SECOND_DRAW":
-      return `${nameOf(event.playerId)} (Marcel Marcelo) rút thêm lá thứ 2 để thoát tù: ${cardFaceLabel(event.cardId)} — ${event.matched ? "KHỚP" : "không khớp"}`;
     case "MARCEL_COMPANION_FREED":
       return `${nameOf(event.playerId)} được tự do — Marcel Marcelo đã thoát tù`;
     case "MARCEL_COMPANION_JAILED":
@@ -1113,9 +1111,9 @@ export function describeEvent(event: GameEvent, nameOf: (id: string) => string):
     case "MARY_ROSE_REFLECTED":
       return `${nameOf(event.playerId)} (Mary Rose) bắn trả miễn phí vào ${nameOf(event.targetId)}, cần 2 Missed! mới né được`;
     case "GAMBLER_DISCARDED":
-      return `${nameOf(event.playerId)} (The Gambler) bỏ 2 lá để lật bài kiểm tra`;
+      return `${nameOf(event.playerId)} (Jonny Bettor) bỏ 2 lá để lật bài kiểm tra`;
     case "FAIR_KILLER_TRADED_LIFE":
-      return `${nameOf(event.playerId)} (The Fair Killer) mất 1 máu để bắn ${nameOf(event.targetId)}`;
+      return `${nameOf(event.playerId)} (The DareDevil) mất 1 máu để bắn ${nameOf(event.targetId)}`;
     case "EVENT_REVEALED":
       return `Lá sự kiện mới: ${EVENT_CARDS[event.eventId as EventId]?.name ?? event.eventId}`;
     case "BLOOD_BROTHERS_GIFT":
@@ -1131,11 +1129,11 @@ export function describeEvent(event: GameEvent, nameOf: (id: string) => string):
     case "RUSSIAN_ROULETTE_FIRED":
       return `${nameOf(event.playerId)} không né được Russian Roulette, mất ${event.amount} máu`;
     case "DRIFTER_SHIELD_USED":
-      return `${nameOf(event.playerId)} (The Drifter) dùng lá chắn, chặn trọn ${event.amount} máu`;
+      return `${nameOf(event.playerId)} (Nomad Norman) dùng lá chắn, chặn trọn ${event.amount} máu`;
     case "DEALER_TRADE_USED":
-      return `${nameOf(event.playerId)} (The Dealer) đưa ${event.cardIds.map(cardLabel).join(", ")} cho ${nameOf(event.targetId)} để vô hiệu đòn tấn công`;
+      return `${nameOf(event.playerId)} (Envoy Evy) đưa ${event.cardIds.map(cardLabel).join(", ")} cho ${nameOf(event.targetId)} để vô hiệu đòn tấn công`;
     case "SENTINEL_REVIVED":
-      return `${nameOf(event.sentinelId)} (The Sentinel) trả 2 máu tối đa vĩnh viễn (còn ${event.sentinelNewMaxHp}) để hồi sinh ${nameOf(event.playerId)}`;
+      return `${nameOf(event.sentinelId)} (Aura The Soul-Weaver) trả 2 máu tối đa vĩnh viễn (còn ${event.sentinelNewMaxHp}) để hồi sinh ${nameOf(event.playerId)}`;
     case "THE_NOBODY_IMMUNE":
       return `${nameOf(event.playerId)} (The Nobody) draw! ra Bích — lá vừa nhắm tới vô hiệu hoàn toàn`;
   }
@@ -1699,7 +1697,7 @@ export interface UiHandlers {
   // chọn lá gì nên dùng thẳng `onUseChuckWengamAbility`, gửi đi ngay).
   onArmAbility(playerId: string, ability: UseAbilityCharacter): void;
   onUseChuckWengamAbility(playerId: string): void;
-  // Bộ mở rộng "custom_characters" (The Fair Killer, xem House_Rule.txt mục
+  // Bộ mở rộng "custom_characters" (The DareDevil, xem House_Rule.txt mục
   // I) — không cần bỏ lá nào (giống Chuck Wengam) NHƯNG cần chọn mục tiêu
   // (giống Doc Holyday) — nhảy THẲNG sang bước "picking-ability-target" với
   // cardIds rỗng, bỏ qua hẳn bước "picking-ability-cards" (0 lá thì không có
@@ -1726,16 +1724,16 @@ export interface UiHandlers {
   // KHÔNG tái dùng onRespondTakeConsequence dù kết quả cuối tương đương, để
   // nút bấm rõ nghĩa hơn là "chọn không" thay vì "mặc định/hết giờ").
   onPickArmed(armed: boolean): void;
-  // Bộ mở rộng "custom_characters" (The Drifter, xem House_Rule.txt mục I) —
+  // Bộ mở rộng "custom_characters" (Nomad Norman, xem House_Rule.txt mục I) —
   // trả lời NEED_USE_DRIFTER_SHIELD: muốn dùng lá chắn. Nút "Không dùng" tái
   // dùng onRespondTakeConsequence() (RESPOND không kèm useShield = từ chối),
   // KHÔNG cần tham số boolean như onPickArmed — chỉ 1 nhánh cần handler mới.
   onUseDrifterShield(): void;
-  // Bộ mở rộng "custom_characters" (The Dealer, xem House_Rule.txt mục I) —
+  // Bộ mở rộng "custom_characters" (Envoy Evy, xem House_Rule.txt mục I) —
   // trả lời NEED_USE_DEALER_TRADE: muốn đưa 2 lá ngẫu nhiên cho người vừa
   // đánh mình. Nút "Không, chịu mất máu" tái dùng onRespondTakeConsequence().
   onUseDealerTrade(): void;
-  // Bộ mở rộng "custom_characters" (The Sentinel, xem House_Rule.txt mục I) —
+  // Bộ mở rộng "custom_characters" (Aura The Soul-Weaver, xem House_Rule.txt mục I) —
   // trả lời NEED_SENTINEL_REVIVE: đồng ý trả 2 máu tối đa vĩnh viễn để hồi
   // sinh. Nút "Từ chối" tái dùng onRespondTakeConsequence().
   onUseSentinelRevive(): void;
@@ -2363,7 +2361,7 @@ function renderAbilitySection(
 ): void {
   if (!player.alive || !player.characterId) return;
   // effectiveCharacterId() — Vera Custer mượn khả năng chủ động của Sid
-  // Ketchum/Chuck Wengam/José Delgado/Doc Holyday/The Gambler/The Fair Killer
+  // Ketchum/Chuck Wengam/José Delgado/Doc Holyday/Jonny Bettor/The DareDevil
   // vẫn phải hiện đúng nút "Dùng kỹ năng".
   const def = getCharacterDefinition(effectiveCharacterId(state.veraCusterBorrowedCharacterId, player.characterId));
   if (!def) return;
@@ -2400,7 +2398,12 @@ function renderAbilitySection(
       container.appendChild(
         button("Dùng kỹ năng: bỏ 2 lá bắn Bang!", () => handlers.onArmAbility(player.id, "doc_holyday"))
       );
-    } else if (def.canDiscardTwoToGambleDraw && isMyTurnNoPending && player.hand.length >= 2) {
+    } else if (
+      def.canDiscardTwoToGambleDraw &&
+      isMyTurnNoPending &&
+      state.gamblerUsesThisTurn < 2 &&
+      player.hand.length >= 2
+    ) {
       container.appendChild(
         button("Dùng kỹ năng: bỏ 2 lá, lật bài (đỏ rút 3, đen rút 1)", () =>
           handlers.onArmAbility(player.id, "the_gambler")
@@ -2480,10 +2483,10 @@ function pendingDescription(state: GameState, item: PendingAction): string {
     case "NEED_USE_DRIFTER_SHIELD":
       return `${player} chọn dùng lá chắn hay không (bí mật)`;
     case "NEED_USE_DEALER_TRADE":
-      return `${player} (The Dealer) chọn đưa 2 lá cho người vừa đánh mình hay chịu mất máu`;
+      return `${player} (Envoy Evy) chọn đưa 2 lá cho người vừa đánh mình hay chịu mất máu`;
     case "NEED_SENTINEL_REVIVE": {
       const targetName = state.players.find((p) => p.id === item.targetId)?.name ?? "?";
-      return `${player} (The Sentinel) chọn trả 2 máu tối đa vĩnh viễn để hồi sinh ${targetName} hay không`;
+      return `${player} (Aura The Soul-Weaver) chọn trả 2 máu tối đa vĩnh viễn để hồi sinh ${targetName} hay không`;
     }
     default: {
       const neverKind: never = item;
@@ -2613,7 +2616,7 @@ function renderPendingPanel(container: HTMLElement, state: GameState, handlers: 
     panel.appendChild(button("Vũ trang (rút 1 lá)", () => handlers.onPickArmed(true)));
     panel.appendChild(button("Không vũ trang (rút 2 lá)", () => handlers.onPickArmed(false)));
   } else if (top.kind === "NEED_USE_DRIFTER_SHIELD") {
-    // Bộ mở rộng "custom_characters" (The Drifter) — hotseat dùng chung 1 màn
+    // Bộ mở rộng "custom_characters" (Nomad Norman) — hotseat dùng chung 1 màn
     // hình nên không có bí mật thật (đúng tiền lệ NEED_PICK_KEPT_CARDS/Kit
     // Carlson), cứ đọc thẳng state.drifterShield để gợi ý cho tiện.
     const hint = document.createElement("p");
@@ -3469,13 +3472,13 @@ export interface NetworkGameHandlers {
   // Bộ mở rộng "custom_characters" (Elena Noir/Marcel Marcelo) — giống hệt
   // UiHandlers (hotseat), xem ghi chú ở đó.
   onPickArmed(armed: boolean): void;
-  // Bộ mở rộng "custom_characters" (The Drifter) — giống hệt UiHandlers
+  // Bộ mở rộng "custom_characters" (Nomad Norman) — giống hệt UiHandlers
   // (hotseat), xem ghi chú ở đó.
   onUseDrifterShield(): void;
-  // Bộ mở rộng "custom_characters" (The Dealer) — giống hệt UiHandlers
+  // Bộ mở rộng "custom_characters" (Envoy Evy) — giống hệt UiHandlers
   // (hotseat), xem ghi chú ở đó.
   onUseDealerTrade(): void;
-  // Bộ mở rộng "custom_characters" (The Sentinel) — giống hệt UiHandlers
+  // Bộ mở rộng "custom_characters" (Aura The Soul-Weaver) — giống hệt UiHandlers
   // (hotseat), xem ghi chú ở đó.
   onUseSentinelRevive(): void;
   onPickMarcelCompanion(targetId: string): void;
@@ -4009,7 +4012,12 @@ function networkRenderAbilitySection(
       container.appendChild(
         button("Dùng kỹ năng: bỏ 2 lá bắn Bang!", () => handlers.onArmAbility(player.id, "doc_holyday"))
       );
-    } else if (def.canDiscardTwoToGambleDraw && isMyTurnNoPending && player.hand.length >= 2) {
+    } else if (
+      def.canDiscardTwoToGambleDraw &&
+      isMyTurnNoPending &&
+      view.gamblerUsesThisTurn < 2 &&
+      player.hand.length >= 2
+    ) {
       container.appendChild(
         button("Dùng kỹ năng: bỏ 2 lá, lật bài (đỏ rút 3, đen rút 1)", () =>
           handlers.onArmAbility(player.id, "the_gambler")
@@ -4100,9 +4108,9 @@ function networkRenderPendingPanel(
       case "NEED_USE_DRIFTER_SHIELD":
         return `${name} chọn dùng lá chắn hay không (bí mật)`;
       case "NEED_USE_DEALER_TRADE":
-        return `${name} (The Dealer) chọn đưa 2 lá cho người vừa đánh mình hay chịu mất máu`;
+        return `${name} (Envoy Evy) chọn đưa 2 lá cho người vừa đánh mình hay chịu mất máu`;
       case "NEED_SENTINEL_REVIVE":
-        return `${name} (The Sentinel) chọn trả 2 máu tối đa vĩnh viễn để hồi sinh ${findName(item.targetId)} hay không`;
+        return `${name} (Aura The Soul-Weaver) chọn trả 2 máu tối đa vĩnh viễn để hồi sinh ${findName(item.targetId)} hay không`;
       default: {
         const neverKind: never = item;
         throw new Error(`Chưa biết mô tả cho pending: ${JSON.stringify(neverKind)}`);
@@ -4239,7 +4247,7 @@ function networkRenderPendingPanel(
       panel.appendChild(button("Vũ trang (rút 1 lá)", () => handlers.onPickArmed(true)));
       panel.appendChild(button("Không vũ trang (rút 2 lá)", () => handlers.onPickArmed(false)));
     } else if (top.kind === "NEED_USE_DRIFTER_SHIELD") {
-      // Bộ mở rộng "custom_characters" (The Drifter) — chỉ tới đây khi
+      // Bộ mở rộng "custom_characters" (Nomad Norman) — chỉ tới đây khi
       // top.player === view.viewerId (đúng khối if bao ngoài), nên
       // view.drifterShield[view.viewerId] LUÔN có entry đúng của chính mình
       // (xem viewFor() ở view.ts — lọc riêng tư, người khác không thấy).

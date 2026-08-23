@@ -93,10 +93,14 @@ export interface PlayerView {
   // liên quan bài úp/thông tin ẩn nào.
   joseDelgadoUsesThisTurn: number;
   docHolydayUsedThisTurn: boolean;
-  // Bộ mở rộng "custom_characters" (The Fair Killer, xem House_Rule.txt mục
+  // Bộ mở rộng "custom_characters" (The DareDevil, xem House_Rule.txt mục
   // I) — client cần biết đúng như core để tự vẽ/ẩn nút "Dùng kỹ năng" (tối đa
   // 1 lần/lượt, giống Doc Holyday). KHÔNG bí mật gì, cùng lý do 2 field trên.
   fairKillerUsedThisTurn: boolean;
+  // Bộ mở rộng "custom_characters" (Jonny Bettor, xem House_Rule.txt mục I)
+  // — client cần biết đúng như core để tự vẽ/ẩn nút "Dùng kỹ năng" (tối đa 2
+  // lần/lượt, giống José Delgado). KHÔNG bí mật gì, cùng lý do các field trên.
+  gamblerUsesThisTurn: number;
   // Bộ mở rộng "custom_characters" (Elena Noir, xem House_Rule.txt mục I) —
   // client cần biết đúng như core để tự vẽ nút "vũ trang" (chỉ hiện khi KHÔNG
   // đang Miễn Tử) và hiển thị trạng thái "đang Miễn Tử (còn N lượt)". KHÔNG bí
@@ -105,7 +109,7 @@ export interface PlayerView {
   // thể mượn khả năng này, cần trạng thái riêng với Elena Noir thật).
   elenaNoirArmed: Record<string, boolean>;
   elenaNoirImmortalTurnsLeft: Record<string, number>;
-  // Bộ mở rộng "custom_characters" (The Drifter, xem House_Rule.txt mục I) —
+  // Bộ mở rộng "custom_characters" (Nomad Norman, xem House_Rule.txt mục I) —
   // BÍ MẬT, KHÁC HẲN elenaNoirArmed ngay phía trên (field đó công khai vì
   // không có gì để giấu). CHỈ chứa ĐÚNG 1 key — của chính viewerId (nếu có) —
   // mọi playerId khác KHÔNG xuất hiện trong map này (không phải `false`, mà
@@ -118,7 +122,7 @@ export interface PlayerView {
   // với ai, và ai sắp mất lượt kế tiếp, đều công khai (không liên quan bài úp).
   marcelJailCompanion: GameState["marcelJailCompanion"];
   marcelCompanionSkipNextTurn: GameState["marcelCompanionSkipNextTurn"];
-  // Bộ mở rộng "custom_characters" (The Sentinel, xem House_Rule.txt mục I) —
+  // Bộ mở rộng "custom_characters" (Aura The Soul-Weaver, xem House_Rule.txt mục I) —
   // client cần biết đúng như core để tự ẩn nút "hồi sinh" nếu đã dùng hết
   // lượt. KHÔNG bí mật gì (giống elenaNoirArmed/marcelJailCompanion — công
   // khai, không cần lọc theo viewerId).
@@ -202,6 +206,7 @@ export function viewFor(state: GameState, viewerId: string): PlayerView {
     joseDelgadoUsesThisTurn: state.joseDelgadoUsesThisTurn,
     docHolydayUsedThisTurn: state.docHolydayUsedThisTurn,
     fairKillerUsedThisTurn: state.fairKillerUsedThisTurn,
+    gamblerUsesThisTurn: state.gamblerUsesThisTurn,
     elenaNoirArmed: state.elenaNoirArmed,
     elenaNoirImmortalTurnsLeft: state.elenaNoirImmortalTurnsLeft,
     drifterShield:

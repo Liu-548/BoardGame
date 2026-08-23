@@ -1,7 +1,7 @@
-// Bộ mở rộng "custom_characters" (The Gambler, xem House_Rule.txt mục I) —
+// Bộ mở rộng "custom_characters" (Jonny Bettor, xem House_Rule.txt mục I) —
 // trong lượt của mình, bỏ ĐÚNG 2 lá bất kỳ trên tay rồi lật bài kiểm tra
-// (draw!): ra Cơ/Rô thì rút 3 lá, ra Nhép/Bích thì rút 1 lá. Không giới hạn
-// số lần trong lượt, miễn còn đủ 2 lá.
+// (draw!): ra Cơ/Rô thì rút 3 lá, ra Nhép/Bích thì rút 1 lá. Tối đa 2
+// LẦN/lượt (ĐÃ SỬA 2026-08-23, trước đây không giới hạn), miễn còn đủ 2 lá.
 //
 // Nhân vật này HOÀN TOÀN KHÔNG CẦN state riêng trong GameState (giống Mary
 // Rose/The Thief) — mọi thứ tính lại ngay mỗi lần qua getEffectiveCharacterDefinition().
@@ -45,6 +45,7 @@ function makeState(players: PlayerState[], overrides: Partial<GameState> = {}): 
     joseDelgadoUsesThisTurn: 0,
     docHolydayUsedThisTurn: false,
     fairKillerUsedThisTurn: false,
+    gamblerUsesThisTurn: 0,
     vendettaUsedThisTurn: false,
     duelBangDrawPending: null,
     pendingGeneralStore: null,
@@ -68,7 +69,7 @@ function makeState(players: PlayerState[], overrides: Partial<GameState> = {}): 
   };
 }
 
-describe("The Gambler — dùng kỹ năng (USE_ABILITY): bỏ 2 lá rồi draw!", () => {
+describe("Jonny Bettor — dùng kỹ năng (USE_ABILITY): bỏ 2 lá rồi draw!", () => {
   it("bỏ đúng 2 lá -> vào chồng bỏ, đẩy NEED_DRAW_CHECK, KHÔNG rút gì ngay", () => {
     const state = makeState([
       makePlayer("a", { characterId: "the_gambler", hand: ["bang_1", "bang_2", "beer_1"] }),
@@ -134,7 +135,7 @@ describe("The Gambler — dùng kỹ năng (USE_ABILITY): bỏ 2 lá rồi draw!
     ).toThrow();
   });
 
-  it("không giới hạn số lần trong lượt — dùng lại được ngay sau khi giải quyết xong lần đầu", () => {
+  it("dùng được lần 2 ngay trong CÙNG lượt — gamblerUsesThisTurn tăng lên 1 rồi 2", () => {
     const state = makeState(
       [
         makePlayer("a", { characterId: "the_gambler", hand: ["bang_1", "bang_2", "beer_1", "beer_2"] }),
@@ -148,26 +149,53 @@ describe("The Gambler — dùng kỹ năng (USE_ABILITY): bỏ 2 lá rồi draw!
     const { state: afterUse } = reduce(state, {
       type: "USE_ABILITY", playerId: "a", cardIds: ["bang_1", "bang_2"],
     });
+    expect(afterUse.gamblerUsesThisTurn).toBe(1);
     const { state: afterDraw } = reduce(afterUse, { type: "RESPOND", playerId: "a" });
 
     expect(afterDraw.players[0].hand).toEqual(["beer_1", "beer_2", "c1"]);
     expect(afterDraw.pending).toEqual([]);
 
-    // Dùng lại lần 2 ngay trong CÙNG lượt — không có field nào chặn (khác Doc
-    // Holyday/José Delgado giới hạn số lần/lượt).
+    // Dùng lại lần 2 ngay trong CÙNG lượt — vẫn còn dưới giới hạn 2 lần.
     const { state: next2, events: events2 } = reduce(afterDraw, {
       type: "USE_ABILITY", playerId: "a", cardIds: ["beer_1", "beer_2"],
     });
 
+    expect(next2.gamblerUsesThisTurn).toBe(2);
     expect(next2.players[0].hand).toEqual(["c1"]);
     expect(next2.pending).toEqual([
       { kind: "NEED_DRAW_CHECK", player: "a", source: { card: "the_gambler" }, matchSuits: ["hearts", "diamonds"] },
     ]);
     expect(events2).toEqual([{ type: "GAMBLER_DISCARDED", playerId: "a", cardIds: ["beer_1", "beer_2"] }]);
   });
+
+  it("đã dùng đủ 2 lần trong lượt -> lần 3 báo lỗi", () => {
+    const state = makeState(
+      [makePlayer("a", { characterId: "the_gambler", hand: ["bang_1", "bang_2"] }), makePlayer("b")],
+      { gamblerUsesThisTurn: 2 }
+    );
+
+    expect(() =>
+      reduce(state, { type: "USE_ABILITY", playerId: "a", cardIds: ["bang_1", "bang_2"] })
+    ).toThrow();
+  });
+
+  it("sang lượt mới -> gamblerUsesThisTurn reset về 0, dùng lại được", () => {
+    const state = makeState(
+      [
+        makePlayer("a", { characterId: "the_gambler", hand: [] }),
+        makePlayer("b", { hand: [] }),
+      ],
+      { currentPlayerIndex: 1, turnPhase: "play", gamblerUsesThisTurn: 2 }
+    );
+
+    const { state: next } = reduce(state, { type: "END_TURN", playerId: "b" });
+
+    expect(next.currentPlayerIndex).toBe(0);
+    expect(next.gamblerUsesThisTurn).toBe(0);
+  });
 });
 
-describe("The Gambler — kết quả draw! (resolveDrawCheck)", () => {
+describe("Jonny Bettor — kết quả draw! (resolveDrawCheck)", () => {
   it("ra chất đỏ (Cơ) -> rút 3 lá (lá kiểm tra KHÔNG tính vào tay, chỉ 3 lá thưởng)", () => {
     const state = makeState(
       [makePlayer("a", { characterId: "the_gambler" }), makePlayer("b")],
@@ -214,8 +242,8 @@ describe("The Gambler — kết quả draw! (resolveDrawCheck)", () => {
   });
 });
 
-describe("The Gambler — Vera Custer mượn khả năng", () => {
-  it("Vera Custer mượn The Gambler -> dùng được kỹ năng bỏ 2 lá rồi draw!", () => {
+describe("Jonny Bettor — Vera Custer mượn khả năng", () => {
+  it("Vera Custer mượn Jonny Bettor -> dùng được kỹ năng bỏ 2 lá rồi draw!", () => {
     const state = makeState(
       [makePlayer("a", { characterId: "vera_custer", hand: ["bang_1", "bang_2"] }), makePlayer("b")],
       { veraCusterBorrowedCharacterId: "the_gambler" }

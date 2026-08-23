@@ -1,7 +1,8 @@
 // Bộ mở rộng "custom_characters" (Marcel Marcelo, xem House_Rule.txt mục I)
 // — bị nhốt tù thì lập tức chỉ định 1 người khác "cùng vào tù" (ăn theo đúng
-// kết quả thoát tù của Marcel); đầu lượt của Marcel được rút tối đa 2 lá để
-// tìm Cơ thoát tù; thoát thành công thì lượt đó rút 3 lá thay vì 2.
+// kết quả thoát tù của Marcel); đầu lượt của Marcel rút ĐÚNG 1 lá để tìm Cơ
+// thoát tù (ĐÃ SỬA 2026-08-23 — trước đây tối đa 2 lá); thoát thành công thì
+// lượt đó rút 3 lá thay vì 2 (KHÔNG đổi bởi lần sửa này).
 //
 // Suit/rank tra từ CARD_SUIT_RANKS (cards.ts): jail_1 = hearts,4 (khớp Cơ) —
 // jail_2 = spades,10, jail_3 = spades,J (không khớp Cơ), cùng quy ước với
@@ -42,6 +43,7 @@ function makeState(players: PlayerState[], overrides: Partial<GameState> = {}): 
     joseDelgadoUsesThisTurn: 0,
     docHolydayUsedThisTurn: false,
     fairKillerUsedThisTurn: false,
+    gamblerUsesThisTurn: 0,
     vendettaUsedThisTurn: false,
     duelBangDrawPending: null,
     pendingGeneralStore: null,
@@ -128,8 +130,8 @@ describe("Marcel Marcelo — bị nhốt tù: chỉ định người cùng vào 
   });
 });
 
-describe("Marcel Marcelo — draw!-check Jail: tối đa 2 lá", () => {
-  it("lá đầu ĐÃ là Cơ -> thoát ngay, không rút lá thứ 2", () => {
+describe("Marcel Marcelo — draw!-check Jail: ĐÚNG 1 lá (ĐÃ SỬA 2026-08-23, trước đây tối đa 2 lá)", () => {
+  it("lá đầu là Cơ -> thoát ngay", () => {
     const state = makeState(
       [
         makePlayer("a"),
@@ -155,7 +157,7 @@ describe("Marcel Marcelo — draw!-check Jail: tối đa 2 lá", () => {
     ]);
   });
 
-  it("lá đầu KHÔNG phải Cơ, lá thứ 2 là Cơ -> rút thêm lá thứ 2, thoát tù", () => {
+  it("lá đầu KHÔNG phải Cơ -> kẹt tù NGAY, KHÔNG rút thêm lá thứ 2 (dù lá kế tiếp trong bộ bài LÀ Cơ)", () => {
     const state = makeState(
       [
         makePlayer("a"),
@@ -164,45 +166,19 @@ describe("Marcel Marcelo — draw!-check Jail: tối đa 2 lá", () => {
       ],
       {
         currentPlayerIndex: 1,
-        deck: ["jail_1", "jail_3"], // đỉnh (jail_3, spades) rút trước -> không khớp, rút thêm jail_1 (hearts) -> khớp
+        deck: ["jail_1", "jail_3"], // đỉnh (jail_3, spades) rút trước -> không khớp; jail_1 (hearts) đứng dưới KHÔNG được rút tới
         pending: [{ kind: "NEED_DRAW_CHECK", player: "b", source: { card: "jail" }, matchSuits: ["hearts"] }],
       }
     );
 
     const { state: next, events } = reduce(state, { type: "RESPOND", playerId: "b" });
 
-    expect(next.deck).toEqual([]); // đã rút cả 2 lá
-    expect(next.discardPile).toEqual(["jail_3", "jail_1", "jail_2"]);
-    expect(next.marcelJailBonusDrawThisTurn.b).toBe(true);
-    expect(events).toEqual([
-      { type: "DRAW_CHECK_RESOLVED", playerId: "b", cardId: "jail_1", matched: true },
-      { type: "MARCEL_JAIL_SECOND_DRAW", playerId: "b", cardId: "jail_1", matched: true },
-      { type: "JAIL_ESCAPED", playerId: "b" },
-    ]);
-  });
-
-  it("cả 2 lá đều KHÔNG phải Cơ -> kẹt tù, mất cả lượt", () => {
-    const state = makeState(
-      [
-        makePlayer("a"),
-        makePlayer("b", { characterId: "marcel_marcelo", equipment: ["jail_2"] }),
-        makePlayer("c"),
-      ],
-      {
-        currentPlayerIndex: 1,
-        deck: ["jail_2", "jail_3"], // cả 2 lá lật ra đều chất Bích, không khớp
-        pending: [{ kind: "NEED_DRAW_CHECK", player: "b", source: { card: "jail" }, matchSuits: ["hearts"] }],
-      }
-    );
-
-    const { state: next, events } = reduce(state, { type: "RESPOND", playerId: "b" });
-
-    expect(next.deck).toEqual([]);
+    expect(next.deck).toEqual(["jail_1"]); // KHÔNG đụng tới lá thứ 2
+    expect(next.discardPile).toEqual(["jail_3", "jail_2"]);
     expect(next.marcelJailBonusDrawThisTurn.b).toBeUndefined();
     expect(next.currentPlayerIndex).toBe(2); // bỏ qua b, sang thẳng c
     expect(events).toEqual([
-      { type: "DRAW_CHECK_RESOLVED", playerId: "b", cardId: "jail_2", matched: false },
-      { type: "MARCEL_JAIL_SECOND_DRAW", playerId: "b", cardId: "jail_2", matched: false },
+      { type: "DRAW_CHECK_RESOLVED", playerId: "b", cardId: "jail_3", matched: false },
       { type: "JAIL_SKIPPED_TURN", playerId: "b" },
     ]);
   });
@@ -282,11 +258,11 @@ describe("Marcel Marcelo — người cùng vào tù ăn theo kết quả", () =
     // chạy applyTurnStartChecks() cho "c" NGAY TRONG CÙNG lần reduce() này ->
     // cờ marcelCompanionSkipNextTurn PHẢI đã có mặt trước đó (test này xác
     // nhận đúng thứ tự xử lý, không phải chỉ đặt cờ suông).
+    expect(next.deck).toEqual(["jail_2"]); // ĐÚNG 1 lá (jail_3, đỉnh) bị rút, jail_2 không bị đụng tới
     expect(next.marcelCompanionSkipNextTurn.c).toBeUndefined(); // đã bị TIÊU THỤ ngay lượt này
     expect(next.currentPlayerIndex).toBe(0); // bỏ qua CẢ b (kẹt tù) LẪN c (ăn theo) -> quay về a
     expect(events).toEqual([
-      { type: "DRAW_CHECK_RESOLVED", playerId: "b", cardId: "jail_2", matched: false },
-      { type: "MARCEL_JAIL_SECOND_DRAW", playerId: "b", cardId: "jail_2", matched: false },
+      { type: "DRAW_CHECK_RESOLVED", playerId: "b", cardId: "jail_3", matched: false },
       { type: "JAIL_SKIPPED_TURN", playerId: "b" },
       { type: "MARCEL_COMPANION_JAILED", playerId: "c" },
       { type: "MARCEL_COMPANION_TURN_SKIPPED", playerId: "c" },
