@@ -702,6 +702,11 @@ export type GameEvent =
   // năng nhân vật không gắn với lá bài thật nào (Doc Holyday/DareDevil),
   // không có gì nhất quán để hiển thị, đúng tiền lệ ELENA_NOIR_IMMORTAL_TRIGGERED.
   | { type: "THE_NOBODY_IMMUNE"; playerId: string }
+  // Bộ mở rộng "custom_characters" (Paul Pauper, xem House_Rule.txt mục I) —
+  // lá thứ 4+ trong lượt của `fromPlayerId` bị CHẶN HOÀN TOÀN (draw! Paul
+  // Pauper ra đỏ), `cardId` đi thẳng vào tay `playerId` (Paul Pauper) — không
+  // hiệu ứng gì xảy ra, coi như lá chưa từng được đánh.
+  | { type: "PAUL_PAUPER_INTERCEPTED"; playerId: string; fromPlayerId: string; cardId: string }
   | { type: "GAME_ENDED"; winner: Winner };
 
 // ----- State tổng -----
@@ -752,6 +757,15 @@ export interface GameState {
   // phải optional) để đúng quy tắc 3 (state JSON thuần, không có field tuỳ
   // ý xuất hiện/biến mất) — chỉ đơn giản không ai đọc tới nếu luật này tắt.
   cardNamesPlayedThisTurn: string[];
+  // Bộ mở rộng "custom_characters" (Paul Pauper, xem House_Rule.txt mục I) —
+  // đếm TỔNG SỐ lá (mọi loại, không riêng lá nâu) người đang tới lượt ĐÃ
+  // ĐÁNH THẬT (KHÔNG tính lá bị Paul Pauper chặn — "coi như lá chưa từng
+  // được đánh", chủ dự án chốt 2026-08-23) trong CHÍNH lượt này. Reset về 0
+  // ở advanceTurn(), giống cardNamesPlayedThisTurn. KHÔNG tái dùng
+  // cardNamesPlayedThisTurn (field đó chỉ ghi lá NÂU, chỉ có ý nghĩa khi bật
+  // house rule no_duplicate_card_names) — field này đếm MỌI lá, luôn có ý
+  // nghĩa.
+  cardsPlayedThisTurn: number;
   // Mở rộng Dodge City (Luat_Bang_Mo_Rong_DodgeCity.txt, mục 1.1 — "kiến trúc
   // trang bị trì hoãn", xem LO-TRINH.md "Ghi chú cho 5.4" mục A) — đếm số
   // LƯỢT đã trôi qua từ đầu ván, tăng +1 mỗi lần advanceTurn() (reduce.ts).
@@ -834,6 +848,18 @@ export interface GameState {
   // gần giống nhau, giống PendingAction ở trên. null = không có lá nào trong
   // 5 lá này đang ở giai đoạn chờ draw! kiểm tra The Nobody.
   pendingNobodyCheck: PendingNobodyCheck | null;
+  // Bộ mở rộng "custom_characters" (Paul Pauper, xem House_Rule.txt mục I) —
+  // lá thứ 4+ của người khác bị HOÃN HẲN ngay đầu handlePlayCard() (TRƯỚC khi
+  // rời tay/vào chồng bỏ/gắn sân — khác mọi mẫu "hoãn lại" trước đó của The
+  // Nobody, vốn chỉ hoãn phần ÁP DỤNG chứ card đã rời tay từ đầu). Lá VẪN CÒN
+  // NGUYÊN trong tay người đánh trong lúc chờ — giữ nguyên action PLAY_CARD
+  // gốc ở đây để RESPOND lại (RESPOND của draw! Paul Pauper) biết đường: ra
+  // đỏ thì lá đi thẳng vào tay Paul Pauper (không splice hand ở đâu khác);
+  // ra đen thì gọi lại handlePlayCard() với ĐÚNG action này (cờ
+  // skipPaulPauperCheck=true để không hỏi lại vô hạn) — coi như chưa từng bị
+  // chặn. null = không có lá nào đang chờ. Xem resolveDrawCheck() nhánh
+  // "paul_pauper".
+  pendingPaulPauperPlay: (Action & { type: "PLAY_CARD" }) | null;
   // Mở rộng Dodge City, mục C nhóm C — Vera Custer: characterId đang MƯỢN
   // (hoặc null nếu chưa mượn/chưa tới lượt cô lần nào) — hiệu lực từ lúc chọn
   // tới tận lượt KẾ TIẾP của chính cô (không tự hết hạn giữa chừng, chỉ bị GHI

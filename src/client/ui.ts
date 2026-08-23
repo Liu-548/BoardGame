@@ -457,7 +457,7 @@ const CHARACTER_DESCRIPTIONS: Record<string, string> = {
   elena_noir:
     "Đòn lẽ ra giết mình (Bia không cứu được) sẽ kích hoạt Miễn Tử 2 lượt: KHÔNG thể chết (máu giữ ở 0) dù vẫn bị mọi lá bài nhắm tới và gây sát thương bình thường (Bang!, Đấu tay đôi, Người da đỏ, Cat Balou, Panic!, Thuốc nổ...) — ngoại lệ DUY NHẤT là không thể bị nhốt tù (Jail) trong lúc này. Chết chắc chắn khi hết 2 lượt. Đầu mỗi lượt (khi không Miễn Tử) được chọn vũ trang trước (rút 1 lá) hoặc rút 2 lá bình thường (không vũ trang thì không kích hoạt Miễn Tử nếu chết trong lượt đó).",
   marcel_marcelo:
-    "Bị nhốt tù thì lập tức chỉ định 1 người khác 'cùng vào tù' (ăn theo kết quả, không tự rút). Đầu lượt được rút tối đa 2 lá để tìm Cơ thoát tù; thoát thành công thì lượt đó rút 3 lá thay vì 2.",
+    "Bị nhốt tù thì lập tức chỉ định 1 người khác 'cùng vào tù' (ăn theo kết quả, không tự rút). Đầu lượt rút ĐÚNG 1 lá như thường để tìm Cơ thoát tù; thoát thành công thì lượt đó rút 3 lá thay vì 2.",
   mary_rose:
     "Thật sự mất máu vì trúng Bang! đơn lẻ (không đỡ được) thì bắn trả MIỄN PHÍ vào người đó, bỏ qua khoảng cách, cần 2 Missed! mới né được — không tính Gatling/Duel/Indians!. Đổi lại, đánh Bang! chủ động phải bỏ đủ 2 lá Bang! thay vì 1.",
   the_thief:
@@ -476,6 +476,8 @@ const CHARACTER_DESCRIPTIONS: Record<string, string> = {
     "Bất kỳ lúc nào có 1 người chơi (kể cả chính mình) sắp bị ghi nhận CHẾT (Bia/Miễn Tử đều không cứu được), được hỏi có muốn trả 2 máu tối đa VĨNH VIỄN để hồi sinh người đó ngay với 1 máu hay không — ĐÚNG 1 LẦN CẢ VÁN.",
   the_nobody:
     "Mỗi khi bị nhắm tới bởi bất kỳ lá nào (Bang!, Gatling, Indians!, Đấu tay đôi, Cat Balou...), BẮT BUỘC lật 1 lá kiểm tra: ra Bích thì lá đó VÔ HIỆU HOÀN TOÀN với riêng mình — không mất máu, không bị cướp/bắt bỏ bài.",
+  paul_pauper:
+    "Mỗi khi 1 người chơi khác đánh lá thứ 4 trở đi trong lượt của họ, BẮT BUỘC lật 1 lá kiểm tra: ra Cơ/Rô thì lá đó bị chặn HOÀN TOÀN (không hiệu ứng gì xảy ra) và về thẳng tay bạn — không tính lượt của chính bạn.",
 };
 
 function characterImageUrl(characterId: string): string {
@@ -1136,6 +1138,8 @@ export function describeEvent(event: GameEvent, nameOf: (id: string) => string):
       return `${nameOf(event.sentinelId)} (Aura The Soul-Weaver) trả 2 máu tối đa vĩnh viễn (còn ${event.sentinelNewMaxHp}) để hồi sinh ${nameOf(event.playerId)}`;
     case "THE_NOBODY_IMMUNE":
       return `${nameOf(event.playerId)} (The Nobody) draw! ra Bích — lá vừa nhắm tới vô hiệu hoàn toàn`;
+    case "PAUL_PAUPER_INTERCEPTED":
+      return `${nameOf(event.fromPlayerId)} đánh lá thứ 4+ trong lượt — ${nameOf(event.playerId)} (Paul Pauper) draw! ra đỏ, chặn trọn và nhặt lá về tay`;
   }
 }
 

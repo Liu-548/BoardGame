@@ -657,7 +657,27 @@ mà không ảnh hưởng nhân vật *ex khác.
 	    ném lỗi lạ.
 	  - Lá thật sau khi lật: vào chồng bài bỏ như bình thường.
 
-	- Paul Pauper 4 máu — ⬜ CHƯA CODE. Đánh giá sức mạnh ở mục IV.
+	- Paul Pauper 4 máu — ✅ ĐÃ CODE XONG (2026-08-23, core + test — UI
+	  KHÔNG cần thêm gì, dùng chung nút "Lật bài" có sẵn cho MỌI
+	  NEED_DRAW_CHECK, xem ghi chú UX ở dưới). Đánh giá sức mạnh ở mục IV.
+	  Test: test/paul-pauper.test.ts (11 test). Điểm cắm: NGAY ĐẦU
+	  handlePlayCard() (TRƯỚC mọi play*()), thêm tham số nội bộ
+	  `skipPaulPauperCheck` để gọi lại chính hàm này sau khi draw! ra đen
+	  mà không hỏi lại vô hạn — xem GameState.cardsPlayedThisTurn/
+	  pendingPaulPauperPlay + nhánh "paul_pauper" ở resolveDrawCheck()
+	  trong reduce.ts. ĐÃ HỎI LẠI VÀ CHỐT (2026-08-23): lá bị chặn KHÔNG
+	  tính vào cardsPlayedThisTurn — "coi như lá chưa từng được đánh"
+	  theo đúng nghĩa đen, kể cả cho việc đếm lá tiếp theo trong lượt (vd
+	  lá thứ 4 bị chặn thì lá thứ 5 kế tiếp VẪN bị hỏi lại, vì bộ đếm vẫn
+	  dừng ở 3). Đã tự kiểm bằng trình duyệt thật (hotseat, bật "Nhân vật
+	  *ex", tra "Paul Pauper" trong Thư viện bài) — mô tả hiện đúng, không
+	  lỗi console; NHÂN TIỆN phát hiện VÀ SỬA LUÔN 1 bug có sẵn từ trước
+	  (không liên quan Paul Pauper): mô tả Marcel Marcelo trong Thư viện
+	  bài/màn chọn nhân vật vẫn ghi "rút tối đa 2 lá" — sót lại từ lần sửa
+	  luật Marcel Marcelo CÙNG NGÀY (xem mục Marcel Marcelo phía trên),
+	  đã cập nhật lại đúng "rút ĐÚNG 1 lá". Chưa random trúng đúng Paul
+	  Pauper trong ván thật lúc tự kiểm (rủi ro thấp, logic đã có 11 test
+	  bao phủ đầy đủ các nhánh, đúng nếp cũ của dự án).
 	  - *dev đã chốt: TÁCH ĐÔI ý tưởng gốc "The Thief". Hiệu ứng "ăn
 	    theo người đánh nhiều bài" ở lại đây; hiệu ứng "cướp bài đầu
 	    lượt" chuyển sang The Thief bên dưới.

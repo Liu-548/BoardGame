@@ -46,6 +46,7 @@ function makeState(players: PlayerState[], houseRules: HouseRuleId[], overrides:
     duelBangDrawPending: null,
     pendingGeneralStore: null,
     pendingNobodyCheck: null,
+    pendingPaulPauperPlay: null,
     veraCusterBorrowedCharacterId: null,
     elenaNoirArmed: {},
     elenaNoirImmortalTurnsLeft: {},
@@ -61,6 +62,7 @@ function makeState(players: PlayerState[], houseRules: HouseRuleId[], overrides:
     houseRules,
     expansions: [],
     cardNamesPlayedThisTurn: [],
+    cardsPlayedThisTurn: 0,
     ...overrides,
   };
 }
