@@ -881,7 +881,27 @@ function handleDiscardCards(
   return { state: next, events };
 }
 
-function handlePlayCard(state: GameState, action: Action & { type: "PLAY_CARD" }): Result {
+// Bộ mở rộng "custom_characters" (Paul Pauper) — tìm người còn sống có khả
+// năng này, KHÔNG PHẢI chính người đang đánh lá (đúng "KHÔNG tính lượt của
+// chính Paul Pauper" — anh ta không tự chặn lá của chính mình). Chỉ 1 người
+// có thể có khả năng này tại 1 thời điểm (Paul Pauper thật, hoặc Vera Custer
+// đang mượn) nên không cần lo trùng lặp.
+function findPaulPauperBlocker(state: GameState, actingPlayer: PlayerState): PlayerState | undefined {
+  return state.players.find(
+    (p) => p.alive && p.id !== actingPlayer.id && getEffectiveCharacterDefinition(state, p)?.canInterceptExcessCards === true
+  );
+}
+
+// `skipPaulPauperCheck`: CHỈ true khi hàm này được GỌI LẠI từ resolveDrawCheck()
+// (nhánh "paul_pauper", draw! ra đen) để thật sự áp dụng 1 lá VỪA được xác
+// nhận KHÔNG bị chặn — false ở mọi lời gọi bình thường khác (từ reduce()).
+// Không có cờ này, gọi lại sẽ hỏi lại Paul Pauper vô hạn (cardsPlayedThisTurn
+// chưa kịp tăng ở lần hoãn đầu tiên).
+function handlePlayCard(
+  state: GameState,
+  action: Action & { type: "PLAY_CARD" },
+  skipPaulPauperCheck = false
+): Result {
   assertCurrentPlayer(state, action.playerId);
   assertPhase(state, "play");
 
@@ -898,12 +918,35 @@ function handlePlayCard(state: GameState, action: Action & { type: "PLAY_CARD" }
     // Không có trong tay — mở rộng Dodge City (mục 1.1): có thể đang KÍCH
     // HOẠT 1 lá trang bị "trì hoãn" đã bày sẵn từ lượt trước (đứng ở
     // equipment, không phải hand). Dùng ĐÚNG action PLAY_CARD, chỉ khác
-    // nguồn bài — xem activateDelayedEquipment().
+    // nguồn bài — xem activateDelayedEquipment(). KHÔNG đi qua chặn Paul
+    // Pauper (lá này đã bày sẵn từ trước, không phải "vừa đánh từ tay").
     if (isDelayedEquipmentCardName(cardName) && player.equipment.includes(action.cardId)) {
       return activateDelayedEquipment(next, player, action, cardName);
     }
     throw new Error(`Người chơi ${player.id} không có lá bài ${action.cardId} trong tay`);
   }
+
+  // Bộ mở rộng "custom_characters" (Paul Pauper, xem House_Rule.txt mục I) —
+  // CHẶN NGAY TẠI ĐÂY, TRƯỚC KHI lá rời tay/vào chồng bỏ/gắn sân/dispatch bất
+  // kỳ play*() nào. Đây là lá thứ 4 trở đi (cardsPlayedThisTurn đã đếm đủ 3)
+  // của 1 người KHÔNG PHẢI Paul Pauper, VÀ có 1 Paul Pauper còn sống khác trên
+  // bàn -> HOÃN HẲN: lá VẪN CÒN NGUYÊN trong tay (không splice), lưu lại
+  // action gốc để RESPOND sau biết đường tiếp tục. Đẩy NEED_DRAW_CHECK y hệt
+  // mọi draw!-check khác (để Lucky Duke tự áp dụng đúng, không cần code riêng).
+  if (!skipPaulPauperCheck) {
+    const pauper = findPaulPauperBlocker(next, player);
+    if (pauper && next.cardsPlayedThisTurn >= 3) {
+      next.pendingPaulPauperPlay = action;
+      next.pending.push({
+        kind: "NEED_DRAW_CHECK",
+        player: pauper.id,
+        source: { card: "paul_pauper" },
+        matchSuits: ["hearts", "diamonds"],
+      });
+      return { state: next, events: [] };
+    }
+  }
+  next.cardsPlayedThisTurn += 1;
 
   // Rời tay trước, rồi mới rẽ theo tác dụng riêng của từng lá. Nếu rơi vào
   // "chưa hỗ trợ" bên dưới thì throw luôn — next chỉ là bản sao cục bộ, bị huỷ
@@ -3864,6 +3907,35 @@ function resolveDrawCheck(
     return { state: next, events };
   }
 
+  // Bộ mở rộng "custom_characters" (Paul Pauper, xem House_Rule.txt mục I) —
+  // draw! CHẶN lá thứ 4+ của người khác (đẩy ở handlePlayCard(), lá VẪN CÒN
+  // NGUYÊN trong tay người đánh — xem GameState.pendingPaulPauperPlay). Khớp
+  // (đỏ): lá đi THẲNG vào tay Paul Pauper — KHÔNG dispatch play*() nào, coi
+  // như lá chưa từng được đánh (không tăng cardsPlayedThisTurn — chủ dự án
+  // chốt 2026-08-23). Không khớp (đen): gọi lại handlePlayCard() với ĐÚNG
+  // action đã lưu, cờ skipPaulPauperCheck=true để không hỏi lại vô hạn — xử
+  // lý y hệt như Paul Pauper chưa từng tồn tại.
+  if (top.source.card === "paul_pauper") {
+    const deferredAction = next.pendingPaulPauperPlay!;
+    next.pendingPaulPauperPlay = null;
+    const pauper = next.players.find((p) => p.id === top.player)!;
+    if (matched) {
+      const attacker = next.players.find((p) => p.id === deferredAction.playerId)!;
+      const interceptIndex = attacker.hand.indexOf(deferredAction.cardId);
+      const [interceptedCardId] = attacker.hand.splice(interceptIndex, 1);
+      pauper.hand.push(interceptedCardId);
+      events.push({
+        type: "PAUL_PAUPER_INTERCEPTED",
+        playerId: pauper.id,
+        fromPlayerId: attacker.id,
+        cardId: interceptedCardId,
+      });
+      return { state: next, events };
+    }
+    const replay = handlePlayCard(next, deferredAction, true);
+    return { state: replay.state, events: [...events, ...replay.events] };
+  }
+
   // Barrel khớp Cơ: tính như vừa bỏ 1 Missed! (miễn phí, không tốn bài trên
   // tay) — KHÔNG tự né hết toàn bộ, vì Slab the Killer (Giai đoạn 5, đợt 3) có
   // thể yêu cầu missesNeeded > 1. Tìm đúng NEED_MISSED tương ứng (không nhất
@@ -4018,6 +4090,7 @@ function resolveDrawCheck(
       next.turnPhase = "draw";
       next.bangCountThisTurn = 0;
       next.cardNamesPlayedThisTurn = [];
+      next.cardsPlayedThisTurn = 0;
       next.turnNumber += 1;
       next.joseDelgadoUsesThisTurn = 0;
       next.docHolydayUsedThisTurn = false;
@@ -4527,6 +4600,7 @@ function advanceTurn(next: GameState): GameEvent[] {
   next.turnPhase = "draw";
   next.bangCountThisTurn = 0;
   next.cardNamesPlayedThisTurn = []; // việc 5.3 (house rule "no_duplicate_card_names")
+  next.cardsPlayedThisTurn = 0; // bộ mở rộng "custom_characters" (Paul Pauper)
   next.turnNumber += 1; // mở rộng Dodge City, mục 1.1 (xem GameState.turnNumber ở types.ts)
   next.joseDelgadoUsesThisTurn = 0; // mở rộng Dodge City, mục C nhóm A (José Delgado)
   next.docHolydayUsedThisTurn = false; // mở rộng Dodge City, mục C nhóm C (Doc Holyday)

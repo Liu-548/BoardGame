@@ -495,6 +495,16 @@ export interface CharacterDefinition {
   // respondToDuel()/pushDiscardFromZoneReaction(). KHÔNG cần state gì riêng
   // (tính lại mỗi lần), không xung đột Vera Custer.
   hasNobodyImmunity?: boolean;
+  // Bộ mở rộng "custom_characters" (Paul Pauper, xem House_Rule.txt mục I) —
+  // mỗi khi 1 NGƯỜI CHƠI KHÁC (KHÔNG tính lượt của chính Paul Pauper) đánh lá
+  // thứ 4 trở đi trong lượt của họ, Paul Pauper draw! 1 lần; ra đỏ (Cơ/Rô) thì
+  // lá đó bị CHẶN HOÀN TOÀN (không hiệu ứng gì) và đi thẳng vào tay Paul
+  // Pauper. Chặn NGAY ĐẦU handlePlayCard() (TRƯỚC mọi play*()) — điểm cắm
+  // trung tâm nhất trong reduce.ts, xem GameState.cardsPlayedThisTurn/
+  // pendingPaulPauperPlay + nhánh "paul_pauper" ở resolveDrawCheck(). KHÔNG
+  // cần state theo playerId (chỉ 1 người có thể có khả năng này tại 1 thời
+  // điểm) ⇒ không xung đột Vera Custer.
+  canInterceptExcessCards?: boolean;
   hooks: CharacterHooks;
 }
 
@@ -1010,6 +1020,14 @@ export const CHARACTERS: Record<string, CharacterDefinition> = {
     hasNobodyImmunity: true,
     hooks: {},
   },
+
+  paul_pauper: {
+    id: "paul_pauper",
+    name: "Paul Pauper *ex",
+    bullets: 4,
+    canInterceptExcessCards: true,
+    hooks: {},
+  },
 };
 
 // Id nhân vật do từng BỘ MỞ RỘNG đóng góp (xem ExpansionId ở types.ts +
@@ -1048,6 +1066,7 @@ export const EXPANSION_CHARACTER_IDS: Record<ExpansionId, string[]> = {
     "the_dealer",
     "the_sentinel",
     "the_nobody",
+    "paul_pauper",
   ],
   // Mở rộng High Noon/A Fistful of Cards — CHỈ lá sự kiện (core/events.ts),
   // không có nhân vật mới nào.
