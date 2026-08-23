@@ -1,11 +1,11 @@
-// Bộ mở rộng "custom_characters" (The Drunker, xem House_Rule.txt mục I) —
+// Bộ mở rộng "custom_characters" (Victor Boozer, xem House_Rule.txt mục I) —
 // mỗi khi NGƯỜI KHÁC (không phải chính mình) dùng lá Beer hồi máu THÀNH CÔNG,
-// The Drunker hồi thêm 1 máu ngay lập tức (không vượt máu tối đa). CHỈ lá
+// Victor Boozer hồi thêm 1 máu ngay lập tức (không vượt máu tối đa). CHỈ lá
 // Beer — Saloon/Tequila/Canteen/Whisky/Sid Ketchum không kích hoạt. Beer
 // dùng để cứu mạng (hồi sinh tự động) không đi qua nhánh này.
 //
 // LƯU Ý: luật gốc "Bia vô tác dụng khi bàn chỉ còn 2 người sống" (xem
-// assertBeerCanHeal()/playBeer() trong reduce.ts) áp dụng độc lập với Drunker
+// assertBeerCanHeal()/playBeer() trong reduce.ts) áp dụng độc lập với Victor Boozer
 // — mọi test ở đây (trừ test kiểm tra ĐÚNG luật đó) dùng ÍT NHẤT 3 người còn
 // sống để lá Bia hồi máu thật.
 //
@@ -48,6 +48,7 @@ function makeState(players: PlayerState[], overrides: Partial<GameState> = {}): 
     joseDelgadoUsesThisTurn: 0,
     docHolydayUsedThisTurn: false,
     fairKillerUsedThisTurn: false,
+    gamblerUsesThisTurn: 0,
     vendettaUsedThisTurn: false,
     duelBangDrawPending: null,
     pendingGeneralStore: null,
@@ -71,8 +72,8 @@ function makeState(players: PlayerState[], overrides: Partial<GameState> = {}): 
   };
 }
 
-describe("The Drunker — ăn theo Beer của người khác", () => {
-  it("người khác uống Bia hồi máu thành công -> Drunker hồi thêm 1 máu", () => {
+describe("Victor Boozer — ăn theo Beer của người khác", () => {
+  it("người khác uống Bia hồi máu thành công -> Victor Boozer hồi thêm 1 máu", () => {
     const state = makeState([
       makePlayer("a", { hp: 3, maxHp: 4, hand: ["beer_1"] }),
       makePlayer("b", { characterId: "the_drunker", hp: 2, maxHp: 4 }),
@@ -84,7 +85,7 @@ describe("The Drunker — ăn theo Beer của người khác", () => {
     });
 
     expect(next.players[0].hp).toBe(4); // người uống hồi bình thường
-    expect(next.players[1].hp).toBe(3); // Drunker ăn theo +1
+    expect(next.players[1].hp).toBe(3); // Victor Boozer ăn theo +1
     expect(events).toEqual([
       { type: "CARD_PLAYED", playerId: "a", cardId: "beer_1" },
       { type: "HP_RESTORED", playerId: "a", amount: 1 },
@@ -92,7 +93,7 @@ describe("The Drunker — ăn theo Beer của người khác", () => {
     ]);
   });
 
-  it("không vượt quá máu tối đa của Drunker", () => {
+  it("không vượt quá máu tối đa của Victor Boozer", () => {
     const state = makeState([
       makePlayer("a", { hp: 3, maxHp: 4, hand: ["beer_1"] }),
       makePlayer("b", { characterId: "the_drunker", hp: 4, maxHp: 4 }), // đã đầy máu
@@ -106,10 +107,10 @@ describe("The Drunker — ăn theo Beer của người khác", () => {
     expect(next.players[1].hp).toBe(4); // không đổi
     expect(events.filter((e) => e.type === "HP_RESTORED")).toEqual([
       { type: "HP_RESTORED", playerId: "a", amount: 1 },
-    ]); // không có HP_RESTORED nào cho Drunker
+    ]); // không có HP_RESTORED nào cho Victor Boozer
   });
 
-  it("Bia TỰ ĐÁNH của chính Drunker không được ăn theo", () => {
+  it("Bia TỰ ĐÁNH của chính Victor Boozer không được ăn theo", () => {
     const state = makeState(
       [
         makePlayer("a"),
@@ -130,7 +131,7 @@ describe("The Drunker — ăn theo Beer của người khác", () => {
     ]);
   });
 
-  it("luật gốc: bàn chỉ còn 2 người sống -> Bia vô tác dụng -> Drunker cũng KHÔNG ăn theo", () => {
+  it("luật gốc: bàn chỉ còn 2 người sống -> Bia vô tác dụng -> Victor Boozer cũng KHÔNG ăn theo", () => {
     const state = makeState([
       makePlayer("a", { hp: 3, maxHp: 4, hand: ["beer_1"] }),
       makePlayer("b", { characterId: "the_drunker", hp: 2, maxHp: 4 }),
@@ -141,14 +142,14 @@ describe("The Drunker — ăn theo Beer của người khác", () => {
     });
 
     expect(next.players[0].hp).toBe(3); // không đổi — Bia vô tác dụng
-    expect(next.players[1].hp).toBe(2); // Drunker không ăn theo
+    expect(next.players[1].hp).toBe(2); // Victor Boozer không ăn theo
     expect(events).toEqual([
       { type: "CARD_PLAYED", playerId: "a", cardId: "beer_1" },
       { type: "BEER_INEFFECTIVE", playerId: "a" },
     ]);
   });
 
-  it("CHỈ Beer — Saloon KHÔNG kích hoạt ăn theo (Drunker đã đầy máu để cô lập hiệu ứng)", () => {
+  it("CHỈ Beer — Saloon KHÔNG kích hoạt ăn theo (Victor Boozer đã đầy máu để cô lập hiệu ứng)", () => {
     const state = makeState([
       makePlayer("a", { hp: 3, maxHp: 4, hand: ["saloon_1"] }),
       makePlayer("b", { characterId: "the_drunker", hp: 4, maxHp: 4 }), // đầy máu — Saloon tự thân không đổi gì
@@ -159,10 +160,10 @@ describe("The Drunker — ăn theo Beer của người khác", () => {
       type: "PLAY_CARD", playerId: "a", cardId: "saloon_1",
     });
 
-    expect(next.players[1].hp).toBe(4); // Saloon không đổi (đã đầy) — nếu Drunker ăn theo sẽ vẫn là 4 vì maxHp, nên xét events là bằng chứng chính
+    expect(next.players[1].hp).toBe(4); // Saloon không đổi (đã đầy) — nếu Victor Boozer ăn theo sẽ vẫn là 4 vì maxHp, nên xét events là bằng chứng chính
     expect(events.filter((e) => e.type === "HP_RESTORED")).toEqual([
       { type: "HP_RESTORED", playerId: "a", amount: 1 },
-    ]); // KHÔNG có HP_RESTORED thứ 2 nào cho "b" — Saloon không kích hoạt Drunker
+    ]); // KHÔNG có HP_RESTORED thứ 2 nào cho "b" — Saloon không kích hoạt Victor Boozer
   });
 
   it("Beer dùng để CỨU MẠNG (hồi sinh tự động) KHÔNG kích hoạt ăn theo", () => {
@@ -176,19 +177,19 @@ describe("The Drunker — ăn theo Beer của người khác", () => {
     );
 
     // "a" trúng Bang! xuống 0 máu, tự động bỏ Bia để hồi sinh (BEER_SAVED_FROM_DEATH)
-    // — nhánh này KHÔNG đi qua playBeer(), nên Drunker không ăn theo.
+    // — nhánh này KHÔNG đi qua playBeer(), nên Victor Boozer không ăn theo.
     const played = reduce(state, { type: "PLAY_CARD", playerId: "c", cardId: "bang_1", targetId: "a" });
     const { state: next, events } = reduce(played.state, { type: "RESPOND", playerId: "a" });
 
     expect(next.players[0].hp).toBe(1); // hồi sinh về 1 máu
-    expect(next.players[1].hp).toBe(2); // Drunker KHÔNG ăn theo
+    expect(next.players[1].hp).toBe(2); // Victor Boozer KHÔNG ăn theo
     expect(events.some((e) => e.type === "BEER_SAVED_FROM_DEATH")).toBe(true);
     expect(events.some((e) => e.type === "HP_RESTORED")).toBe(false);
   });
 });
 
-describe("The Drunker — Vera Custer mượn khả năng", () => {
-  it("Vera Custer mượn The Drunker -> cũng ăn theo Beer của người khác", () => {
+describe("Victor Boozer — Vera Custer mượn khả năng", () => {
+  it("Vera Custer mượn Victor Boozer -> cũng ăn theo Beer của người khác", () => {
     const state = makeState(
       [
         makePlayer("a", { hp: 3, maxHp: 4, hand: ["beer_1"] }),

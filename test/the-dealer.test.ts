@@ -1,11 +1,11 @@
-// Bộ mở rộng "custom_characters" (The Dealer, xem House_Rule.txt mục I) — mỗi
+// Bộ mở rộng "custom_characters" (Envoy Evy, xem House_Rule.txt mục I) — mỗi
 // khi bị nhắm bởi 1 đòn "kiểu Bang!" (Bang!, Gatling, Punch, Springfield,
 // Derringer, Knife, Pepperbox, Buffalo Rifle, Howitzer, đòn của Doc
 // Holyday...) và không đỡ được, được hỏi có muốn đưa 2 lá NGẪU NHIÊN trên tay
 // cho NGƯỜI ĐÁNH lá đó để vô hiệu đòn đó hay không — không giới hạn số lần,
 // miễn còn đủ 2 lá.
 //
-// Khác The Drifter: "còn đủ 2 lá" KHÔNG phải bí mật (handCount vốn đã công
+// Khác Nomad Norman: "còn đủ 2 lá" KHÔNG phải bí mật (handCount vốn đã công
 // khai) nên pending NEED_USE_DEALER_TRADE chỉ đẩy KHI THẬT SỰ đủ điều kiện,
 // không cần mẹo "đẩy vô điều kiện". Điểm cắm DUY NHẤT: nhánh "không đỡ được"
 // của respondToMissed() — mọi lá "kiểu Bang!" đều đi qua NEED_MISSED.
@@ -45,6 +45,7 @@ function makeState(overrides: Partial<GameState> = {}): GameState {
     joseDelgadoUsesThisTurn: 0,
     docHolydayUsedThisTurn: false,
     fairKillerUsedThisTurn: false,
+    gamblerUsesThisTurn: 0,
     vendettaUsedThisTurn: false,
     duelBangDrawPending: null,
     pendingGeneralStore: null,
@@ -68,7 +69,7 @@ function makeState(overrides: Partial<GameState> = {}): GameState {
   };
 }
 
-describe("The Dealer — NEED_USE_DEALER_TRADE chỉ đẩy khi đủ điều kiện", () => {
+describe("Envoy Evy — NEED_USE_DEALER_TRADE chỉ đẩy khi đủ điều kiện", () => {
   it("bị Bang!, không đỡ, còn ≥2 lá -> đẩy NEED_USE_DEALER_TRADE", () => {
     const state = makeState({
       players: [
@@ -109,7 +110,7 @@ describe("The Dealer — NEED_USE_DEALER_TRADE chỉ đẩy khi đủ điều ki
     expect(next.players[1].hand).toEqual(["missed_2"]); // không đụng gì tới tay
   });
 
-  it("nhân vật KHÔNG phải The Dealer -> không có pending nào, mất máu bình thường", () => {
+  it("nhân vật KHÔNG phải Envoy Evy -> không có pending nào, mất máu bình thường", () => {
     const state = makeState({
       players: [makePlayer("a"), makePlayer("b", { hand: ["missed_2", "beer_1"] }), makePlayer("c")],
       pending: [{ kind: "NEED_MISSED", player: "b", source: { card: "bang", from: "a" } }],
@@ -176,7 +177,7 @@ describe("The Dealer — NEED_USE_DEALER_TRADE chỉ đẩy khi đủ điều ki
   });
 });
 
-describe("The Dealer — trả lời NEED_USE_DEALER_TRADE", () => {
+describe("Envoy Evy — trả lời NEED_USE_DEALER_TRADE", () => {
   it("đồng ý trao đổi -> 2 lá ngẫu nhiên rời tay, SANG ĐÚNG tay kẻ tấn công, không mất máu", () => {
     const state = makeState({
       players: [
@@ -313,8 +314,8 @@ describe("The Dealer — trả lời NEED_USE_DEALER_TRADE", () => {
   });
 });
 
-describe("The Dealer — Vera Custer mượn khả năng", () => {
-  it("Vera Custer mượn The Dealer -> cũng đẩy NEED_USE_DEALER_TRADE khi bị bắn", () => {
+describe("Envoy Evy — Vera Custer mượn khả năng", () => {
+  it("Vera Custer mượn Envoy Evy -> cũng đẩy NEED_USE_DEALER_TRADE khi bị bắn", () => {
     const state = makeState({
       players: [
         makePlayer("a"),

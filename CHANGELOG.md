@@ -1544,12 +1544,12 @@ Roulette" — 11/13 lá, chỉ còn Dead Man/Law of the West):**
 - `npx tsc --noEmit` sạch, 657 test đều pass (không đổi — batch này thuần UI,
   không đụng `core/`).
 
-**The Sentinel *ex (2026-08-20) — CODE XONG** (core + UI hotseat/qua mạng +
-test — xem đặc tả đã CHỐT ở `House_Rule.txt` mục I, đoạn "The Sentinel").
+**Aura The Soul-Weaver *ex (2026-08-20) — CODE XONG** (core + UI hotseat/qua mạng +
+test — xem đặc tả đã CHỐT ở `House_Rule.txt` mục I, đoạn "Aura The Soul-Weaver").
 **3 máu** (đã hỏi lại chủ dự án để chốt số liệu — dòng đặc tả chính ghi 3 máu,
 nhưng phần đánh giá sức mạnh ở dưới file lại ghi nhầm 4 máu do viết từ bản
 nháp cũ chưa cập nhật). Bất kỳ lúc nào có 1 người chơi (kể cả chính The
-Sentinel) sắp bị ghi nhận CHẾT (đã hết mọi cách tự cứu — Bia/Elena Noir Miễn
+Aura The Soul-Weaver) sắp bị ghi nhận CHẾT (đã hết mọi cách tự cứu — Bia/Elena Noir Miễn
 Tử đều không cứu được), hỏi SAU CÙNG có muốn trả 2 máu tối đa VĨNH VIỄN để hồi
 sinh người đó ngay với ĐÚNG 1 máu hay không — ĐÚNG 1 LẦN CẢ VÁN. Người được
 hồi sinh giữ nguyên bài trên tay lẫn trang bị (hệ quả tự nhiên của việc chặn
@@ -1563,13 +1563,13 @@ hưởng; `getHandLimit()` tính theo hp hiện tại nên cũng không sao.
 **Kiến trúc — điểm khó nhất của cả nhân vật *ex từ trước tới nay** (đúng như
 cảnh báo trong file luật): `eliminateIfDead()` là điểm DUY NHẤT xử lý "ai
 chết" cho cả 6 nguồn sát thương (Indians!/Bang!-Gatling/Duel/High Noon
-turn-start/Dynamite/Russian Roulette) — The Sentinel phải hỏi SAU CÙNG, ngay
+turn-start/Dynamite/Russian Roulette) — Aura The Soul-Weaver phải hỏi SAU CÙNG, ngay
 trước fallback `eliminatePlayer()`, NHƯNG ở nhiều điểm trong 6 nguồn đó, code
 gốc chạy tiếp một số bước NGAY SAU khi máu về 0 (`continueTurnStartAfterHighNoonDamage()`,
 `drainDuelBangDrawPending()`, `applyJailCheck()` sau Thuốc nổ) mà không chờ ai
-— nếu cứ chạy tiếp trong lúc đang chờ Sentinel trả lời thì sai quy tắc ngăn
+— nếu cứ chạy tiếp trong lúc đang chờ Aura The Soul-Weaver trả lời thì sai quy tắc ngăn
 xếp (pending mới đẩy lên phải xử lý trước, mục 5 CLAUDE.md). Giải pháp: tái
-dùng NGUYÊN kiểu `resume` The Drifter đã có sẵn cho ĐÚNG 6 điểm này (đổi tên
+dùng NGUYÊN kiểu `resume` Nomad Norman đã có sẵn cho ĐÚNG 6 điểm này (đổi tên
 `DrifterShieldResume` → `DamageResume`, dùng chung cho cả 2 nhân vật —
 `NEED_USE_DRIFTER_SHIELD`/`NEED_SENTINEL_REVIVE` đều mang field `resume` cùng
 kiểu). `applyDamage()`/`eliminateIfDead()` nhận thêm tham số `resume`; hàm
@@ -1578,9 +1578,9 @@ ngay sau mỗi lời gọi, `true` thì dừng ngay không chạy tiếp epilogu
 
 **Phát hiện lúc rà 13 điểm gọi `applyDamage()`/`eliminateIfDead()` (không phải
 6 như dự tính ban đầu — còn cả nhánh `NEED_USE_DEALER_TRADE` "không đổi lá,
-chịu mất máu" của The Dealer)**: KHÔNG PHẢI epilogue nào cũng cần hoãn lại —
+chịu mất máu" của Envoy Evy)**: KHÔNG PHẢI epilogue nào cũng cần hoãn lại —
 chỉ những đoạn PHỤ THUỘC `target.alive` mới sai (vì alive vẫn `true` giả tạo
-suốt lúc chờ Sentinel, chưa gọi `eliminatePlayer()`) — đó là
+suốt lúc chờ Aura The Soul-Weaver, chưa gọi `eliminatePlayer()`) — đó là
 `continueAfterMissedResolved()`/`continueTurnStartAfterHighNoonDamage()`
 (đều tự kiểm `!player.alive` ở đầu hàm) và `applyJailCheck()` (gọi có điều
 kiện `if (player.alive) ...`). Ngược lại, phản đòn Mary Rose và
@@ -1594,22 +1594,22 @@ không cần thiết so với dự tính ban đầu.
 Record theo playerId — cùng lý do Vera Custer như `elenaNoirArmed`), kể cả
 CHÍNH target (tự cứu mình) — đẩy `NEED_SENTINEL_REVIVE` hỏi người đầu tiên,
 giữ phần còn lại trong `remainingSentinelIds` để hỏi TIẾP nếu người này từ
-chối (ca hiếm: vừa có Sentinel thật vừa có Vera Custer mượn cùng lúc). Từ
+chối (ca hiếm: vừa có Aura The Soul-Weaver thật vừa có Vera Custer mượn cùng lúc). Từ
 chối KHÔNG tiêu hao lượt dùng (chỉ đồng ý mới set `sentinelUsed`), đúng
 nguyên tắc `drifterShield` chỉ mất khi THẬT SỰ dùng.
 
 Test: `test/the-sentinel.test.ts` (10 test) — đồng ý/từ chối/đã dùng hết
 lượt/tự cứu chính mình/resume "indians"/resume "dynamite" (xác nhận Jail-check
 vẫn chạy lại đúng sau khi hồi sinh, không bị bỏ qua)/Vera Custer mượn/không có
-Sentinel trong ván/thứ tự `checkWinCondition()` (không chạy trước khi Sentinel
+Aura The Soul-Weaver trong ván/thứ tự `checkWinCondition()` (không chạy trước khi Aura The Soul-Weaver
 trả lời, GAME_ENDED chỉ bắn ĐÚNG lúc quyết định xong).
 
 Đã tự kiểm bằng trình duyệt thật (`npm run dev`, hotseat 6 người, bật "Nhân
-vật *ex"): random trúng ĐÚNG The Sentinel, chơi nhiều lượt hạ máu chính The
-Sentinel về 0 (không đỡ được, không có Bia), pending hỏi đúng "Dũng (The
-Sentinel) chọn trả 2 máu tối đa vĩnh viễn để hồi sinh Dũng hay không", bấm
+vật *ex"): random trúng ĐÚNG Aura The Soul-Weaver, chơi nhiều lượt hạ máu chính The
+Aura The Soul-Weaver về 0 (không đỡ được, không có Bia), pending hỏi đúng "Dũng (The
+Aura The Soul-Weaver) chọn trả 2 máu tối đa vĩnh viễn để hồi sinh Dũng hay không", bấm
 đồng ý → máu tối đa giảm đúng 3→1, máu hiện tại 1/1, còn sống, giữ nguyên bài
-trên tay, nhật ký ghi đúng "Dũng (The Sentinel) trả 2 máu tối đa vĩnh viễn
+trên tay, nhật ký ghi đúng "Dũng (Aura The Soul-Weaver) trả 2 máu tối đa vĩnh viễn
 (còn 1) để hồi sinh Dũng" — không lỗi console trong suốt ván.
 
 `npx tsc --noEmit` sạch, 741 test đều pass.
@@ -1617,13 +1617,13 @@ trên tay, nhật ký ghi đúng "Dũng (The Sentinel) trả 2 máu tối đa v�
 **The Nobody *ex — NHÓM A (2026-08-20) — CODE XONG** (core + test — xem đặc
 tả đã CHỐT ở `House_Rule.txt` mục I, đoạn "The Nobody"; giữ nguyên thiết kế
 gốc "draw! mỗi lần bị nhắm tới", KHÔNG đổi sang phương án rút-trước như đã
-cân nhắc lúc đầu — phương án đó tách hẳn ra thành The Drifter). 3 máu. Bị
+cân nhắc lúc đầu — phương án đó tách hẳn ra thành Nomad Norman). 3 máu. Bị
 nhắm tới bởi bất kỳ lá nào, BẮT BUỘC draw! 1 lá — ra Bích thì lá đó VÔ HIỆU
 HOÀN TOÀN với riêng anh ta (không mất máu, không bị cướp/bắt bỏ bài, không bị
 nhốt tù). File luật tự nhận đây là **nhân vật *ex tốn công nhất từ trước tới
 nay** và chia làm 2 nhóm điểm cắm — **đợt này CHỈ làm NHÓM A** (4 điểm dễ hơn,
 lá vốn đã có 1 pending sẵn để huỷ): Bang!/Gatling/Punch/Springfield/
-Derringer/Knife/Pepperbox/Buffalo Rifle/Howitzer/Doc Holyday/Fair Killer/
+Derringer/Knife/Pepperbox/Buffalo Rifle/Howitzer/Doc Holyday/DareDevil/
 Sniper/A Fistful of Cards (→ `NEED_MISSED`), Indians! (→ `NEED_DISCARD_BANG`),
 Đấu tay đôi (→ `NEED_DUEL_RESPONSE`), Cat Balou/Can Can/Brawl (→
 `NEED_DISCARD_FROM_ZONE`). **Cửa hàng tổng hợp (phần còn lại của nhóm A, cần
@@ -1654,7 +1654,7 @@ bỏ hẳn, dọn nốt mọi `NEED_DRAW_CHECK` Barrel còn sót (đúng mẫu d
 cho Barrel-né-trọn-vẹn), rồi chỉ chạy tiếp `continueAfterMissedResolved()`/
 `drainDuelBangDrawPending()` nếu cần (2 hàm này KHÔNG phụ thuộc "The Nobody
 có bị gì không" — đúng nguyên tắc vừa dùng cho Mary Rose/Molly Stark ở The
-Sentinel, không cần hoãn/lặp lại gì thêm); không khớp thì không làm gì, để
+Aura The Soul-Weaver, không cần hoãn/lặp lại gì thêm); không khớp thì không làm gì, để
 pending gốc chờ giải quyết bình thường. (2) **Bẫy Blessing/Curse đã chốt
 trong file luật**: draw! của The Nobody đọc THẲNG chất thật qua
 `cardSuitRankFromId()`, KHÔNG qua `getEffectiveSuit()` — vì Curse biến MỌI lá
@@ -1663,7 +1663,7 @@ thành Bích, đọc chất đã đổi sẽ khiến anh ta miễn nhiễm 100% 
 bình thường cho MỌI draw! khác (Barrel/Jail/Dynamite).
 
 Event mới `THE_NOBODY_IMMUNE` (không kèm cardId/cardName — nguồn có thể là kỹ
-năng nhân vật không gắn lá bài thật nào như Doc Holyday/Fair Killer, không có
+năng nhân vật không gắn lá bài thật nào như Doc Holyday/DareDevil, không có
 gì nhất quán để hiển thị, đúng tiền lệ `ELENA_NOIR_IMMORTAL_TRIGGERED`).
 **Không cần đổi UI/room.ts gì cả** — `NEED_DRAW_CHECK` vốn đã tự động giải
 quyết hoàn toàn qua mạng (`afterStateChange()`'s vòng "cuốn") và có nút "Lật
@@ -1705,7 +1705,7 @@ trong file luật:**
   mới.
 - `resolveDrawCheck()` nhánh `"the_nobody_store"`: khớp thì gộp `top.player`
   vào `skippedIds`; còn `remainingCheckIds` thì hỏi tiếp người kế (chain,
-  đúng mẫu `remainingSentinelIds` của The Sentinel); hết thì gọi
+  đúng mẫu `remainingSentinelIds` của Aura The Soul-Weaver); hết thì gọi
   `revealGeneralStoreCards()` (giai đoạn 2, TÁCH RIÊNG để dùng CHUNG cho cả
   đường không có The Nobody — lật ngay như cũ, không hoãn gì).
 - `revealGeneralStoreCards(next, initiatorId, skippedIds)`: số lá lật = số

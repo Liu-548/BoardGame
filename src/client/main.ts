@@ -991,7 +991,7 @@ function onUseChuckWengamAbility(playerId: string): void {
   dispatch({ type: "USE_ABILITY", playerId, cardIds: [] });
 }
 
-// Bộ mở rộng "custom_characters" (The Fair Killer) — cũng không cần bỏ lá
+// Bộ mở rộng "custom_characters" (The DareDevil) — cũng không cần bỏ lá
 // nào (giống Chuck Wengam) NHƯNG cần chọn mục tiêu (giống Doc Holyday) — nhảy
 // THẲNG sang bước chọn mục tiêu, bỏ qua "picking-ability-cards" (0 lá thì
 // không có gì để chọn).
@@ -1095,14 +1095,14 @@ function onPickArmed(armed: boolean): void {
   if (top) dispatch({ type: "RESPOND", playerId: top.player, armed });
 }
 
-// Bộ mở rộng "custom_characters" (The Drifter) — trả lời NEED_USE_DRIFTER_SHIELD
+// Bộ mở rộng "custom_characters" (Nomad Norman) — trả lời NEED_USE_DRIFTER_SHIELD
 // muốn dùng lá chắn. Nút "Không dùng" tái dùng onRespondTakeConsequence().
 function onUseDrifterShield(): void {
   const top = state.pending[state.pending.length - 1];
   if (top) dispatch({ type: "RESPOND", playerId: top.player, useShield: true });
 }
 
-// Bộ mở rộng "custom_characters" (The Dealer) — trả lời NEED_USE_DEALER_TRADE
+// Bộ mở rộng "custom_characters" (Envoy Evy) — trả lời NEED_USE_DEALER_TRADE
 // muốn đưa 2 lá cho người vừa đánh mình. Nút "Không, chịu mất máu" tái dùng
 // onRespondTakeConsequence().
 function onUseDealerTrade(): void {
@@ -1110,7 +1110,7 @@ function onUseDealerTrade(): void {
   if (top) dispatch({ type: "RESPOND", playerId: top.player, useDealerTrade: true });
 }
 
-// Bộ mở rộng "custom_characters" (The Sentinel) — trả lời NEED_SENTINEL_REVIVE
+// Bộ mở rộng "custom_characters" (Aura The Soul-Weaver) — trả lời NEED_SENTINEL_REVIVE
 // đồng ý trả 2 máu tối đa vĩnh viễn để hồi sinh. Nút "Từ chối" tái dùng
 // onRespondTakeConsequence().
 function onUseSentinelRevive(): void {
@@ -1895,7 +1895,7 @@ function onNetworkPickArmed(armed: boolean): void {
   if (top) networkDispatch({ type: "RESPOND", playerId: top.player, armed });
 }
 
-// Bộ mở rộng "custom_characters" (The Drifter) — giống hệt onUseDrifterShield
+// Bộ mở rộng "custom_characters" (Nomad Norman) — giống hệt onUseDrifterShield
 // (hotseat).
 function onNetworkUseDrifterShield(): void {
   if (!networkView) return;
@@ -1903,7 +1903,7 @@ function onNetworkUseDrifterShield(): void {
   if (top) networkDispatch({ type: "RESPOND", playerId: top.player, useShield: true });
 }
 
-// Bộ mở rộng "custom_characters" (The Dealer) — giống hệt onUseDealerTrade
+// Bộ mở rộng "custom_characters" (Envoy Evy) — giống hệt onUseDealerTrade
 // (hotseat).
 function onNetworkUseDealerTrade(): void {
   if (!networkView) return;
@@ -1911,7 +1911,7 @@ function onNetworkUseDealerTrade(): void {
   if (top) networkDispatch({ type: "RESPOND", playerId: top.player, useDealerTrade: true });
 }
 
-// Bộ mở rộng "custom_characters" (The Sentinel) — giống hệt onUseSentinelRevive
+// Bộ mở rộng "custom_characters" (Aura The Soul-Weaver) — giống hệt onUseSentinelRevive
 // (hotseat).
 function onNetworkUseSentinelRevive(): void {
   if (!networkView) return;

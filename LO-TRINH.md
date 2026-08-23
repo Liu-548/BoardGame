@@ -569,3 +569,41 @@ hotseat lúc deploy) — nên chơi thử với bạn bè để xác nhận nố
 rãi hơn.
 
 Đừng hứa với bạn bè một ngày cụ thể.
+
+---
+
+## Việc đã làm xong (ghi lại 2026-08-23)
+
+Danh sách việc chủ dự án yêu cầu ghi lại 2026-08-23 để làm sau — **ĐÃ LÀM
+XONG cùng ngày**, giữ lại mục này làm nhật ký đối chiếu:
+
+- ✅ Đổi tên **The Fair Killer** → **The DareDevil** (đã rà toàn bộ file chữ:
+  `House_Rule.txt`, `CLAUDE.md`, `CHANGELOG.md`, comment trong code — id nội
+  bộ `the_fair_killer`/`fairKillerUsedThisTurn` GIỮ NGUYÊN, chỉ đổi tên hiển
+  thị + mọi chỗ nhắc tên bằng chữ).
+- ✅ **Marcel Marcelo**: khi bị nhốt tù giờ chỉ rút **ĐÚNG 1 lá** (trước đây
+  tối đa 2 lá) — giữ nguyên mọi cơ chế khác (người "cùng vào tù", +1 lá
+  thưởng lượt kế tiếp nếu thoát). Bỏ hẳn nhánh rút lá thứ 2 + event
+  `MARCEL_JAIL_SECOND_DRAW` (không còn dùng tới). Test:
+  `test/marcel-marcelo.test.ts` (13 test, từ 15 xuống do gộp bớt 2 test dư).
+- ✅ **Jonny Bettor** (trước đây "The Gambler"): giới hạn còn **2 lần dùng kỹ
+  năng/lượt** (trước đây không giới hạn) — field mới
+  `GameState.gamblerUsesThisTurn`, mirror đúng khuôn José Delgado (reset ở
+  `advanceTurn()` + nhánh lượt thêm của Vendetta). Test:
+  `test/the-gambler.test.ts` (11 test, từ 9 lên).
+- ✅ Đổi tên **The Drunker** → **Victor Boozer**
+- ✅ Đổi tên **The Drifter** → **Nomad Norman**
+- ✅ Đổi tên **The Dealer** → **Envoy Evy**
+- ✅ Đổi tên **The Sentinel** → **Aura The Soul-Weaver**
+- ✅ Đổi tên **The Beggar** → **Paul Pauper** (nhân vật này CHƯA CODE — chỉ
+  đổi tên trong đặc tả `House_Rule.txt`, chờ tới lượt code thật)
+
+Cách đổi tên: viết 1 script Node.js một lần (`node ...mjs`, đọc/ghi UTF-8
+tường minh — tránh lỗi PowerShell `Get-Content`/`Set-Content` làm hỏng dấu
+tiếng Việt đã từng gặp trước đây) thay thế theo cụm từ có ranh giới từ
+(`\bThe Fair Killer\b` rồi mới tới `\bFair Killer\b` đứng riêng, tương tự cho
+6 tên còn lại) trên toàn bộ file chữ liệt kê ở trên — không đụng tới id nội
+bộ (snake_case) hay tên hàm/field (camelCase) vì các mẫu đó không có khoảng
+trắng nên không khớp regex. Đã quét lại bằng pattern mojibake đặc trưng sau
+khi sửa, không phát hiện hỏng dấu tiếng Việt. `tsc --noEmit` + `vitest run`
+(764 test) đều pass.

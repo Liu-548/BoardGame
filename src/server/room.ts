@@ -682,19 +682,19 @@ export class Room {
       case "NEED_DISCARD_MISSED_OR_DAMAGE":
         return { type: "RESPOND", playerId: top.player };
 
-      // Bộ mở rộng "custom_characters" (The Drifter) — hết giờ mặc định TỪ
+      // Bộ mở rộng "custom_characters" (Nomad Norman) — hết giờ mặc định TỪ
       // CHỐI (không kèm useShield) — giữ khiên lại để dành, an toàn hơn tự ý
       // dùng thay người chơi.
       case "NEED_USE_DRIFTER_SHIELD":
         return { type: "RESPOND", playerId: top.player };
 
-      // Bộ mở rộng "custom_characters" (The Dealer) — hết giờ mặc định TỪ
+      // Bộ mở rộng "custom_characters" (Envoy Evy) — hết giờ mặc định TỪ
       // CHỐI (không kèm useDealerTrade) — an toàn hơn tự ý tiêu 2 lá bài thay
       // người chơi.
       case "NEED_USE_DEALER_TRADE":
         return { type: "RESPOND", playerId: top.player };
 
-      // Bộ mở rộng "custom_characters" (The Sentinel) — hết giờ mặc định TỪ
+      // Bộ mở rộng "custom_characters" (Aura The Soul-Weaver) — hết giờ mặc định TỪ
       // CHỐI (không kèm reviveTarget) — an toàn hơn tự ý trừ 2 máu tối đa
       // VĨNH VIỄN của người chơi thay họ (từ chối không tiêu hao lượt dùng).
       case "NEED_SENTINEL_REVIVE":

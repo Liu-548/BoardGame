@@ -1,4 +1,4 @@
-// Bộ mở rộng "custom_characters" (The Drifter, xem House_Rule.txt mục I) —
+// Bộ mở rộng "custom_characters" (Nomad Norman, xem House_Rule.txt mục I) —
 // đầu mỗi lượt của chính mình, draw! 1 lá NGẦM (chỉ mình biết): đỏ (Cơ/Rô) thì
 // có 1 "lá chắn" tới đầu lượt kế tiếp của chính mình, có thể tự chọn dùng để
 // chặn TRỌN 1 cụm sát thương bất kỳ (kể cả Thuốc nổ 3 máu). Bí mật thật sự —
@@ -46,6 +46,7 @@ function makeState(overrides: Partial<GameState> = {}): GameState {
     joseDelgadoUsesThisTurn: 0,
     docHolydayUsedThisTurn: false,
     fairKillerUsedThisTurn: false,
+    gamblerUsesThisTurn: 0,
     vendettaUsedThisTurn: false,
     duelBangDrawPending: null,
     pendingGeneralStore: null,
@@ -69,7 +70,7 @@ function makeState(overrides: Partial<GameState> = {}): GameState {
   };
 }
 
-describe("The Drifter — draw! bí mật đầu lượt", () => {
+describe("Nomad Norman — draw! bí mật đầu lượt", () => {
   it("rút 2 lá bình thường xong -> đẩy NEED_DRAW_CHECK cho draw! bí mật", () => {
     const state = makeState({
       players: [makePlayer("a", { characterId: "the_drifter" }), makePlayer("b"), makePlayer("c")],
@@ -87,7 +88,7 @@ describe("The Drifter — draw! bí mật đầu lượt", () => {
     expect(events).toEqual([{ type: "CARDS_DRAWN", playerId: "a", count: 2 }]);
   });
 
-  it("nhân vật KHÔNG phải The Drifter -> không có draw! bí mật nào", () => {
+  it("nhân vật KHÔNG phải Nomad Norman -> không có draw! bí mật nào", () => {
     const state = makeState({
       players: [makePlayer("a"), makePlayer("b"), makePlayer("c")],
       currentPlayerIndex: 0,
@@ -198,7 +199,7 @@ describe("The Drifter — draw! bí mật đầu lượt", () => {
   });
 });
 
-describe("The Drifter — NEED_USE_DRIFTER_SHIELD luôn xuất hiện, không rò rỉ", () => {
+describe("Nomad Norman — NEED_USE_DRIFTER_SHIELD luôn xuất hiện, không rò rỉ", () => {
   it("bị Bang! trúng dù KHÔNG có lá chắn -> vẫn đẩy NEED_USE_DRIFTER_SHIELD (không lộ qua sự xuất hiện của pending)", () => {
     const state = makeState({
       players: [
@@ -229,7 +230,7 @@ describe("The Drifter — NEED_USE_DRIFTER_SHIELD luôn xuất hiện, không r�
           resume: { kind: "indians" },
         },
       ],
-      drifterShield: {}, // "a" không hề có lá chắn (chỉ "c" mới là Drifter thật ở test này)
+      drifterShield: {}, // "a" không hề có lá chắn (chỉ "c" mới là Nomad Norman thật ở test này)
     });
 
     const { state: next, events } = reduce(state, { type: "RESPOND", playerId: "a", useShield: true });
@@ -239,7 +240,7 @@ describe("The Drifter — NEED_USE_DRIFTER_SHIELD luôn xuất hiện, không r�
   });
 });
 
-describe("The Drifter — dùng lá chắn chặn TRỌN sát thương", () => {
+describe("Nomad Norman — dùng lá chắn chặn TRỌN sát thương", () => {
   it("Bang! đơn lẻ (qua NEED_MISSED) -> dùng khiên chặn trọn, không mất máu", () => {
     const state = makeState({
       players: [
@@ -307,7 +308,7 @@ describe("The Drifter — dùng lá chắn chặn TRỌN sát thương", () => {
       drifterShield: { b: true },
     });
 
-    // "a" kết thúc lượt -> sang "b" (Drifter) -> applyTurnStartChecks() hỏi khiên trước khi trừ máu High Noon.
+    // "a" kết thúc lượt -> sang "b" (Nomad Norman) -> applyTurnStartChecks() hỏi khiên trước khi trừ máu High Noon.
     const afterEndTurn = reduce(state, { type: "END_TURN", playerId: "a" });
     expect(afterEndTurn.state.pending).toEqual([
       { kind: "NEED_USE_DRIFTER_SHIELD", player: "b", amount: 1, killerId: null, resume: { kind: "high_noon_turn_start" } },
@@ -385,7 +386,7 @@ describe("The Drifter — dùng lá chắn chặn TRỌN sát thương", () => {
   });
 });
 
-describe("The Drifter — hết hạn lá chắn", () => {
+describe("Nomad Norman — hết hạn lá chắn", () => {
   it("khiên sống sót qua lượt người khác xen giữa, tới đầu lượt kế tiếp của chính mình mới bị ghi đè", () => {
     // Giả lập: đã qua lượt b, c mà không đụng gì tới khiên của a (không field
     // nào khác ghi đè drifterShield ngoài đúng 2 chỗ: draw! mới của chính chủ
@@ -408,8 +409,8 @@ describe("The Drifter — hết hạn lá chắn", () => {
   });
 });
 
-describe("The Drifter — Vera Custer mượn khả năng", () => {
-  it("Vera Custer mượn The Drifter -> cũng có draw! bí mật đầu lượt, ghi field theo ĐÚNG playerId của Vera Custer", () => {
+describe("Nomad Norman — Vera Custer mượn khả năng", () => {
+  it("Vera Custer mượn Nomad Norman -> cũng có draw! bí mật đầu lượt, ghi field theo ĐÚNG playerId của Vera Custer", () => {
     const state = makeState({
       players: [makePlayer("a", { characterId: "vera_custer" }), makePlayer("b"), makePlayer("c")],
       currentPlayerIndex: 0,
@@ -429,8 +430,8 @@ describe("The Drifter — Vera Custer mượn khả năng", () => {
   });
 });
 
-describe("The Drifter — viewFor() lọc riêng tư", () => {
-  it("viewer khác KHÔNG bao giờ thấy key drifterShield của Drifter, bất kể giá trị thật", () => {
+describe("Nomad Norman — viewFor() lọc riêng tư", () => {
+  it("viewer khác KHÔNG bao giờ thấy key drifterShield của Nomad Norman, bất kể giá trị thật", () => {
     const state = makeState({
       players: [makePlayer("a", { characterId: "the_drifter" }), makePlayer("b"), makePlayer("c")],
       drifterShield: { a: true },
@@ -443,7 +444,7 @@ describe("The Drifter — viewFor() lọc riêng tư", () => {
     expect(viewFromA.drifterShield).toEqual({ a: true }); // chính chủ thấy đúng giá trị thật
   });
 
-  it("Drifter KHÔNG có lá chắn -> viewer khác vẫn không thấy key (không suy luận được false)", () => {
+  it("Nomad Norman KHÔNG có lá chắn -> viewer khác vẫn không thấy key (không suy luận được false)", () => {
     const state = makeState({
       players: [makePlayer("a", { characterId: "the_drifter" }), makePlayer("b"), makePlayer("c")],
       drifterShield: { a: false },

@@ -75,7 +75,9 @@ mà không ảnh hưởng nhân vật *ex khác.
 
 	- Marcel Marcelo 4 máu — ✅ ĐÃ CODE XONG (core + UI hotseat/qua mạng
 	+ test, xem đánh giá sức mạnh ở mục IV). Test: test/marcel-marcelo.test.ts
-	(15 test, kể cả 1 test riêng cho ca Vera Custer mượn). Nguyên văn gốc
+	(13 test, kể cả 1 test riêng cho ca Vera Custer mượn — giảm từ 15
+	xuống 13 sau lần bỏ khoản "rút tối đa 2 lá" 2026-08-23, gộp bớt 2
+	test dư thừa). Nguyên văn gốc
 	"người ở lượt tiếp theo của người bị nhốt cũng bị nhốt theo" — ĐÃ
 	BỎ HẲN, không đưa vào code (chủ dự án xác nhận sau khi bàn: phạt
 	"lây" sang người thứ 3 không liên quan gì tới Marcel/nạn nhân gốc,
@@ -103,18 +105,17 @@ mà không ảnh hưởng nhân vật *ex khác.
 	  - Ngay khi bị nhốt tù, Marcel LẬP TỨC được chỉ định thêm 1
 	    người chơi CÒN SỐNG bất kỳ (không giới hạn khoảng cách) để
 	    "cùng vào tù" với anh ta.
-	  - Đầu lượt của Marcel (lúc kiểm tra tù): Marcel được rút TỐI ĐA
-	    2 LÁ để tìm Cơ thoát tù (rút lá 1, ra Cơ thì thoát ngay không
-	    cần rút lá 2; không phải Cơ thì rút tiếp lá 2, ra Cơ thì thoát,
-	    không thì chịu kẹt tù lượt đó) — thay vì chỉ 1 lá như luật
-	    gốc.
+	  - Đầu lượt của Marcel (lúc kiểm tra tù): Marcel rút ĐÚNG 1 LÁ để
+	    tìm Cơ thoát tù, y hệt luật gốc (ĐÃ SỬA 2026-08-23 — trước
+	    đây rút TỐI ĐA 2 lá, chủ dự án yêu cầu giới hạn lại còn 1 lá
+	    như thường).
 	  - Người được chỉ định "cùng vào tù" KHÔNG tự rút bài kiểm tra
-	    riêng — ăn theo đúng kết quả của Marcel: Marcel thoát tù (ở
-	    bước rút 1 hoặc rút 2) thì người đó cũng thoát; Marcel kẹt tù
-	    lượt đó thì người đó cũng kẹt tù lượt đó.
+	    riêng — ăn theo đúng kết quả của Marcel: Marcel thoát tù thì
+	    người đó cũng thoát; Marcel kẹt tù lượt đó thì người đó cũng
+	    kẹt tù lượt đó.
 	  - BUFF (Phương án C, đã chọn): nếu Marcel thoát tù thành công
-	    (ra Cơ ở lần rút 1 hoặc lần rút 2 — lá Cơ đó vẫn bỏ đi như
-	    luật gốc, không tính vào tay), lượt đó CHUYỂN SANG chơi bình
+	    (ra Cơ — lá Cơ đó vẫn bỏ đi như luật gốc, không tính vào tay),
+	    lượt đó CHUYỂN SANG chơi bình
 	    thường (bỏ Jail, giai đoạn rút bài như thường) NHƯNG rút 3 lá
 	    thay vì 2 ở bước rút bài đầu lượt — +1 lá thưởng "vượt tù
 	    thành công", CHỈ 1 lượt đó thôi. Chỉ áp dụng cho Marcel, KHÔNG
@@ -187,7 +188,7 @@ mà không ảnh hưởng nhân vật *ex khác.
 	  state mới GameState.pendingNobodyCheck). HOÀN TẤT TOÀN BỘ NHÂN VẬT,
 	  không còn điểm cắm nào bị bỏ dở. (Đặc tả gốc, chủ dự án đã chốt GIỮ NGUYÊN thiết kế
 	  gốc "draw! mỗi lần bị nhắm tới", KHÔNG đổi sang phương án rút-trước
-	  — phương án đó tách ra làm nhân vật riêng, xem The Drifter bên
+	  — phương án đó tách ra làm nhân vật riêng, xem Nomad Norman bên
 	  dưới). Đánh giá sức mạnh ở mục IV.
 	  Tên hiệu ứng: "chẳng ai nhắm trúng kẻ vô danh".
 
@@ -283,7 +284,7 @@ mà không ảnh hưởng nhân vật *ex khác.
 	    nên để server/UI tự gửi RESPOND ngay, chỉ hiện kết quả. Nếu
 	    không, một ván 8 người có Gatling sẽ thành tra tấn.
 
-	- The Drifter 3 máu — ⬜ CHƯA CODE. Tên gọi chỉ là đề xuất, đổi
+	- Nomad Norman 3 máu — ⬜ CHƯA CODE. Tên gọi chỉ là đề xuất, đổi
 	thoải mái. Đánh giá sức mạnh ở mục IV.
 	  - *dev đã chốt: hạ từ 4 xuống 3 máu, GIỮ 2 chất đỏ (Cơ hoặc Rô),
 	    và lá chắn huỷ TRỌN đòn Dynamite (cả 3 máu).
@@ -294,7 +295,7 @@ mà không ảnh hưởng nhân vật *ex khác.
 
 	  Tên hiệu ứng: "linh cảm kẻ lang thang".
 
-	  Khả năng: ĐẦU MỖI LƯỢT của chính mình, The Drifter draw! 1 lá
+	  Khả năng: ĐẦU MỖI LƯỢT của chính mình, Nomad Norman draw! 1 lá
 	  NGẦM (chỉ mình anh ta thấy kết quả).
 	  - Ra CƠ hoặc RÔ (tức chất ĐỎ — 55,3% khi bật Dodge City): anh ta
 	    được 1 "lá chắn".
@@ -333,12 +334,12 @@ mà không ảnh hưởng nhân vật *ex khác.
 	    thương, còn Barrel/Missed! chặn từ khâu "trúng đòn"). Chỉ hỏi
 	    dùng khiên khi đòn ĐÃ chắc chắn gây mất máu.
 	  - Đây cũng là 1 cơ chế CHẶN CÁI CHẾT nữa (chặn đòn chí mạng) —
-	    xem ghi chú thứ tự tập trung ở The Sentinel bên dưới.
+	    xem ghi chú thứ tự tập trung ở Aura The Soul-Weaver bên dưới.
 	  - Hết hạn: xoá key ở advanceTurn() khi tới lượt của chính người
 	    đó (KHÔNG reset mỗi lượt của bất kỳ ai — lá chắn phải sống sót
 	    qua lượt người khác xen giữa).
 
-	- The Dealer 4 máu — ⬜ CHƯA CODE.
+	- Envoy Evy 4 máu — ⬜ CHƯA CODE.
 	  - *dev đã chốt: BỎ HẲN lựa chọn "thương lượng 1 lá cần người đánh
 	    đồng ý" (tốn công gấp bội mà giá trị thấp — nó cần 1 pending hỏi
 	    NGƯỢC về phía kẻ tấn công, hướng chưa từng có trong dự án). Chỉ
@@ -347,7 +348,7 @@ mà không ảnh hưởng nhân vật *ex khác.
 
 	  Khả năng: mỗi khi bị nhắm bởi 1 lá có hiệu ứng Bang! (Bang!,
 	  Gatling, Punch, Springfield, Derringer, Knife, Pepperbox, Buffalo
-	  Rifle, Howitzer, đòn của Doc Holyday...), The Dealer được hỏi có
+	  Rifle, Howitzer, đòn của Doc Holyday...), Envoy Evy được hỏi có
 	  muốn bỏ 2 lá NGẪU NHIÊN trên tay, ĐƯA CHO NGƯỜI ĐÁNH LÁ ĐÓ, để VÔ
 	  HIỆU đòn đó với riêng anh ta hay không. Không giới hạn số lần,
 	  miễn còn đủ 2 lá.
@@ -363,7 +364,7 @@ mà không ảnh hưởng nhân vật *ex khác.
 	    tắc đã chốt ở Dodge City mục 1.2).
 	  - Không cần field GameState nào ⇒ không có xung đột Vera Custer.
 	  - Điểm cắm: pushMissedReaction() — cùng chỗ Barrel/Missed!. Thứ
-	    tự đề xuất: Barrel trước, rồi Missed!, rồi mới hỏi Dealer (để
+	    tự đề xuất: Barrel trước, rồi Missed!, rồi mới hỏi Envoy Evy (để
 	    anh ta không phí 2 lá khi đã đỡ được bằng 1 lá Missed!).
 		- *dev: Xét 3 trường hợp sau trường hợp nào cần bằng và phù hợp nhất:
 								+ Đưa cho người đánh 1 lá để vô hiệu Bang!
@@ -387,7 +388,7 @@ mà không ảnh hưởng nhân vật *ex khác.
 			      "không giới hạn số lần" không biến thành bất tử trước
 			      Bang!. Khớp đúng đánh giá đã ghi sẵn ở mục IV.
 
-	- The Drunker 4 máu — ✅ ĐÃ CODE XONG (2026-08-10, core + test — xem đánh
+	- Victor Boozer 4 máu — ✅ ĐÃ CODE XONG (2026-08-10, core + test — xem đánh
 	  giá sức mạnh ở mục IV). Hook mới `onOtherPlayerHealedByBeer` (xem
 	  characters.ts, cùng khuôn onAnyDeath) cắm ở đúng nhánh hồi máu chủ
 	  động của playBeer() (reduce.ts), KHÔNG cắm ở eliminateIfDead(). Test:
@@ -400,14 +401,14 @@ mà không ảnh hưởng nhân vật *ex khác.
 	  - *dev đã chốt: nâng từ 3 lên 4 máu, GIỮ nguyên điều kiện chỉ-Beer
 	    (không mở rộng sang mọi nguồn hồi máu như đề xuất ban đầu).
 
-	  Khả năng: mỗi khi BẤT KỲ ai dùng lá Beer để hồi máu, The Drunker
+	  Khả năng: mỗi khi BẤT KỲ ai dùng lá Beer để hồi máu, Victor Boozer
 	  hồi 1 máu ngay lập tức.
-	  - Không vượt quá máu tối đa của The Drunker.
+	  - Không vượt quá máu tối đa của Victor Boozer.
 	  - CHỈ lá Beer. Saloon/Tequila/Canteen/Whisky/Sid Ketchum/lá The
 	    Doctor (High Noon) đều KHÔNG kích hoạt.
 	  - Beer dùng để CỨU MẠNG (hồi sinh tự động lúc máu về 0, event
 	    BEER_SAVED_FROM_DEATH) KHÔNG kích hoạt.
-	  - [CẦN CHỐT] Beer do CHÍNH The Drunker đánh có kích hoạt không?
+	  - [CẦN CHỐT] Beer do CHÍNH Victor Boozer đánh có kích hoạt không?
 	    Nếu CÓ thì Beer hồi anh ta 2 máu — trùng hệt Tequila Joe (Dodge
 	    City) cộng thêm phần ăn theo người khác, tức mạnh hơn hẳn
 	    Tequila Joe. Đề xuất: KHÔNG (chỉ ăn theo Beer của NGƯỜI KHÁC).
@@ -419,10 +420,11 @@ mà không ảnh hưởng nhân vật *ex khác.
 	    người uống, còn đây là hồi cho NGƯỜI KHÁC).
 	  - Không cần field GameState nào ⇒ không có xung đột Vera Custer.
 
-	- The Gambler 3 máu — ✅ ĐÃ CODE XONG (2026-08-10, core + UI hotseat/qua
+	- Jonny Bettor 3 máu — ✅ ĐÃ CODE XONG (2026-08-10, core + UI hotseat/qua
 	  mạng + test — xem đánh giá sức mạnh ở mục IV). Test:
-	  test/the-gambler.test.ts (9 test, kể cả 1 test riêng cho ca Vera
-	  Custer mượn). Draw! đi qua NEED_DRAW_CHECK/resolveDrawCheck() (không
+	  test/the-gambler.test.ts (11 test, kể cả 1 test riêng cho ca Vera
+	  Custer mượn — tăng từ 9 lên 11 sau lần giới hạn 2 lần/lượt
+	  2026-08-23). Draw! đi qua NEED_DRAW_CHECK/resolveDrawCheck() (không
 	  rút thẳng) để Lucky Duke tự áp dụng đúng, không cần code riêng. Đã tự
 	  kiểm bằng trình duyệt thật (hotseat 8 người, bật "Nhân vật *ex"): bấm
 	  "Dùng kỹ năng", chọn 2 lá, xác nhận, lật bài, rút đúng 1 lá (ra chất
@@ -434,7 +436,8 @@ mà không ảnh hưởng nhân vật *ex khác.
 	  - Ra ĐỎ (Cơ/Rô — 55,3%): rút 3 lá.
 	  - Ra ĐEN (Nhép/Bích — 44,7%): rút 1 lá.
 	  - Kỳ vọng ≈ 2,11 lá cho 2 lá bỏ ra ⇒ lời nhẹ, có nhịp cược thật.
-	  - Không giới hạn số lần trong lượt, miễn còn đủ 2 lá.
+	  - Tối đa 2 LẦN/lượt, miễn còn đủ 2 lá (ĐÃ SỬA 2026-08-23 — trước đây
+	    không giới hạn số lần, chủ dự án yêu cầu giới hạn lại).
 
 	  GHI CHÚ KHI CODE:
 	  - Dùng chung action USE_ABILITY (cardIds = đúng 2 lá), đúng khuôn
@@ -449,15 +452,15 @@ mà không ảnh hưởng nhân vật *ex khác.
 	  - Lucky Duke áp dụng cho draw! này ⇒ lật 2 lá chọn lá có lợi. Tự
 	    đúng nếu đi qua resolveDrawCheck().
 
-	- The Sentinel 3 máu — ✅ ĐÃ CODE XONG (2026-08-20, core + UI hotseat/
-	  qua mạng + test — xem changelog "The Sentinel *ex" trong CHANGELOG.md).
-	  (Chính tả: "Sentinel", bản gốc ghi "Sentinal".)
+	- Aura The Soul-Weaver 3 máu — ✅ ĐÃ CODE XONG (2026-08-20, core + UI hotseat/
+	  qua mạng + test — xem changelog "Aura The Soul-Weaver *ex" trong CHANGELOG.md).
+	  (Chính tả: "Aura The Soul-Weaver", bản gốc ghi "Sentinal".)
 	  - *dev đã chốt: Chỉ được dùng khả năng ĐÚNG 1 LẦN CẢ VÁN. Như vậy
 		3 máu tối đa -> còn 1, vẫn chơi tiếp được thay vì gần như chết theo.
 
 	  Khả năng: bất kỳ lúc nào có 1 người chơi sắp bị ghi nhận CHẾT
 	  (máu về 0 và ngăn xếp pending đã rỗng), TRƯỚC KHI ghi nhận chết,
-	  hỏi The Sentinel có muốn trả 2 MÁU TỐI ĐA VĨNH VIỄN để hồi sinh
+	  hỏi Aura The Soul-Weaver có muốn trả 2 MÁU TỐI ĐA VĨNH VIỄN để hồi sinh
 	  người đó ngay lập tức không.
 	  - Người được hồi sinh sống lại với ĐÚNG 1 máu.
 	  - "2 máu tối đa vĩnh viễn" = giảm maxHp, KHÔNG phải máu hiện tại,
@@ -487,8 +490,8 @@ mà không ảnh hưởng nhân vật *ex khác.
 	      1. Bia hồi sinh tự động   (BEER_SAVED_FROM_DEATH)
 	      2. Elena Noir — Miễn Tử   (*ex)
 	      3. Teren Kill — draw! né chết (Wild West Show)
-	      4. The Drifter — lá chắn chặn đòn chí mạng (*ex)
-	      5. The Sentinel — hồi sinh NGƯỜI KHÁC (*ex)
+	      4. Nomad Norman — lá chắn chặn đòn chí mạng (*ex)
+	      5. Aura The Soul-Weaver — hồi sinh NGƯỜI KHÁC (*ex)
 	    Cộng thêm Ghost Town (High Noon), Dead Man + Bone Orchard
 	    (A Fistful of Cards / Wild West Show).
 	    KHÔNG được cài từng cái rời rạc. Phải viết MỘT danh sách thứ tự
@@ -501,11 +504,11 @@ mà không ảnh hưởng nhân vật *ex khác.
 	    bỏ hết tay/trang bị) — KHÔNG cần code thêm gì để "giữ", chỉ cần
 	    ĐỪNG gọi eliminatePlayer()/eliminateIfDead() tiếp cho người này,
 	    y hệt cách Elena Noir/Bia hồi sinh đang chặn trước hàm đó.
-	  - Pending mới NEED_SENTINEL_REVIVE (hỏi The Sentinel, không phải
+	  - Pending mới NEED_SENTINEL_REVIVE (hỏi Aura The Soul-Weaver, không phải
 	    hỏi người sắp chết). [ĐỔI STATE]
 	  - checkWinCondition() KHÔNG được chạy trước khi hỏi xong.
 
-	- The Fair Killer 4 máu — ✅ ĐÃ CODE XONG (2026-08-10, core + UI hotseat/
+	- The DareDevil 4 máu — ✅ ĐÃ CODE XONG (2026-08-10, core + UI hotseat/
 	  qua mạng + test — xem đánh giá sức mạnh ở mục IV). Test:
 	  test/the-fair-killer.test.ts (14 test, kể cả 1 test riêng cho ca Vera
 	  Custer mượn, 1 test xác nhận KHÔNG bị Apache Kid miễn nhiễm, 1 test
@@ -513,7 +516,7 @@ mà không ảnh hưởng nhân vật *ex khác.
 	  thật (hotseat 8 người, bật "Nhân vật *ex"): bấm "Dùng kỹ năng", chọn
 	  mục tiêu ở xa (bỏ qua khoảng cách), mất đúng 1 máu, ghi log đúng —
 	  không lỗi console. (Tên lệch khuôn "The X" của cả
-	  nhóm, cân nhắc đổi thành "The Fair Killer".)
+	  nhóm, cân nhắc đổi thành "The DareDevil".)
 	  - *dev đã chốt: MẤT MÁU kể cả khi đòn bị đỡ bằng Missed!. Và CHẶN
 	    không cho dùng khi chỉ còn 1 máu (không cho tự sát).
 
@@ -654,7 +657,7 @@ mà không ảnh hưởng nhân vật *ex khác.
 	    ném lỗi lạ.
 	  - Lá thật sau khi lật: vào chồng bài bỏ như bình thường.
 
-	- The Beggar 4 máu — ⬜ CHƯA CODE. Đánh giá sức mạnh ở mục IV.
+	- Paul Pauper 4 máu — ⬜ CHƯA CODE. Đánh giá sức mạnh ở mục IV.
 	  - *dev đã chốt: TÁCH ĐÔI ý tưởng gốc "The Thief". Hiệu ứng "ăn
 	    theo người đánh nhiều bài" ở lại đây; hiệu ứng "cướp bài đầu
 	    lượt" chuyển sang The Thief bên dưới.
@@ -667,16 +670,16 @@ mà không ảnh hưởng nhân vật *ex khác.
 	  hỏi lại và xác nhận KHÔNG đổi.
 
 	  Khả năng: mỗi khi 1 NGƯỜI CHƠI KHÁC đánh HƠN 3 LÁ trong lượt của
-	  họ, thì từ lá thứ 4 trở đi, MỖI lá làm The Beggar được draw! 1
-	  lần. Ra CƠ hoặc RÔ (đỏ — 55,3%) thì lá đó về tay The Beggar.
+	  họ, thì từ lá thứ 4 trở đi, MỖI lá làm Paul Pauper được draw! 1
+	  lần. Ra CƠ hoặc RÔ (đỏ — 55,3%) thì lá đó về tay Paul Pauper.
 
-	  - KHÔNG tính lượt của chính The Beggar.
+	  - KHÔNG tính lượt của chính Paul Pauper.
 
 	  *** THIẾT KẾ LẠI (2026-08-09) — CHẶN HẲN HIỆU ỨNG, ÁP DỤNG MỌI LOẠI
 	  LÁ *** — đảo ngược hoàn toàn quyết định cũ ("lá vẫn phát tác bình
 	  thường, chỉ nhặt xác"):
 	  - Ra đỏ: lá đó BỊ VÔ HIỆU HOÀN TOÀN — hiệu ứng KHÔNG xảy ra (kể cả
-	    khi có lợi cho người đánh) — VÀ lá đi THẲNG vào tay The Beggar
+	    khi có lợi cho người đánh) — VÀ lá đi THẲNG vào tay Paul Pauper
 	    thay vì vào chồng bỏ/gắn lên sân.
 	  - ÁP DỤNG CHO MỌI LOẠI LÁ, không chỉ lá có mục tiêu:
 	    · Lá nâu có mục tiêu (Bang!, Panic!, Cat Balou, Jail...): không
@@ -686,12 +689,12 @@ mà không ảnh hưởng nhân vật *ex khác.
 	      TRẮNG cả lá LẪN tác dụng — vd Xe ngựa bị chặn thì KHÔNG rút
 	      được 2 lá đó (chứ không phải rút xong rồi mới bị nhặt lại).
 	    · Lá trang bị (xanh dương/vàng): KHÔNG gắn lên sân — đi thẳng
-	      vào tay The Beggar. Không có "hiệu ứng" nào để chặn (trang bị
+	      vào tay Paul Pauper. Không có "hiệu ứng" nào để chặn (trang bị
 	      không tự phát tác ngay), chỉ đơn giản đổi hướng đi.
 	  - HỆ QUẢ CÂN BẰNG (khác hẳn bản cũ): đây KHÔNG còn là "nhặt xác vô
 	    hại" nữa — giờ là 1 dạng PHỦ NHẬN THẬT SỰ, có thể huỷ trắng 1
 	    lượt xả bài lớn của đối thủ (vd họ đánh súng mới + Barrel + Bang!
-	    ở lá thứ 4/5, ra đỏ thì Bang! đó KHÔNG XẢY RA và Beggar còn được
+	    ở lá thứ 4/5, ra đỏ thì Bang! đó KHÔNG XẢY RA và Paul Pauper còn được
 	    thêm bài). Cần ĐÁNH GIÁ LẠI cân bằng ở mục IV — bản đánh giá "YẾU
 	    vì tần suất" trước đó viết cho thiết kế CŨ (chỉ nhặt xác), không
 	    còn đúng hoàn toàn với sức mạnh thật của thiết kế MỚI.
@@ -706,7 +709,7 @@ mà không ảnh hưởng nhân vật *ex khác.
 	  nếu sau này chơi thử thấy quá mạnh — thử TRƯỚC KHI nghĩ tới hạ
 	  máu:
 	    · GIỚI HẠN 1 LẦN DRAW!/LƯỢT của mỗi đối phương (kể cả họ xả bao
-	      nhiêu lá vượt ngưỡng, Beggar chỉ thử đúng 1 lần cho lá ĐẦU
+	      nhiêu lá vượt ngưỡng, Paul Pauper chỉ thử đúng 1 lần cho lá ĐẦU
 	      TIÊN đủ điều kiện trong lượt đó, không thử tiếp cho các lá
 	      sau). Cắt gần hết phần đuôi rủi ro cao (80-91% trúng ít nhất 1
 	      trong lượt xả 5-6 lá) mà GẦN NHƯ KHÔNG đụng giá trị trung bình
@@ -714,7 +717,7 @@ mà không ảnh hưởng nhân vật *ex khác.
 	    · Chỉ hạ máu nếu cần gạt trên vẫn chưa đủ — đúng thứ tự "rẻ
 	      trước, đắt sau" đã dùng cho mọi nhân vật khác trong file này.
 	  Giữ đúng tinh thần "đo bằng chơi thật rồi mới chỉnh" đã áp dụng
-	  nhất quán cho Elena Noir/The Nobody/The Drifter — KHÔNG tự ý nerf
+	  nhất quán cho Elena Noir/The Nobody/Nomad Norman — KHÔNG tự ý nerf
 	  trước khi có bằng chứng thật từ playtest.
 
 	  GHI CHÚ KHI CODE (VIẾT LẠI — đây giờ là nhân vật *ex TỐN CÔNG,
@@ -735,9 +738,9 @@ mà không ảnh hưởng nhân vật *ex khác.
 	    reduce.ts, rủi ro ảnh hưởng dây chuyền tới MỌI lá bài, cần rà
 	    kỹ hơn bất kỳ nhân vật *ex nào khác kể cả Jeff The Clown.
 	  - Luồng đề xuất: đếm `cardsPlayedThisTurn` TRƯỚC (biết đây có phải
-	    lá thứ 4+ không) -> nếu có -> đẩy NEED_DRAW_CHECK cho Beggar,
+	    lá thứ 4+ không) -> nếu có -> đẩy NEED_DRAW_CHECK cho Paul Pauper,
 	    CHỜ kết quả rồi MỚI quyết định gọi play*() thật hay chuyển
-	    thẳng lá vào tay Beggar (không gọi play*() gì cả).
+	    thẳng lá vào tay Paul Pauper (không gọi play*() gì cả).
 	  - Kỹ năng BẮT BUỘC, không có lựa chọn ⇒ để server/UI tự gửi
 	    RESPOND cho draw!, đừng bắt bấm nút (giống The Nobody).
 	  - Không cần field theo playerId ⇒ không xung đột Vera Custer.
@@ -791,7 +794,7 @@ mà không ảnh hưởng nhân vật *ex khác.
 	  - KẾT LUẬN TẠM: nằm ở vùng "cân bằng, có thể hơi nhẹ" — không rõ
 	    ràng như phương án THAY THẾ cũ (neo thẳng Jesse Jones), cần chơi
 	    thử/mô phỏng bot thật để biết chắc (xem "CÁCH ĐO THỰC TẾ" ở mục
-	    IV, phần The Nobody/The Drifter).
+	    IV, phần The Nobody/Nomad Norman).
 
 	  GHI CHÚ KHI CODE (CẦN VIẾT LẠI so với bản GHI CHÚ cũ — nhẹ hơn
 	  hẳn nhờ chỉ còn 1 mục tiêu):
@@ -958,10 +961,10 @@ chủ dự án là người quyết định cuối cùng có giữ nguyên hay c
 	  "dùng tới" trong 1 ván thấp hơn nhiều — nhiều ván có thể trôi
 	  qua mà Marcel không hề bị Jail, khả năng này coi như không tồn
 	  tại.
-	- Khi ĐÃ kích hoạt: 2 lần rút để thoát tù nâng xác suất thoát từ
-	  ~25% (luật gốc, cần ra Cơ) lên ~44% — cải thiện thật nhưng vẫn
-	  hơn nửa số lần bị nhốt là kẹt tù trọn lượt, không phải "thoát
-	  gần như chắc chắn".
+	- Khi ĐÃ kích hoạt: rút ĐÚNG 1 lá để thoát tù, xác suất thoát y hệt
+	  luật gốc ~25% (ĐÃ SỬA 2026-08-23 — trước đây rút 2 lần, nâng lên
+	  ~44%; chủ dự án yêu cầu bỏ khoản này). Phần "thoát thì rút 3 lá
+	  thay vì 2" ở lượt kế tiếp VẪN GIỮ NGUYÊN.
 	- Khoản "lôi thêm 1 người cùng vào tù" không tăng khả năng thoát
 	  của Marcel, chỉ thêm 1 người khác cùng bị ảnh hưởng — đây là
 	  hiệu ứng "trả đũa/gây khó chịu cho đối phương" nhiều hơn là sức
@@ -1102,7 +1105,7 @@ chủ dự án là người quyết định cuối cùng có giữ nguyên hay c
 	  Khả năng của Apache Kid làm đối thủ ĐỔI QUYẾT ĐỊNH (nhìn bài,
 	  giữ lá Rô lại). Khả năng này chỉ làm họ TUNG XÚC XẮC SAU KHI đã
 	  quyết. Trong game suy luận xã hội, cái sau luôn kém hơn dù tỉ lệ
-	  thắng có bằng nhau. Đây là lý do The Drifter được tách ra làm
+	  thắng có bằng nhau. Đây là lý do Nomad Norman được tách ra làm
 	  nhân vật riêng — cùng ý tưởng nhưng CÓ đất bluff.
 
 	Đề xuất (tham khảo, chủ dự án quyết): nếu chơi thử thấy quá mạnh,
@@ -1114,7 +1117,7 @@ chủ dự án là người quyết định cuối cùng có giữ nguyên hay c
 	     đẹp nhất — không khuyến khích).
 	KHÔNG nên hạ máu: 3 đã là mức thấp nhất trong toàn bộ BANG!.
 
-	The Drifter *ex — ✅ VIẾT LẠI HOÀN TOÀN (2026-08-09): bản dưới đây
+	Nomad Norman *ex — ✅ VIẾT LẠI HOÀN TOÀN (2026-08-09): bản dưới đây
 	có 2 lỗi — (1) dùng nhầm 0,296 (tỉ lệ Cơ) thay vì tỉ lệ ĐỎ thật
 	(Cơ+Rô = 55,3%) mà luật quy định; (2) kết luận "để 4 máu là hợp
 	lý" viết TRƯỚC khi *dev chốt hạ xuống 3 máu, chưa từng cập nhật.
@@ -1122,7 +1125,7 @@ chủ dự án là người quyết định cuối cùng có giữ nguyên hay c
 	tình huống bị DỒN HOẢ LỰC.
 
 	SO SÁNH ĐÚNG với Jourdonnais (4 máu, Barrel ảo, tung xu ĐỘC LẬP mỗi
-	lần bị Bang!, chỉ chống lá "kiểu Bang!"): The Drifter (3 máu) draw!
+	lần bị Bang!, chỉ chống lá "kiểu Bang!"): Nomad Norman (3 máu) draw!
 	ĐẦU MỖI LƯỢT CỦA CHÍNH MÌNH, ra đỏ (55,3%) thì có 1 khiên SỐNG tới
 	lượt kế tiếp của chính mình (qua hết mọi lượt người khác xen giữa),
 	dùng được CHẮC CHẮN 100% cho ĐÚNG 1 đòn bất kỳ (tự chọn đòn nào),
@@ -1131,16 +1134,16 @@ chủ dự án là người quyết định cuối cùng có giữ nguyên hay c
 
 	*** ĐIỂM MẤU CHỐT — 2 KỊCH BẢN CHO KẾT QUẢ NGƯỢC NHAU HẲN *** (phát
 	hiện sau khi chủ dự án hỏi lại "bị dồn 3-4 phát thì sao"):
-	  · Bị nhắm ĐƠN LẺ (1 đòn/vòng): Drifter THẮNG rõ — 55,3% chặn chắc
+	  · Bị nhắm ĐƠN LẺ (1 đòn/vòng): Nomad Norman THẮNG rõ — 55,3% chặn chắc
 	    chắn so với 29,6% tung xu của Jourdonnais, cộng phạm vi rộng
 	    hơn hẳn.
 	  · Bị DỒN HOẢ LỰC (vd 3 phát Bang! cùng vòng): Jourdonnais tung xu
 	    RIÊNG cho từng đòn (độc lập) nên càng bị dồn càng có nhiều cơ
-	    hội — kỳ vọng chặn được 3×0,296 ≈ 0,89 đòn. The Drifter CỨNG ở
+	    hội — kỳ vọng chặn được 3×0,296 ≈ 0,89 đòn. Nomad Norman CỨNG ở
 	    "chặn tối đa 1 đòn/vòng" dù bị bắn bao nhiêu — kỳ vọng chỉ
 	    0,553×1 ≈ 0,55 đòn. TRONG TÌNH HUỐNG NÀY JOURDONNAIS CHẶN ĐƯỢC
-	    NHIỀU HƠN, không phải Drifter.
-	  Vì The Drifter chỉ 3 máu (dễ thành mục tiêu bị dồn nhất bàn), 2
+	    NHIỀU HƠN, không phải Nomad Norman.
+	  Vì Nomad Norman chỉ 3 máu (dễ thành mục tiêu bị dồn nhất bàn), 2
 	  hiệu ứng gần như TRIỆT TIÊU NHAU: mạnh hơn đúng lúc ít bị chú ý
 	  (bị nhắm đơn lẻ), yếu hơn đúng lúc dễ gặp nhất với máu thấp của
 	  chính mình (bị dồn hoả lực) — bản thân luật "chỉ 1 lần/vòng" đã
@@ -1149,7 +1152,7 @@ chủ dự án là người quyết định cuối cùng có giữ nguyên hay c
 	  thiết kế gốc.
 
 	- Có ĐỐI PHÓ THẬT qua bluff: đối phương không biết anh ta có khiên
-	  hay không. Người chơi The Drifter cũng có thể "diễn" — hành xử
+	  hay không. Người chơi Nomad Norman cũng có thể "diễn" — hành xử
 	  như đang có khiên để răn đe. Đây là thứ The Nobody hoàn toàn
 	  thiếu, và là lý do chính đáng để 2 nhân vật cùng tồn tại.
 	- Sức mạnh có xu hướng tăng nhẹ theo SỐ NGƯỜI CHƠI: khiên "sống"
@@ -1170,7 +1173,7 @@ chủ dự án là người quyết định cuối cùng có giữ nguyên hay c
 	trên gần như triệt tiêu nhau nên KHÔNG rõ ràng đây là nhân vật quá
 	mạnh (khác The Nobody — nơi mọi so sánh đều nghiêng 1 chiều). Nếu
 	sau chơi thử thật thấy vẫn mạnh (vd nhóm ít khi dồn hoả lực, để
-	Drifter tự do sống lâu ăn hết phần lợi "bị nhắm đơn lẻ"), cần gạt
+	Nomad Norman tự do sống lâu ăn hết phần lợi "bị nhắm đơn lẻ"), cần gạt
 	rẻ nhất là đổi "đỏ" (2 chất, 55,3%) xuống 1 chất — đề xuất Cơ
 	(29,6%, bằng đúng Jourdonnais) — để dành, CHƯA áp dụng.
 
@@ -1182,22 +1185,22 @@ chủ dự án là người quyết định cuối cùng có giữ nguyên hay c
 	với trung bình. Bot đánh ngẫu nhiên nên không đo được kỹ năng,
 	nhưng đo lệch thô thì rất tốt — và rẻ hơn nhiều so với ngồi đoán
 	trên giấy. LƯU Ý (2026-08-09): cách đo này KÉM TIN CẬY HƠN cho The
-	Beggar cụ thể (xem đánh giá riêng ở dưới) — bot không biết "né" xả
-	nhiều lá như người thật biết bàn có Beggar, số đo sẽ cao hơn thực
+	Paul Pauper cụ thể (xem đánh giá riêng ở dưới) — bot không biết "né" xả
+	nhiều lá như người thật biết bàn có Paul Pauper, số đo sẽ cao hơn thực
 	tế.
 
 	✅ RÀ SOÁT LẠI TOÀN BỘ (2026-08-09): đối chiếu số liệu nền (đếm thật
 	từ cards.ts, xác nhận bảng ở trên ĐÚNG 100%) với từng công thức
 	riêng của 9 nhân vật chưa code. Chỉ phát hiện lỗi số liệu ở The
-	Nobody và The Drifter (đã sửa ở 2 đoạn trên — cả 2 đều nhầm 29,6%
-	là tỉ lệ kích hoạt trong khi luật thật khác). The Dealer/The
-	Drunker/The Gambler/The Sentinel/Fair Killer/Jeff The Clown/The
+	Nobody và Nomad Norman (đã sửa ở 2 đoạn trên — cả 2 đều nhầm 29,6%
+	là tỉ lệ kích hoạt trong khi luật thật khác). Envoy Evy/The
+	Victor Boozer/Jonny Bettor/Aura The Soul-Weaver/DareDevil/Jeff The Clown/The
 	Thief đã kiểm tra lại công thức và số đếm bài liên quan — KHÔNG
 	phát hiện sai sót, giữ nguyên đánh giá đã ghi.
 
 	--- 6 NHÂN VẬT *ex ĐỢT 2 (sau khi đã áp dụng chỉnh sửa của *dev) ---
 
-	The Drifter *ex (3 máu, 2 chất đỏ, huỷ trọn đòn kể cả Dynamite) —
+	Nomad Norman *ex (3 máu, 2 chất đỏ, huỷ trọn đòn kể cả Dynamite) —
 	MẠNH nhưng chấp nhận được ở 3 máu. Đổi 1 máu lấy 55,3% số vòng có
 	"1 lá Missed! vạn năng, tự chọn thời điểm, không bao giờ bị phí"
 	là cuộc trao đổi hời, nhưng 3 máu khiến anh ta chết rất nhanh
@@ -1207,7 +1210,7 @@ chủ dự án là người quyết định cuối cùng có giữ nguyên hay c
 	(3 máu) là cú swing rất lớn, hơn nửa số vòng anh ta coi như miễn
 	nhiễm mìn.
 
-	The Dealer *ex (4 máu) — CÂN BẰNG, thiết kế tốt nhất đợt này, VỚI
+	Envoy Evy *ex (4 máu) — CÂN BẰNG, thiết kế tốt nhất đợt này, VỚI
 	ĐIỀU KIỆN 2 lá bỏ ra ĐI SANG TAY KẺ TẤN CÔNG. Lúc đó tỉ giá "2 lá
 	đổi 1 lần né" gần y hệt Sid Ketchum, nhưng có thêm cái giá thật là
 	tự vũ trang cho đối thủ — chính khoản đó giữ cho việc "không giới
@@ -1219,7 +1222,7 @@ chủ dự án là người quyết định cuối cùng có giữ nguyên hay c
 	3 trường hợp (1 lá cho người đánh / 2 lá cho người đánh / 2 lá vào
 	chồng bỏ) — xem *dev ở phần đặc tả.
 
-	The Drunker *ex (4 máu) — YẾU, và điểm yếu nằm ở CHỖ KHÁC chứ
+	Victor Boozer *ex (4 máu) — YẾU, và điểm yếu nằm ở CHỖ KHÁC chứ
 	không phải con số máu. Bộ bài chỉ có 8 lá Beer (6 cơ bản + 2 Dodge
 	City), mà phần lớn Beer được giữ tới lúc nguy cấp — tức dùng để
 	cứu mạng, mà cứu mạng thì đã loại trừ. Thực tế 1-3 lần kích hoạt
@@ -1229,14 +1232,15 @@ chủ dự án là người quyết định cuối cùng có giữ nguyên hay c
 	nguồn hồi máu của người khác, không riêng Beer) chứ không phải
 	tăng máu nữa.
 
-	The Gambler *ex (4 máu, bỏ 2 lá + draw!) — CÂN BẰNG. Kỳ vọng 2,11
+	Jonny Bettor *ex (4 máu, bỏ 2 lá + draw!) — CÂN BẰNG. Kỳ vọng 2,11
 	lá cho 2 lá bỏ ra: lời nhẹ, đủ để đáng bấm, không đủ để phá game.
 	Bản gốc "bỏ 2 rút 1" là lỗ bài thuần tuý nên gần như không ai
-	dùng — bản này sửa đúng vấn đề đó. Điểm cộng: không giới hạn số
-	lần nhưng tự giới hạn bằng chính số bài trên tay, và mỗi lần bấm
-	đều có rủi ro thật.
+	dùng — bản này sửa đúng vấn đề đó. Điểm cộng: tự giới hạn bằng
+	chính số bài trên tay, và mỗi lần bấm đều có rủi ro thật.
+	(ĐÃ SỬA 2026-08-23: giới hạn thêm còn tối đa 2 LẦN/lượt — trước
+	đây không giới hạn số lần, chủ dự án yêu cầu giới hạn lại.)
 
-	The Sentinel *ex (4 máu, 1 lần/ván) — TRUNG BÌNH, thiên về ÍT ĐẤT
+	Aura The Soul-Weaver *ex (4 máu, 1 lần/ván) — TRUNG BÌNH, thiên về ÍT ĐẤT
 	DIỄN giống Marcel Marcelo. 4 máu trả 2 còn 2 là cái giá nặng nhưng
 	sống được, đúng mức để người chơi phải cân nhắc thật chứ không
 	loại trừ thẳng như bản 3 máu. Giá trị thật phụ thuộc HOÀN TOÀN vào
@@ -1244,7 +1248,7 @@ chủ dự án là người quyết định cuối cùng có giữ nguyên hay c
 	là nước lật kèo cuối ván rất mạnh; mất hết bài thì hồi sinh 1 máu
 	tay trắng gần như vô nghĩa và khả năng sẽ không bao giờ được dùng.
 
-	Fair Killer *ex (4 máu) — CÂN BẰNG, hơi thiên YẾU, không cần chỉnh.
+	DareDevil *ex (4 máu) — CÂN BẰNG, hơi thiên YẾU, không cần chỉnh.
 	1 máu đổi 1 phát Bang! CÓ THỂ BỊ ĐỠ là tỉ giá đắt (Chuck Wengam
 	trả cùng 1 máu lấy 2 lá, thường giá trị hơn). Giá trị thật nằm ở
 	TẦM BẮN VÔ HẠN — bắn tỉa Sheriff từ đầu kia bàn, hoặc kết liễu mục
@@ -1274,7 +1278,7 @@ chủ dự án là người quyết định cuối cùng có giữ nguyên hay c
 	  ĐỪNG tăng máu trước khi biết chắc — rất dễ thành nhân vật vừa
 	  khó chịu vừa khó giết.
 
-	The Beggar *ex (4 máu) — ✅ ĐÁNH GIÁ LẠI (2026-08-09): đoạn dưới đây
+	Paul Pauper *ex (4 máu) — ✅ ĐÁNH GIÁ LẠI (2026-08-09): đoạn dưới đây
 	viết cho bản CŨ ("chỉ nhặt xác, không chặn hiệu ứng") — ĐÃ LỖI THỜI
 	sau khi thiết kế lại thành "chặn hẳn + áp dụng mọi loại lá". Giữ lại
 	nguyên văn để đối chiếu lịch sử, đánh giá MỚI viết ngay sau.
@@ -1303,17 +1307,17 @@ chủ dự án là người quyết định cuối cùng có giữ nguyên hay c
 	  huỷ luôn lượt xả Barrel+Scope+Mustang) có thể đổi cả cục diện ván,
 	  không phải chuyện nhỏ.
 	- Rủi ro ngược cho người bị nhắm: nếu đối thủ CHỦ Ý xả >3 lá NÂU
-	  không nhắm ai để "câu" Beggar chặn nhầm phe mình (vd tự đánh Bia/
+	  không nhắm ai để "câu" Paul Pauper chặn nhầm phe mình (vd tự đánh Bia/
 	  Xe ngựa dư thừa để nhử), khả năng có thể bị LỢI DỤNG NGƯỢC — cần
 	  chơi thử mới biết mức độ thật.
 	- KHÔNG CÒN AN TOÀN Ở MỨC "4 máu không kỹ năng" nữa — cần đánh giá
 	  lại từ đầu bằng bot-simulation thật (xem "CÁCH ĐO THỰC TẾ" ở
-	  The Nobody/The Drifter) trước khi coi đây là nhân vật yếu.
+	  The Nobody/Nomad Norman) trước khi coi đây là nhân vật yếu.
 	- Cái giá bù lại: tần suất vẫn thấp (không phải mỗi lượt), và hiệu
 	  ứng CHỈ xảy ra khi đối thủ TỰ CHỌN xả nhiều bài — người chơi giỏi
 	  có thể né bằng cách chia nhỏ lượt xả bài qua nhiều lượt nếu biết
-	  bàn có Beggar (lại tạo ra 1 lớp đối phó/bluff nữa, giống The
-	  Drifter — điểm cộng thiết kế không ngờ tới).
+	  bàn có Paul Pauper (lại tạo ra 1 lớp đối phó/bluff nữa, giống The
+	  Nomad Norman — điểm cộng thiết kế không ngờ tới).
 
 	[ĐÁNH GIÁ LẦN 2 (2026-08-09), sau khi tính kỹ bằng số] Bản trên vẫn
 	còn hời hợt ở chỗ lẫn "tần suất kích hoạt" với "giá trị mỗi lần
@@ -1324,14 +1328,14 @@ chủ dự án là người quyết định cuối cùng có giữ nguyên hay c
 	      2 lá dư: P(trúng ≥1) = 80,0%, kỳ vọng 1,11 lần
 	      3 lá dư: P(trúng ≥1) = 91,1%, kỳ vọng 1,66 lần
 	  ⇒ Đúng lượt "kết liễu" kiểu Willy the Kid (xả 4-5 Bang! liên tiếp,
-	  không giới hạn 1 Bang!/lượt) — Beggar có 80-91% HUỶ ĐƯỢC ÍT NHẤT 1
-	  PHÁT. The Beggar gần như là KHẮC TINH CẤU TRÚC của lối chơi
+	  không giới hạn 1 Bang!/lượt) — Paul Pauper có 80-91% HUỶ ĐƯỢC ÍT NHẤT 1
+	  PHÁT. Paul Pauper gần như là KHẮC TINH CẤU TRÚC của lối chơi
 	  Willy the Kid — đáng chú ý khi playtest có mặt cả 2.
 	- GIÁ TRỊ RĂN ĐE bị bỏ sót ở bản đánh giá lần 1: ngay cả KHÔNG trúng
-	  lần nào cả ván, sự tồn tại của Beggar vẫn có thể buộc đối thủ TỰ
+	  lần nào cả ván, sự tồn tại của Paul Pauper vẫn có thể buộc đối thủ TỰ
 	  GIỚI HẠN số lá đánh/lượt (né lượt trang bị lớn/combo lớn) — đúng
 	  loại "đối phó thật, làm đối thủ đổi quyết định" mà The Nobody bị
-	  chê THIẾU. The Beggar CÓ đặc điểm này.
+	  chê THIẾU. Paul Pauper CÓ đặc điểm này.
 	- "Rủi ro bị lợi dụng ngược" (nhử mồi bằng lá rác) nêu ở bản trên
 	  SAI — mỗi lá kiểm tra ĐỘC LẬP theo đúng thứ tự đánh, không có
 	  chuyện "dùng hết lượt kiểm tra" bằng 1 lá nhử. Rút lại lo ngại
@@ -1348,7 +1352,7 @@ chủ dự án là người quyết định cuối cùng có giữ nguyên hay c
 	nhẹ hơn (giới hạn 1 lần/lượt) đã thử mà vẫn chưa đủ.
 	LƯU Ý ĐO LƯỜNG: bot-simulation (vốn được đề xuất chung cho cả nhóm)
 	KÉM TIN CẬY HƠN với riêng nhân vật này — bot đánh ngẫu nhiên không
-	biết "né" xả nhiều lá như người thật biết bàn có Beggar, nên số đo
+	biết "né" xả nhiều lá như người thật biết bàn có Paul Pauper, nên số đo
 	từ bot sẽ CAO HƠN thực tế chơi với người.
 
 	The Thief *ex — ✅ ĐÁNH GIÁ LẠI (2026-08-09) theo thiết kế MỚI (3

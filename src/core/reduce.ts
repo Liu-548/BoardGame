@@ -215,7 +215,7 @@ function completeDrawPhase(next: GameState, player: PlayerState, events: GameEve
       matchSuits: ["hearts", "diamonds"],
     });
   }
-  // Bộ mở rộng "custom_characters" (The Drifter, xem House_Rule.txt mục I) —
+  // Bộ mở rộng "custom_characters" (Nomad Norman, xem House_Rule.txt mục I) —
   // draw! BÍ MẬT đầu lượt CHÍNH mình, cùng khuôn The Thief ở trên (đẩy ở đúng
   // 1 điểm cuối pha rút, KHÔNG đẩy ở Bước 0/applyJailCheck() — tự phát hiện đặt
   // ở đó sẽ SAI vì Lasso khiến applyJailCheck() không bao giờ chạy tới, và bị
@@ -1277,7 +1277,7 @@ function pushMissedReaction(
 // đã chốt), nên gọi hàm này SAU CÙNG, sau khi mọi NEED_DRAW_CHECK Barrel (nếu
 // có) đã được đẩy — nhờ vậy check của The Nobody luôn nằm trên đỉnh, giải
 // quyết trước cả Barrel. Không có gì để hỏi (bắt buộc) nên không cần hàm
-// "maybeAsk" trả về boolean như Drifter/Sentinel — gọi xong là chạy tiếp bình
+// "maybeAsk" trả về boolean như Nomad Norman/Aura The Soul-Weaver — gọi xong là chạy tiếp bình
 // thường, resolveDrawCheck() sẽ tự dừng đúng chỗ khi tới lượt xử lý.
 function maybePushNobodyDrawCheck(next: GameState, target: PlayerState): void {
   if (getEffectiveCharacterDefinition(next, target)?.hasNobodyImmunity !== true) return;
@@ -1331,7 +1331,7 @@ function pushMissedReactionUnconditional(
   // Bộ mở rộng "custom_characters" (The Nobody) — SAU CÙNG, đè lên cả Barrel
   // (xem ghi chú maybePushNobodyDrawCheck()). Dùng CHUNG cho MỌI đòn "kiểu
   // Bang!" đi qua đây (Bang!/Gatling/Punch/Springfield/Derringer/Knife/
-  // Pepperbox/Buffalo Rifle/Howitzer/Doc Holyday/Fair Killer/Sniper/A Fistful
+  // Pepperbox/Buffalo Rifle/Howitzer/Doc Holyday/DareDevil/Sniper/A Fistful
   // of Cards) — đúng 1 điểm cắm cho cả nhóm, không rải theo từng lá.
   maybePushNobodyDrawCheck(next, target);
   return [];
@@ -2275,7 +2275,7 @@ function playBeer(next: GameState, player: PlayerState, cardId: string): Result 
     if (restored > 0) {
       player.hp += restored;
       events.push({ type: "HP_RESTORED", playerId: player.id, amount: restored });
-      // Bộ mở rộng "custom_characters" (The Drunker, xem House_Rule.txt mục
+      // Bộ mở rộng "custom_characters" (Victor Boozer, xem House_Rule.txt mục
       // I) — ăn theo Beer của NGƯỜI KHÁC, CHỈ khi Beer THẬT SỰ hồi máu (restored
       // > 0). Loại chính người vừa uống ra khỏi vòng lặp — Beer tự đánh không
       // ăn theo, đúng *dev đã chốt.
@@ -2600,14 +2600,15 @@ function useDocHolydayShot(
   };
 }
 
-// Bộ mở rộng "custom_characters" (The Gambler, xem House_Rule.txt mục I) —
-// CHỈ dùng được TRONG lượt của chính mình (khác Sid Ketchum), KHÔNG giới hạn
-// số lần (khác Doc Holyday/José Delgado): bỏ ĐÚNG 2 lá KHÁC NHAU bất kỳ rồi
-// draw! (source.card = "the_gambler") — đẩy pending rồi TRẢ VỀ NGAY (quy tắc
-// 4 CLAUDE.md), resolveDrawCheck() mới thật sự rút 3 lá (khớp đỏ) hay 1 lá
-// (không khớp). Đẩy pending qua NEED_DRAW_CHECK thay vì rút thẳng — để Lucky
-// Duke (lật thêm 1 lá, lấy kết quả có lợi) áp dụng ĐÚNG cho draw! này mà
-// không cần code riêng, xem resolveDrawCheck().
+// Bộ mở rộng "custom_characters" (Jonny Bettor, xem House_Rule.txt mục I) —
+// CHỈ dùng được TRONG lượt của chính mình (khác Sid Ketchum), tối đa 2
+// LẦN/lượt (đếm bằng GameState.gamblerUsesThisTurn, reset ở advanceTurn(),
+// giống José Delgado — ĐÃ SỬA 2026-08-23, trước đây không giới hạn): bỏ ĐÚNG
+// 2 lá KHÁC NHAU bất kỳ rồi draw! (source.card = "the_gambler") — đẩy pending
+// rồi TRẢ VỀ NGAY (quy tắc 4 CLAUDE.md), resolveDrawCheck() mới thật sự rút 3
+// lá (khớp đỏ) hay 1 lá (không khớp). Đẩy pending qua NEED_DRAW_CHECK thay vì
+// rút thẳng — để Lucky Duke (lật thêm 1 lá, lấy kết quả có lợi) áp dụng ĐÚNG
+// cho draw! này mà không cần code riêng, xem resolveDrawCheck().
 function useGamblerDraw(
   state: GameState,
   action: Action & { type: "USE_ABILITY" },
@@ -2617,6 +2618,9 @@ function useGamblerDraw(
   assertPhase(state, "play");
   if (state.pending.length > 0) {
     throw new Error("Không thể dùng kỹ năng khi còn việc đang chờ xử lý");
+  }
+  if (state.gamblerUsesThisTurn >= 2) {
+    throw new Error("Đã dùng kỹ năng này đủ 2 lần trong lượt này");
   }
   const [cardId1, cardId2] = action.cardIds;
   if (cardId1 === undefined || cardId2 === undefined || action.cardIds.length !== 2 || cardId1 === cardId2) {
@@ -2636,6 +2640,7 @@ function useGamblerDraw(
     const [cardId] = nextPlayer.hand.splice(index, 1);
     next.discardPile.push(cardId);
   }
+  next.gamblerUsesThisTurn += 1;
   // CỐ Ý KHÔNG gọi triggerHandEmptyHook() ở đây (khác José Delgado/Doc
   // Holyday) — draw! của kỹ năng này CHƯA xảy ra ngay, còn phải chờ RESPOND
   // riêng ở resolveDrawCheck(). Gọi ở đây sẽ có khoảng hở "tay vừa về 0"
@@ -2654,7 +2659,7 @@ function useGamblerDraw(
   };
 }
 
-// Bộ mở rộng "custom_characters" (The Fair Killer, xem House_Rule.txt mục I)
+// Bộ mở rộng "custom_characters" (The DareDevil, xem House_Rule.txt mục I)
 // — CHỈ dùng được TRONG lượt của chính mình (khác Sid Ketchum), tối đa 1
 // LẦN/lượt (giống Doc Holyday): KHÔNG bỏ lá nào (cardIds phải rỗng, giống
 // Chuck Wengam), tự mất 1 máu để bắn hiệu ứng Bang! vào `targetId` bất kỳ —
@@ -2912,7 +2917,7 @@ function respondDiscardOrDamage(
     return { state: next, events };
   }
 
-  // Bộ mở rộng "custom_characters" (The Drifter) — sắp chắc chắn mất máu
+  // Bộ mở rộng "custom_characters" (Nomad Norman) — sắp chắc chắn mất máu
   // (không bỏ Bang!/không có gì để bỏ), hỏi dùng khiên trước khi áp.
   if (maybeAskDrifterShield(next, player, 1, attackerId, { kind: "indians" })) {
     return { state: next, events: [] };
@@ -3066,15 +3071,15 @@ function respondToMissed(
     return { state: next, events };
   }
 
-  // Bộ mở rộng "custom_characters" (The Drifter) — sắp chắc chắn mất máu
+  // Bộ mở rộng "custom_characters" (Nomad Norman) — sắp chắc chắn mất máu
   // (không đỡ được/không dùng Missed!), hỏi dùng khiên trước khi áp — SAU
   // CÙNG, đúng lúc đòn đã chắc chắn trúng (Barrel/Missed! đã hết cơ hội né).
   if (maybeAskDrifterShield(next, player, 1, top.source.from, { kind: "bang_missed", missedTop: top })) {
     return { state: next, events: [] };
   }
 
-  // Bộ mở rộng "custom_characters" (The Dealer) — cùng thời điểm với Drifter ở
-  // trên (không xung đột — 1 người không thể vừa là Drifter vừa là Dealer):
+  // Bộ mở rộng "custom_characters" (Envoy Evy) — cùng thời điểm với Nomad Norman ở
+  // trên (không xung đột — 1 người không thể vừa là Nomad Norman vừa là Envoy Evy):
   // hỏi có muốn đưa 2 lá ngẫu nhiên cho người vừa đánh mình để vô hiệu đòn.
   if (maybeAskDealerTrade(next, player, top)) {
     return { state: next, events: [] };
@@ -3090,7 +3095,7 @@ function respondToMissed(
   // respondDiscardOrDamage()) -> bắn trả MIỄN PHÍ. Kích hoạt NGAY CẢ KHI đòn
   // này vừa giết chết cô (applyDamage() ở trên đã tự xử lý chết/Bia/Miễn Tử
   // Elena Noir nếu có) — KHÔNG phụ thuộc target.alive nên chạy NGAY, không
-  // cần chờ The Sentinel trả lời (khác continueAfterMissedResolved() bên
+  // cần chờ Aura The Soul-Weaver trả lời (khác continueAfterMissedResolved() bên
   // dưới, xem ghi chú respondToSentinelRevive()).
   if (
     top.source.card === "bang" &&
@@ -3102,7 +3107,7 @@ function respondToMissed(
     }
   }
 
-  // Bộ mở rộng "custom_characters" (The Sentinel) — applyDamage() ở trên có
+  // Bộ mở rộng "custom_characters" (Aura The Soul-Weaver) — applyDamage() ở trên có
   // thể vừa đẩy NEED_SENTINEL_REVIVE (đỉnh ngăn xếp) thay vì giết luôn — nếu
   // vậy DỪNG NGAY, continueAfterMissedResolved() (phụ thuộc player.alive, mà
   // alive vẫn đang true dù chưa chắc sống) phải đợi tới respondToSentinelRevive().
@@ -3159,7 +3164,7 @@ function respondToRussianRouletteChain(
   }
 
   const amount = Math.min(2, player.hp);
-  // Bộ mở rộng "custom_characters" (The Drifter) — "Roulette khai hoả" sắp
+  // Bộ mở rộng "custom_characters" (Nomad Norman) — "Roulette khai hoả" sắp
   // chắc chắn mất máu, hỏi dùng khiên TRƯỚC KHI trừ hp — chặn TRỌN cả amount.
   if (maybeAskDrifterShield(next, player, amount, null, { kind: "russian_roulette" })) {
     return { state: next, events: [] };
@@ -3171,7 +3176,7 @@ function respondToRussianRouletteChain(
   return { state: next, events };
 }
 
-// Bộ mở rộng "custom_characters" (The Drifter, xem House_Rule.txt mục I) —
+// Bộ mở rộng "custom_characters" (Nomad Norman, xem House_Rule.txt mục I) —
 // trả lời NEED_USE_DRIFTER_SHIELD. Đọc drifterShield[player.id] THẬT (KHÔNG
 // tin action.useShield mù quáng) — nếu client gửi true nhưng không có khiên
 // thật (hết giờ tự trả lời sai/client cũ/gian lận) thì coi như từ chối,
@@ -3209,7 +3214,7 @@ function respondToUseDrifterShield(
         damageEvents.push(...applyDamage(next, player, top.amount, top.killerId, top.resume));
         // Bộ mở rộng "custom_characters" (Mary Rose) — xem ghi chú gốc ở
         // respondToMissed(): CHỈ Bang! ĐƠN LẺ, chỉ khi THẬT SỰ mất máu. KHÔNG
-        // phụ thuộc player.alive nên chạy NGAY, không cần chờ The Sentinel.
+        // phụ thuộc player.alive nên chạy NGAY, không cần chờ Aura The Soul-Weaver.
         if (
           top.resume.missedTop.source.card === "bang" &&
           getEffectiveCharacterDefinition(next, player)?.canReflectBangDamage === true
@@ -3217,7 +3222,7 @@ function respondToUseDrifterShield(
           const attacker = top.killerId ? next.players.find((p) => p.id === top.killerId) : undefined;
           if (attacker?.alive) damageEvents.push(...pushMaryRoseReflection(next, player, attacker));
         }
-        // Bộ mở rộng "custom_characters" (The Sentinel) — applyDamage() ở
+        // Bộ mở rộng "custom_characters" (Aura The Soul-Weaver) — applyDamage() ở
         // trên vừa đẩy NEED_SENTINEL_REVIVE thay vì giết luôn -> DỪNG NGAY,
         // continueAfterMissedResolved() đợi respondToSentinelRevive().
         if (sentinelReviveIsPending(next)) {
@@ -3235,7 +3240,7 @@ function respondToUseDrifterShield(
 
     case "high_noon_turn_start": {
       const damageEvents = blocked ? [] : applyDamage(next, player, top.amount, null, top.resume);
-      // Bộ mở rộng "custom_characters" (The Sentinel) — DỪNG NGAY nếu vừa bị
+      // Bộ mở rộng "custom_characters" (Aura The Soul-Weaver) — DỪNG NGAY nếu vừa bị
       // hỏi thay vì giết luôn (continueTurnStartAfterHighNoonDamage() phụ
       // thuộc player.alive, đợi respondToSentinelRevive()).
       if (sentinelReviveIsPending(next)) {
@@ -3272,11 +3277,11 @@ function respondToUseDrifterShield(
   }
 }
 
-// Bộ mở rộng "custom_characters" (The Dealer, xem House_Rule.txt mục I) — trả
+// Bộ mở rộng "custom_characters" (Envoy Evy, xem House_Rule.txt mục I) — trả
 // lời NEED_USE_DEALER_TRADE. Đọc lại điều kiện THẬT (còn ≥2 lá, người nhận
 // còn sống) thay vì tin action.useDealerTrade mù quáng — phòng trường hợp tay
 // đã đổi giữa lúc đẩy pending và lúc trả lời (dù hiếm, không phải bí mật nên
-// không cần kỹ tính như Drifter, chỉ là phòng thủ chung).
+// không cần kỹ tính như Nomad Norman, chỉ là phòng thủ chung).
 function respondToUseDealerTrade(
   state: GameState,
   action: Action & { type: "RESPOND" },
@@ -3311,7 +3316,7 @@ function respondToUseDealerTrade(
     events.push(...applyDamage(next, player, 1, top.missedTop.source.from, { kind: "bang_missed", missedTop: top.missedTop }));
     // Bộ mở rộng "custom_characters" (Mary Rose) — sao chép nguyên văn điều
     // kiện gốc ở respondToMissed(): CHỈ Bang! đơn lẻ, chỉ khi THẬT SỰ mất máu.
-    // KHÔNG phụ thuộc player.alive nên chạy NGAY, không cần chờ The Sentinel.
+    // KHÔNG phụ thuộc player.alive nên chạy NGAY, không cần chờ Aura The Soul-Weaver.
     if (
       top.missedTop.source.card === "bang" &&
       getEffectiveCharacterDefinition(next, player)?.canReflectBangDamage === true
@@ -3319,7 +3324,7 @@ function respondToUseDealerTrade(
       const atk = next.players.find((p) => p.id === top.missedTop.source.from);
       if (atk?.alive) events.push(...pushMaryRoseReflection(next, player, atk));
     }
-    // Bộ mở rộng "custom_characters" (The Sentinel) — applyDamage() ở trên
+    // Bộ mở rộng "custom_characters" (Aura The Soul-Weaver) — applyDamage() ở trên
     // vừa đẩy NEED_SENTINEL_REVIVE thay vì giết luôn -> DỪNG NGAY,
     // continueAfterMissedResolved() đợi respondToSentinelRevive().
     if (sentinelReviveIsPending(next)) {
@@ -3472,7 +3477,7 @@ function respondToDuel(
     return { state: next, events };
   }
 
-  // Bộ mở rộng "custom_characters" (The Drifter) — sắp thua Duel, sắp chắc
+  // Bộ mở rộng "custom_characters" (Nomad Norman) — sắp thua Duel, sắp chắc
   // chắn mất máu, hỏi dùng khiên trước khi áp.
   if (maybeAskDrifterShield(next, player, 1, top.opponent, { kind: "duel", opponent: top.opponent })) {
     return { state: next, events: [] };
@@ -3601,7 +3606,7 @@ function resolveDrawCheck(
     throw new Error("Không còn lá nào để draw! (cả bộ bài lẫn chồng bài đã bỏ đều hết)");
   }
 
-  // Bộ mở rộng "custom_characters" (The Drifter, xem House_Rule.txt mục I) —
+  // Bộ mở rộng "custom_characters" (Nomad Norman, xem House_Rule.txt mục I) —
   // draw! này PHẢI GIỮ KÍN, nhánh RIÊNG, tách khỏi mọi logic thường bên dưới
   // (Lucky Duke/Barrel/Dynamite/Jail/Vendetta/Thief — không cái nào áp dụng
   // cho draw! cá nhân bí mật này). KHÔNG được next.discardPile.push() lá này
@@ -3678,29 +3683,12 @@ function resolveDrawCheck(
     }
     // Nếu deck+chồng bỏ cạn giữa chừng (secondCardId undefined) thì đành chỉ
     // dùng đúng lá đã lật, y hệt không có Lucky Duke — hiếm khi xảy ra.
-  } else if (
-    !matched &&
-    top.source.card === "jail" &&
-    drawer &&
-    getEffectiveCharacterDefinition(next, drawer)?.canJailCompanion === true
-  ) {
-    // Bộ mở rộng "custom_characters" (Marcel Marcelo) — lá đầu KHÔNG phải Cơ
-    // -> rút thêm lá thứ 2 (tối đa 2 lá/lượt để tìm Cơ thoát tù, xem
-    // House_Rule.txt mục I). KHÔNG rút lá thứ 2 nếu lá đầu ĐÃ khớp (nhánh
-    // `!matched` ở trên) — khỏi lãng phí thêm 1 lá của bộ bài. Khác Lucky Duke
-    // (luôn rút cả 2 lá cùng lúc rồi mới so sánh), đây là rút TUẦN TỰ, dừng
-    // sớm nếu lá đầu đã đủ.
-    const secondCardId = drawTopCard(next);
-    if (secondCardId) {
-      next.discardPile.push(secondCardId);
-      const secondMatched = matches(secondCardId);
-      cardId = secondCardId;
-      matched = secondMatched;
-      events.push({ type: "MARCEL_JAIL_SECOND_DRAW", playerId: top.player, cardId: secondCardId, matched: secondMatched });
-    }
-    // Nếu deck+chồng bỏ cạn giữa chừng thì đành chỉ dùng đúng lá đầu (kẹt tù),
-    // giống ca hiếm gặp của Lucky Duke ở trên.
   }
+  // Bộ mở rộng "custom_characters" (Marcel Marcelo) — ĐÃ SỬA 2026-08-23: bỏ
+  // hẳn khoản "rút thêm lá thứ 2 để tìm Cơ thoát tù" (chủ dự án yêu cầu giới
+  // hạn lại còn ĐÚNG 1 lá, y hệt jail check thường). canJailCompanion (chỉ
+  // định người "cùng vào tù" + ăn theo kết quả) GIỮ NGUYÊN không đổi — xem
+  // respondToPickMarcelCompanion()/marcelCompanionSkipNextTurn ở dưới.
 
   events.unshift({ type: "DRAW_CHECK_RESOLVED", playerId: action.playerId, cardId, matched });
 
@@ -3714,7 +3702,7 @@ function resolveDrawCheck(
   // bắt bỏ bài, không bị nhốt tù" ⇒ không cần áp dụng hậu quả gì thêm — chỉ
   // continueAfterMissedResolved()/drainDuelBangDrawPending() (KHÔNG phụ thuộc
   // The Nobody có bị "chết"/mất bài gì — đúng nguyên tắc đã dùng cho Mary
-  // Rose/Molly Stark ở The Sentinel) mới cần chạy tiếp cho đúng luồng gốc.
+  // Rose/Molly Stark ở Aura The Soul-Weaver) mới cần chạy tiếp cho đúng luồng gốc.
   // Không khớp: không làm gì thêm, pending gốc vẫn còn nguyên, chờ giải quyết
   // bình thường (Missed!/bỏ Bang!/thua Duel/bỏ bài...).
   if (top.source.card === "the_nobody" && matched) {
@@ -3939,7 +3927,7 @@ function resolveDrawCheck(
       const [dynamiteId] = holder.equipment.splice(dynamiteIndex, 1);
       next.discardPile.push(dynamiteId);
       const amount = Math.min(3, holder.hp);
-      // Bộ mở rộng "custom_characters" (The Drifter) — sắp chắc chắn mất máu
+      // Bộ mở rộng "custom_characters" (Nomad Norman) — sắp chắc chắn mất máu
       // vì Dynamite nổ, hỏi dùng khiên TRƯỚC KHI trừ hp — chặn TRỌN cả amount
       // (có thể là cả 3), không phải từng máu.
       if (maybeAskDrifterShield(next, holder, amount, null, { kind: "dynamite" })) {
@@ -3960,8 +3948,8 @@ function resolveDrawCheck(
     // holder có thể vừa chết ở trên (eliminateIfDead) — nếu vậy alive đã false,
     // bỏ qua Jail-check (người chết không cần thoát tù) và eliminatePlayer() đã
     // tự chuyển lượt (advanceTurn) nếu cần rồi, không phải lo ở đây. Bộ mở
-    // rộng "custom_characters" (The Sentinel) — holder cũng có thể đang CHỜ
-    // Sentinel trả lời (alive vẫn true nhưng chưa chắc sống) -> cũng phải bỏ
+    // rộng "custom_characters" (Aura The Soul-Weaver) — holder cũng có thể đang CHỜ
+    // Aura The Soul-Weaver trả lời (alive vẫn true nhưng chưa chắc sống) -> cũng phải bỏ
     // qua Jail-check, đợi respondToSentinelRevive() chạy lại đúng bước này.
     if (holder.alive && !sentinelReviveIsPending(next)) applyJailCheck(next, holder);
     return { state: next, events };
@@ -4017,7 +4005,7 @@ function resolveDrawCheck(
   // Mở rộng A Fistful of Cards, lá "Vendetta" — SAU KHI kết thúc lượt của
   // mình, đẩy draw! này (xem finishTurn()). Ra Cơ -> chơi thêm ĐÚNG 1 lượt
   // NỮA NHƯ BÌNH THƯỜNG: reset y hệt advanceTurn() (turnPhase/bangCountThisTurn/
-  // cardNamesPlayedThisTurn/turnNumber+1/joseDelgadoUsesThisTurn/
+  // cardNamesPlayedThisTurn/turnNumber+1/joseDelgadoUsesThisTurn/gamblerUsesThisTurn/
   // docHolydayUsedThisTurn), NHƯNG currentPlayerIndex GIỮ NGUYÊN, rồi CHẠY
   // TIẾP applyTurnStartChecks() (Marcel companion/Vera Custer/Blood Brothers/
   // Dynamite/Jail của CHÍNH người này — *dev đã chốt vẫn xét đủ), bỏ qua bước
@@ -4034,6 +4022,7 @@ function resolveDrawCheck(
       next.joseDelgadoUsesThisTurn = 0;
       next.docHolydayUsedThisTurn = false;
       next.fairKillerUsedThisTurn = false;
+      next.gamblerUsesThisTurn = 0;
       next.vendettaUsedThisTurn = true;
       events.push(...applyTurnStartChecks(next, { skipEventReveal: true }));
     } else {
@@ -4050,7 +4039,7 @@ function resolveDrawCheck(
     next.pending.push({ kind: "NEED_PICK_THIEF_TARGET", player: top.player });
   }
 
-  // Bộ mở rộng "custom_characters" (The Gambler, xem House_Rule.txt mục I) —
+  // Bộ mở rộng "custom_characters" (Jonny Bettor, xem House_Rule.txt mục I) —
   // khớp chất đỏ (Cơ/Rô) -> rút 3 lá; không khớp -> rút 1 lá. Lucky Duke đã
   // tự áp dụng ở phần lật lá phía trên (đọc `matched` sau khi tính) — không
   // cần code riêng ở đây. triggerHandEmptyHook() gọi Ở ĐÂY (SAU khi rút xong,
@@ -4068,7 +4057,7 @@ function resolveDrawCheck(
 
 // ----- Việc 1.13: chết, thưởng/phạt, điều kiện thắng -----
 
-// Bộ mở rộng "custom_characters" (The Drifter, xem House_Rule.txt mục I) —
+// Bộ mở rộng "custom_characters" (Nomad Norman, xem House_Rule.txt mục I) —
 // chèn TRƯỚC 1 cụm sát thương SẮP áp dụng, y hệt khuôn "đẩy pending lên trên
 // rồi return" của Barrel (xem ghi chú resolveDrawCheck() nhánh dynamite/
 // applyDynamiteAndJailChecks() gọi tiếp Jail sau khi Dynamite giải quyết
@@ -4092,10 +4081,10 @@ function maybeAskDrifterShield(
   return true;
 }
 
-// Bộ mở rộng "custom_characters" (The Dealer, xem House_Rule.txt mục I) —
+// Bộ mở rộng "custom_characters" (Envoy Evy, xem House_Rule.txt mục I) —
 // chèn TRƯỚC 1 đòn "kiểu Bang!" (qua NEED_MISSED) SẮP áp dụng, cùng khuôn
 // maybeAskDrifterShield() ở trên nhưng CHỈ đẩy pending khi THẬT SỰ đủ điều
-// kiện (khác Drifter — "còn đủ 2 lá" vốn đã công khai qua handCount, không
+// kiện (khác Nomad Norman — "còn đủ 2 lá" vốn đã công khai qua handCount, không
 // cần mẹo "đẩy vô điều kiện" để giấu bí mật). Trả về true = ĐÃ chèn pending,
 // người gọi PHẢI return events tích luỹ tới giờ ngay; false = không đủ điều
 // kiện (không có khả năng này/không đủ 2 lá/không có ai để đưa bài), người
@@ -4119,10 +4108,10 @@ function maybeAskDealerTrade(
 // Gây damage cho `target`, phát DAMAGE_DEALT, rồi xử lý chết nếu hp về 0.
 // `killerId` = người trực tiếp gây đòn đánh (Bang!/Gatling/Indians!/Duel);
 // truyền null nếu tự chết (Dynamite) — không có thưởng/phạt trong ca đó.
-// `resume` = TÁI DÙNG đúng resume Drifter đã dùng ở lời gọi maybeAskDrifterShield()
+// `resume` = TÁI DÙNG đúng resume Nomad Norman đã dùng ở lời gọi maybeAskDrifterShield()
 // ngay trước đó tại CÙNG điểm gọi (bộ mở rộng "custom_characters", The
-// Sentinel, xem House_Rule.txt mục I) — eliminateIfDead() cần nó để biết chạy
-// tiếp phần "sau đó" nào nếu phải hỏi The Sentinel. Người gọi PHẢI kiểm tra
+// Aura The Soul-Weaver, xem House_Rule.txt mục I) — eliminateIfDead() cần nó để biết chạy
+// tiếp phần "sau đó" nào nếu phải hỏi Aura The Soul-Weaver. Người gọi PHẢI kiểm tra
 // sentinelReviveIsPending(next) NGAY SAU lời gọi này — true nghĩa là 1
 // NEED_SENTINEL_REVIVE vừa được đẩy lên, phải return events tích luỹ TỚI GIỜ
 // ngay, KHÔNG được chạy tiếp epilogue (Mary Rose reflect/drainDuelBangDrawPending/
@@ -4143,7 +4132,7 @@ function applyDamage(
   ];
 }
 
-// Bộ mở rộng "custom_characters" (The Sentinel) — true nếu đỉnh ngăn xếp vừa
+// Bộ mở rộng "custom_characters" (Aura The Soul-Weaver) — true nếu đỉnh ngăn xếp vừa
 // trở thành NEED_SENTINEL_REVIVE (xem ghi chú applyDamage() ở trên).
 function sentinelReviveIsPending(next: GameState): boolean {
   return next.pending[next.pending.length - 1]?.kind === "NEED_SENTINEL_REVIVE";
@@ -4176,11 +4165,11 @@ function triggerLoseLifeHooks(
 // đặt ĐÚNG 1 chỗ này là áp dụng đủ cho tất cả, không cần sửa từng nơi.
 //
 // *** THỨ TỰ CÁC CƠ CHẾ CHẶN CÁI CHẾT (House_Rule.txt mục I, ghi chú The
-// Sentinel) — CHỐT TẬP TRUNG DUY NHẤT Ở ĐÂY, đừng cài rời rạc nơi khác: ***
+// Aura The Soul-Weaver) — CHỐT TẬP TRUNG DUY NHẤT Ở ĐÂY, đừng cài rời rạc nơi khác: ***
 //   1. Elena Noir ĐANG trong Miễn Tử (máu giữ nguyên ở 0, không chạm gì khác)
 //   2. Bia hồi sinh tự động (bỏ 1 lá Bia, về 1 máu)
 //   3. Elena Noir KÍCH HOẠT Miễn Tử (vũ trang sẵn, chưa đang Miễn Tử)
-//   4. The Sentinel hồi sinh NGƯỜI KHÁC (*ex) — KHÁC 3 cái trên: do NGƯỜI
+//   4. Aura The Soul-Weaver hồi sinh NGƯỜI KHÁC (*ex) — KHÁC 3 cái trên: do NGƯỜI
 //      KHÁC quyết định (không phải target), nên phải HỎI (đẩy pending) thay
 //      vì quyết ngay — chạy SAU CÙNG, chỉ khi (1)-(3) đều đã không cứu được.
 //   5. Không còn gì cứu được -> eliminatePlayer() thật.
@@ -4277,10 +4266,10 @@ function eliminateIfDead(
     return [...ineffectiveEvents, { type: "ELENA_NOIR_IMMORTAL_TRIGGERED", playerId: target.id, turnsLeft: 2 }];
   }
 
-  // Bộ mở rộng "custom_characters" (The Sentinel, xem House_Rule.txt mục I) —
+  // Bộ mở rộng "custom_characters" (Aura The Soul-Weaver, xem House_Rule.txt mục I) —
   // SAU CÙNG, khi mọi cách tự cứu ở trên đều đã thất bại: có ai đủ điều kiện
   // (còn sống, canReviveOthers, chưa dùng — kể cả chính target nếu target là
-  // The Sentinel) thì HỎI thay vì loại luôn. Đẩy pending -> DỪNG NGAY, người
+  // Aura The Soul-Weaver) thì HỎI thay vì loại luôn. Đẩy pending -> DỪNG NGAY, người
   // gọi (applyDamage()/các điểm gọi trực tiếp Dynamite/Russian Roulette) PHẢI
   // return events tích luỹ tới giờ, không chạy tiếp epilogue phía sau (xem
   // sentinelReviveIsPending()).
@@ -4291,9 +4280,9 @@ function eliminateIfDead(
   return [...ineffectiveEvents, ...eliminatePlayer(next, target, killerId)];
 }
 
-// Bộ mở rộng "custom_characters" (The Sentinel, xem House_Rule.txt mục I) —
+// Bộ mở rộng "custom_characters" (Aura The Soul-Weaver, xem House_Rule.txt mục I) —
 // tìm TẤT CẢ người chơi còn sống có canReviveOthers === true (thường là
-// đúng 1 The Sentinel, hiếm khi 2 — The Sentinel thật VÀ Vera Custer đang
+// đúng 1 Aura The Soul-Weaver, hiếm khi 2 — Aura The Soul-Weaver thật VÀ Vera Custer đang
 // mượn cùng lúc) và CHƯA dùng (sentinelUsed[id] khác true), kể cả chính
 // target (tự cứu mình). Không ai đủ điều kiện -> false, người gọi loại target
 // như bình thường. Có -> đẩy NEED_SENTINEL_REVIVE hỏi người ĐẦU TIÊN, giữ
@@ -4323,10 +4312,10 @@ function maybeAskSentinelRevive(
   return true;
 }
 
-// Bộ mở rộng "custom_characters" (The Sentinel, xem House_Rule.txt mục I) —
+// Bộ mở rộng "custom_characters" (Aura The Soul-Weaver, xem House_Rule.txt mục I) —
 // trả lời NEED_SENTINEL_REVIVE. Đọc lại sentinelUsed[sentinel.id] THẬT (không
 // tin action.reviveTarget mù quáng — phòng hết giờ/client cũ gửi true dù đã
-// dùng, không phải bí mật nên không cần kỹ tính như Drifter). Từ chối (hoặc
+// dùng, không phải bí mật nên không cần kỹ tính như Nomad Norman). Từ chối (hoặc
 // không hợp lệ) mà VẪN CÒN người khác đủ điều kiện (remainingSentinelIds) ->
 // hỏi TIẾP người kế tiếp, CHƯA chạy epilogue vội (chỉ chạy đúng 1 lần, sau
 // khi cả chuỗi hỏi đã xong). Hết người hỏi mà vẫn từ chối -> eliminatePlayer()
@@ -4334,7 +4323,7 @@ function maybeAskSentinelRevive(
 // (continueAfterMissedResolved/continueTurnStartAfterHighNoonDamage/
 // applyJailCheck) mới cần chạy LẠI ở đây — Mary Rose reflect/
 // drainDuelBangDrawPending đã chạy XONG ngay tại điểm gọi applyDamage() gốc
-// (không phụ thuộc alive, không cần chờ Sentinel), xem ghi chú applyDamage().
+// (không phụ thuộc alive, không cần chờ Aura The Soul-Weaver), xem ghi chú applyDamage().
 function respondToSentinelRevive(
   state: GameState,
   action: Action & { type: "RESPOND" },
@@ -4351,7 +4340,7 @@ function respondToSentinelRevive(
   if (accepted) {
     next.sentinelUsed[sentinel.id] = true;
     // "2 MÁU TỐI ĐA VĨNH VIỄN" — trừ thẳng maxHp, kẹp hp hiện tại xuống theo
-    // (đã chốt trong House_Rule.txt mục I, ghi chú The Sentinel).
+    // (đã chốt trong House_Rule.txt mục I, ghi chú Aura The Soul-Weaver).
     sentinel.maxHp -= 2;
     sentinel.hp = Math.min(sentinel.hp, sentinel.maxHp);
     target.hp = 1; // target.alive vẫn true suốt từ đầu (chưa từng gọi eliminatePlayer())
@@ -4415,7 +4404,7 @@ function eliminatePlayer(next: GameState, target: PlayerState, killerId: string 
   target.hand = [];
   target.equipment = [];
 
-  // Bộ mở rộng "custom_characters" (The Drifter) — lá bí mật đang treo (nếu
+  // Bộ mở rộng "custom_characters" (Nomad Norman) — lá bí mật đang treo (nếu
   // có) trả về chồng bỏ luôn, người chết không giữ bí mật gì nữa. Tránh rò rỉ
   // vĩnh viễn 1 lá khỏi tổng số bài của ván. Xoá luôn drifterShield — không
   // còn ý nghĩa gì với người đã bị loại.
@@ -4541,7 +4530,8 @@ function advanceTurn(next: GameState): GameEvent[] {
   next.turnNumber += 1; // mở rộng Dodge City, mục 1.1 (xem GameState.turnNumber ở types.ts)
   next.joseDelgadoUsesThisTurn = 0; // mở rộng Dodge City, mục C nhóm A (José Delgado)
   next.docHolydayUsedThisTurn = false; // mở rộng Dodge City, mục C nhóm C (Doc Holyday)
-  next.fairKillerUsedThisTurn = false; // bộ mở rộng "custom_characters" (The Fair Killer)
+  next.fairKillerUsedThisTurn = false; // bộ mở rộng "custom_characters" (The DareDevil)
+  next.gamblerUsesThisTurn = 0; // bộ mở rộng "custom_characters" (Jonny Bettor)
   next.vendettaUsedThisTurn = false; // mở rộng A Fistful of Cards (Vendetta)
   return applyTurnStartChecks(next);
 }
@@ -4578,7 +4568,7 @@ export function applyTurnStartChecks(next: GameState, options: { skipEventReveal
   // Dynamite/Jail (đã hỏi lại và chốt đúng thứ tự này) — nhờ vậy người bị
   // Jail/Marcel companion bỏ qua HẲN lượt vẫn ăn đủ sát thương này mà không
   // cần code riêng cho từng trường hợp, vì lúc này 2 bước đó còn chưa chạy.
-  // Bộ mở rộng "custom_characters" (The Drifter, xem House_Rule.txt mục I) —
+  // Bộ mở rộng "custom_characters" (Nomad Norman, xem House_Rule.txt mục I) —
   // hỏi dùng khiên TRƯỚC khi áp sát thương High Noon, SAU CÙNG (đòn này không
   // có gì để đỡ trước đó — không qua Barrel/Missed!, nên "sau cùng" ở đây là
   // ngay lập tức). Bị chặn -> DỪNG HẲN Bước 0 tại đây, chờ trả lời (đúng khuôn
@@ -4592,7 +4582,7 @@ export function applyTurnStartChecks(next: GameState, options: { skipEventReveal
       return [...eventEvents];
     }
     highNoonEvents = applyDamage(next, player, 1, null, { kind: "high_noon_turn_start" });
-    // Bộ mở rộng "custom_characters" (The Sentinel) — vừa đẩy
+    // Bộ mở rộng "custom_characters" (Aura The Soul-Weaver) — vừa đẩy
     // NEED_SENTINEL_REVIVE thay vì giết luôn -> DỪNG NGAY, phần còn lại của
     // Bước 0 (continueTurnStartAfterHighNoonDamage()) đợi respondToSentinelRevive().
     if (sentinelReviveIsPending(next)) {
@@ -4603,7 +4593,7 @@ export function applyTurnStartChecks(next: GameState, options: { skipEventReveal
 }
 
 // Phần CÒN LẠI của Bước 0 sau khi sát thương High Noon (nếu có) đã xử lý
-// XONG XUÔI (dù bị The Drifter chặn hay không) — TÁCH RIÊNG để cả
+// XONG XUÔI (dù bị Nomad Norman chặn hay không) — TÁCH RIÊNG để cả
 // applyTurnStartChecks() LẪN respondToUseDrifterShield() (resume
 // "high_noon_turn_start") đều gọi chung, không lặp code.
 function continueTurnStartAfterHighNoonDamage(next: GameState, player: PlayerState): GameEvent[] {
@@ -4916,7 +4906,7 @@ function cloneState(state: GameState): GameState {
     marcelJailCompanion: { ...state.marcelJailCompanion },
     marcelCompanionSkipNextTurn: { ...state.marcelCompanionSkipNextTurn },
     marcelJailBonusDrawThisTurn: { ...state.marcelJailBonusDrawThisTurn },
-    // Bộ mở rộng "custom_characters" (The Sentinel) — cùng lý do các Record
+    // Bộ mở rộng "custom_characters" (Aura The Soul-Weaver) — cùng lý do các Record
     // playerId khác ở trên: KHÔNG BAO GIỜ bị xoá key (đánh dấu vĩnh viễn cả
     // ván), nhưng vẫn cần clone nông mỗi lần vì respondToSentinelRevive() gán
     // trực tiếp next.sentinelUsed[playerId] = true.
