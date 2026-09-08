@@ -3289,6 +3289,13 @@ export function renderApp(
     myStatus: undefined,
   });
 
+  // Yêu cầu chủ dự án (2026-09-09) — băng thông báo phản ứng (+ đồng hồ nếu
+  // có) dời lên NGAY DƯỚI hàng nút toolbar, đứng TRƯỚC cả tóm tắt lượt/khu
+  // giữa bàn — tránh phải cuộn/liếc qua khu bộ bài mới thấy đang cần phản hồi
+  // gì. Trước đây gọi ở cuối (sau renderPendingPanel cũ, ngay trước
+  // renderPhaseActions) — dời nguyên hàm lên đây, không đổi logic bên trong.
+  renderPendingPanel(container, state, handlers, options.selection);
+
   if (options.error) {
     const errorEl = document.createElement("p");
     errorEl.className = "error";
@@ -3352,7 +3359,6 @@ export function renderApp(
     container.appendChild(hint);
   }
 
-  renderPendingPanel(container, state, handlers, options.selection);
   renderPhaseActions(container, state, options, handlers);
 
   const playersEl = document.createElement("div");
@@ -5092,6 +5098,27 @@ export function renderNetworkGame(
         : undefined,
   });
 
+  // Yêu cầu chủ dự án (2026-09-09) — băng thông báo phản ứng/đồng hồ dời lên
+  // NGAY DƯỚI hàng nút toolbar, đứng TRƯỚC cả báo lỗi/tóm tắt lượt/khu giữa
+  // bàn (xem ghi chú y hệt ở renderApp() — hotseat). Mục 8 UI/UX: khi có việc
+  // đang chờ phản hồi (pending không rỗng), đồng hồ (nếu có) LUÔN thuộc kind
+  // "reactive" của ĐÚNG việc đó (xem room.ts) — gộp thẳng vào băng thông báo
+  // (networkRenderPendingPanel) thay vì hiện đứng riêng, để đọc thành 1 câu
+  // duy nhất "đang chờ ai làm gì, còn bao nhiêu giây". Không có gì đang chờ
+  // thì đây là đồng hồ LƯỢT/bỏ bài thừa bình thường, vẫn đứng riêng
+  // (renderCountdown) — 2 hàm loại trừ nhau theo đúng `pending.length`, không
+  // bao giờ cùng hiện 1 lúc.
+  if (view.pending.length === 0) {
+    renderCountdown(container, options.deadline, view.players);
+  }
+  networkRenderPendingPanel(
+    container,
+    view,
+    handlers,
+    view.pending.length > 0 ? options.deadline : null,
+    options.selection
+  );
+
   if (options.error) {
     const errorEl = document.createElement("p");
     errorEl.className = "error";
@@ -5112,14 +5139,6 @@ export function renderNetworkGame(
   renderActiveHouseRules(container, view.houseRules);
   renderActiveExpansions(container, view.expansions);
 
-  // Mục 8 UI/UX: khi có việc đang chờ phản hồi (pending không rỗng), đồng hồ
-  // (nếu có) LUÔN thuộc kind "reactive" của ĐÚNG việc đó (xem room.ts) — gộp
-  // thẳng vào băng thông báo bên dưới thay vì hiện đứng riêng, để đọc thành 1
-  // câu duy nhất "đang chờ ai làm gì, còn bao nhiêu giây". Không có gì đang
-  // chờ thì đây là đồng hồ LƯỢT/bỏ bài thừa bình thường, vẫn đứng riêng.
-  if (view.pending.length === 0) {
-    renderCountdown(container, options.deadline, view.players);
-  }
   renderDrawCheckNotice(container, options.lastDrawCheck);
 
   if (options.selection.step !== "idle") {
@@ -5147,13 +5166,6 @@ export function renderNetworkGame(
     container.appendChild(hint);
   }
 
-  networkRenderPendingPanel(
-    container,
-    view,
-    handlers,
-    view.pending.length > 0 ? options.deadline : null,
-    options.selection
-  );
   networkRenderPhaseActions(container, view, options, handlers);
 
   // Bug đã sửa (báo lỗi thật từ chủ dự án — 5 người chơi, 4 đối thủ bị tách

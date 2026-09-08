@@ -1143,6 +1143,22 @@ button.card-box {
     min-height: 2.75rem;
   }
 
+  /* Sửa lỗi "nút bị kéo ra không đẹp" (báo lại 2026-09-09): luật `min-height:
+     2.75rem` ở trên áp dụng cho MỌI `<button>`, kể cả 2 nút hình tròn/pill cỡ
+     NHỎ CỐ Ý bên dưới (`.dialog__close` cao 1.9rem=30.4px, `.switch` cao
+     1.5rem=24px) — CSS coi `min-height` là NGƯỠNG SÀN, luôn thắng `height` nhỏ
+     hơn nó dù `height` khai báo sau, nên 2 nút này bị ép cao 44px: nút đóng
+     "✕" biến từ tròn thành HÌNH TRỨNG, công tắc gạt "Cài đặt" biến từ dạng
+     pill dẹt thành gần như HÌNH TRÒN to bất thường (dễ thấy nhất trên di
+     động, nơi dialog chiếm toàn màn hình — xem @media max-width:480px phía
+     trên khai `dialog.app-dialog{height:100%}`). Trả lại đúng kích thước gốc
+     cho 2 nút này — chúng vốn đã đủ lớn để chạm ngón tay (30-42px), không cần
+     ép theo ngưỡng 44px chung. */
+  .dialog__close,
+  .switch {
+    min-height: 0;
+  }
+
   /* .card-box đã cố định 4.5rem (~72px), vượt sẵn mức khuyến nghị chạm tay
      ~44px — không cần chỉnh thêm ở đây như các nút chữ thường phía trên. */
 
@@ -1179,6 +1195,17 @@ button.card-box {
     height: 100%;
     max-height: none;
     border-radius: 0;
+  }
+
+  /* Sửa lỗi "khung nhật ký chưa full hết panel" (báo lại 2026-09-09): dialog
+     giờ cao HẾT màn hình (height:100%, ngay trên) nhưng `.log-list` vẫn giữ
+     nguyên `max-height: 16rem` (tính cho khung dialog NHỎ, tự co theo nội
+     dung, ở cỡ màn rộng) — để lại khoảng trắng chết rất lớn phía dưới danh
+     sách. Bỏ trần chiều cao trên di động: danh sách tự cao theo đúng số dòng
+     đang có, dài hơn màn hình thì chính `<dialog>` cuộn (y hệt cách dialog
+     "Thư viện bài" đang cuộn cả khung, không có trần riêng nào). */
+  .log-list {
+    max-height: none;
   }
 
   /* Đợt sửa giao diện bàn chơi — chữ trên nút toolbar tự ẩn dưới ~480px, chỉ
@@ -2146,10 +2173,19 @@ body.landing-bg {
   font-size: 1.1rem;
 }
 
+/* Sửa lỗi mất cân đối (báo lại 2026-09-09): `1fr auto 1fr` từng khiến 2 cột lá
+   CHIẾM HẾT bề rộng `.pick-section` (có thể gần 60rem trên màn rộng), nhưng lá
+   nhân vật (`.character-option`) lại có `width: 9rem` CỐ ĐỊNH — lá chỉ nằm ở
+   ĐẦU mỗi cột rộng thay vì đứng giữa, để lại khoảng trắng chết rất lớn 2 bên,
+   chữ "HOẶC" trôi nổi cô lập giữa màn hình. Đổi 3 cột sang `auto` (mỗi cột chỉ
+   rộng bằng đúng nội dung của nó) + `justify-content: center` để CẢ CỤM 3 cột
+   (lá — HOẶC — lá) co gọn lại rồi canh giữa `.pick-section`, giống đúng kiểu
+   "so tài 1 chọi 1" cân đối thay vì dàn trải. */
 .duel {
   display: grid;
-  grid-template-columns: 1fr auto 1fr;
-  gap: 1rem;
+  grid-template-columns: auto auto auto;
+  justify-content: center;
+  gap: 1.5rem;
   align-items: start;
 }
 
