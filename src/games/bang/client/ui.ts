@@ -1732,6 +1732,22 @@ interface NewGameSettingsOptions {
   onCancelNewGameConfirm(): void;
 }
 
+// Tham số cho phần "Về phòng chờ (sửa tuỳ chọn)" trong dialog Cài đặt — CHỈ
+// qua mạng (`undefined` ở hotseat, xem lời gọi renderSettingsDialogBody() —
+// hotseat đã có sẵn tương đương: "Bắt đầu ván mới" tự quay lại màn thiết lập
+// giữ nguyên tuỳ chọn cũ để sửa, xem onPlayAgain() ở main.ts). Khác hẳn
+// "Bắt đầu ván mới" (restart NGAY với house rules/expansions CŨ, không cho
+// sửa gì) — nút này HUỶ ván rồi đưa CẢ PHÒNG về lobby, chủ phòng tự sửa tuỳ
+// chọn rồi tự bấm "Bắt đầu ván" lại khi sẵn sàng. Cùng khuôn NewGameSettingsOptions
+// (dialog xác nhận riêng, không mở dialog thứ 2 chồng lên).
+interface ReturnToLobbySettingsOptions {
+  visible: boolean; // LUÔN đúng chủ phòng — xem NewGameSettingsOptions.visible
+  confirmingReturnToLobby: boolean;
+  onRequestReturnToLobby(): void;
+  onConfirmReturnToLobby(): void;
+  onCancelReturnToLobbyConfirm(): void;
+}
+
 // Nội dung dialog Cài đặt — dùng CHUNG hotseat/qua mạng, chỉ khác nhãn nút
 // rời. Đọc sở thích TRỰC TIẾP từ localStorage mỗi lần mở dialog (không cần
 // tham số/state đi qua RenderOptions) — bấm chọn là áp dụng NGAY (đổi
@@ -1801,7 +1817,8 @@ function renderSettingsDialogBody(
   body: HTMLElement,
   leaveLabel: string,
   onLeave: () => void,
-  newGame: NewGameSettingsOptions
+  newGame: NewGameSettingsOptions,
+  returnToLobby?: ReturnToLobbySettingsOptions
 ): void {
   const themeGroup = document.createElement("div");
   themeGroup.className = "settings-group";
@@ -1875,19 +1892,39 @@ function renderSettingsDialogBody(
   const actions = document.createElement("div");
   actions.className = "settings-actions";
 
-  if (newGame.visible) {
-    if (newGame.confirmingNewGame) {
-      const warning = document.createElement("p");
-      warning.className = "error";
-      warning.textContent = "Ván hiện tại CHƯA kết thúc. Huỷ ván này để bắt đầu ván mới?";
-      body.appendChild(warning);
-      const confirmRow = document.createElement("div");
-      confirmRow.className = "settings-actions";
-      confirmRow.appendChild(settingsButton("Huỷ ván, bắt đầu mới", "danger", () => newGame.onConfirmNewGame()));
-      confirmRow.appendChild(settingsButton("Không, tiếp tục ván này", "outline", () => newGame.onCancelNewGameConfirm()));
-      body.appendChild(confirmRow);
-    } else {
+  // 2 bước xác nhận (huỷ ván mới/về phòng chờ) LOẠI TRỪ NHAU — bấm 1 trong 2
+  // nút thì ẨN LUÔN nút còn lại, tránh cảnh 2 khối cảnh báo cùng hiện ra nếu
+  // bấm liên tiếp 2 nút khác nhau trước khi xác nhận/huỷ xong bước trước.
+  if (newGame.visible && newGame.confirmingNewGame) {
+    const warning = document.createElement("p");
+    warning.className = "error";
+    warning.textContent = "Ván hiện tại CHƯA kết thúc. Huỷ ván này để bắt đầu ván mới?";
+    body.appendChild(warning);
+    const confirmRow = document.createElement("div");
+    confirmRow.className = "settings-actions";
+    confirmRow.appendChild(settingsButton("Huỷ ván, bắt đầu mới", "danger", () => newGame.onConfirmNewGame()));
+    confirmRow.appendChild(settingsButton("Không, tiếp tục ván này", "outline", () => newGame.onCancelNewGameConfirm()));
+    body.appendChild(confirmRow);
+  } else if (returnToLobby?.visible && returnToLobby.confirmingReturnToLobby) {
+    const warning = document.createElement("p");
+    warning.className = "error";
+    warning.textContent = "Quay lại phòng chờ sẽ HUỶ ván đang chơi (không hoàn tác được). Tiếp tục?";
+    body.appendChild(warning);
+    const confirmRow = document.createElement("div");
+    confirmRow.className = "settings-actions";
+    confirmRow.appendChild(settingsButton("Huỷ ván, về phòng chờ", "danger", () => returnToLobby.onConfirmReturnToLobby()));
+    confirmRow.appendChild(
+      settingsButton("Không, tiếp tục ván này", "outline", () => returnToLobby.onCancelReturnToLobbyConfirm())
+    );
+    body.appendChild(confirmRow);
+  } else {
+    if (newGame.visible) {
       actions.appendChild(settingsButton("Bắt đầu ván mới", "outline", () => newGame.onRequestNewGame()));
+    }
+    if (returnToLobby?.visible) {
+      actions.appendChild(
+        settingsButton("Về phòng chờ (sửa tuỳ chọn)", "outline", () => returnToLobby.onRequestReturnToLobby())
+      );
     }
   }
 
@@ -4198,6 +4235,11 @@ export interface NetworkGameHandlers {
   onRequestNewGame(): void;
   onConfirmNewGame(): void;
   onCancelNewGameConfirm(): void;
+  // Bổ sung — nút "Về phòng chờ (sửa tuỳ chọn)" BÊN TRONG dialog Cài đặt, CHỈ
+  // qua mạng (không có ở UiHandlers/hotseat — xem ReturnToLobbySettingsOptions).
+  onRequestReturnToLobby(): void;
+  onConfirmReturnToLobby(): void;
+  onCancelReturnToLobbyConfirm(): void;
 }
 
 export interface NetworkGameOptions {
@@ -4219,6 +4261,7 @@ export interface NetworkGameOptions {
   roomCode: string;
   roomCodeCopyStatus: string | null; // thông báo tạm thời sau khi bấm "Chép mã"
   equipmentCompactMode: boolean; // Đợt sửa giao diện bàn chơi — giống RenderOptions (hotseat)
+  confirmingReturnToLobby: boolean; // bổ sung — xem ReturnToLobbySettingsOptions
 }
 
 function networkRenderHandSection(
@@ -5252,13 +5295,25 @@ export function renderNetworkGame(
   }
   if (options.settingsDialogOpen) {
     renderDialog("Cài đặt", handlers.onCloseSettingsDialog, (body) =>
-      renderSettingsDialogBody(body, "Rời phòng", handlers.onLeaveGame, {
-        visible: options.isRoomOwner,
-        confirmingNewGame: options.confirmingNewGame,
-        onRequestNewGame: handlers.onRequestNewGame,
-        onConfirmNewGame: handlers.onConfirmNewGame,
-        onCancelNewGameConfirm: handlers.onCancelNewGameConfirm,
-      })
+      renderSettingsDialogBody(
+        body,
+        "Rời phòng",
+        handlers.onLeaveGame,
+        {
+          visible: options.isRoomOwner,
+          confirmingNewGame: options.confirmingNewGame,
+          onRequestNewGame: handlers.onRequestNewGame,
+          onConfirmNewGame: handlers.onConfirmNewGame,
+          onCancelNewGameConfirm: handlers.onCancelNewGameConfirm,
+        },
+        {
+          visible: options.isRoomOwner,
+          confirmingReturnToLobby: options.confirmingReturnToLobby,
+          onRequestReturnToLobby: handlers.onRequestReturnToLobby,
+          onConfirmReturnToLobby: handlers.onConfirmReturnToLobby,
+          onCancelReturnToLobbyConfirm: handlers.onCancelReturnToLobbyConfirm,
+        }
+      )
     );
   }
   if (options.roomCodeDialogOpen) {

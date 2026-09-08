@@ -150,6 +150,9 @@ export class Room {
       case "action":
         await this.handleAction(ws, parsed.action);
         return;
+      case "return_to_lobby":
+        await this.handleReturnToLobby(ws);
+        return;
       default: {
         const neverMessage: never = parsed;
         throw new Error(`Chưa hỗ trợ ClientMessage: ${JSON.stringify(neverMessage)}`);
@@ -247,6 +250,34 @@ export class Room {
     }
 
     await this.afterStateChange(state, []);
+  }
+
+  // Bổ sung — nút "Về phòng chờ (sửa tuỳ chọn)" trong dialog Cài đặt (CHỈ chủ
+  // phòng thấy nút này, giống handleStartGame() ở trên). Khác `force: true`
+  // của "Bắt đầu ván mới" (restart NGAY với house rules/expansions CŨ): đây
+  // HUỶ ván đang chơi rồi đưa CẢ PHÒNG về lobby, KHÔNG tự tạo ván mới nào —
+  // chủ phòng cần tự bấm "Bắt đầu ván" lại sau khi sửa xong tuỳ chọn.
+  // Tái dùng THẲNG abandonGame() (đã có sẵn từ việc 4.3, dùng khi mất kết nối)
+  // — cùng 1 việc "xoá GameState + đồng hồ/alarm, đưa phòng về lobby", chỉ
+  // khác LÝ DO hiển thị cho người chơi (`reason`). Gọi KHÔNG kèm `excludeSocket`
+  // (khác lúc gọi từ webSocketClose()) vì chính chủ phòng — người vừa gửi yêu
+  // cầu — cũng cần nhận lại thông báo để chuyển màn hình về lobby, không phải
+  // socket đang đóng.
+  private async handleReturnToLobby(ws: WebSocket): Promise<void> {
+    const attachment = ws.deserializeAttachment() as SocketAttachment | null;
+    const ownerId = await this.getOwnerId();
+    if (!attachment?.playerId || attachment.playerId !== ownerId) {
+      this.sendError(ws, "Chỉ chủ phòng mới có quyền quay lại phòng chờ");
+      return;
+    }
+
+    const existing = await this.ctx.storage.get<GameState>(GAME_STATE_KEY);
+    if (!existing) {
+      this.sendError(ws, "Chưa có ván nào đang chơi để quay lại phòng chờ");
+      return;
+    }
+
+    await this.abandonGame(undefined, "host_returned_to_lobby");
   }
 
   private async handleAction(ws: WebSocket, action: Action): Promise<void> {
@@ -857,7 +888,7 @@ export class Room {
     if (state && !state.winner) {
       const remainingIdsInGame = remaining.filter((p) => state.players.some((sp) => sp.id === p.id));
       if (remainingIdsInGame.length <= 1) {
-        await this.abandonGame(ws);
+        await this.abandonGame(ws, "disconnect");
       } else {
         // Báo NGAY cho người còn lại biết ai vừa mất kết nối — không đợi tới
         // hành động kế tiếp mới cập nhật `connectedPlayerIds` (state không đổi
@@ -890,14 +921,21 @@ export class Room {
   // còn nằm trong ctx.getWebSockets() (xem ghi chú ở webSocketClose) NHƯNG đã
   // bị đóng thật rồi — gọi send() trên nó ném lỗi và làm HỎNG NGANG vòng lặp,
   // khiến những socket đến sau trong danh sách không nhận được gì. Phải loại
-  // trừ nó tường minh, không dựa vào try/catch (dễ nuốt lỗi thật khác).
-  private async abandonGame(excludeSocket?: WebSocket): Promise<void> {
+  // trừ nó tường minh, không dựa vào try/catch (dễ nuốt lỗi thật khác). Gọi từ
+  // handleReturnToLobby() thì KHÔNG truyền — chính người gửi yêu cầu cũng cần
+  // nhận lại thông báo để chuyển màn hình.
+  // `reason`: forward NGUYÊN VẸN vào ServerMessage cho client hiện đúng câu
+  // thông báo — xem protocol.ts.
+  private async abandonGame(
+    excludeSocket: WebSocket | undefined,
+    reason: "disconnect" | "host_returned_to_lobby"
+  ): Promise<void> {
     await this.ctx.storage.delete(GAME_STATE_KEY);
     await this.ctx.storage.delete(DEADLINE_KEY);
     await this.ctx.storage.delete(PAUSED_PLAY_KEY);
     await this.ctx.storage.deleteAlarm();
 
-    const message: ServerMessage = { type: "game_abandoned" };
+    const message: ServerMessage = { type: "game_abandoned", reason };
     const payload = JSON.stringify(message);
     for (const socket of this.ctx.getWebSockets()) {
       if (socket !== excludeSocket) socket.send(payload);

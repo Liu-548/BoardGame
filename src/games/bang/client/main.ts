@@ -191,6 +191,10 @@ let networkSettingsDialogOpen = false;
 // ghi chú ở đó.
 let networkCardReferenceDialogOpen = false;
 let networkConfirmingNewGame = false;
+// Bổ sung — bước xác nhận riêng cho "Về phòng chờ (sửa tuỳ chọn)", cùng khuôn
+// networkConfirmingNewGame ở trên nhưng KHÔNG dùng chung field (2 nút gửi 2
+// ClientMessage khác nhau — xem onNetworkRequestReturnToLobby()).
+let networkConfirmingReturnToLobby = false;
 let networkRoomCodeDialogOpen = false;
 let networkRoomCodeCopyStatus: string | null = null;
 // Việc 4.3: trong số `networkView.players`, ai ĐANG có socket mở thật sự
@@ -506,6 +510,7 @@ function renderScreen(): void {
             roomCode: networkCode,
             roomCodeCopyStatus: networkRoomCodeCopyStatus,
             equipmentCompactMode,
+            confirmingReturnToLobby: networkConfirmingReturnToLobby,
           },
           {
             onDrawCards: onNetworkDrawCards,
@@ -563,6 +568,9 @@ function renderScreen(): void {
             onRequestNewGame: onNetworkRequestNewGame,
             onConfirmNewGame: onNetworkConfirmNewGame,
             onCancelNewGameConfirm: onNetworkCancelNewGameConfirm,
+            onRequestReturnToLobby: onNetworkRequestReturnToLobby,
+            onConfirmReturnToLobby: onNetworkConfirmReturnToLobby,
+            onCancelReturnToLobbyConfirm: onNetworkCancelReturnToLobbyConfirm,
           }
         );
       }
@@ -1470,6 +1478,7 @@ function onJoinRoom(): void {
   networkSettingsDialogOpen = false;
   networkCardReferenceDialogOpen = false;
   networkConfirmingNewGame = false;
+  networkConfirmingReturnToLobby = false;
   networkRoomCodeDialogOpen = false;
   networkRoomCodeCopyStatus = null;
 
@@ -1571,9 +1580,11 @@ function onNetworkMessage(message: ServerMessage): void {
       // giao thức/console, chưa gắn vào giao diện chơi bài.
       return;
     case "game_abandoned":
-      // Việc 4.3: server đã tự xoá ván (còn quá ít người kết nối) — quay lại
-      // lobby, dọn hết trạng thái ván cũ. `lobby` gửi kèm ngay sau đó (xem
-      // room.ts) sẽ tự cập nhật đúng danh sách người + chủ phòng hiện tại.
+      // Việc 4.3 (reason "disconnect") HOẶC chủ phòng chủ động bấm "Về phòng
+      // chờ" (reason "host_returned_to_lobby", bổ sung — xem
+      // onNetworkRequestReturnToLobby()) — cả 2 đều quay lại lobby, dọn hết
+      // trạng thái ván cũ. `lobby` gửi kèm ngay sau đó (xem room.ts) sẽ tự
+      // cập nhật đúng danh sách người + chủ phòng hiện tại.
       networkView = null;
       networkGameLog = [];
       networkDeadline = null;
@@ -1584,9 +1595,13 @@ function onNetworkMessage(message: ServerMessage): void {
       networkSettingsDialogOpen = false;
       networkCardReferenceDialogOpen = false;
       networkConfirmingNewGame = false;
+      networkConfirmingReturnToLobby = false;
       networkRoomCodeDialogOpen = false;
       syncCountdownTick();
-      networkAbandonedNotice = "Ván vừa bị huỷ vì không đủ người chơi còn kết nối. Chờ đủ người rồi bắt đầu ván mới.";
+      networkAbandonedNotice =
+        message.reason === "host_returned_to_lobby"
+          ? "Chủ phòng đã quay về phòng chờ để sửa tuỳ chọn — ván trước đã bị huỷ."
+          : "Ván vừa bị huỷ vì không đủ người chơi còn kết nối. Chờ đủ người rồi bắt đầu ván mới.";
       screen = "network-lobby";
       render();
       return;
@@ -2090,6 +2105,7 @@ function onNetworkOpenSettingsDialog(): void {
 function onNetworkCloseSettingsDialog(): void {
   networkSettingsDialogOpen = false;
   networkConfirmingNewGame = false; // đóng dialog thì huỷ luôn bước xác nhận dở dang
+  networkConfirmingReturnToLobby = false;
   render();
 }
 
@@ -2147,6 +2163,29 @@ function onNetworkCancelNewGameConfirm(): void {
   render();
 }
 
+// Bổ sung — nút "Về phòng chờ (sửa tuỳ chọn)" trong dialog Cài đặt (qua mạng,
+// CHỈ chủ phòng thấy nút này). Khác hẳn onNetworkRequestNewGame() ở trên
+// (restart NGAY với tuỳ chọn CŨ khi ván đã kết thúc) — nút này LUÔN hỏi xác
+// nhận trước khi gửi, kể cả ván đã kết thúc, vì mục đích của nó là SỬA tuỳ
+// chọn chứ không phải chơi lại ngay; hỏi trước cho chắc, tránh bấm nhầm.
+function onNetworkRequestReturnToLobby(): void {
+  networkConfirmingReturnToLobby = true;
+  render();
+}
+
+function onNetworkConfirmReturnToLobby(): void {
+  netConnection?.send({ type: "return_to_lobby" });
+  networkConfirmingReturnToLobby = false;
+  // KHÔNG render() ở đây — chờ ServerMessage "game_abandoned" gửi về (xem
+  // onNetworkMessage()) mới thật sự đổi `screen` sang "network-lobby", giống
+  // hệt cách onNetworkConfirmNewGame() ở trên chờ "state" gửi về.
+}
+
+function onNetworkCancelReturnToLobbyConfirm(): void {
+  networkConfirmingReturnToLobby = false;
+  render();
+}
+
 function onNetworkOpenRoomCodeDialog(): void {
   networkRoomCodeCopyStatus = null; // mở dialog mới thì bỏ thông báo "Đã chép!" của lần mở trước
   networkRoomCodeDialogOpen = true;
@@ -2189,6 +2228,7 @@ function onLeaveNetworkGame(): void {
   networkSettingsDialogOpen = false;
   networkCardReferenceDialogOpen = false;
   networkConfirmingNewGame = false;
+  networkConfirmingReturnToLobby = false;
   networkRoomCodeDialogOpen = false;
   syncCountdownTick();
   screen = "home";
