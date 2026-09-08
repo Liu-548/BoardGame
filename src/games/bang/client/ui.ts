@@ -395,6 +395,22 @@ function cardChip(cardId: string, modifierClass?: string): HTMLSpanElement {
   return el;
 }
 
+// Đợt sửa giao diện bàn chơi — chế độ "Tinh gọn" (nút mới ở toolbar, xem
+// GameToolbarOptions.equipmentCompactMode): thay ẢNH lá bằng CHỮ TÊN lá cho
+// trang bị của NGƯỜI KHÁC khi CHỈ ĐỂ XEM (không bấm được — bấm được thì LUÔN
+// hiện ảnh thật như cũ, xem chỗ gọi ở renderEquipmentSection()/
+// networkRenderEquipmentSection(), vì cần thấy rõ lá nào mới bấm đúng).
+// `modifierClass` (Dynamite/Jail, xem equipmentDangerClass()) vẫn giữ được
+// cảnh báo qua viền/chữ đỏ, chỉ mất icon nổ/còng tay riêng của .card-box.
+function cardNameChip(cardId: string, modifierClass?: string): HTMLSpanElement {
+  const name = cardNameFromId(cardId);
+  const el = document.createElement("span");
+  el.className = ["equip-chip", modifierClass].filter(Boolean).join(" ");
+  el.textContent = cardLabel(cardId);
+  el.title = CARD_DESCRIPTIONS[name] ?? "";
+  return el;
+}
+
 // Đợt 4 UI/UX (mục 5) — "Cảnh báo riêng: Dynamite (đang đếm), Jail (bị giam)".
 // Cả 2 chỉ nguy hiểm khi đã NẰM TRÊN SÂN (equipment) — trong tay chưa đánh ra
 // thì chưa có tác dụng gì, không cần cảnh báo (đúng luật: Dynamite/Jail chỉ
@@ -745,6 +761,40 @@ const ROLE_LABELS: Record<Role, string> = {
   criminal: "Tội phạm",
   traitor: "Kẻ phản bội",
 };
+
+// Đợt sửa giao diện bàn chơi — số ghế NHÌN THẤY ĐƯỢC cho MỌI người (giống hệt
+// bản xem trước đã duyệt): số 1 LUÔN là Cảnh sát trưởng — vai này công khai
+// NGAY TỪ ĐẦU ván với mọi người (viewRole(), view.ts), nên tính được y hệt ở
+// cả hotseat (PlayerState.role đầy đủ) lẫn qua mạng (PlayerHandView.role đã
+// lọc qua viewFor(), nhưng Cảnh sát trưởng không bao giờ bị ẩn). Biến thể
+// 2-3 người (không có Cảnh sát trưởng) thì KHÔNG ai có role "sheriff" —
+// firstIndex về 0, đúng luật "ghế đầu đi trước" (xem setup.ts's
+// firstPlayerIndex). Số ghế CỐ ĐỊNH suốt ván theo đúng thứ tự lượt trong
+// mảng players — KHÔNG đổi khi có người bị loại hay tới lượt ai, khác hẳn
+// viền "đang tới lượt"/"cần phản hồi" (đã có sẵn, không đụng gì).
+function computeSeatNumbers(players: readonly { role: Role | null }[]): number[] {
+  const total = players.length;
+  const firstIndex = Math.max(
+    0,
+    players.findIndex((p) => p.role === "sheriff")
+  );
+  return players.map((_, index) => ((index - firstIndex + total) % total) + 1);
+}
+
+// Tối đa 8 người chơi (đã chốt từ trước) nên 8 ký tự số khoanh tròn Unicode
+// là đủ, không cần fallback.
+const CIRCLED_DIGITS = ["①", "②", "③", "④", "⑤", "⑥", "⑦", "⑧"];
+function seatBadgeText(seatNumber: number): string {
+  return CIRCLED_DIGITS[seatNumber - 1] ?? String(seatNumber);
+}
+
+function seatBadgeSpan(seatNumber: number): HTMLSpanElement {
+  const badge = document.createElement("span");
+  badge.className = "seat-badge";
+  badge.textContent = seatBadgeText(seatNumber);
+  badge.title = "Số ghế (thứ tự lượt chơi, số 1 là Cảnh sát trưởng)";
+  return badge;
+}
 
 // Thắng thua theo PHE (sheriff_deputy gộp 2 vai) — dùng cho 4-8 người, tách
 // bảng nhãn riêng khỏi ROLE_LABELS (theo từng người) ở trên.
@@ -1301,16 +1351,13 @@ export function describeEvent(event: GameEvent, nameOf: (id: string) => string):
 // gì tới việc nó có che đúng màn hình hay không.
 let openDialog: { title: string; element: HTMLDialogElement; body: HTMLElement } | null = null;
 
-// `closeButtonAtTop`: mặc định false (nút "Đóng" nằm CUỐI dialog, sau thân —
-// hành vi cũ). Thư viện bài truyền `true` vì danh sách lá/nhân vật quá dài,
-// nút "Đóng" nằm cuối buộc phải cuộn hết xuống đáy mới bấm được — đẩy lên
-// NGAY SAU tiêu đề, trước thân, để luôn thấy được mà không cần cuộn.
-function renderDialog(
-  title: string,
-  onClose: () => void,
-  buildBody: (body: HTMLElement) => void,
-  closeButtonAtTop = false
-): void {
+// Đợt sửa giao diện — nút "Đóng" đổi thành nút tròn "✕" GÓC TRÊN PHẢI, định vị
+// `position: absolute` NGAY TRONG `<dialog>` (không phải trong `body` cuộn
+// được) — luôn thấy được dù cuộn nội dung tới đâu, giải quyết đúng vấn đề ghi
+// chú cũ ở trên (Thư viện bài dài phải cuộn hết mới bấm "Đóng" được) cho CẢ 4
+// dialog cùng lúc, không cần riêng `closeButtonAtTop` cho từng loại nữa —
+// tham số đó bỏ hẳn, mọi lời gọi renderDialog() cũ truyền `true` cũng bỏ theo.
+function renderDialog(title: string, onClose: () => void, buildBody: (body: HTMLElement) => void): void {
   if (openDialog && openDialog.title === title) {
     // Cùng dialog đang mở sẵn — chỉ vẽ lại nội dung, không đụng gì tới
     // <dialog>/focus/cuộn đã có.
@@ -1327,21 +1374,25 @@ function renderDialog(
   const dialog = document.createElement("dialog");
   dialog.className = "app-dialog";
 
-  const heading = document.createElement("h3");
-  heading.textContent = title;
-  dialog.appendChild(heading);
-
-  const closeButton = button("Đóng", () => {
+  const closeButton = document.createElement("button");
+  closeButton.type = "button";
+  closeButton.className = "dialog__close";
+  closeButton.textContent = "✕";
+  closeButton.setAttribute("aria-label", "Đóng");
+  closeButton.addEventListener("click", () => {
     dialog.close();
     onClose();
   });
-  if (closeButtonAtTop) dialog.appendChild(closeButton);
+  dialog.appendChild(closeButton);
+
+  const heading = document.createElement("h3");
+  heading.className = "dialog__title";
+  heading.textContent = title;
+  dialog.appendChild(heading);
 
   const body = document.createElement("div");
   buildBody(body);
   dialog.appendChild(body);
-
-  if (!closeButtonAtTop) dialog.appendChild(closeButton);
 
   dialog.addEventListener("close", () => {
     onClose();
@@ -1385,28 +1436,154 @@ function reconcileOpenDialog(desiredTitles: readonly string[]): void {
   }
 }
 
+const ICON_SVG_NS = "http://www.w3.org/2000/svg";
+
+function svgEl(tag: string, attrs: Record<string, string>): SVGElement {
+  const el = document.createElementNS(ICON_SVG_NS, tag);
+  for (const key of Object.keys(attrs)) el.setAttribute(key, attrs[key]);
+  return el;
+}
+
+// 6 icon nhỏ cho toolbar — vẽ bằng hình khối đơn giản (không dùng emoji, xem
+// quy ước chung đã áp cho src/hub/), giống hệt bản xem trước đã duyệt.
+function newIconSvg(strokeOnly = true): SVGSVGElement {
+  const attrs: Record<string, string> = strokeOnly
+    ? { viewBox: "0 0 20 20", fill: "none", stroke: "currentColor", "stroke-width": "1.5", "stroke-linecap": "round", "stroke-linejoin": "round" }
+    : { viewBox: "0 0 20 20", fill: "currentColor" };
+  return svgEl("svg", attrs) as SVGSVGElement;
+}
+
+function iconLog(): SVGSVGElement {
+  const svg = newIconSvg();
+  svg.appendChild(svgEl("rect", { x: "4", y: "2", width: "12", height: "16", rx: "1.5" }));
+  svg.appendChild(svgEl("line", { x1: "7", y1: "7", x2: "13", y2: "7" }));
+  svg.appendChild(svgEl("line", { x1: "7", y1: "10.5", x2: "13", y2: "10.5" }));
+  svg.appendChild(svgEl("line", { x1: "7", y1: "14", x2: "11", y2: "14" }));
+  return svg;
+}
+
+function iconLibrary(): SVGSVGElement {
+  const svg = newIconSvg();
+  svg.appendChild(svgEl("rect", { x: "3", y: "7", width: "10", height: "12", rx: "1.2", transform: "rotate(-10 8 13)" }));
+  svg.appendChild(svgEl("rect", { x: "7", y: "4", width: "10", height: "12", rx: "1.2" }));
+  return svg;
+}
+
+function iconRoomCode(): SVGSVGElement {
+  const svg = newIconSvg();
+  svg.appendChild(svgEl("circle", { cx: "6", cy: "10", r: "3.2" }));
+  svg.appendChild(svgEl("line", { x1: "9", y1: "10", x2: "17", y2: "10" }));
+  svg.appendChild(svgEl("line", { x1: "14", y1: "10", x2: "14", y2: "13" }));
+  svg.appendChild(svgEl("line", { x1: "17", y1: "10", x2: "17", y2: "13" }));
+  return svg;
+}
+
+function iconSettings(): SVGSVGElement {
+  const svg = newIconSvg();
+  svg.appendChild(svgEl("line", { x1: "3", y1: "6", x2: "17", y2: "6" }));
+  svg.appendChild(svgEl("circle", { cx: "8", cy: "6", r: "2", fill: "currentColor", stroke: "none" }));
+  svg.appendChild(svgEl("line", { x1: "3", y1: "14", x2: "17", y2: "14" }));
+  svg.appendChild(svgEl("circle", { cx: "13", cy: "14", r: "2", fill: "currentColor", stroke: "none" }));
+  return svg;
+}
+
+function iconGrid(): SVGSVGElement {
+  const svg = newIconSvg(false);
+  for (const [x, y] of [
+    [3, 3],
+    [11, 3],
+    [3, 11],
+    [11, 11],
+  ]) {
+    svg.appendChild(svgEl("rect", { x: String(x), y: String(y), width: "6", height: "6", rx: "1" }));
+  }
+  return svg;
+}
+
+function iconList(): SVGSVGElement {
+  const svg = newIconSvg();
+  for (const y of [5, 10, 15]) {
+    svg.appendChild(svgEl("line", { x1: "3", y1: String(y), x2: "17", y2: String(y) }));
+  }
+  return svg;
+}
+
+function toolbarButton(icon: SVGSVGElement, label: string, ariaLabel: string, onClick: () => void, pressed?: boolean): HTMLButtonElement {
+  const el = document.createElement("button");
+  el.type = "button";
+  el.className = "game-toolbar__btn";
+  el.setAttribute("aria-label", ariaLabel);
+  if (pressed !== undefined) el.setAttribute("aria-pressed", String(pressed));
+  el.appendChild(icon);
+  const labelEl = document.createElement("span");
+  labelEl.className = "btn-label";
+  labelEl.textContent = label;
+  el.appendChild(labelEl);
+  el.addEventListener("click", onClick);
+  return el;
+}
+
+export interface GameToolbarOptions {
+  onOpenLog: () => void;
+  onOpenSettings: () => void;
+  onOpenCardReference: () => void;
+  // Chỉ truyền vào (khác `undefined`) khi đang chơi qua mạng — hotseat không
+  // có mã phòng để mời.
+  onOpenRoomCode: (() => void) | undefined;
+  // Đợt sửa giao diện bàn chơi — nút thứ 5 cùng hàng: chuyển hiển thị trang
+  // bị của NGƯỜI KHÁC giữa "Bình thường" (ảnh lá đầy đủ) và "Tinh gọn" (chỉ
+  // tên) — xem renderEquipmentSection()/networkRenderEquipmentSection().
+  equipmentCompactMode: boolean;
+  onToggleEquipmentCompactMode: () => void;
+  // "Bạn" — chỉ có qua mạng (hotseat dùng chung 1 máy, không có khái niệm
+  // "bạn" riêng biệt) — hiện máu của chính mình NGAY TRONG thanh dính trên
+  // cùng, khỏi phải cuộn xuống ghế của mình ở cuối trang mới thấy được.
+  myStatus: { seatNumber: number; hp: number; maxHp: number } | undefined;
+}
+
 // Đợt 3 UI/UX (mục 9) — "Sẵn ở góc, không chiếm chỗ bàn": hàng nút cố định
-// góc trên phải màn hình, bấm mới mở dialog tương ứng — thay hẳn khu nhật ký
-// cố định luôn hiện trước đây. `onOpenRoomCode`: chỉ truyền vào (khác
-// `undefined`) khi đang chơi qua mạng — hotseat không có mã phòng để mời.
-// `onOpenCardReference` (bổ sung sau UI/UX): mở "Thư viện bài" bằng DIALOG
-// (giống Nhật ký/Cài đặt) — KHÔNG chuyển `screen` như bấm từ màn hình chính,
-// nên đóng lại là chơi tiếp ngay, không văng khỏi ván.
-function renderGameToolbar(
-  container: HTMLElement,
-  onOpenLog: () => void,
-  onOpenSettings: () => void,
-  onOpenCardReference: () => void,
-  onOpenRoomCode: (() => void) | undefined
-): void {
+// góc trên màn hình, bấm mới mở dialog tương ứng — thay hẳn khu nhật ký cố
+// định luôn hiện trước đây. `onOpenCardReference` (bổ sung sau UI/UX): mở
+// "Thư viện bài" bằng DIALOG (giống Nhật ký/Cài đặt) — KHÔNG chuyển `screen`
+// như bấm từ màn hình chính, nên đóng lại là chơi tiếp ngay, không văng khỏi
+// ván.
+function renderGameToolbar(container: HTMLElement, options: GameToolbarOptions): void {
   const toolbar = document.createElement("div");
   toolbar.className = "game-toolbar";
-  toolbar.appendChild(button("Nhật ký ván đấu", onOpenLog));
-  toolbar.appendChild(button("Thư viện bài", onOpenCardReference));
-  toolbar.appendChild(button("Cài đặt", onOpenSettings));
-  if (onOpenRoomCode) {
-    toolbar.appendChild(button("Mã phòng / Mời", onOpenRoomCode));
+
+  if (options.myStatus) {
+    const chip = document.createElement("div");
+    chip.className = "me-chip";
+    chip.appendChild(seatBadgeSpan(options.myStatus.seatNumber));
+    const name = document.createElement("span");
+    name.className = "me-chip__name";
+    name.textContent = "Bạn";
+    chip.appendChild(name);
+    const hpTrack = renderHpTrack(options.myStatus.hp, options.myStatus.maxHp);
+    hpTrack.classList.add("me-chip__hp");
+    chip.appendChild(hpTrack);
+    toolbar.appendChild(chip);
   }
+
+  const actions = document.createElement("div");
+  actions.className = "game-toolbar__actions";
+  actions.appendChild(toolbarButton(iconLog(), "Nhật ký", "Nhật ký ván đấu", options.onOpenLog));
+  actions.appendChild(toolbarButton(iconLibrary(), "Thư viện", "Thư viện bài", options.onOpenCardReference));
+  if (options.onOpenRoomCode) {
+    actions.appendChild(toolbarButton(iconRoomCode(), "Mã phòng", "Mã phòng / Mời", options.onOpenRoomCode));
+  }
+  actions.appendChild(toolbarButton(iconSettings(), "Cài đặt", "Cài đặt", options.onOpenSettings));
+  actions.appendChild(
+    toolbarButton(
+      options.equipmentCompactMode ? iconList() : iconGrid(),
+      options.equipmentCompactMode ? "Gọn" : "Đầy đủ",
+      "Chuyển kiểu hiện trang bị của người khác",
+      options.onToggleEquipmentCompactMode,
+      options.equipmentCompactMode
+    )
+  );
+
+  toolbar.appendChild(actions);
   container.appendChild(toolbar);
 }
 
@@ -1544,96 +1721,131 @@ interface NewGameSettingsOptions {
 // rời. Đọc sở thích TRỰC TIẾP từ localStorage mỗi lần mở dialog (không cần
 // tham số/state đi qua RenderOptions) — bấm chọn là áp dụng NGAY (đổi
 // data-theme/class) + lưu lại, không cần vẽ lại cả màn hình.
+// Đợt sửa giao diện — nhóm nút gộp (segmented control) thay cho hàng radio
+// trần, dùng chung cho cả Giao diện lẫn Cỡ chữ (2 nhóm lựa chọn LOẠI TRỪ NHAU
+// y hệt nhau, chỉ khác nhãn/giá trị).
+function renderSegmentedControl<T extends string>(
+  container: HTMLElement,
+  label: string,
+  options: readonly (readonly [T, string])[],
+  current: T,
+  onChange: (value: T) => void
+): void {
+  const groupLabel = document.createElement("p");
+  groupLabel.className = "settings-group__label";
+  groupLabel.textContent = label;
+  container.appendChild(groupLabel);
+
+  const group = document.createElement("div");
+  group.className = "segmented";
+  const buttons: HTMLButtonElement[] = [];
+  for (const [value, text] of options) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.textContent = text;
+    btn.setAttribute("aria-pressed", String(value === current));
+    btn.addEventListener("click", () => {
+      // Đổi TRẠNG THÁI HIỆN RA NGAY ở đây — không đợi main.ts's render() gọi
+      // lại (dialog Cài đặt không tự vẽ lại mỗi lần đổi sở thích, khác các
+      // input radio gốc HTML cũ tự có "checked" riêng không cần JS gì thêm).
+      for (const b of buttons) b.setAttribute("aria-pressed", "false");
+      btn.setAttribute("aria-pressed", "true");
+      onChange(value);
+    });
+    buttons.push(btn);
+    group.appendChild(btn);
+  }
+  container.appendChild(group);
+}
+
+// Công tắc gạt (switch) thay cho checkbox trần — dùng chung cho Âm thanh/Rung.
+function renderSwitchRow(container: HTMLElement, label: string, checked: boolean, onChange: (checked: boolean) => void): void {
+  const row = document.createElement("div");
+  row.className = "switch-row";
+
+  const text = document.createElement("span");
+  text.textContent = label;
+  row.appendChild(text);
+
+  const swBtn = document.createElement("button");
+  swBtn.type = "button";
+  swBtn.className = "switch";
+  swBtn.setAttribute("aria-pressed", String(checked));
+  swBtn.addEventListener("click", () => {
+    // Đổi TRẠNG THÁI HIỆN RA NGAY — giống hệt lý do ở renderSegmentedControl().
+    const next = swBtn.getAttribute("aria-pressed") !== "true";
+    swBtn.setAttribute("aria-pressed", String(next));
+    onChange(next);
+  });
+  row.appendChild(swBtn);
+
+  container.appendChild(row);
+}
+
 function renderSettingsDialogBody(
   body: HTMLElement,
   leaveLabel: string,
   onLeave: () => void,
   newGame: NewGameSettingsOptions
 ): void {
-  const themeLabel = document.createElement("p");
-  themeLabel.textContent = "Giao diện:";
-  body.appendChild(themeLabel);
-  const themeRow = document.createElement("div");
-  themeRow.className = "settings-row";
-  for (const [value, label] of [
-    ["light", "Sáng"],
-    ["dark", "Tối"],
-  ] as const) {
-    const id = `settings-theme-${value}`;
-    const input = document.createElement("input");
-    input.type = "radio";
-    input.name = "settings-theme";
-    input.id = id;
-    input.checked = getThemePreference() === value;
-    input.addEventListener("change", () => {
+  const themeGroup = document.createElement("div");
+  themeGroup.className = "settings-group";
+  renderSegmentedControl(
+    themeGroup,
+    "Giao diện",
+    [
+      ["light", "Sáng"],
+      ["dark", "Tối"],
+    ] as const,
+    getThemePreference(),
+    (value) => {
       localStorage.setItem(THEME_STORAGE_KEY, value);
       applyTheme(value);
-    });
-    const labelEl = document.createElement("label");
-    labelEl.htmlFor = id;
-    labelEl.appendChild(input);
-    labelEl.append(` ${label}`);
-    themeRow.appendChild(labelEl);
-  }
-  body.appendChild(themeRow);
+    }
+  );
+  body.appendChild(themeGroup);
 
-  const fontLabel = document.createElement("p");
-  fontLabel.textContent = "Cỡ chữ:";
-  body.appendChild(fontLabel);
-  const fontRow = document.createElement("div");
-  fontRow.className = "settings-row";
-  for (const [value, label] of [
-    ["small", "Nhỏ"],
-    ["medium", "Vừa"],
-    ["large", "Lớn"],
-  ] as const) {
-    const id = `settings-font-${value}`;
-    const input = document.createElement("input");
-    input.type = "radio";
-    input.name = "settings-font-size";
-    input.id = id;
-    input.checked = getFontSizePreference() === value;
-    input.addEventListener("change", () => {
+  const fontGroup = document.createElement("div");
+  fontGroup.className = "settings-group";
+  renderSegmentedControl(
+    fontGroup,
+    "Cỡ chữ",
+    [
+      ["small", "Nhỏ"],
+      ["medium", "Vừa"],
+      ["large", "Lớn"],
+    ] as const,
+    getFontSizePreference(),
+    (value) => {
       localStorage.setItem(FONT_SIZE_STORAGE_KEY, value);
       applyFontSize(value);
-    });
-    const labelEl = document.createElement("label");
-    labelEl.htmlFor = id;
-    labelEl.appendChild(input);
-    labelEl.append(` ${label}`);
-    fontRow.appendChild(labelEl);
-  }
-  body.appendChild(fontRow);
+    }
+  );
+  body.appendChild(fontGroup);
 
-  const soundLabel = document.createElement("label");
-  const soundInput = document.createElement("input");
-  soundInput.type = "checkbox";
-  soundInput.checked = isSoundEnabled();
-  soundInput.addEventListener("change", () => {
-    localStorage.setItem(SOUND_STORAGE_KEY, soundInput.checked ? "on" : "off");
-    if (soundInput.checked) playSound("ui_toggle"); // xác nhận nghe thử ngay (im lặng nếu chưa có file)
+  renderSwitchRow(body, "Âm thanh (chưa có file thật — bật sẵn để dùng ngay khi có)", isSoundEnabled(), (checked) => {
+    localStorage.setItem(SOUND_STORAGE_KEY, checked ? "on" : "off");
+    if (checked) playSound("ui_toggle"); // xác nhận nghe thử ngay (im lặng nếu chưa có file)
   });
-  soundLabel.appendChild(soundInput);
-  soundLabel.append(" Âm thanh (chưa có file thật — bật sẵn để dùng ngay khi có)");
-  const soundRow = document.createElement("p");
-  soundRow.appendChild(soundLabel);
-  body.appendChild(soundRow);
 
   // Bổ sung — rung màn hình khi tới lượt/cần phản hồi (chỉ thiết bị hỗ trợ
   // Vibration API mới thấy tác dụng, xem vibrateForTurn() ở trên).
-  const vibrationLabel = document.createElement("label");
-  const vibrationInput = document.createElement("input");
-  vibrationInput.type = "checkbox";
-  vibrationInput.checked = isVibrationEnabled();
-  vibrationInput.addEventListener("change", () => {
-    localStorage.setItem(VIBRATION_STORAGE_KEY, vibrationInput.checked ? "on" : "off");
-    if (vibrationInput.checked) vibrateForTurn(); // rung thử ngay (im lặng nếu thiết bị không hỗ trợ)
-  });
-  vibrationLabel.appendChild(vibrationInput);
-  vibrationLabel.append(" Rung khi tới lượt/cần phản hồi (chỉ có tác dụng trên thiết bị hỗ trợ, vd điện thoại Android)");
-  const vibrationRow = document.createElement("p");
-  vibrationRow.appendChild(vibrationLabel);
-  body.appendChild(vibrationRow);
+  renderSwitchRow(
+    body,
+    "Rung khi tới lượt/cần phản hồi (chỉ có tác dụng trên thiết bị hỗ trợ, vd điện thoại Android)",
+    isVibrationEnabled(),
+    (checked) => {
+      localStorage.setItem(VIBRATION_STORAGE_KEY, checked ? "on" : "off");
+      if (checked) vibrateForTurn(); // rung thử ngay (im lặng nếu thiết bị không hỗ trợ)
+    }
+  );
+
+  const divider = document.createElement("hr");
+  divider.className = "settings-divider";
+  body.appendChild(divider);
+
+  const actions = document.createElement("div");
+  actions.className = "settings-actions";
 
   if (newGame.visible) {
     if (newGame.confirmingNewGame) {
@@ -1642,28 +1854,58 @@ function renderSettingsDialogBody(
       warning.textContent = "Ván hiện tại CHƯA kết thúc. Huỷ ván này để bắt đầu ván mới?";
       body.appendChild(warning);
       const confirmRow = document.createElement("div");
-      confirmRow.className = "settings-row";
-      confirmRow.appendChild(button("Huỷ ván, bắt đầu mới", () => newGame.onConfirmNewGame()));
-      confirmRow.appendChild(button("Không, tiếp tục ván này", () => newGame.onCancelNewGameConfirm()));
+      confirmRow.className = "settings-actions";
+      confirmRow.appendChild(settingsButton("Huỷ ván, bắt đầu mới", "danger", () => newGame.onConfirmNewGame()));
+      confirmRow.appendChild(settingsButton("Không, tiếp tục ván này", "outline", () => newGame.onCancelNewGameConfirm()));
       body.appendChild(confirmRow);
     } else {
-      body.appendChild(button("Bắt đầu ván mới", () => newGame.onRequestNewGame()));
+      actions.appendChild(settingsButton("Bắt đầu ván mới", "outline", () => newGame.onRequestNewGame()));
     }
   }
 
-  body.appendChild(button(leaveLabel, onLeave));
+  actions.appendChild(settingsButton(leaveLabel, "danger", onLeave));
+  body.appendChild(actions);
+}
+
+function settingsButton(label: string, variant: "outline" | "danger", onClick: () => void): HTMLButtonElement {
+  const el = document.createElement("button");
+  el.type = "button";
+  el.className = "settings-btn settings-btn--" + variant;
+  el.textContent = label;
+  el.addEventListener("click", onClick);
+  return el;
 }
 
 // Nội dung dialog Mã phòng/Mời — CHỈ chơi qua mạng (hotseat không có mã
 // phòng). `copyStatus`: thông báo TẠM THỜI sau khi bấm "Chép mã" (thành công
 // hay lỗi — trình duyệt/thiết bị có thể chặn Clipboard API), null = chưa bấm
 // lần nào trong lượt mở dialog này.
+// Đợt sửa giao diện — bản THU GỌN của .room-code-box (màn "Phòng chờ") cho
+// vừa dialog hẹp (dọc, canh giữa thay vì 1 hàng ngang) — xem .dialog-code-box,
+// style.css.
 function renderRoomCodeDialogBody(body: HTMLElement, roomCode: string, copyStatus: string | null, onCopy: () => void): void {
-  const codeEl = document.createElement("p");
-  codeEl.className = "summary";
-  codeEl.textContent = `Mã phòng: ${roomCode}`;
-  body.appendChild(codeEl);
-  body.appendChild(button("Chép mã", onCopy));
+  const box = document.createElement("div");
+  box.className = "dialog-code-box";
+
+  const codeEl = document.createElement("span");
+  codeEl.className = "dialog-code-box__code";
+  codeEl.textContent = roomCode;
+  box.appendChild(codeEl);
+
+  const copyBtn = document.createElement("button");
+  copyBtn.type = "button";
+  copyBtn.className = "btn-copy";
+  copyBtn.textContent = "Sao chép mã";
+  copyBtn.addEventListener("click", onCopy);
+  box.appendChild(copyBtn);
+
+  const hint = document.createElement("p");
+  hint.className = "dialog-code-box__hint";
+  hint.textContent = "Chia sẻ mã này cho bạn bè để họ vào cùng phòng.";
+  box.appendChild(hint);
+
+  body.appendChild(box);
+
   if (copyStatus) {
     const statusEl = document.createElement("p");
     statusEl.textContent = copyStatus;
@@ -1685,6 +1927,9 @@ const DEADLINE_KIND_LABELS: Record<DeadlineInfo["kind"], string> = {
   character_selection: "đang chọn nhân vật",
 };
 
+// Đợt sửa giao diện "Chọn nhân vật" — đồng hồ đổi thành viên thuốc nổi bật
+// (giống hệt bản xem trước đã duyệt), dùng CHUNG cho cả lúc chọn nhân vật lẫn
+// lúc đang chơi thật (renderApp()/renderNetworkGame() gọi cùng 1 hàm này).
 function renderCountdown(
   container: HTMLElement,
   deadline: DeadlineInfo | null,
@@ -1693,15 +1938,23 @@ function renderCountdown(
   if (!deadline) return;
   const secondsLeft = Math.max(0, Math.ceil((deadline.expiresAt - Date.now()) / 1000));
 
-  const el = document.createElement("p");
-  el.className = "countdown" + (secondsLeft <= 10 ? " countdown--urgent" : "");
+  const pill = document.createElement("p");
+  pill.className = "countdown-pill" + (secondsLeft <= 10 ? " countdown-pill--urgent" : "");
+
+  const dot = document.createElement("span");
+  dot.className = "countdown-pill__dot";
+  pill.appendChild(dot);
+
+  const text = document.createElement("span");
   // Giai đoạn 5, chọn nhân vật — đồng hồ CHUNG cho cả bàn, không gắn 1 người
   // cụ thể (playerId luôn null ở kind "character_selection", xem protocol.ts).
-  el.textContent =
+  text.textContent =
     deadline.playerId === null
-      ? `⏱ Còn ${secondsLeft}s để mọi người chọn nhân vật`
-      : `⏱ Còn ${secondsLeft}s — ${players.find((p) => p.id === deadline.playerId)?.name ?? "?"} ${DEADLINE_KIND_LABELS[deadline.kind]}`;
-  container.appendChild(el);
+      ? `Còn ${secondsLeft}s để mọi người chọn nhân vật`
+      : `Còn ${secondsLeft}s — ${players.find((p) => p.id === deadline.playerId)?.name ?? "?"} ${DEADLINE_KIND_LABELS[deadline.kind]}`;
+  pill.appendChild(text);
+
+  container.appendChild(pill);
 }
 
 // ----- Trạng thái "đang chọn" tạm thời, CHỈ tồn tại ở client (không phải
@@ -1895,6 +2148,10 @@ export interface UiHandlers {
   // Đợt 2 UI/UX (mục 4) — bấm "nở"/"thu gọn" khu trang bị của 1 seat khi bàn
   // >6 người. Client-only, không phải hành động ván đấu, không gửi lên server.
   onToggleSeatExpanded(playerId: string): void;
+  // Đợt sửa giao diện bàn chơi — nút "Bình thường"/"Tinh gọn" ở toolbar, xem
+  // GameToolbarOptions.equipmentCompactMode. Client-only, giống hệt
+  // onToggleSeatExpanded (không liên quan GameState, không gửi lên server).
+  onToggleEquipmentCompactMode(): void;
   // Đợt 3 UI/UX (mục 9) — mở/đóng 2 dialog góc màn hình (nhật ký/cài đặt).
   // Client-only, y hệt onToggleSeatExpanded — không liên quan GameState.
   onOpenLogDialog(): void;
@@ -2191,7 +2448,11 @@ function renderEquipmentSection(
   state: GameState,
   player: PlayerState,
   selection: Selection,
-  handlers: UiHandlers
+  handlers: UiHandlers,
+  // Đợt sửa giao diện bàn chơi — "Tinh gọn" CHỈ áp dụng cho lá KHÔNG bấm được
+  // (đang chỉ để xem) của NGƯỜI KHÁC — bài của chính mình luôn hiện ảnh thật,
+  // dù bật chế độ nào (xem lời gọi hàm này ở renderPlayer()).
+  compactMode: boolean
 ): void {
   const wrapper = document.createElement("div");
   wrapper.className = "cards";
@@ -2255,7 +2516,7 @@ function renderEquipmentSection(
       continue;
     }
 
-    wrapper.appendChild(cardChip(cardId, dangerClass));
+    wrapper.appendChild(compactMode ? cardNameChip(cardId, dangerClass) : cardChip(cardId, dangerClass));
   }
 
   container.appendChild(wrapper);
@@ -2303,6 +2564,7 @@ function renderPlayer(
   state: GameState,
   player: PlayerState,
   index: number,
+  seatNumber: number,
   options: RenderOptions,
   handlers: UiHandlers
 ): HTMLElement {
@@ -2323,6 +2585,7 @@ function renderPlayer(
 
   const headingRow = document.createElement("div");
   headingRow.className = "player__heading-row";
+  headingRow.appendChild(seatBadgeSpan(seatNumber));
   // Đợt 5 UI/UX (mục 4 ý a) — lá nhân vật (đã chọn xong, công khai) sát cạnh
   // tên, chỉ hiện khi ván có bật cơ chế chọn nhân vật VÀ người này đã chọn.
   if (player.characterId) {
@@ -2414,7 +2677,10 @@ function renderPlayer(
     options.expandedSeatIds,
     () => handlers.onToggleSeatExpanded(player.id),
     forceShowEquipment,
-    () => renderEquipmentSection(el, state, player, selection, handlers)
+    // Hotseat dùng chung 1 máy — mọi người bình đẳng, không có khái niệm
+    // "bài của mình" để miễn trừ chế độ Tinh gọn (khác qua mạng, xem
+    // networkRenderPlayer()) — áp dụng compactMode CHO TẤT CẢ.
+    () => renderEquipmentSection(el, state, player, selection, handlers, options.equipmentCompactMode)
   );
 
   // Chọn mục tiêu: chỉ hiện nút này cho người KHÁC người đang cầm bài, và chỉ
@@ -2849,6 +3115,75 @@ export interface CharacterSelectionHandlers {
   onConfirmCharacterChoice(playerId: string): void;
 }
 
+// Đợt sửa giao diện "Chọn nhân vật" — hàng tổng quan trạng thái mọi người
+// (avatar chữ cái đầu tên + "✓ đã chọn"/"đang chọn"), giống hệt bản xem trước
+// đã duyệt (Artifact). Dùng CHUNG cho cả hotseat lẫn qua mạng — 2 kiểu dữ
+// liệu CharacterChoice/CharacterChoiceView đều có đủ 2 field cần dùng ở đây
+// nên gộp được, không cần viết 2 lần. `viewerId` null = hotseat (không có
+// khái niệm "bạn" — mọi người dùng chung 1 máy).
+function renderCharacterSelectionRoster(
+  container: HTMLElement,
+  choices: { playerId: string; chosen: string | null }[],
+  players: { id: string; name: string; role: Role | null }[],
+  viewerId: string | null
+): void {
+  const roster = document.createElement("div");
+  roster.className = "roster";
+
+  for (const choice of choices) {
+    const player = players.find((p) => p.id === choice.playerId);
+    const playerName = player?.name ?? choice.playerId;
+    const isMe = choice.playerId === viewerId;
+
+    const chip = document.createElement("div");
+    chip.className = "roster-chip" + (isMe ? " roster-chip--me" : "") + (choice.chosen ? " roster-chip--done" : "");
+
+    const avatar = document.createElement("span");
+    avatar.className = "roster-chip__avatar";
+    avatar.textContent = playerName.charAt(0).toUpperCase();
+    chip.appendChild(avatar);
+
+    chip.appendChild(document.createTextNode(playerName + (isMe ? " (bạn)" : "")));
+
+    const status = document.createElement("span");
+    status.className = "roster-chip__status";
+    // Vai chỉ hiện khi đã lộ (chính mình + Cảnh sát trưởng, xem viewRole() ở
+    // view.ts) — giữ đúng thông tin đợt trước đã bổ sung (hiện vai ngay từ
+    // lúc chọn nhân vật), gộp vào cùng dòng trạng thái cho gọn.
+    const statusText = choice.chosen ? "✓ đã chọn" : "đang chọn";
+    status.textContent = player?.role ? `${statusText} — ${ROLE_LABELS[player.role]}` : statusText;
+    chip.appendChild(status);
+
+    roster.appendChild(chip);
+  }
+
+  container.appendChild(roster);
+}
+
+// 2 lá đang chờ chọn, cạnh nhau kiểu "đối đầu" — thay cho .cards flex-wrap cũ.
+// Dùng CHUNG cho cả hotseat lẫn qua mạng.
+function renderCharacterDuel(
+  container: HTMLElement,
+  options: [string, string],
+  role: Role | null,
+  armedId: string | undefined,
+  onArm: (characterId: string) => void
+): void {
+  const duel = document.createElement("div");
+  duel.className = "duel";
+
+  duel.appendChild(characterOptionCard(options[0], role, options[0] === armedId, () => onArm(options[0])));
+
+  const divider = document.createElement("span");
+  divider.className = "duel__divider";
+  divider.textContent = "hoặc";
+  duel.appendChild(divider);
+
+  duel.appendChild(characterOptionCard(options[1], role, options[1] === armedId, () => onArm(options[1])));
+
+  container.appendChild(duel);
+}
+
 export function renderCharacterSelectionScreen(
   container: HTMLElement,
   players: PlayerState[],
@@ -2861,57 +3196,49 @@ export function renderCharacterSelectionScreen(
 ): void {
   container.replaceChildren();
 
-  const heading = document.createElement("h2");
+  const heading = document.createElement("h1");
+  heading.className = "screen-title";
   heading.textContent = "Chọn nhân vật";
   container.appendChild(heading);
 
   const rule = document.createElement("p");
+  rule.className = "rule-text";
   rule.textContent =
     "Mỗi người xem 2 lá nhân vật riêng của mình rồi chọn giữ 1 lá — bấm được theo bất kỳ thứ tự nào, không cần chờ ai. " +
     "Bấm 1 lá để xem kỹ, rồi bấm \"Xác nhận\" mới thật sự chọn.";
   container.appendChild(rule);
 
+  renderCharacterSelectionRoster(container, characterSelection, players, null);
+
+  // Hotseat: KHÔNG có khái niệm "chính mình" — ai CHƯA chọn cũng có khu chọn
+  // riêng (đúng luồng "bấm được theo bất kỳ thứ tự nào" — cùng 1 máy, mọi
+  // người đều bấm được, không phải riêng 1 người). Người ĐÃ chọn không cần
+  // khu riêng nữa, hàng tổng quan ở trên đã đủ (khớp đổi ở bản network).
   for (const choice of characterSelection) {
+    if (choice.chosen) continue;
     const player = players.find((p) => p.id === choice.playerId);
     const playerName = player?.name ?? choice.playerId;
-    const section = document.createElement("div");
-    section.className = "panel";
+    const armedId = armedChoices[choice.playerId];
 
-    const nameEl = document.createElement("h3");
+    const section = document.createElement("div");
+    section.className = "pick-section";
+
+    const nameEl = document.createElement("h2");
+    nameEl.className = "pick-section__heading";
+    nameEl.textContent = `${playerName} — chọn 1 trong 2 lá`;
     section.appendChild(nameEl);
 
-    // Bổ sung theo phản hồi thật: hiện luôn vai mỗi người ngay từ lúc chọn
-    // nhân vật — hotseat vốn không giấu gì (dùng thẳng GameState đầy đủ, xem
-    // ghi chú CharacterSelectionHandlers ở trên), nên hiện được vai THẬT của
-    // TẤT CẢ mọi người, không chỉ chính mình/Sheriff.
-    const roleEl = document.createElement("p");
-    roleEl.textContent = `Vai: ${player?.role ? ROLE_LABELS[player.role] : "(chưa chia vai)"}`;
-    section.appendChild(roleEl);
+    renderCharacterDuel(section, choice.options, player?.role ?? null, armedId, (characterId) =>
+      handlers.onArmCharacterChoice(choice.playerId, characterId)
+    );
 
-    const cardsEl = document.createElement("div");
-    cardsEl.className = "cards";
-
-    if (choice.chosen) {
-      nameEl.textContent = `${playerName} — đã chọn`;
-      cardsEl.appendChild(characterChip(choice.chosen));
-      section.appendChild(cardsEl);
-    } else {
-      const armedId = armedChoices[choice.playerId];
-      nameEl.textContent = `${playerName} — chọn 1 trong 2 lá`;
-      for (const characterId of choice.options) {
-        cardsEl.appendChild(
-          characterOptionCard(characterId, player?.role ?? null, characterId === armedId, () =>
-            handlers.onArmCharacterChoice(choice.playerId, characterId)
-          )
-        );
-      }
-      section.appendChild(cardsEl);
-
-      if (armedId) {
-        section.appendChild(
-          button(`Xác nhận chọn ${characterLabel(armedId)}`, () => handlers.onConfirmCharacterChoice(choice.playerId))
-        );
-      }
+    if (armedId) {
+      const confirmBtn = document.createElement("button");
+      confirmBtn.type = "button";
+      confirmBtn.className = "btn-primary";
+      confirmBtn.textContent = `Xác nhận chọn ${characterLabel(armedId)}`;
+      confirmBtn.addEventListener("click", () => handlers.onConfirmCharacterChoice(choice.playerId));
+      section.appendChild(confirmBtn);
     }
 
     container.appendChild(section);
@@ -2934,6 +3261,8 @@ export interface RenderOptions {
   // Bổ sung — đang ở bước xác nhận "huỷ ván hiện tại để bắt đầu ván mới"
   // BÊN TRONG dialog Cài đặt (chỉ có ý nghĩa khi settingsDialogOpen === true).
   confirmingNewGame: boolean;
+  // Đợt sửa giao diện bàn chơi — xem GameToolbarOptions.equipmentCompactMode.
+  equipmentCompactMode: boolean;
 }
 
 export function renderApp(
@@ -2949,13 +3278,16 @@ export function renderApp(
   // khuất. Vẽ toolbar NGAY ĐẦU (trước mọi nội dung khác) + CSS đổi sang
   // `position: sticky` (xem style.css): giờ nó CHIẾM 1 hàng thật ở đầu
   // trang, nội dung phía dưới luôn bắt đầu SAU nó, không bao giờ bị che.
-  renderGameToolbar(
-    container,
-    handlers.onOpenLogDialog,
-    handlers.onOpenSettingsDialog,
-    handlers.onOpenCardReferenceDialog,
-    undefined
-  );
+  renderGameToolbar(container, {
+    onOpenLog: handlers.onOpenLogDialog,
+    onOpenSettings: handlers.onOpenSettingsDialog,
+    onOpenCardReference: handlers.onOpenCardReferenceDialog,
+    onOpenRoomCode: undefined,
+    equipmentCompactMode: options.equipmentCompactMode,
+    onToggleEquipmentCompactMode: handlers.onToggleEquipmentCompactMode,
+    // Hotseat dùng chung 1 máy — không có khái niệm "bạn" riêng biệt.
+    myStatus: undefined,
+  });
 
   if (options.error) {
     const errorEl = document.createElement("p");
@@ -3025,8 +3357,9 @@ export function renderApp(
 
   const playersEl = document.createElement("div");
   playersEl.className = "players";
+  const seatNumbers = computeSeatNumbers(state.players);
   for (const [index, player] of state.players.entries()) {
-    playersEl.appendChild(renderPlayer(state, player, index, options, handlers));
+    playersEl.appendChild(renderPlayer(state, player, index, seatNumbers[index], options, handlers));
   }
   container.appendChild(playersEl);
 
@@ -3040,8 +3373,7 @@ export function renderApp(
       (body) => {
         renderCardReferenceSearchBox(body, options.cardReferenceSearchQuery, handlers.onCardReferenceSearchChange);
         renderCardReferenceBody(body, options.cardReferenceSearchQuery);
-      },
-      true
+      }
     );
   }
   if (options.settingsDialogOpen) {
@@ -3803,6 +4135,8 @@ export interface NetworkGameHandlers {
   onConfirmBangMode(useSpecial: boolean): void;
   // Đợt 2 UI/UX (mục 4) — giống hệt UiHandlers (hotseat), xem ghi chú ở đó.
   onToggleSeatExpanded(playerId: string): void;
+  // Đợt sửa giao diện bàn chơi — giống hệt UiHandlers (hotseat), xem ghi chú ở đó.
+  onToggleEquipmentCompactMode(): void;
   // Đợt 3 UI/UX (mục 9) — giống UiHandlers (hotseat), cộng thêm dialog Mã
   // phòng/Mời (CHỈ qua mạng — hotseat không có mã phòng).
   onOpenLogDialog(): void;
@@ -3850,6 +4184,7 @@ export interface NetworkGameOptions {
   roomCodeDialogOpen: boolean;
   roomCode: string;
   roomCodeCopyStatus: string | null; // thông báo tạm thời sau khi bấm "Chép mã"
+  equipmentCompactMode: boolean; // Đợt sửa giao diện bàn chơi — giống RenderOptions (hotseat)
 }
 
 function networkRenderHandSection(
@@ -3981,7 +4316,11 @@ function networkRenderEquipmentSection(
   view: PlayerView,
   player: PlayerHandView,
   selection: Selection,
-  handlers: NetworkGameHandlers
+  handlers: NetworkGameHandlers,
+  // Đợt sửa giao diện bàn chơi — giống hệt renderEquipmentSection() (hotseat),
+  // NHƯNG qua mạng còn phải tự MIỄN TRỪ đúng bài của CHÍNH VIEWER (dù có bật
+  // Tinh gọn hay không) — xem lời gọi hàm này ở networkRenderPlayer().
+  compactMode: boolean
 ): void {
   const wrapper = document.createElement("div");
   wrapper.className = "cards";
@@ -4049,7 +4388,9 @@ function networkRenderEquipmentSection(
       continue;
     }
 
-    wrapper.appendChild(cardChip(cardId, dangerClass));
+    wrapper.appendChild(
+      compactMode && player.id !== view.viewerId ? cardNameChip(cardId, dangerClass) : cardChip(cardId, dangerClass)
+    );
   }
 
   container.appendChild(wrapper);
@@ -4095,6 +4436,7 @@ function networkRenderPlayer(
   view: PlayerView,
   player: PlayerHandView,
   originalIndex: number,
+  seatNumber: number,
   // Đổi layout (bỏ bàn tròn): không còn góc/toạ độ gì để tính — chỉ cần biết
   // đây có phải "hàng riêng của mình" hay không (`.player--own-row`, full độ
   // rộng, luôn dưới cùng) hay là 1 trong các đối thủ nằm trong `.opponent-row`
@@ -4120,6 +4462,7 @@ function networkRenderPlayer(
 
   const headingRow = document.createElement("div");
   headingRow.className = "player__heading-row";
+  headingRow.appendChild(seatBadgeSpan(seatNumber));
   // Đợt 5 UI/UX (mục 4 ý a) — giống hotseat, dùng characterId mới thêm vào
   // PlayerHandView (core/view.ts) — công khai, không cần lọc gì thêm ở đây.
   if (player.characterId) {
@@ -4208,7 +4551,7 @@ function networkRenderPlayer(
     options.expandedSeatIds,
     () => handlers.onToggleSeatExpanded(player.id),
     forceShowEquipment,
-    () => networkRenderEquipmentSection(el, view, player, selection, handlers)
+    () => networkRenderEquipmentSection(el, view, player, selection, handlers, options.equipmentCompactMode)
   );
 
   // Chọn mục tiêu: chỉ hiện nút này khi CHÍNH MÌNH đang chọn mục tiêu, cho
@@ -4669,11 +5012,13 @@ export function renderNetworkCharacterSelectionScreen(
 ): void {
   container.replaceChildren();
 
-  const heading = document.createElement("h2");
+  const heading = document.createElement("h1");
+  heading.className = "screen-title";
   heading.textContent = "Chọn nhân vật";
   container.appendChild(heading);
 
   const rule = document.createElement("p");
+  rule.className = "rule-text";
   rule.textContent =
     "Xem 2 lá nhân vật riêng của bạn rồi chọn giữ 1 lá — không cần chờ người khác chọn xong. " +
     "Bấm 1 lá để xem kỹ, rồi bấm \"Xác nhận\" mới thật sự chọn.";
@@ -4682,53 +5027,38 @@ export function renderNetworkCharacterSelectionScreen(
   renderCountdown(container, deadline, view.players);
 
   const choices: CharacterChoiceView[] = view.characterSelection ?? [];
-  for (const choice of choices) {
-    const player = view.players.find((p) => p.id === choice.playerId);
-    const playerName = player?.name ?? choice.playerId;
-    const isMe = choice.playerId === view.viewerId;
-    const section = document.createElement("div");
-    section.className = "panel";
+  // Vai chỉ lộ với chính mình + Cảnh sát trưởng (viewRole(), view.ts, quy tắc
+  // 6) — hàng tổng quan tự hiện đúng theo đó, không lộ thêm gì so với trước.
+  renderCharacterSelectionRoster(container, choices, view.players, view.viewerId);
 
-    const nameEl = document.createElement("h3");
-    section.appendChild(nameEl);
+  const my = choices.find((choice) => choice.playerId === view.viewerId);
+  if (!my || my.chosen) return;
 
-    // Bổ sung theo phản hồi thật: hiện vai ngay từ lúc chọn nhân vật —
-    // `player.role` ở đây đã qua viewFor()/viewRole() lọc đúng (quy tắc 6):
-    // chỉ CHÍNH MÌNH + Sheriff công khai, người khác vẫn "(ẩn)" như mọi lúc
-    // khác trong ván, không lộ gì thêm so với sau khi vào bàn chơi thật.
-    const roleEl = document.createElement("p");
-    roleEl.textContent = `Vai: ${player?.role ? ROLE_LABELS[player.role] : "(ẩn)"}`;
-    section.appendChild(roleEl);
+  const player = view.players.find((p) => p.id === view.viewerId);
+  const section = document.createElement("div");
+  section.className = "pick-section";
 
-    const cardsEl = document.createElement("div");
-    cardsEl.className = "cards";
+  const nameEl = document.createElement("h2");
+  nameEl.className = "pick-section__heading";
+  nameEl.textContent = "Bạn — chọn 1 trong 2 lá";
+  section.appendChild(nameEl);
 
-    if (choice.chosen) {
-      nameEl.textContent = `${playerName}${isMe ? " (bạn)" : ""} — đã chọn`;
-      cardsEl.appendChild(characterChip(choice.chosen));
-      section.appendChild(cardsEl);
-    } else if (isMe && choice.options) {
-      nameEl.textContent = `${playerName} (bạn) — chọn 1 trong 2 lá`;
-      for (const characterId of choice.options) {
-        cardsEl.appendChild(
-          characterOptionCard(characterId, player?.role ?? null, characterId === armedCharacterId, () =>
-            handlers.onArmCharacterChoice(characterId)
-          )
-        );
-      }
-      section.appendChild(cardsEl);
+  if (my.options) {
+    renderCharacterDuel(section, my.options, player?.role ?? null, armedCharacterId ?? undefined, (characterId) =>
+      handlers.onArmCharacterChoice(characterId)
+    );
 
-      if (armedCharacterId) {
-        section.appendChild(
-          button(`Xác nhận chọn ${characterLabel(armedCharacterId)}`, () => handlers.onConfirmCharacterChoice())
-        );
-      }
-    } else {
-      nameEl.textContent = `${playerName} — đang chọn...`;
+    if (armedCharacterId) {
+      const confirmBtn = document.createElement("button");
+      confirmBtn.type = "button";
+      confirmBtn.className = "btn-primary";
+      confirmBtn.textContent = `Xác nhận chọn ${characterLabel(armedCharacterId)}`;
+      confirmBtn.addEventListener("click", () => handlers.onConfirmCharacterChoice());
+      section.appendChild(confirmBtn);
     }
-
-    container.appendChild(section);
   }
+
+  container.appendChild(section);
 }
 
 export function renderNetworkGame(
@@ -4739,16 +5069,28 @@ export function renderNetworkGame(
 ): void {
   container.replaceChildren();
 
+  // Tính 1 LẦN, dùng lại cho cả ô "Bạn" ở toolbar (ngay dưới) lẫn từng seat ở
+  // hàng đối thủ/ghế của mình bên dưới (xem renderPlayer()/hotseat's tương
+  // đương — computeSeatNumbers()/seatBadgeSpan() ở trên).
+  const seatNumbers = computeSeatNumbers(view.players);
+  const myPlayer = view.players.find((p) => p.id === view.viewerId);
+  const myIndex = view.players.findIndex((p) => p.id === view.viewerId);
+
   // Phản hồi thật: xem ghi chú y hệt ở renderApp() — vẽ toolbar NGAY ĐẦU +
   // CSS `position: sticky` để nó chiếm chỗ thật, không đè lên seat trên
   // cùng của bàn tròn nữa.
-  renderGameToolbar(
-    container,
-    handlers.onOpenLogDialog,
-    handlers.onOpenSettingsDialog,
-    handlers.onOpenCardReferenceDialog,
-    handlers.onOpenRoomCodeDialog
-  );
+  renderGameToolbar(container, {
+    onOpenLog: handlers.onOpenLogDialog,
+    onOpenSettings: handlers.onOpenSettingsDialog,
+    onOpenCardReference: handlers.onOpenCardReferenceDialog,
+    onOpenRoomCode: handlers.onOpenRoomCodeDialog,
+    equipmentCompactMode: options.equipmentCompactMode,
+    onToggleEquipmentCompactMode: handlers.onToggleEquipmentCompactMode,
+    myStatus:
+      myPlayer && myIndex !== -1
+        ? { seatNumber: seatNumbers[myIndex], hp: myPlayer.hp, maxHp: myPlayer.maxHp }
+        : undefined,
+  });
 
   if (options.error) {
     const errorEl = document.createElement("p");
@@ -4840,14 +5182,16 @@ export function renderNetworkGame(
     const rowEl = document.createElement("div");
     rowEl.className = "players opponent-row";
     for (const { player, originalIndex } of opponents) {
-      rowEl.appendChild(networkRenderPlayer(view, player, originalIndex, false, options, handlers));
+      rowEl.appendChild(networkRenderPlayer(view, player, originalIndex, seatNumbers[originalIndex], false, options, handlers));
     }
     tableEl.appendChild(rowEl);
   }
   container.appendChild(tableEl);
 
   if (ownEntry) {
-    container.appendChild(networkRenderPlayer(view, ownEntry.player, ownEntry.originalIndex, true, options, handlers));
+    container.appendChild(
+      networkRenderPlayer(view, ownEntry.player, ownEntry.originalIndex, seatNumbers[ownEntry.originalIndex], true, options, handlers)
+    );
   }
 
   if (options.logDialogOpen) {
@@ -4860,8 +5204,7 @@ export function renderNetworkGame(
       (body) => {
         renderCardReferenceSearchBox(body, options.cardReferenceSearchQuery, handlers.onCardReferenceSearchChange);
         renderCardReferenceBody(body, options.cardReferenceSearchQuery);
-      },
-      true
+      }
     );
   }
   if (options.settingsDialogOpen) {

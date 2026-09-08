@@ -139,6 +139,13 @@ let gameLog: string[] = [];
 // (client-only, xem renderPlayerEquipmentArea() ở ui.ts). Reset về [] mỗi khi
 // bắt đầu ván mới, giống characterArmedChoices ở trên.
 let expandedSeatIds: string[] = [];
+// Đợt sửa giao diện bàn chơi — "Bình thường"/"Tinh gọn" cho trang bị của
+// NGƯỜI KHÁC (nút mới ở toolbar, xem GameToolbarOptions ở ui.ts). Đây là SỞ
+// THÍCH CÁ NHÂN của trình duyệt (giống theme/cỡ chữ — lưu localStorage, đọc
+// applyStoredSettings()-style ở ui.ts), KHÔNG PHẢI trạng thái của 1 ván cụ
+// thể nên KHÔNG reset khi bắt đầu ván mới (khác expandedSeatIds ngay trên).
+const EQUIPMENT_COMPACT_STORAGE_KEY = "bang_equipment_compact";
+let equipmentCompactMode = localStorage.getItem(EQUIPMENT_COMPACT_STORAGE_KEY) === "on";
 // Đợt 3 UI/UX (mục 9) — 2 dialog góc màn hình (nhật ký/cài đặt), client-only,
 // giống expandedSeatIds. Reset về false mỗi khi bắt đầu ván mới.
 let logDialogOpen = false;
@@ -380,6 +387,7 @@ function renderScreen(): void {
           cardReferenceDialogOpen,
           cardReferenceSearchQuery,
           confirmingNewGame,
+          equipmentCompactMode,
         },
         {
           onDrawCards,
@@ -420,6 +428,7 @@ function renderScreen(): void {
           onConfirmAbilityCards,
           onAbilityTargetClick,
           onToggleSeatExpanded,
+          onToggleEquipmentCompactMode,
           onOpenLogDialog,
           onCloseLogDialog,
           onOpenSettingsDialog,
@@ -496,6 +505,7 @@ function renderScreen(): void {
             roomCodeDialogOpen: networkRoomCodeDialogOpen,
             roomCode: networkCode,
             roomCodeCopyStatus: networkRoomCodeCopyStatus,
+            equipmentCompactMode,
           },
           {
             onDrawCards: onNetworkDrawCards,
@@ -535,6 +545,10 @@ function renderScreen(): void {
             onConfirmAbilityCards: onNetworkConfirmAbilityCards,
             onAbilityTargetClick: onNetworkAbilityTargetClick,
             onToggleSeatExpanded: onNetworkToggleSeatExpanded,
+            // Sở thích cá nhân CHUNG (không phải state của 1 ván) — dùng
+            // THẲNG 1 hàm duy nhất cho cả hotseat lẫn qua mạng, xem ghi chú
+            // khai báo equipmentCompactMode ở trên.
+            onToggleEquipmentCompactMode,
             onOpenLogDialog: onNetworkOpenLogDialog,
             onCloseLogDialog: onNetworkCloseLogDialog,
             onOpenSettingsDialog: onNetworkOpenSettingsDialog,
@@ -1244,6 +1258,15 @@ function onToggleSeatExpanded(playerId: string): void {
   expandedSeatIds = expandedSeatIds.includes(playerId)
     ? expandedSeatIds.filter((id) => id !== playerId)
     : [...expandedSeatIds, playerId];
+  render();
+}
+
+// Đợt sửa giao diện bàn chơi — xem ghi chú khai báo equipmentCompactMode ở
+// trên (sở thích cá nhân, lưu localStorage, dùng chung cho cả hotseat lẫn
+// qua mạng vì đây là 1 biến duy nhất trên trình duyệt, không phải GameState).
+function onToggleEquipmentCompactMode(): void {
+  equipmentCompactMode = !equipmentCompactMode;
+  localStorage.setItem(EQUIPMENT_COMPACT_STORAGE_KEY, equipmentCompactMode ? "on" : "off");
   render();
 }
 
