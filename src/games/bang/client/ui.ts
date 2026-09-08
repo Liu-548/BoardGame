@@ -1641,6 +1641,21 @@ function isVibrationEnabled(): boolean {
   return localStorage.getItem(VIBRATION_STORAGE_KEY) !== "off"; // mặc định BẬT
 }
 
+// Bổ sung 2026-09-09 — cho phép TỰ TẮT việc băng thông báo phản ứng
+// (.reaction-banner) dính lại đầu màn hình khi cuộn (đợt sửa trước, theo yêu
+// cầu chủ dự án). Đây là SỞ THÍCH CÁ NHÂN của người xem (giống `bang_theme`/
+// `bang_font_size` — mỗi người 1 máy 1 lựa chọn riêng), khác hẳn `RuleOptions`
+// (house rules/expansions) vốn là luật CHUNG cả bàn — nên đọc thẳng qua
+// localStorage ngay tại nơi cần (renderPendingPanel()/networkRenderPendingPanel()),
+// không cần thread qua RenderOptions như equipmentCompactMode (cái đó ảnh
+// hưởng ĐÚNG 1 chỗ cố định — khu trang bị — còn sticky chỉ đổi 1 class CSS,
+// đọc trực tiếp gọn hơn).
+const REACTION_BANNER_STICKY_STORAGE_KEY = "bang_reaction_banner_sticky";
+
+function isReactionBannerStickyEnabled(): boolean {
+  return localStorage.getItem(REACTION_BANNER_STICKY_STORAGE_KEY) !== "off"; // mặc định BẬT
+}
+
 function applyTheme(theme: ThemePreference): void {
   document.documentElement.setAttribute("data-theme", theme);
 }
@@ -1837,6 +1852,19 @@ function renderSettingsDialogBody(
     (checked) => {
       localStorage.setItem(VIBRATION_STORAGE_KEY, checked ? "on" : "off");
       if (checked) vibrateForTurn(); // rung thử ngay (im lặng nếu thiết bị không hỗ trợ)
+    }
+  );
+
+  // Bổ sung — cho ai thấy vướng mắt được tự tắt việc băng "⚠ Đang chờ..."
+  // dính lại đầu màn hình khi cuộn (đợt sửa trước, mặc định BẬT). Sở thích
+  // riêng từng người xem — không cần chờ chủ phòng, không ảnh hưởng người
+  // khác (đọc/ghi thẳng localStorage, xem isReactionBannerStickyEnabled()).
+  renderSwitchRow(
+    body,
+    "Ghim băng thông báo phản ứng ở đầu màn hình khi cuộn trang",
+    isReactionBannerStickyEnabled(),
+    (checked) => {
+      localStorage.setItem(REACTION_BANNER_STICKY_STORAGE_KEY, checked ? "on" : "off");
     }
   );
 
@@ -2902,7 +2930,7 @@ function renderPendingPanel(container: HTMLElement, state: GameState, handlers: 
   const top = state.pending[state.pending.length - 1];
 
   const panel = document.createElement("div");
-  panel.className = "reaction-banner";
+  panel.className = "reaction-banner" + (isReactionBannerStickyEnabled() ? " reaction-banner--sticky" : "");
 
   const head = document.createElement("p");
   head.className = "reaction-banner__head";
@@ -4774,7 +4802,10 @@ function networkRenderPendingPanel(
   const panel = document.createElement("div");
   const secondsLeft = deadline ? Math.max(0, Math.ceil((deadline.expiresAt - Date.now()) / 1000)) : null;
   const isUrgent = secondsLeft !== null && secondsLeft <= 10;
-  panel.className = "reaction-banner" + (isUrgent ? " reaction-banner--urgent" : "");
+  panel.className =
+    "reaction-banner" +
+    (isUrgent ? " reaction-banner--urgent" : "") +
+    (isReactionBannerStickyEnabled() ? " reaction-banner--sticky" : "");
 
   const head = document.createElement("p");
   head.className = "reaction-banner__head";
