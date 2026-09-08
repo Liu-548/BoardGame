@@ -920,26 +920,33 @@ button.card-box {
    dành cho viền seat (.player--targeted, mục 1) vốn ổn định hơn giữa các lần
    render. Đỏ CHỈ xuất hiện khi thật sự khẩn cấp (còn ≤10s) — bình thường vẫn
    xám, đúng mục 1 "đỏ dùng tiết chế".
-   `position: sticky` (2026-09-09, theo yêu cầu chủ dự án) — nhận lại đúng khả
-   năng "luôn thấy được kể cả khi cuộn" mà `.game-toolbar` vừa BỎ (xem ghi chú
-   ở đó): việc CẦN PHẢN HỒI NGAY khẩn cấp hơn hẳn 4 nút Nhật ký/Thư viện/Cài
-   đặt/Đầy đủ, xứng đáng dính màn hình hơn. `renderPendingPanel()`/
-   `networkRenderPendingPanel()` (ui.ts) đặt băng này NGAY SAU toolbar (đợt sửa
-   trước) nên khi cuộn qua khỏi toolbar (giờ cuộn trôi bình thường), băng này
-   là thứ tiếp theo "chạm" mép trên viewport và tự dính lại đúng lúc, không hở
-   khoảng trống nào. `margin-top: 0` bắt buộc đi kèm — sticky vẫn tôn trọng
-   margin của chính nó, còn margin cũ (0.75rem đều 2 phía) sẽ để hở 1 khoảng
-   trong suốt phía trên khi dính, lộ nội dung đang cuộn qua bên dưới. */
+   `margin: 0 0 0.75rem` (bỏ margin-top, đợt 2026-09-09) — để `.reaction-banner--sticky`
+   (ngay dưới) dính khít mép trên khi bật, không hở khoảng trống trong suốt lộ
+   nội dung cuộn qua bên dưới. Không đặt `position: sticky` NGAY Ở ĐÂY nữa (đợt
+   trước có, giờ tách riêng) vì đã thêm công tắc BẬT/TẮT trong Cài đặt (mỗi
+   người 1 máy tự chọn, xem `isReactionBannerStickyEnabled()`/`renderSettingsDialogBody()`
+   ở ui.ts) — mặc định BẬT nên hầu hết mọi lúc lớp `--sticky` vẫn có mặt. */
 .reaction-banner {
-  position: sticky;
-  top: 0;
-  z-index: 5;
   border: 1px solid var(--color-border);
   border-left: 4px solid var(--color-border-strong);
   border-radius: 0.5rem;
   padding: 0.75rem 1rem;
   margin: 0 0 0.75rem;
   background: var(--color-bg-panel);
+}
+
+/* Nhận lại đúng khả năng "luôn thấy được kể cả khi cuộn" mà `.game-toolbar` đã
+   bỏ (xem ghi chú ở đó) — việc CẦN PHẢN HỒI NGAY khẩn cấp hơn hẳn 4 nút Nhật
+   ký/Thư viện/Cài đặt/Đầy đủ, xứng đáng dính màn hình hơn.
+   `renderPendingPanel()`/`networkRenderPendingPanel()` (ui.ts) đặt băng này
+   NGAY SAU toolbar trong DOM nên khi cuộn qua khỏi toolbar (đã cuộn trôi bình
+   thường), băng này là thứ tiếp theo "chạm" mép trên viewport và tự dính lại
+   đúng lúc. Tách thành class RIÊNG (không gộp thẳng vào `.reaction-banner`)
+   để ui.ts có thể BỎ class này khi người xem tự tắt trong Cài đặt. */
+.reaction-banner--sticky {
+  position: sticky;
+  top: 0;
+  z-index: 5;
 }
 
 /* Còn ≤10s: chuyển hẳn sang nền/viền đỏ (đúng mục 1 "đỏ dùng tiết chế" —
