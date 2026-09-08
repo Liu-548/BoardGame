@@ -326,11 +326,13 @@ function renderScreen(): void {
   const appHeading = document.getElementById("app-heading");
   if (appHeading) appHeading.hidden = screen === "hub";
 
-  // Nền hơi xám (khác trắng tinh) CHỈ lúc ở Sảnh — để 3 thẻ game (nền trắng)
-  // "nổi" lên rõ hơn thay vì hoà lẫn vào nền, giống bản xem trước đã duyệt.
-  // Dùng lại ĐÚNG biến --color-bg-alt sẵn có (không thêm màu mới) — mọi màn
-  // khác của Bang! vẫn giữ nguyên nền trắng như cũ.
-  document.body.classList.toggle("hub-active", screen === "hub");
+  // Nền hơi xám (khác trắng tinh) ở Sảnh + 2 màn "chơi cùng bạn bè" trước lúc
+  // vào ván (vào phòng/phòng chờ) — để thẻ/khối (nền trắng) "nổi" lên rõ hơn
+  // thay vì hoà lẫn vào nền, giống bản xem trước đã duyệt. Dùng lại ĐÚNG biến
+  // --color-bg-alt sẵn có (không thêm màu mới) — mọi màn khác của Bang! (kể
+  // cả "Chọn cách chơi" — đã có màu đỏ của vé làm điểm nhấn riêng) vẫn giữ
+  // nguyên nền trắng như cũ.
+  document.body.classList.toggle("landing-bg", screen === "hub" || screen === "network-form" || screen === "network-lobby");
 
   switch (screen) {
     case "hub":
@@ -434,6 +436,7 @@ function renderScreen(): void {
       return;
     case "network-form":
       renderNetworkLobbyForm(root, networkName, networkCode, networkError, {
+        onBack: onBackToHome,
         onNameChange: onNetworkNameChange,
         onCodeChange: onNetworkCodeChange,
         onGenerateCode,
@@ -453,6 +456,7 @@ function renderScreen(): void {
         networkSelectedExpansions,
         networkSelectedEventDeckSize,
         {
+          onLeave: onLeaveNetworkGame,
           onToggleHouseRule: onNetworkToggleHouseRule,
           onToggleExpansion: onNetworkToggleExpansion,
           onEventDeckSizeChange: onNetworkEventDeckSizeChange,
