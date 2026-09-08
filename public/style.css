@@ -967,11 +967,12 @@ dialog.app-dialog h3 {
    đợt 1 UI/UX) — chỉ RIÊNG phần "ảnh bìa" nhỏ trong mỗi thẻ (.hub-card__poster)
    mới có hoạ tiết/gradient/font riêng cho từng game, y hệt bản xem trước đã
    duyệt (Artifact) — xem font Rye/Big Shoulders Display khai ở index.html. */
-/* Chỉ lúc đang ở Sảnh (main.ts's renderScreen() gắn class này vào <body>) —
-   nền hơi xám để 3 thẻ (nền trắng/đen tuỳ theme) "nổi" lên rõ hơn thay vì hoà
-   lẫn vào nền. Dùng lại ĐÚNG --color-bg-alt sẵn có, không thêm màu mới; mọi
-   màn khác của Bang! không có class này nên vẫn giữ nguyên nền cũ. */
-body.hub-active {
+/* Sảnh + màn "Vào phòng chơi"/"Phòng chờ" (main.ts's renderScreen() gắn class
+   này vào <body> theo đúng 3 màn đó) — nền hơi xám để thẻ/khối (nền trắng/đen
+   tuỳ theme) "nổi" lên rõ hơn thay vì hoà lẫn vào nền. Dùng lại ĐÚNG
+   --color-bg-alt sẵn có, không thêm màu mới; mọi màn khác của Bang! không có
+   class này nên vẫn giữ nguyên nền cũ. */
+body.landing-bg {
   background: var(--color-bg-alt);
 }
 
@@ -1284,6 +1285,355 @@ body.hub-active {
   background: var(--color-bg-panel);
 }
 
+/* Màn "Vào phòng chơi" + "Phòng chờ" (renderNetworkLobbyForm()/
+   renderNetworkLobby(), ui.ts) — cùng "họ" với .hub-card (thẻ nền trắng/đen
+   nổi lên nền .landing-bg xám nhạt), tiếp nối đúng ngôn ngữ hình ảnh đã duyệt
+   ở Sảnh + màn "Chọn cách chơi". */
+.crumb {
+  margin: 0 0 0.3rem;
+  font-size: 0.75rem;
+  font-weight: bold;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.screen-title {
+  margin: 0 0 1.1rem;
+  font-family: "Big Shoulders Display", "Arial Narrow", sans-serif;
+  font-size: 1.9rem;
+  font-weight: 700;
+}
+
+.error-box {
+  margin: 0 0 1rem;
+  padding: 0.65rem 0.8rem;
+  border-radius: 0.4rem;
+  background: var(--color-danger-bg);
+  color: var(--color-danger);
+  font-size: 0.85rem;
+  font-weight: bold;
+}
+
+.btn-primary {
+  width: 100%;
+  padding: 0.85rem 1rem;
+  font-size: 1rem;
+  font-weight: bold;
+  border: 1px solid var(--color-danger);
+  border-radius: 0.5rem;
+  background: var(--color-danger);
+  color: #fff;
+  cursor: pointer;
+}
+
+.btn-primary:hover {
+  filter: brightness(1.08);
+}
+
+.btn-primary:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  filter: none;
+}
+
+/* ---------- Vào phòng chơi ---------- */
+.form-card {
+  max-width: 28rem;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: 0.6rem;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.12);
+  padding: 1.3rem 1.3rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+}
+
+.field label {
+  display: block;
+  font-weight: bold;
+  font-size: 0.9rem;
+  margin-bottom: 0.35rem;
+}
+
+.field input[type="text"] {
+  width: 100%;
+  font-size: 1rem;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--color-border);
+  border-radius: 0.4rem;
+  background: var(--color-bg-panel);
+  color: var(--color-text);
+}
+
+.field-hint {
+  margin: 0.4rem 0 0;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: var(--color-text-muted);
+}
+
+/* Ô mã phòng — chữ hoa, dãn cách, gần như 1 "con tem" 6 ký tự cho dễ đọc/dễ
+   đọc miệng cho nhau qua điện thoại. */
+.code-field input {
+  font-family: ui-monospace, "Courier New", monospace;
+  font-size: 1.3rem;
+  letter-spacing: 0.35em;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.code-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: stretch;
+}
+
+.code-row .field {
+  flex: 1;
+  margin: 0;
+}
+
+.btn-generate {
+  align-self: flex-end;
+  white-space: nowrap;
+  padding: 0.55rem 0.8rem;
+  font-size: 0.82rem;
+  border: 1px dashed var(--color-border);
+  border-radius: 0.4rem;
+  background: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  height: 2.6rem;
+}
+
+.btn-generate:hover {
+  border-color: var(--color-danger);
+  color: var(--color-danger);
+}
+
+/* ---------- Phòng chờ ---------- */
+.room-code-box {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  background: var(--color-bg);
+  border: 1px solid var(--color-danger);
+  border-radius: 0.6rem;
+  padding: 0.9rem 1.1rem;
+  margin-bottom: 1.25rem;
+}
+
+.room-code-box__text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.room-code-box__label {
+  font-size: 0.72rem;
+  color: var(--color-text-muted);
+}
+
+.room-code-box__code {
+  font-family: ui-monospace, "Courier New", monospace;
+  font-size: 1.6rem;
+  font-weight: 700;
+  letter-spacing: 0.3em;
+  color: var(--color-danger);
+}
+
+.btn-copy {
+  padding: 0.5rem 0.8rem;
+  font-size: 0.82rem;
+  border: 1px solid var(--color-danger);
+  border-radius: 0.4rem;
+  background: none;
+  color: var(--color-danger);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.btn-copy:hover {
+  background: var(--color-danger-bg);
+}
+
+.btn-copy[data-copied="true"] {
+  background: var(--color-danger);
+  color: #fff;
+}
+
+.section-label {
+  margin: 0 0 0.5rem;
+  font-size: 0.85rem;
+  font-weight: bold;
+  color: var(--color-text-muted);
+}
+
+.player-list {
+  list-style: none;
+  margin: 0 0 1.5rem;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.player-row {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: 0.5rem;
+  padding: 0.55rem 0.8rem;
+}
+
+.player-row__avatar {
+  flex: none;
+  width: 2.1rem;
+  height: 2.1rem;
+  border-radius: 50%;
+  background: var(--color-bg-alt);
+  border: 1px solid var(--color-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  font-size: 0.9rem;
+}
+
+.player-row__name {
+  flex: 1;
+  font-weight: 500;
+}
+
+.player-row--me {
+  border-color: var(--color-danger);
+}
+
+.owner-badge {
+  font-size: 0.68rem;
+  font-weight: bold;
+  padding: 0.2rem 0.5rem;
+  border-radius: 999px;
+  background: var(--color-danger-bg);
+  color: var(--color-danger);
+  white-space: nowrap;
+}
+
+.me-badge {
+  font-size: 0.68rem;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.option-groups {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.option-card {
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: 0.6rem;
+  padding: 1rem 1.1rem;
+}
+
+.option-card h3 {
+  margin: 0 0 0.15rem;
+  font-size: 1rem;
+}
+
+.option-card__hint {
+  margin: 0 0 0.75rem;
+  font-size: 0.76rem;
+  color: var(--color-text-muted);
+}
+
+.option-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  padding: 0.55rem 0;
+  border-top: 1px solid var(--color-bg-alt);
+  cursor: pointer;
+}
+
+.option-row:first-of-type {
+  border-top: none;
+  padding-top: 0;
+}
+
+.option-row input[type="checkbox"] {
+  margin-top: 0.2rem;
+  flex: none;
+  width: 1.05rem;
+  height: 1.05rem;
+  accent-color: var(--color-danger);
+}
+
+.option-row__text {
+  flex: 1;
+}
+
+.option-row__title {
+  font-weight: 500;
+  font-size: 0.88rem;
+}
+
+.option-row__desc {
+  margin: 0.15rem 0 0;
+  font-size: 0.76rem;
+  line-height: 1.4;
+  color: var(--color-text-muted);
+}
+
+.deck-size-row {
+  margin-top: 0.4rem;
+  padding-left: 1.7rem;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+}
+
+.deck-size-row input[type="number"] {
+  width: 4rem;
+  padding: 0.3rem 0.4rem;
+  border: 1px solid var(--color-border);
+  border-radius: 0.35rem;
+  background: var(--color-bg-panel);
+  color: var(--color-text);
+}
+
+.deck-size-row[data-disabled="true"] {
+  opacity: 0.5;
+}
+
+.start-hint {
+  margin: 0.5rem 0 0;
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  text-align: center;
+}
+
+.waiting-box {
+  background: var(--color-bg);
+  border: 1px dashed var(--color-border);
+  border-radius: 0.6rem;
+  padding: 1rem 1.1rem;
+  text-align: center;
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+}
+
 /* .hub-title dùng class riêng (0,1,0) nên đè mất quy tắc "h1 { font-size:
    1.4rem }" ở khối @media (max-width: 480px) phía trên (cùng độ ưu tiên,
    nhưng khối đó nằm TRƯỚC trong file — luật đến sau thắng) nếu không khai
@@ -1307,5 +1657,26 @@ body.hub-active {
 
   .ticket__head {
     padding: 1.5rem 1.1rem 1.1rem;
+  }
+
+  .screen-title {
+    font-size: 1.6rem;
+  }
+
+  /* Mã phòng dãn cách rộng dễ tràn ngang trên màn hẹp — thu bớt lại. */
+  .room-code-box__code,
+  .code-field input {
+    font-size: 1.15rem;
+    letter-spacing: 0.2em;
+  }
+
+  /* Nút "Tạo mã ngẫu nhiên" đứng cạnh ô mã phòng quá chật trên điện thoại —
+     xuống hàng riêng, full độ rộng. */
+  .code-row {
+    flex-direction: column;
+  }
+
+  .btn-generate {
+    align-self: stretch;
   }
 }

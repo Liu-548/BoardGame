@@ -827,6 +827,14 @@ const EXPANSION_DESCRIPTIONS: Record<ExpansionId, string> = {
 };
 const EXPANSION_IDS: ExpansionId[] = ["dodge_city", "custom_characters"];
 
+// Bản RÚT GỌN của EXPANSION_DESCRIPTIONS.dodge_city — CHỈ dùng ở khối tuỳ
+// chọn "Phòng chờ" qua mạng (renderNetworkExpansionCard() bên dưới), nơi mô
+// tả hiện LUÔN ra màn hình (không phải tooltip rê chuột như hotseat) nên bản
+// đầy đủ liệt kê hết 16 lá mới sẽ quá dài. Giữ đúng ý chính: core xong, giao
+// diện vài lá còn thiếu.
+const DODGE_CITY_SHORT_DESCRIPTION =
+  "Thêm 40 lá mới + 15 nhân vật Dodge City. Core đã xong, nhưng vài lá còn thiếu nút bấm trên giao diện — chỉ nên bật để thử, CHƯA nên bật khi chơi thật.";
+
 // Mở rộng High Noon + A Fistful of Cards — TẠM GỘP thành 1 nút duy nhất (thay
 // vì 2 checkbox riêng như EXPANSION_IDS ở trên) vì mỗi bộ RIÊNG LẺ còn thiếu
 // khá nhiều lá (Ghost Town/Dead Man/Law of the West/Peyote CHƯA cài, xem
@@ -961,6 +969,118 @@ function renderExpansionCheckboxes(
   wrapper.appendChild(document.createElement("br"));
 
   container.appendChild(wrapper);
+}
+
+// Đợt sửa giao diện "Phòng chờ" qua mạng — 1 hàng tuỳ chọn có MÔ TẢ HIỆN LUÔN
+// ra (không phải tooltip rê chuột như renderHouseRuleCheckboxes()/
+// renderExpansionCheckboxes() ở trên — 2 hàm đó vẫn giữ NGUYÊN, dùng riêng
+// cho màn thiết lập ván hotseat, chưa được duyệt đổi giao diện). Trả về
+// chính label vừa tạo để renderNetworkExpansionCard() gắn thêm ô "số lá sự
+// kiện" vào bên trong (xem bên dưới).
+function renderNetworkOptionRow(
+  container: HTMLElement,
+  checked: boolean,
+  title: string,
+  description: string,
+  onToggle: () => void
+): HTMLLabelElement {
+  const row = document.createElement("label");
+  row.className = "option-row";
+
+  const checkbox = document.createElement("input");
+  checkbox.type = "checkbox";
+  checkbox.checked = checked;
+  checkbox.addEventListener("change", onToggle);
+  row.appendChild(checkbox);
+
+  const text = document.createElement("span");
+  text.className = "option-row__text";
+  const titleEl = document.createElement("span");
+  titleEl.className = "option-row__title";
+  titleEl.textContent = title;
+  const desc = document.createElement("p");
+  desc.className = "option-row__desc";
+  desc.textContent = description;
+  text.appendChild(titleEl);
+  text.appendChild(desc);
+  row.appendChild(text);
+
+  container.appendChild(row);
+  return row;
+}
+
+function renderNetworkHouseRuleCard(container: HTMLElement, selected: HouseRuleId[], onToggle: (id: HouseRuleId) => void): void {
+  const card = document.createElement("div");
+  card.className = "option-card";
+
+  const heading = document.createElement("h3");
+  heading.textContent = "Luật bổ sung";
+  card.appendChild(heading);
+
+  const hint = document.createElement("p");
+  hint.className = "option-card__hint";
+  hint.textContent = "Tuỳ chọn, chỉ áp dụng cho ván này.";
+  card.appendChild(hint);
+
+  for (const id of HOUSE_RULE_IDS) {
+    renderNetworkOptionRow(card, selected.includes(id), HOUSE_RULE_LABELS[id], HOUSE_RULE_DESCRIPTIONS[id], () => onToggle(id));
+  }
+
+  container.appendChild(card);
+}
+
+function renderNetworkExpansionCard(
+  container: HTMLElement,
+  selected: ExpansionId[],
+  onToggle: (id: ExpansionId) => void,
+  eventDeckSize: number,
+  onEventDeckSizeChange: (size: number) => void
+): void {
+  const card = document.createElement("div");
+  card.className = "option-card";
+
+  const heading = document.createElement("h3");
+  heading.textContent = "Bộ mở rộng";
+  card.appendChild(heading);
+
+  const hint = document.createElement("p");
+  hint.className = "option-card__hint";
+  hint.textContent = "Có thể chọn nhiều bộ cùng lúc để chơi kết hợp.";
+  card.appendChild(hint);
+
+  for (const id of EXPANSION_IDS) {
+    const description = id === "dodge_city" ? DODGE_CITY_SHORT_DESCRIPTION : EXPANSION_DESCRIPTIONS[id];
+    renderNetworkOptionRow(card, selected.includes(id), EXPANSION_LABELS[id], description, () => onToggle(id));
+  }
+
+  const eventChecked = selected.includes("high_noon") && selected.includes("a_fistful_of_cards");
+  const eventRow = renderNetworkOptionRow(card, eventChecked, EVENT_CARDS_EXPANSION_LABEL, EVENT_CARDS_EXPANSION_DESCRIPTION, () =>
+    onToggle("high_noon")
+  );
+
+  // Ô "số lá sự kiện" gắn NGAY DƯỚI mô tả của hàng lá sự kiện (không phải 1
+  // hàng .option-row riêng) — chỉ có ý nghĩa khi hàng đó đang bật.
+  const deckRow = document.createElement("div");
+  deckRow.className = "deck-size-row";
+  if (!eventChecked) deckRow.setAttribute("data-disabled", "true");
+  deckRow.append("Số lá sự kiện thường trong ván: ");
+  const sizeInput = document.createElement("input");
+  sizeInput.type = "number";
+  sizeInput.min = String(MIN_EVENT_DECK_SIZE);
+  sizeInput.max = String(TOTAL_REGULAR_EVENT_CARDS);
+  sizeInput.value = String(eventDeckSize);
+  sizeInput.disabled = !eventChecked;
+  sizeInput.addEventListener("change", () => {
+    const parsed = Number.parseInt(sizeInput.value, 10);
+    if (Number.isNaN(parsed)) return;
+    const clamped = Math.min(TOTAL_REGULAR_EVENT_CARDS, Math.max(MIN_EVENT_DECK_SIZE, parsed));
+    onEventDeckSizeChange(clamped);
+  });
+  deckRow.appendChild(sizeInput);
+  deckRow.append(` (${MIN_EVENT_DECK_SIZE}-${TOTAL_REGULAR_EVENT_CARDS})`);
+  eventRow.querySelector(".option-row__text")?.appendChild(deckRow);
+
+  container.appendChild(card);
 }
 
 // Cùng khuôn với renderActiveHouseRules() ở trên, nhưng cho bộ mở rộng.
@@ -3349,12 +3469,17 @@ export function renderCardReferenceScreen(
 }
 
 export interface NetworkLobbyFormHandlers {
+  onBack(): void;
   onNameChange(value: string): void;
   onCodeChange(value: string): void;
   onGenerateCode(): void;
   onJoinRoom(): void;
 }
 
+// Đợt sửa giao diện màn "Vào phòng chơi" — giống hệt bản xem trước đã duyệt
+// (Artifact): thẻ (form-card) nổi lên nền hơi xám, ô mã phòng viết hoa dãn
+// cách, dòng lưu ý tên = định danh vào phòng (bonus đã hứa từ đợt thiết kế
+// Sảnh, xem [[project_hub_landing_redesign]] trong bộ nhớ).
 export function renderNetworkLobbyForm(
   container: HTMLElement,
   name: string,
@@ -3364,42 +3489,87 @@ export function renderNetworkLobbyForm(
 ): void {
   container.replaceChildren();
 
-  const heading = document.createElement("h2");
-  heading.textContent = "Chơi qua mạng";
+  container.appendChild(backLink("← Quay lại chọn cách chơi", () => handlers.onBack()));
+
+  const crumb = document.createElement("p");
+  crumb.className = "crumb";
+  crumb.textContent = "Bang! · Chơi cùng bạn bè";
+  container.appendChild(crumb);
+
+  const heading = document.createElement("h1");
+  heading.className = "screen-title";
+  heading.textContent = "Vào phòng chơi";
   container.appendChild(heading);
 
   if (error) {
     const errorEl = document.createElement("p");
-    errorEl.className = "error";
+    errorEl.className = "error-box";
     errorEl.textContent = error;
     container.appendChild(errorEl);
   }
 
-  const nameLabel = document.createElement("p");
-  nameLabel.textContent = "Tên của bạn:";
-  container.appendChild(nameLabel);
+  const card = document.createElement("div");
+  card.className = "form-card";
+
+  const nameField = document.createElement("div");
+  nameField.className = "field";
+  const nameLabel = document.createElement("label");
+  nameLabel.htmlFor = "network-name-input";
+  nameLabel.textContent = "Tên của bạn";
   const nameInput = document.createElement("input");
   nameInput.type = "text";
+  nameInput.id = "network-name-input";
   nameInput.value = name;
   nameInput.placeholder = "Tên hiển thị";
   nameInput.addEventListener("input", () => handlers.onNameChange(nameInput.value));
-  container.appendChild(nameInput);
+  const nameHint = document.createElement("p");
+  nameHint.className = "field-hint";
+  nameHint.textContent = "Mọi người trong phòng sẽ thấy tên này — đây cũng là cách bạn bè nhận ra bạn, nên đặt tên dễ đoán nhé.";
+  nameField.appendChild(nameLabel);
+  nameField.appendChild(nameInput);
+  nameField.appendChild(nameHint);
+  card.appendChild(nameField);
 
-  const codeLabel = document.createElement("p");
-  codeLabel.textContent = "Mã phòng (6 ký tự) — tạo mới hoặc nhập mã bạn bè gửi:";
-  container.appendChild(codeLabel);
+  const codeField = document.createElement("div");
+  codeField.className = "field code-field";
+  const codeRow = document.createElement("div");
+  codeRow.className = "code-row";
+  const codeInputWrap = document.createElement("div");
+  codeInputWrap.className = "field";
+  const codeLabel = document.createElement("label");
+  codeLabel.htmlFor = "network-code-input";
+  codeLabel.textContent = "Mã phòng (6 ký tự)";
   const codeInput = document.createElement("input");
   codeInput.type = "text";
+  codeInput.id = "network-code-input";
   codeInput.value = code;
-  codeInput.placeholder = "VD: AB12CD";
+  codeInput.maxLength = 6;
+  codeInput.placeholder = "AB12CD";
   codeInput.addEventListener("input", () => handlers.onCodeChange(codeInput.value.toUpperCase()));
-  container.appendChild(codeInput);
+  codeInputWrap.appendChild(codeLabel);
+  codeInputWrap.appendChild(codeInput);
+  const generateBtn = document.createElement("button");
+  generateBtn.type = "button";
+  generateBtn.className = "btn-generate";
+  generateBtn.textContent = "Tạo mã ngẫu nhiên";
+  generateBtn.addEventListener("click", () => handlers.onGenerateCode());
+  codeRow.appendChild(codeInputWrap);
+  codeRow.appendChild(generateBtn);
+  const codeHint = document.createElement("p");
+  codeHint.className = "field-hint";
+  codeHint.textContent = 'Bạn bè đã gửi mã? Dán vào ô trên. Chưa có phòng? Bấm "Tạo mã ngẫu nhiên" rồi gửi mã đó cho mọi người.';
+  codeField.appendChild(codeRow);
+  codeField.appendChild(codeHint);
+  card.appendChild(codeField);
 
-  const controls = document.createElement("div");
-  controls.className = "panel";
-  controls.appendChild(button("Tạo mã ngẫu nhiên", () => handlers.onGenerateCode()));
-  controls.appendChild(button("Vào phòng", () => handlers.onJoinRoom()));
-  container.appendChild(controls);
+  const joinBtn = document.createElement("button");
+  joinBtn.type = "button";
+  joinBtn.className = "btn-primary";
+  joinBtn.textContent = "Vào phòng →";
+  joinBtn.addEventListener("click", () => handlers.onJoinRoom());
+  card.appendChild(joinBtn);
+
+  container.appendChild(card);
 }
 
 export interface LobbyPlayer {
@@ -3408,6 +3578,7 @@ export interface LobbyPlayer {
 }
 
 export interface NetworkLobbyHandlers {
+  onLeave(): void;
   onToggleHouseRule(id: HouseRuleId): void;
   onToggleExpansion(id: ExpansionId): void;
   onEventDeckSizeChange(size: number): void;
@@ -3417,6 +3588,12 @@ export interface NetworkLobbyHandlers {
 // 2-8 người đều hợp lệ (2/3 người là biến thể riêng, xem docs/roadmap/LO-TRINH.md).
 const MIN_NETWORK_PLAYERS = 2;
 
+// Đợt sửa giao diện màn "Phòng chờ" qua mạng — giống hệt bản xem trước đã
+// duyệt (Artifact): mã phòng đưa lên ô riêng kèm nút sao chép, người chơi vẽ
+// thành hàng có "avatar" số thứ tự (không phải chữ cái đầu tên — chủ dự án
+// chốt lúc duyệt bản xem trước), khối Luật bổ sung/Bộ mở rộng tách 2 thẻ
+// riêng dùng renderNetworkHouseRuleCard()/renderNetworkExpansionCard() (mô
+// tả hiện LUÔN, không phải tooltip).
 export function renderNetworkLobby(
   container: HTMLElement,
   roomCode: string,
@@ -3438,14 +3615,47 @@ export function renderNetworkLobby(
 ): void {
   container.replaceChildren();
 
-  const heading = document.createElement("h2");
+  container.appendChild(backLink("← Rời phòng", () => handlers.onLeave()));
+
+  const heading = document.createElement("h1");
+  heading.className = "screen-title";
   heading.textContent = "Phòng chờ";
   container.appendChild(heading);
 
-  const codeEl = document.createElement("p");
-  codeEl.className = "summary";
-  codeEl.textContent = `Mã phòng: ${roomCode} — chia sẻ mã này cho bạn bè để họ vào cùng`;
-  container.appendChild(codeEl);
+  const codeBox = document.createElement("div");
+  codeBox.className = "room-code-box";
+  const codeText = document.createElement("div");
+  codeText.className = "room-code-box__text";
+  const codeBoxLabel = document.createElement("span");
+  codeBoxLabel.className = "room-code-box__label";
+  codeBoxLabel.textContent = "Mã phòng — chia sẻ cho bạn bè để họ vào cùng";
+  const codeBoxCode = document.createElement("span");
+  codeBoxCode.className = "room-code-box__code";
+  codeBoxCode.textContent = roomCode;
+  codeText.appendChild(codeBoxLabel);
+  codeText.appendChild(codeBoxCode);
+  const copyBtn = document.createElement("button");
+  copyBtn.type = "button";
+  copyBtn.className = "btn-copy";
+  copyBtn.textContent = "Sao chép mã";
+  // Chỉ đổi chữ nút tạm thời — không mutate state gì cả nên không cần gọi
+  // qua handler/render() lại, xử lý thẳng ở đây cho gọn.
+  copyBtn.addEventListener("click", () => {
+    navigator.clipboard
+      .writeText(roomCode)
+      .then(() => {
+        copyBtn.textContent = "Đã sao chép!";
+        copyBtn.setAttribute("data-copied", "true");
+        setTimeout(() => {
+          copyBtn.textContent = "Sao chép mã";
+          copyBtn.removeAttribute("data-copied");
+        }, 1500);
+      })
+      .catch(() => {});
+  });
+  codeBox.appendChild(codeText);
+  codeBox.appendChild(copyBtn);
+  container.appendChild(codeBox);
 
   if (abandonedNotice) {
     const noticeEl = document.createElement("p");
@@ -3456,50 +3666,79 @@ export function renderNetworkLobby(
 
   if (error) {
     const errorEl = document.createElement("p");
-    errorEl.className = "error";
+    errorEl.className = "error-box";
     errorEl.textContent = error;
     container.appendChild(errorEl);
   }
 
   const listLabel = document.createElement("p");
+  listLabel.className = "section-label";
   listLabel.textContent = `Đã vào phòng (${players.length}):`;
   container.appendChild(listLabel);
 
   const list = document.createElement("ul");
-  for (const player of players) {
+  list.className = "player-list";
+  players.forEach((player, index) => {
     const li = document.createElement("li");
-    li.textContent = player.name + (player.id === ownerId ? " (chủ phòng)" : "");
+    li.className = "player-row" + (player.id === viewerId ? " player-row--me" : "");
+
+    const avatar = document.createElement("span");
+    avatar.className = "player-row__avatar";
+    avatar.textContent = String(index + 1);
+    li.appendChild(avatar);
+
+    const nameEl = document.createElement("span");
+    nameEl.className = "player-row__name";
+    nameEl.textContent = player.name;
+    li.appendChild(nameEl);
+
+    if (player.id === viewerId) {
+      const meBadge = document.createElement("span");
+      meBadge.className = "me-badge";
+      meBadge.textContent = "Bạn";
+      li.appendChild(meBadge);
+    }
+    if (player.id === ownerId) {
+      const ownerBadge = document.createElement("span");
+      ownerBadge.className = "owner-badge";
+      ownerBadge.textContent = "Chủ phòng";
+      li.appendChild(ownerBadge);
+    }
+
     list.appendChild(li);
-  }
+  });
   container.appendChild(list);
 
   // Chỉ chủ phòng mới được bắt đầu ván (yêu cầu sau việc 3.10) — người khác
   // chỉ thấy dòng chờ, không có nút. Server (room.ts) cũng tự kiểm tra lại,
   // nút ẩn ở đây chỉ để đỡ bấm nhầm, không phải chốt chặn duy nhất.
   if (viewerId === ownerId) {
-    renderHouseRuleCheckboxes(container, selectedHouseRules, handlers.onToggleHouseRule);
-    renderExpansionCheckboxes(
-      container,
-      selectedExpansions,
-      handlers.onToggleExpansion,
-      eventDeckSize,
-      handlers.onEventDeckSizeChange
-    );
+    const groups = document.createElement("div");
+    groups.className = "option-groups";
+    renderNetworkHouseRuleCard(groups, selectedHouseRules, handlers.onToggleHouseRule);
+    renderNetworkExpansionCard(groups, selectedExpansions, handlers.onToggleExpansion, eventDeckSize, handlers.onEventDeckSizeChange);
+    container.appendChild(groups);
 
-    const startBtn = button("Bắt đầu ván", () => handlers.onStartGame());
+    const startBtn = document.createElement("button");
+    startBtn.type = "button";
+    startBtn.className = "btn-primary";
+    startBtn.textContent = "Bắt đầu ván";
     startBtn.disabled = players.length < MIN_NETWORK_PLAYERS;
+    startBtn.addEventListener("click", () => handlers.onStartGame());
     container.appendChild(startBtn);
 
     if (players.length < MIN_NETWORK_PLAYERS) {
       const hint = document.createElement("p");
+      hint.className = "start-hint";
       hint.textContent = `Cần ít nhất ${MIN_NETWORK_PLAYERS} người mới bắt đầu được.`;
       container.appendChild(hint);
     }
   } else {
     const ownerName = players.find((p) => p.id === ownerId)?.name ?? "chủ phòng";
-    const hint = document.createElement("p");
-    hint.textContent = `Đang chờ ${ownerName} bắt đầu ván.`;
-    container.appendChild(hint);
+    const waitingBox = document.createElement("p");
+    waitingBox.className = "waiting-box";
+    waitingBox.textContent = `Đang chờ ${ownerName} bắt đầu ván…`;
+    container.appendChild(waitingBox);
   }
 }
 
