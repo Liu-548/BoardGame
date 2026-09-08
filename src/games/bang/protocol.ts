@@ -82,7 +82,15 @@ export type ClientMessage =
   // Tin nhắn chat (bonus của việc 3.5). KHÔNG có `to` = gửi cho CẢ PHÒNG;
   // CÓ `to` = CHỈ gửi riêng cho đúng 1 người chơi đó. Dùng playerId (không
   // phải tên hiển thị) vì tên có thể trùng nhau giữa 2 người trong ván.
-  | { type: "chat"; text: string; to?: string };
+  | { type: "chat"; text: string; to?: string }
+  // Bổ sung — nút "Về phòng chờ (sửa tuỳ chọn)" trong dialog Cài đặt, CHỈ
+  // chủ phòng gửi được (server tự kiểm lại đúng ownerId, giống `start_game`).
+  // Khác `force: true` ở trên (restart NGAY với house rules/expansions CŨ):
+  // đây HUỶ ván đang chơi rồi đưa CẢ PHÒNG về màn hình lobby để chủ phòng
+  // sửa lại tuỳ chọn TRƯỚC khi bắt đầu ván mới — không tự tạo ván nào cả.
+  // Client tự hỏi xác nhận TRƯỚC khi gửi (giống `force: true`) vì đây là hành
+  // động HUỶ NGANG, không hoàn tác được.
+  | { type: "return_to_lobby" };
 
 // ----- Server → Client -----
 
@@ -106,14 +114,18 @@ export type ServerMessage =
   // Hành động bị từ chối (reduce()/setupGame() ném lỗi) — CHỈ gửi lại cho
   // đúng người vừa gửi hành động đó, không phát cho cả phòng.
   | { type: "action_error"; message: string }
-  // Việc 4.3: ván đang chơi dở bị HUỶ vì chỉ còn 0-1 người chơi còn kết nối
-  // (những người còn lại đều đã rời/mất mạng) — tiếp tục để 1 người tự chơi 1
-  // mình bằng toàn hết-giờ-tự-động thì vô nghĩa. Server đã xoá GameState lưu
-  // trong storage (room.ts), phòng quay lại trạng thái lobby — chủ phòng hiện
-  // tại (ownerId gửi kèm ServerMessage "lobby" ngay sau đó) có thể bắt đầu ván
-  // mới khi đủ người quay lại. KHÔNG liên quan `winner` trong GameState —
-  // "huỷ" khác "kết thúc đúng luật", core/ không biết gì về khái niệm này.
-  | { type: "game_abandoned" }
+  // Việc 4.3: ván đang chơi dở bị HUỶ, phòng quay lại trạng thái lobby — chủ
+  // phòng hiện tại (ownerId gửi kèm ServerMessage "lobby" ngay sau đó) có thể
+  // bắt đầu ván mới khi đủ người quay lại. KHÔNG liên quan `winner` trong
+  // GameState — "huỷ" khác "kết thúc đúng luật", core/ không biết gì về khái
+  // niệm này. `reason` (bổ sung, trước đây chỉ có 1 lý do nên không cần field
+  // này) để client hiện đúng câu thông báo:
+  //   - "disconnect": chỉ còn 0-1 người chơi còn kết nối (những người còn lại
+  //     đều đã rời/mất mạng) — tiếp tục để 1 người tự chơi 1 mình bằng toàn
+  //     hết-giờ-tự-động thì vô nghĩa.
+  //   - "host_returned_to_lobby": chủ phòng chủ động bấm "Về phòng chờ (sửa
+  //     tuỳ chọn)" (xem ClientMessage "return_to_lobby" ở trên).
+  | { type: "game_abandoned"; reason: "disconnect" | "host_returned_to_lobby" }
   // Tin nhắn chat đã chuyển tiếp. `scope` cho client biết cách hiển thị
   // ("An nói với cả phòng" hay "An nhắn riêng cho bạn"). QUAN TRỌNG: với tin
   // nhắn riêng (`scope: "private"`), server CHỈ gửi ServerMessage này cho
