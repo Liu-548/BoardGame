@@ -57,6 +57,62 @@ html.font-size-large {
   font-size: 118.75%;
 }
 
+/* Thanh cuộn (scrollbar) — mặc định trình duyệt (đặc biệt Windows/Chrome, kiểu
+   "cổ điển" không phải overlay) vẽ thanh cuộn xám sáng KÈM 2 nút mũi tên 2 đầu,
+   lạc hẳn ra khỏi theme (nhất là giao diện Tối). Đã thử tô lại màu qua
+   `scrollbar-color`/`::-webkit-scrollbar-thumb` + ẩn nút qua
+   `::-webkit-scrollbar-button{display:none}` — máy tự kiểm (`getComputedStyle`)
+   xác nhận CSS áp dụng đúng, nhưng 2 nút mũi tên VẪN hiện trên Chrome/Windows
+   kiểu cổ điển (do trình duyệt vẽ đè bằng theme hệ điều hành, không tuân theo
+   CSS ở bước vẽ cuối — giới hạn của riêng nền tảng này). Cách chắc chắn nhất,
+   ĐÚNG CHUẨN carousel vuốt ngang trên di động (Instagram/Netflix... đều làm
+   vậy): ẨN HẲN thanh cuộn ở 2 khung dành riêng cho vuốt-xem (`.roster` — dải
+   người chơi màn "Chọn nhân vật", `.players` — dải ghế người chơi trong ván),
+   không cố tô màu nữa. Cuộn/vuốt vẫn hoạt động bình thường, chỉ là không có
+   thanh nhìn thấy được — trên điện thoại thật (nơi thanh cuộn vốn ẩn tới khi
+   chạm) sẽ không khác gì; trên desktop mất chỉ dấu thanh cuộn nhưng đổi lại
+   không còn "lạc quẻ" nữa. Các khung cuộn KHÁC (dialog, `.log-list`...) vẫn
+   giữ thanh cuộn mảnh đã tô màu theo theme — nơi đó là ĐỌC/CUỘN chứ không
+   phải "carousel vuốt ngang", giữ chỉ dấu cuộn vẫn có ích. */
+:root {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border-strong) var(--color-bg-alt);
+}
+
+*::-webkit-scrollbar {
+  width: 0.5rem;
+  height: 0.5rem;
+}
+
+*::-webkit-scrollbar-button {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+*::-webkit-scrollbar-track {
+  background: var(--color-bg-alt);
+}
+
+*::-webkit-scrollbar-thumb {
+  background: var(--color-border-strong);
+  border-radius: 999px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--color-text-muted);
+}
+
+.roster,
+.players {
+  scrollbar-width: none;
+}
+
+.roster::-webkit-scrollbar,
+.players::-webkit-scrollbar {
+  display: none;
+}
+
 body {
   font-family: sans-serif;
   max-width: 60rem;
@@ -107,11 +163,15 @@ input[type="text"] {
   gap: 1rem;
 }
 
+/* Đợt sửa giao diện bàn chơi — nền + bóng đổ nhẹ để mỗi ghế "nổi" lên rõ hơn
+   thay vì chỉ có viền trôi nổi giữa trang, giống hệt bản xem trước đã duyệt. */
 .player {
   border: 1px solid var(--color-border);
-  border-radius: 0.5rem;
+  border-radius: 0.55rem;
   padding: 0.75rem 1rem;
   min-width: 14rem;
+  background: var(--color-bg-panel);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 /* Đổi hẳn layout theo phản hồi thật (bỏ bàn tròn `position: absolute` —
@@ -149,6 +209,7 @@ input[type="text"] {
 .player--own-row {
   margin-top: 0.75rem;
   border-width: 2px;
+  border-color: var(--color-border-strong);
 }
 
 /* (2026-08-08) BỎ ép xoay ngang trên điện thoại theo yêu cầu chủ dự án — màn
@@ -174,6 +235,24 @@ input[type="text"] {
 
 .player__heading-row h3 {
   margin: 0;
+}
+
+/* Số ghế (thứ tự lượt chơi, số 1 luôn là Cảnh sát trưởng) — xem
+   computeSeatNumbers()/seatBadgeSpan(), ui.ts. Cố định suốt ván, KHÔNG phải
+   trạng thái "đang tới lượt" (viền .player--current lo việc đó, không đụng
+   gì ở đây). */
+.seat-badge {
+  flex: none;
+  width: 1.4rem;
+  height: 1.4rem;
+  border-radius: 50%;
+  background: var(--color-border-strong);
+  color: var(--color-bg);
+  font-size: 0.72rem;
+  font-weight: bold;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 /* Đợt 5 UI/UX (mục 4 ý c) — thanh máu VIÊN ĐẠN, thay text "3/4" suông. Ẩn
@@ -340,6 +419,25 @@ body.effect-dynamite {
   font-size: 0.85rem;
 }
 
+/* Đợt sửa giao diện bàn chơi — chế độ "Tinh gọn" (xem cardNameChip(), ui.ts):
+   trang bị của người khác chỉ còn TÊN chữ, không có ảnh. Giữ được cảnh báo
+   Dynamite/Jail (equipmentDangerClass()) qua viền/chữ đỏ — mất icon nổ/còng
+   tay riêng của .card-box, đổi lại gọn hơn nhiều khi bàn đông người. */
+.equip-chip {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.78rem;
+  padding: 0.2rem 0.5rem;
+  border-radius: 0.3rem;
+  border: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+}
+
+.equip-chip.card-box--danger {
+  border-color: var(--color-danger);
+  color: var(--color-danger);
+}
+
 .card--inert {
   color: var(--color-text-muted);
   background: var(--color-bg-alt);
@@ -422,12 +520,20 @@ button.card-box {
    hiện (giống cách .hp-bullet đã làm), ảnh thật sau này chỉ là lớp phủ chồng
    lên khi có (xem appendCardVisual() ở ui.ts, cơ chế <img> lỗi tự ẩn dùng lại
    y hệt lá bài thường). */
+/* Đợt sửa giao diện bàn chơi — khu giữa bàn đặt trong 1 khung nền riêng
+   (giống hệt bản xem trước đã duyệt), tách rõ khỏi phần còn lại thay vì trôi
+   nổi giữa trang như trước. */
 .table-center {
   display: flex;
-  gap: 1rem;
-  align-items: flex-start;
+  gap: 1.25rem;
+  align-items: center;
+  justify-content: center;
   flex-wrap: wrap; /* (2026-08-08) màn hình dọc/hẹp: xuống hàng thay vì tràn ngang */
-  margin: 0.5rem 0;
+  margin: 0.5rem 0 1rem;
+  padding: 0.85rem;
+  border-radius: 0.6rem;
+  background: var(--color-bg-alt);
+  border: 1px solid var(--color-border);
 }
 
 .table-center__pile {
@@ -710,6 +816,15 @@ button.card-box {
   padding: 0.5rem 0.6rem;
   margin: 0.75rem 0;
   font-size: 1rem;
+  border: 1px solid var(--color-border);
+  border-radius: 0.4rem;
+  background: var(--color-bg-panel);
+  color: var(--color-text);
+}
+
+.card-ref-search-input:focus {
+  outline: 2px solid var(--color-danger);
+  outline-offset: 1px;
 }
 
 /* (2026-08-08) Đổi từ GRID (ảnh to xếp lưới) sang LIST (1 dòng/lá) theo yêu
@@ -782,15 +897,6 @@ button.card-box {
   font-weight: bold;
 }
 
-.countdown {
-  font-weight: bold;
-  margin: 0.25rem 0;
-}
-
-.countdown--urgent {
-  color: var(--color-danger);
-}
-
 /* Mục 8 UI/UX — "băng thông báo đầu bàn": nổi bật hơn hẳn .panel thường (viền
    trái dày) để luôn là thứ đầu tiên đập vào mắt khi có việc cần phản hồi, kể
    cả khi chuỗi phản ứng lồng nhau (Gatling→Barrel→draw!...) đổi nội dung liên
@@ -805,10 +911,16 @@ button.card-box {
   border-radius: 0.5rem;
   padding: 0.75rem 1rem;
   margin: 0.75rem 0;
+  background: var(--color-bg-panel);
 }
 
+/* Còn ≤10s: chuyển hẳn sang nền/viền đỏ (đúng mục 1 "đỏ dùng tiết chế" —
+   trước đó chỉ đổi màu dải viền trái, giờ đổi CẢ khối để thật sự nổi bật lúc
+   sắp hết giờ, giống hệt bản xem trước đã duyệt). */
 .reaction-banner--urgent {
+  border-color: var(--color-danger);
   border-left-color: var(--color-danger);
+  background: var(--color-danger-bg);
 }
 
 .reaction-banner__head {
@@ -853,23 +965,140 @@ button.card-box {
   margin: 1rem 0;
 }
 
+/* Đợt sửa giao diện — mỗi dòng nhật ký 1 "thẻ" nền nhạt riêng thay vì chỉ có
+   dấu chấm đầu dòng; dòng MỚI NHẤT (đầu mảng, xem renderLogDialogBody())
+   thêm vạch đỏ bên trái để phân biệt ngay không cần đọc kỹ. */
 .log-list {
+  list-style: none;
   margin: 0;
-  padding-left: 1.25rem;
-  max-height: 12rem;
+  padding: 0;
+  max-height: 16rem;
   overflow-y: auto;
-  font-size: 0.9rem;
+  font-size: 0.85rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
 }
 
 .log-list li {
-  margin: 0.15rem 0;
+  margin: 0;
+  padding: 0.4rem 0.6rem;
+  border-radius: 0.35rem;
+  background: var(--color-bg-panel);
 }
 
-/* Hoàn thiện dialog Cài đặt — hàng lựa chọn Giao diện/Cỡ chữ (radio ngang). */
-.settings-row {
+.log-list li:first-child {
+  border-left: 3px solid var(--color-danger);
+}
+
+/* Đợt sửa giao diện dialog Cài đặt — nhóm nút gộp (segmented control) thay
+   radio trần cho Giao diện/Cỡ chữ, công tắc gạt (switch) thay checkbox trần
+   cho Âm thanh/Rung — xem renderSegmentedControl()/renderSwitchRow(), ui.ts. */
+.settings-group {
+  margin-bottom: 1rem;
+}
+
+.settings-group__label {
+  font-size: 0.82rem;
+  font-weight: bold;
+  margin: 0 0 0.4rem;
+}
+
+.segmented {
+  display: inline-flex;
+  border: 1px solid var(--color-border);
+  border-radius: 0.4rem;
+  overflow: hidden;
+}
+
+.segmented button {
+  font-size: 0.82rem;
+  padding: 0.4rem 0.8rem;
+  border: none;
+  border-right: 1px solid var(--color-border);
+  background: var(--color-bg-panel);
+  color: var(--color-text);
+}
+
+.segmented button:last-child {
+  border-right: none;
+}
+
+.segmented button[aria-pressed="true"] {
+  background: var(--color-danger);
+  color: #fff;
+}
+
+.switch-row {
   display: flex;
-  gap: 1rem;
-  margin: 0.4rem 0 0.9rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.5rem 0;
+  font-size: 0.85rem;
+}
+
+.switch {
+  position: relative;
+  flex: none;
+  width: 2.6rem;
+  height: 1.5rem;
+  padding: 0;
+  border-radius: 999px;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-alt);
+}
+
+.switch::after {
+  content: "";
+  position: absolute;
+  top: 0.15rem;
+  left: 0.15rem;
+  width: 1.05rem;
+  height: 1.05rem;
+  border-radius: 50%;
+  background: var(--color-text-muted);
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+
+.switch[aria-pressed="true"] {
+  border-color: var(--color-danger);
+}
+
+.switch[aria-pressed="true"]::after {
+  transform: translateX(1.1rem);
+  background: var(--color-danger);
+}
+
+.settings-divider {
+  border: none;
+  border-top: 1px solid var(--color-border);
+  margin: 1rem 0;
+}
+
+.settings-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.settings-btn {
+  font-size: 0.85rem;
+  padding: 0.6rem 0.8rem;
+  border-radius: 0.4rem;
+  text-align: center;
+}
+
+.settings-btn--outline {
+  border: 1px dashed var(--color-border);
+  background: none;
+  color: var(--color-text);
+}
+
+.settings-btn--danger {
+  border: 1px solid var(--color-danger);
+  background: none;
+  color: var(--color-danger);
 }
 
 /* Việc 4.4: màn hình hẹp (điện thoại) — thu gọn khoảng trắng, tăng kích
@@ -902,9 +1131,29 @@ button.card-box {
   /* .card-box đã cố định 4.5rem (~72px), vượt sẵn mức khuyến nghị chạm tay
      ~44px — không cần chỉnh thêm ở đây như các nút chữ thường phía trên. */
 
+  /* Theo yêu cầu chủ dự án (đợt sửa 2026-09-08): trên điện thoại, MỌI người
+     chơi khác (hotseat lẫn qua mạng) phải dàn thành ĐÚNG 1 hàng ngang, cuộn/
+     trượt ngang qua lại để xem — không xếp dọc thành nhiều hàng chồng lên
+     nhau như trước. `.opponent-row` (qua mạng) đã có sẵn `flex-wrap: nowrap`
+     + `overflow-x: auto` từ trước (mọi cỡ màn hình) — ở đây áp DỤNG THÊM CHO
+     `.players` NÓI CHUNG (bao gồm cả hotseat, vốn dùng chung 1 khung
+     `.players` cho MỌI người chơi, không có khái niệm "hàng riêng của mình")
+     để hotseat trên di động cũng cuộn ngang y hệt, chỉ bật ở mức màn hẹp này
+     — desktop/tablet hotseat vẫn giữ nguyên kiểu lưới tự xuống dòng
+     (`flex-wrap: wrap` gốc) để nhìn được nhiều người cùng lúc không cần cuộn.
+     `scroll-snap` để mỗi lần trượt "khớp" đúng 1 người chơi, không dừng lửng
+     lơ giữa 2 ô. */
+  .players {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    padding-bottom: 0.35rem;
+  }
+
   .player {
-    flex: 1 1 100%;
+    flex: 0 0 92%;
     min-width: 0;
+    scroll-snap-align: start;
   }
 
   /* Đợt 3 UI/UX (mục 9): "Điện thoại: dialog chiếm gần toàn màn" — bỏ khung
@@ -916,48 +1165,145 @@ button.card-box {
     max-height: none;
     border-radius: 0;
   }
+
+  /* Đợt sửa giao diện bàn chơi — chữ trên nút toolbar tự ẩn dưới ~480px, chỉ
+     còn icon (đủ lớn để bấm ngón tay, xem .game-toolbar__btn bên dưới). Tên
+     "Bạn" trong ô máu cũng ẩn bớt cho gọn, chỉ còn số ghế + máu. */
+  .game-toolbar__btn .btn-label {
+    display: none;
+  }
+  .game-toolbar__btn {
+    padding: 0.6rem;
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+    justify-content: center;
+  }
+  .me-chip__name {
+    display: none;
+  }
 }
 
-/* Đợt 3 UI/UX (mục 9) — hàng nút góc trên phải. TỪNG dùng `position: fixed`
+/* Đợt 3 UI/UX (mục 9) — hàng nút góc trên. TỪNG dùng `position: fixed`
    ("không chiếm chỗ bàn") nhưng phản hồi thật: nổi đè lên seat trên cùng của
    bàn tròn (seat đó không "biết" phải né chỗ cho 1 phần tử không chiếm chỗ
    trong luồng tài liệu). Đổi sang `position: sticky` + vẽ NGAY ĐẦU trang
    (xem renderApp()/renderNetworkGame() ở ui.ts) — giờ nó CHIẾM 1 hàng thật ở
    đầu, mọi nội dung sau tự động bắt đầu bên dưới nó, không bao giờ đè nhau;
    vẫn "luôn thấy được kể cả khi cuộn trang" nhờ sticky dính lại ở top khi
-   cuộn qua, giữ đúng tinh thần "Sẵn ở góc" ban đầu. */
+   cuộn qua, giữ đúng tinh thần "Sẵn ở góc" ban đầu.
+   Đợt sửa giao diện bàn chơi — thêm nền + viền dưới (trước đây trong suốt,
+   seat cuộn qua bị đè lên trông rối) + ô "Bạn" bên trái (chỉ qua mạng, xem
+   renderGameToolbar()) để thấy máu của mình mà không cần cuộn xuống ghế của
+   mình ở cuối trang. */
 .game-toolbar {
   position: sticky;
-  top: 0.5rem;
+  top: 0;
   display: flex;
-  justify-content: flex-end;
-  gap: 0.5rem;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.75rem;
+  padding: 0.5rem 0;
   margin-bottom: 0.5rem;
+  background: var(--color-bg);
+  border-bottom: 1px solid var(--color-border);
   z-index: 5;
 }
 
-/* Đợt 3 UI/UX (mục 9) — "Dialog dùng chung một kiểu: nền mờ sau, hộp giữa,
-   nút đóng rõ." Dùng THẲNG <dialog> gốc HTML: browser tự lo phần "hộp giữa"
-   (UA stylesheet căn `margin: auto` khi showModal()) — ở đây chỉ cần khung
-   viền + nền mờ phía sau (::backdrop). "Không làm gián đoạn ván" tự đúng vì
+.game-toolbar__actions {
+  display: flex;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.game-toolbar__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+  padding: 0.45rem 0.65rem;
+}
+
+.game-toolbar__btn svg {
+  width: 1.05rem;
+  height: 1.05rem;
+  flex: none;
+}
+
+.game-toolbar__btn[aria-pressed="true"] {
+  border-color: var(--color-danger);
+  color: var(--color-danger);
+}
+
+/* "Bạn" — luôn thấy máu của mình ngay trong thanh dính trên cùng, không cần
+   cuộn xuống ghế của mình ở cuối trang nữa (chỉ có qua mạng, nơi có 1 người
+   xem màn hình cụ thể — hotseat dùng chung 1 máy nên không có khái niệm
+   "bạn"). */
+.me-chip {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.3rem 0.6rem;
+  border-radius: 999px;
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-bg-panel);
+}
+
+.me-chip__hp {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.12rem;
+}
+
+/* Đợt sửa giao diện — "Dialog dùng chung một kiểu: nền mờ sau, hộp giữa, nút
+   đóng rõ." Dùng THẲNG <dialog> gốc HTML: browser tự lo phần "hộp giữa" (UA
+   stylesheet căn `margin: auto` khi showModal()) — ở đây chỉ cần khung viền +
+   bóng đổ (nổi hẳn lên so với nền mờ phía sau, ::backdrop) + nút đóng tròn
+   "✕" GÓC TRÊN PHẢI (position: absolute, luôn thấy được dù cuộn nội dung tới
+   đâu — xem renderDialog(), ui.ts). "Không làm gián đoạn ván" tự đúng vì
    dialog chỉ là 1 lớp phủ, DOM bàn chơi phía dưới vẫn nguyên vẹn, showModal()
    không xoá gì cả. */
 dialog.app-dialog {
+  position: relative;
   border: 1px solid var(--color-border);
-  border-radius: 0.5rem;
-  padding: 1rem;
+  border-radius: 0.6rem;
+  padding: 1.2rem 1.1rem 1.1rem;
   max-width: 26rem;
   width: 90%;
   background: var(--color-bg);
   color: var(--color-text);
+  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.28);
 }
 
 dialog.app-dialog::backdrop {
-  background: rgba(0, 0, 0, 0.4);
+  background: rgba(0, 0, 0, 0.45);
 }
 
-dialog.app-dialog h3 {
-  margin-top: 0;
+.dialog__title {
+  margin: 0 0 0.9rem;
+  font-size: 1.05rem;
+  padding-right: 1.6rem;
+}
+
+.dialog__close {
+  position: absolute;
+  top: 0.7rem;
+  right: 0.7rem;
+  width: 1.9rem;
+  height: 1.9rem;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-panel);
+  color: var(--color-text-muted);
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.dialog__close:hover {
+  border-color: var(--color-danger);
+  color: var(--color-danger);
 }
 
 /* Sảnh chọn game (src/hub/) — màn đầu tiên khi mở link, đứng TRƯỚC màn "Chọn
@@ -1305,6 +1651,13 @@ body.landing-bg {
   font-weight: 700;
 }
 
+.rule-text {
+  margin: 0 0 1.1rem;
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+  max-width: 34rem;
+}
+
 .error-box {
   margin: 0 0 1rem;
   padding: 0.65rem 0.8rem;
@@ -1464,6 +1817,35 @@ body.landing-bg {
 .btn-copy[data-copied="true"] {
   background: var(--color-danger);
   color: #fff;
+}
+
+/* Bản THU GỌN của .room-code-box ở trên — dùng trong dialog "Mã phòng / Mời"
+   mở giữa ván (renderRoomCodeDialogBody(), ui.ts): dọc, canh giữa, vừa dialog
+   hẹp thay vì 1 hàng ngang như màn "Phòng chờ" (rộng hơn nhiều). */
+.dialog-code-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 1.1rem;
+  border-radius: 0.5rem;
+  border: 1px solid var(--color-danger);
+  background: var(--color-danger-bg);
+}
+
+.dialog-code-box__code {
+  font-family: ui-monospace, "Courier New", monospace;
+  font-size: 1.8rem;
+  font-weight: 700;
+  letter-spacing: 0.3em;
+  color: var(--color-danger);
+}
+
+.dialog-code-box__hint {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  text-align: center;
 }
 
 .section-label {
@@ -1632,6 +2014,146 @@ body.landing-bg {
   text-align: center;
   color: var(--color-text-muted);
   font-size: 0.9rem;
+}
+
+/* Màn "Chọn nhân vật" (renderCharacterSelectionScreen()/
+   renderNetworkCharacterSelectionScreen(), ui.ts) — đồng hồ đếm ngược đưa
+   thành viên thuốc nổi bật (dùng LUÔN cho renderCountdown() dùng chung với
+   lúc đang chơi thật, xem ghi chú ở đó), hàng tổng quan trạng thái mọi người,
+   khu chọn của mình theo kiểu "đối đầu" 2 lá — giống hệt bản xem trước đã
+   duyệt (Artifact). */
+.countdown-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.8rem;
+  border-radius: 999px;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  font-size: 0.85rem;
+  font-weight: bold;
+  margin: 0.5rem 0 1rem;
+}
+
+.countdown-pill__dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--color-text-muted);
+}
+
+.countdown-pill--urgent {
+  border-color: var(--color-danger);
+  color: var(--color-danger);
+  animation: countdown-pulse 1s ease-in-out infinite;
+}
+
+.countdown-pill--urgent .countdown-pill__dot {
+  background: var(--color-danger);
+}
+
+@keyframes countdown-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 var(--color-danger-bg);
+  }
+  50% {
+    box-shadow: 0 0 0 0.3rem var(--color-danger-bg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .countdown-pill--urgent {
+    animation: none;
+  }
+}
+
+.roster {
+  display: flex;
+  gap: 0.5rem;
+  overflow-x: auto;
+  padding-bottom: 0.3rem;
+  margin-bottom: 1.5rem;
+}
+
+.roster-chip {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.7rem 0.4rem 0.4rem;
+  border-radius: 999px;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg);
+  font-size: 0.82rem;
+  white-space: nowrap;
+}
+
+.roster-chip--me {
+  border-color: var(--color-danger);
+}
+
+.roster-chip__avatar {
+  width: 1.6rem;
+  height: 1.6rem;
+  border-radius: 50%;
+  background: var(--color-bg-alt);
+  border: 1px solid var(--color-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  font-weight: bold;
+  flex: none;
+}
+
+.roster-chip__status {
+  font-size: 0.72rem;
+  color: var(--color-text-muted);
+}
+
+.roster-chip--done .roster-chip__status {
+  color: var(--color-danger);
+  font-weight: bold;
+}
+
+.pick-section {
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: 0.6rem;
+  padding: 1.2rem;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.12);
+  margin-bottom: 1rem;
+}
+
+.pick-section__heading {
+  margin: 0 0 1rem;
+  font-size: 1.1rem;
+}
+
+.duel {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: 1rem;
+  align-items: start;
+}
+
+.duel__divider {
+  align-self: center;
+  font-size: 0.8rem;
+  font-weight: bold;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+}
+
+@media (max-width: 30rem) {
+  .duel {
+    grid-template-columns: 1fr;
+  }
+
+  .duel__divider {
+    justify-self: center;
+  }
 }
 
 /* .hub-title dùng class riêng (0,1,0) nên đè mất quy tắc "h1 { font-size:
