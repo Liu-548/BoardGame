@@ -919,13 +919,26 @@ button.card-box {
    (dễ chớp giật khi vẽ lại nhiều lần/giây lúc gõ RESPOND), nhấp nháy thật CHỈ
    dành cho viền seat (.player--targeted, mục 1) vốn ổn định hơn giữa các lần
    render. Đỏ CHỈ xuất hiện khi thật sự khẩn cấp (còn ≤10s) — bình thường vẫn
-   xám, đúng mục 1 "đỏ dùng tiết chế". */
+   xám, đúng mục 1 "đỏ dùng tiết chế".
+   `position: sticky` (2026-09-09, theo yêu cầu chủ dự án) — nhận lại đúng khả
+   năng "luôn thấy được kể cả khi cuộn" mà `.game-toolbar` vừa BỎ (xem ghi chú
+   ở đó): việc CẦN PHẢN HỒI NGAY khẩn cấp hơn hẳn 4 nút Nhật ký/Thư viện/Cài
+   đặt/Đầy đủ, xứng đáng dính màn hình hơn. `renderPendingPanel()`/
+   `networkRenderPendingPanel()` (ui.ts) đặt băng này NGAY SAU toolbar (đợt sửa
+   trước) nên khi cuộn qua khỏi toolbar (giờ cuộn trôi bình thường), băng này
+   là thứ tiếp theo "chạm" mép trên viewport và tự dính lại đúng lúc, không hở
+   khoảng trống nào. `margin-top: 0` bắt buộc đi kèm — sticky vẫn tôn trọng
+   margin của chính nó, còn margin cũ (0.75rem đều 2 phía) sẽ để hở 1 khoảng
+   trong suốt phía trên khi dính, lộ nội dung đang cuộn qua bên dưới. */
 .reaction-banner {
+  position: sticky;
+  top: 0;
+  z-index: 5;
   border: 1px solid var(--color-border);
   border-left: 4px solid var(--color-border-strong);
   border-radius: 0.5rem;
   padding: 0.75rem 1rem;
-  margin: 0.75rem 0;
+  margin: 0 0 0.75rem;
   background: var(--color-bg-panel);
 }
 
@@ -1228,18 +1241,22 @@ button.card-box {
 /* Đợt 3 UI/UX (mục 9) — hàng nút góc trên. TỪNG dùng `position: fixed`
    ("không chiếm chỗ bàn") nhưng phản hồi thật: nổi đè lên seat trên cùng của
    bàn tròn (seat đó không "biết" phải né chỗ cho 1 phần tử không chiếm chỗ
-   trong luồng tài liệu). Đổi sang `position: sticky` + vẽ NGAY ĐẦU trang
-   (xem renderApp()/renderNetworkGame() ở ui.ts) — giờ nó CHIẾM 1 hàng thật ở
-   đầu, mọi nội dung sau tự động bắt đầu bên dưới nó, không bao giờ đè nhau;
-   vẫn "luôn thấy được kể cả khi cuộn trang" nhờ sticky dính lại ở top khi
-   cuộn qua, giữ đúng tinh thần "Sẵn ở góc" ban đầu.
+   trong luồng tài liệu). Đổi sang `position: sticky` (giờ đã BỎ — xem ghi chú
+   2026-09-09 ngay dưới) + vẽ NGAY ĐẦU trang (xem renderApp()/renderNetworkGame()
+   ở ui.ts) — CHIẾM 1 hàng thật ở đầu, mọi nội dung sau tự động bắt đầu bên
+   dưới nó, không bao giờ đè nhau.
    Đợt sửa giao diện bàn chơi — thêm nền + viền dưới (trước đây trong suốt,
    seat cuộn qua bị đè lên trông rối) + ô "Bạn" bên trái (chỉ qua mạng, xem
    renderGameToolbar()) để thấy máu của mình mà không cần cuộn xuống ghế của
-   mình ở cuối trang. */
+   mình ở cuối trang.
+   Bỏ sticky (2026-09-09, theo yêu cầu chủ dự án): "luôn thấy được kể cả khi
+   cuộn" giờ chuyển giao hẳn cho `.reaction-banner` (băng thông báo phản ứng,
+   xem ngay dưới) — nó khẩn cấp hơn nút Nhật ký/Thư viện/Cài đặt, đáng được
+   dính màn hình hơn. Toolbar giờ cuộn trôi bình thường như mọi nội dung khác
+   — chỉ còn `position` mặc định (static), `top`/`z-index` bỏ hẳn (2 thuộc
+   tính đó chỉ có tác dụng với phần tử ĐÃ định vị — sticky/fixed/relative/
+   absolute — giữ lại sẽ vô nghĩa, dễ gây hiểu nhầm sau này). */
 .game-toolbar {
-  position: sticky;
-  top: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1249,7 +1266,6 @@ button.card-box {
   margin-bottom: 0.5rem;
   background: var(--color-bg);
   border-bottom: 1px solid var(--color-border);
-  z-index: 5;
 }
 
 .game-toolbar__actions {
