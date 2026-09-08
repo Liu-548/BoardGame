@@ -233,7 +233,22 @@ input[type="text"] {
   gap: 0.4rem;
 }
 
+/* Sửa lỗi tràn khỏi ô (phát hiện 2026-09-08, test hotseat 4 người ở màn hình
+   di động dọc): mặc định flexbox KHÔNG BAO GIỜ co 1 ô nhỏ hơn từ dài nhất bên
+   trong nó — tên người chơi là 1 từ dài không dấu cách (nickname kiểu
+   "SieuNhanGaoVietNam2026", hoặc tên gõ liền không dấu cách) sẽ tràn ra ngoài
+   viền `.player` ngay khi ô bị thu hẹp lại (di động dọc, `.player` chỉ còn
+   ~92% bề rộng màn hình — xem @media max-width:480px bên dưới). `min-width: 0`
+   bỏ ngưỡng co tối thiểu đó; `overflow-wrap: anywhere` cho phép ngắt NGAY GIỮA
+   1 từ dài khi hết chỗ, thay vì tràn ra ngoài.
+   `h3` `flex: 1 1 auto` là bắt buộc cho fix này: 2 ô anh em trước nó (huy hiệu
+   số ghế, lá nhân vật) đều cỡ cố định (`flex-shrink: 0`) — nếu `h3` không có
+   `flex-basis` rõ ràng, trình duyệt tự tính bằng nội dung của nó thay vì phần
+   ĐANG CÒN LẠI của hàng, `min-width: 0` một mình không đủ ngăn tràn. */
 .player__heading-row h3 {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
   margin: 0;
 }
 
