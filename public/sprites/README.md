@@ -10,7 +10,7 @@ than (trước đó bị đen do lỗi script, xem cuối file). Danh sách thay
 
 Client tự ghép đường dẫn, không cần khai báo gì thêm:
 
-- Lá bài  → `/sprites/<tên lá>.png`            (xem `cardImageUrl()` trong `src/client/ui.ts`)
+- Lá bài  → `/sprites/<tên lá>.png`            (xem `cardImageUrl()` trong `src/games/bang/client/ui.ts`)
 - Nhân vật → `/sprites/characters/<characterId>.png`  (xem `characterImageUrl()`)
 - Lá sự kiện → `/sprites/events/<EventId>.png`       (xem `eventImageUrl()`)
 - Mặt lưng → `/sprites/card-back.png`
@@ -345,7 +345,7 @@ vì logic chưa cài (`abandoned_mine`, `law_of_the_west`, `peyote`, `dead_man`)
 ### 2026-08-22 — rà soát 100% (44 lá bài + 42 nhân vật + 28 lá sự kiện)
 
 **Thêm 8 nhân vật *ex trước giờ chưa có ảnh** (có trong `CHARACTERS` của
-`src/core/characters.ts` nhưng thiếu trong `CHARS` của script, nên đang hiển
+`src/games/bang/core/characters.ts` nhưng thiếu trong `CHARS` của script, nên đang hiển
 thị bằng chữ): `the_thief`, `the_gambler`, `the_fair_killer`, `the_drunker`,
 `the_drifter`, `the_dealer`, `the_sentinel`, `the_nobody`.
 

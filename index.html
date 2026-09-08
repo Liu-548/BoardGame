@@ -6,15 +6,29 @@
          thu nhỏ (pinch-zoom out) để nhìn được cả bàn chơi dễ hơn. Không đặt
          user-scalable=no/maximum-scale hẹp — vẫn cho zoom vào bình thường. -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=0.4" />
-    <title>Bang!</title>
+    <title>Sảnh Bài Xóm</title>
+    <!-- Chỉ dùng cho chữ "Bang!" kiểu miền Tây (poster Sảnh + màn "Chọn cách
+         chơi") và tiêu đề Sảnh — xem .hub-title/.hub-card__poster--wordmark/
+         .ticket__wordmark ở style.css. 1 dependency ngoài DUY NHẤT của dự án
+         (không phải package npm, chỉ tải font qua mạng) — chấp nhận được vì
+         chủ dự án đã duyệt đúng giao diện này ở bản xem trước (Artifact). -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Rye&family=Big+Shoulders+Display:wght@600;700&display=swap"
+    />
     <link rel="stylesheet" href="/style.css" />
   </head>
   <body>
-    <h1>Bang!</h1>
+    <!-- Sảnh chọn game (src/hub/) là màn ĐẦU TIÊN, không thuộc riêng Bang! —
+         nên tiêu đề "Bang!" giờ chỉ hiện SAU KHI đã chọn vào Bang!, do
+         main.ts ẩn/hiện bằng #app-heading.hidden (xem renderScreen()). -->
+    <h1 id="app-heading" hidden>Bang!</h1>
 
     <!-- Việc 2.2: chỉ vẽ state ra đây bằng chữ, chưa bấm bài được (việc 2.3). -->
     <div id="game-root"></div>
 
-    <script type="module" src="/src/client/main.ts"></script>
+    <script type="module" src="/src/games/bang/client/main.ts"></script>
   </body>
 </html>

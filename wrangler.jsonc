@@ -1,6 +1,6 @@
 {
   "name": "bang-boardgame",
-  "main": "src/server/index.ts",
+  "main": "src/games/bang/server/index.ts",
   "compatibility_date": "2026-07-25",
   "durable_objects": {
     "bindings": [
