@@ -839,7 +839,7 @@ CARDS = {
 # 'winchester-rifle', 'sawed-off-shotgun' hoặc 'blunderbuss'.
 
 # ---------- 42 nhân vật (icon gợi ý KHẢ NĂNG, dễ nhớ hơn chân dung) ----------
-# Danh sách này phải khớp ĐÚNG các id trong CHARACTERS ở src/core/characters.ts
+# Danh sách này phải khớp ĐÚNG các id trong CHARACTERS ở src/games/bang/core/characters.ts
 # — thêm nhân vật mới ở đó thì thêm 1 dòng ở đây, không thì lá đó rơi về hiển
 # thị bằng chữ.
 CHARS = {
