@@ -38,9 +38,32 @@ import type { ClientMessage, DeadlineInfo, ServerMessage } from "../protocol";
 interface SocketAttachment {
   playerId: string;
   name: string;
+  // Bổ sung — mốc thời gian lần cuối NHẬN được bất kỳ tin nhắn nào từ socket
+  // này (kể cả "ping" thuần tuý, xem protocol.ts + net.ts) — dùng để lọc ra
+  // "socket ma" (còn bị ctx.getWebSockets() liệt kê nhưng thật ra đã chết từ
+  // lâu, server chưa kịp nhận sự kiện "close"/"error" — ca thật đã gặp: 1
+  // client còn kẹt trong danh sách phòng từ tận hôm qua). Xem
+  // touchLastSeen()/joinedPlayers().
+  lastSeenAt: number;
 }
 
 const GAME_STATE_KEY = "gameState";
+// "Socket ma" — còn bị ctx.getWebSockets() liệt kê nhưng đã im lặng quá lâu
+// (không "ping" lẫn không gửi gì khác) — coi như đã chết, loại khỏi mọi danh
+// sách "đang kết nối" (xem joinedPlayers()). Gấp hơn 4 lần PING_INTERVAL_MS
+// bên net.ts (20s) để chừa dư dả cho độ trễ mạng/tab bị trình duyệt tạm ngưng
+// (throttle) — không cần khớp chính xác 2 bên, chỉ cần đủ lớn hơn hẳn.
+const STALE_SOCKET_MS = 90_000;
+// Độ trễ trước khi THẬT SỰ coi 1 người là đã mất kết nối/rời phòng, tính từ
+// lúc socket của họ đóng (webSocketClose()/webSocketError()) — xem
+// markDisconnectPending(). Bug thật đã gặp lúc test: khoá màn hình di động
+// vài giây, hay nhiều socket đóng gần như đồng thời (rớt mạng tạm/hot-reload
+// lúc dev), đều bị coi là "rời hẳn" NGAY LẬP TỨC — ván 2 người bị huỷ oan dù
+// người đó tự nối lại được ngay sau đó. Chốt 60 giây theo yêu cầu chủ dự án.
+const DISCONNECT_GRACE_MS = 60_000;
+// playerId -> mốc thời gian (epoch ms) sẽ coi là "đã rời hẳn" nếu tới lúc đó
+// vẫn chưa tự nối lại — xem markDisconnectPending()/clearDisconnectPending().
+const PENDING_DISCONNECT_KEY = "pendingDisconnects";
 // Chủ phòng — KHÔNG lưu trực tiếp 1 giá trị "ownerId" nữa (bug phát hiện sau
 // khi chơi thật: dùng lại 1 mã phòng đã trống hẳn từ vài ngày trước, không ai
 // được công nhận là chủ phòng — vì "ownerId" cũ vẫn còn ĐỌNG LẠI trong storage
@@ -130,10 +153,18 @@ export class Room {
       return; // không phải JSON hợp lệ — bỏ qua, chưa cần báo lỗi ở việc này
     }
 
+    // Bất kỳ tin nhắn nào (kể cả "ping" thuần tuý) đều chứng tỏ socket còn
+    // sống — cập nhật NGAY trước khi xử lý theo từng loại, xem ghi chú
+    // STALE_SOCKET_MS/SocketAttachment.lastSeenAt ở trên. Không làm gì nếu
+    // socket này chưa từng "join" (chưa có attachment).
+    this.touchLastSeen(ws);
+
     switch (parsed.type) {
       case "join":
         await this.handleJoin(ws, parsed.playerId, parsed.name);
         return;
+      case "ping":
+        return; // touchLastSeen() ở trên đã đủ, không cần làm gì thêm
       case "chat":
         this.broadcastChat(ws, parsed.text, parsed.to);
         return;
@@ -161,7 +192,7 @@ export class Room {
   }
 
   private async handleJoin(ws: WebSocket, playerId: string, name: string): Promise<void> {
-    const attachment: SocketAttachment = { playerId, name };
+    const attachment: SocketAttachment = { playerId, name, lastSeenAt: Date.now() };
     ws.serializeAttachment(attachment);
 
     // Ghi lại đúng 1 LẦN thứ tự "vào phòng lần đầu" của playerId này (không
@@ -173,6 +204,10 @@ export class Room {
       await this.ctx.storage.put(JOIN_ORDER_KEY, joinOrder);
     }
 
+    // Vừa join (lần đầu hoặc tự nối lại) -> huỷ mọi độ trễ "coi là mất kết
+    // nối" đang đếm dở cho đúng playerId này, xem markDisconnectPending().
+    await this.clearDisconnectPending(playerId);
+
     await this.broadcastLobby();
 
     // Vừa vào lại phòng (vd sau khi deploy lại/mất mạng) mà ván đã có sẵn ->
@@ -181,7 +216,7 @@ export class Room {
     const state = await this.ctx.storage.get<GameState>(GAME_STATE_KEY);
     if (state) {
       const deadline = await this.ctx.storage.get<DeadlineInfo>(DEADLINE_KEY);
-      this.sendStateTo(ws, state, [], deadline ?? null, this.connectedPlayerIdsInGame(state));
+      this.sendStateTo(ws, state, [], deadline ?? null, await this.connectedPlayerIdsInGame(state));
     }
   }
 
@@ -372,7 +407,7 @@ export class Room {
 
     await this.ctx.storage.put(GAME_STATE_KEY, finalState);
     const deadline = await this.scheduleDeadline(finalState, actingPlayerId, isSelfServiceAction);
-    this.broadcastState(finalState, allEvents, deadline);
+    await this.broadcastState(finalState, allEvents, deadline);
   }
 
   // Ai/việc gì đang thật sự cần tính giờ NGAY BÂY GIỜ, sau khi đã cuốn qua
@@ -411,7 +446,10 @@ export class Room {
     if (!decision) {
       await this.ctx.storage.delete(DEADLINE_KEY);
       await this.ctx.storage.delete(PAUSED_PLAY_KEY);
-      await this.ctx.storage.deleteAlarm();
+      // KHÔNG deleteAlarm() thẳng nữa — có thể vẫn còn ai đó đang trong độ trễ
+      // "coi là mất kết nối" (xem PENDING_DISCONNECT_KEY), scheduleAlarm() tự
+      // biết giữ lại alarm cho đúng việc đó nếu có.
+      await this.scheduleAlarm();
       return null;
     }
 
@@ -497,8 +535,54 @@ export class Room {
 
     const deadline: DeadlineInfo = { ...decision, expiresAt };
     await this.ctx.storage.put(DEADLINE_KEY, deadline);
-    await this.ctx.storage.setAlarm(expiresAt);
+    await this.scheduleAlarm();
     return deadline;
+  }
+
+  // Durable Object chỉ có ĐÚNG 1 alarm tại 1 thời điểm (setAlarm() sau ghi đè
+  // cái trước) — nhưng giờ có 2 việc CÓ THỂ cùng cần alarm: đồng hồ lượt chơi
+  // (DEADLINE_KEY) VÀ độ trễ "coi là mất kết nối" của từng người
+  // (PENDING_DISCONNECT_KEY, xem markDisconnectPending()). Gọi hàm này SAU
+  // MỖI lần đổi 1 trong 2 key đó thay vì tự gọi setAlarm()/deleteAlarm() rời
+  // rạc — luôn hẹn đúng mốc SỚM NHẤT trong số các việc đang chờ, không mất
+  // việc nào.
+  private async scheduleAlarm(): Promise<void> {
+    const deadline = await this.ctx.storage.get<DeadlineInfo>(DEADLINE_KEY);
+    const pendingDisconnects = await this.ctx.storage.get<Record<string, number>>(PENDING_DISCONNECT_KEY);
+
+    const times: number[] = [];
+    if (deadline) times.push(deadline.expiresAt);
+    if (pendingDisconnects) times.push(...Object.values(pendingDisconnects));
+
+    if (times.length === 0) {
+      await this.ctx.storage.deleteAlarm();
+      return;
+    }
+    await this.ctx.storage.setAlarm(Math.min(...times));
+  }
+
+  // Ghi lại "playerId này VỪA mất kết nối" — KHÔNG xử lý gì ngay (không
+  // broadcast, không huỷ ván) — chỉ hẹn giờ, alarm() sẽ tự xử lý đúng lúc hết
+  // hạn NẾU họ vẫn chưa tự nối lại (xem clearDisconnectPending()). Đây là chỗ
+  // tạo ra "độ trễ" — xem ghi chú DISCONNECT_GRACE_MS.
+  private async markDisconnectPending(playerId: string): Promise<void> {
+    const pending = (await this.ctx.storage.get<Record<string, number>>(PENDING_DISCONNECT_KEY)) ?? {};
+    pending[playerId] = Date.now() + DISCONNECT_GRACE_MS;
+    await this.ctx.storage.put(PENDING_DISCONNECT_KEY, pending);
+    await this.scheduleAlarm();
+  }
+
+  // playerId vừa (tự) nối lại được -> huỷ độ trễ đang đếm dở cho họ, nếu có.
+  private async clearDisconnectPending(playerId: string): Promise<void> {
+    const pending = await this.ctx.storage.get<Record<string, number>>(PENDING_DISCONNECT_KEY);
+    if (!pending || !(playerId in pending)) return;
+    delete pending[playerId];
+    if (Object.keys(pending).length === 0) {
+      await this.ctx.storage.delete(PENDING_DISCONNECT_KEY);
+    } else {
+      await this.ctx.storage.put(PENDING_DISCONNECT_KEY, pending);
+    }
+    await this.scheduleAlarm();
   }
 
   // Cloudflare gọi hàm này (tên bắt buộc là "alarm") đúng lúc setAlarm() đã
@@ -507,11 +591,23 @@ export class Room {
   // tự gửi) rồi cho đi qua reduce() y như bình thường — KHÔNG có luật riêng
   // nào nằm ở đây, chỉ là "thay người chơi bấm nút mặc định khi họ im lặng".
   async alarm(): Promise<void> {
+    // Xử lý TRƯỚC những ai đã hết độ trễ "coi là mất kết nối" (nếu có) — độc
+    // lập hoàn toàn với đồng hồ lượt chơi bên dưới, xem finalizeDueDisconnects().
+    await this.finalizeDueDisconnects();
+
     const state = await this.ctx.storage.get<GameState>(GAME_STATE_KEY);
-    if (!state || state.winner) return;
+    if (!state || state.winner) {
+      // Vẫn có thể còn ai đó khác đang trong độ trễ mất kết nối CHƯA tới hạn
+      // — scheduleAlarm() tự tính lại đúng mốc kế tiếp cho việc đó.
+      await this.scheduleAlarm();
+      return;
+    }
 
     const deadline = await this.ctx.storage.get<DeadlineInfo>(DEADLINE_KEY);
-    if (!deadline) return;
+    if (!deadline) {
+      await this.scheduleAlarm();
+      return;
+    }
 
     const action = this.buildTimeoutAction(state, deadline);
     if (!action) {
@@ -744,12 +840,31 @@ export class Room {
   // thiếu người/chuyển nhầm quyền chủ phòng/huỷ nhầm ván (xem handleSocketGone()).
   private joinedPlayers(excludeSocket?: WebSocket): { id: string; name: string }[] {
     const players: { id: string; name: string }[] = [];
+    const now = Date.now();
     for (const socket of this.ctx.getWebSockets()) {
       if (socket === excludeSocket) continue;
       const attachment = socket.deserializeAttachment() as SocketAttachment | null;
-      if (attachment?.playerId) players.push({ id: attachment.playerId, name: attachment.name });
+      if (!attachment?.playerId) continue;
+      // "Socket ma" — quá lâu không thấy tin nhắn nào (kể cả "ping", xem
+      // net.ts) — coi như đã chết dù ctx.getWebSockets() vẫn liệt kê, loại
+      // khỏi danh sách "đang kết nối". `lastSeenAt` có thể là `undefined` với
+      // những socket đã kết nối TỪ TRƯỚC lúc thêm field này (deploy giữa
+      // chừng) — `now - undefined` ra `NaN`, so sánh `NaN > STALE_SOCKET_MS`
+      // luôn `false` nên KHÔNG bị loại nhầm, tự "lành" ngay lần "ping" đầu
+      // tiên kế tiếp của họ (touchLastSeen() ghi đè lại giá trị thật).
+      if (now - attachment.lastSeenAt > STALE_SOCKET_MS) continue;
+      players.push({ id: attachment.playerId, name: attachment.name });
     }
     return players;
+  }
+
+  // Ghi lại "vừa thấy socket này còn sống" — gọi mỗi khi nhận BẤT KỲ tin nhắn
+  // nào từ nó (xem webSocketMessage()), không riêng "ping". Không làm gì nếu
+  // socket này chưa từng "join" (chưa có attachment).
+  private touchLastSeen(ws: WebSocket): void {
+    const attachment = ws.deserializeAttachment() as SocketAttachment | null;
+    if (!attachment) return;
+    ws.serializeAttachment({ ...attachment, lastSeenAt: Date.now() });
   }
 
   private async broadcastLobby(): Promise<void> {
@@ -764,8 +879,8 @@ export class Room {
   // cho tất cả (quy tắc 6: không bao giờ gửi state đầy đủ, mỗi người chỉ
   // thấy bài của chính mình). `deadline` giống nhau cho mọi người (không cần
   // lọc riêng — không chứa thông tin bí mật gì).
-  private broadcastState(state: GameState, events: GameEvent[], deadline: DeadlineInfo | null): void {
-    const connectedPlayerIds = this.connectedPlayerIdsInGame(state);
+  private async broadcastState(state: GameState, events: GameEvent[], deadline: DeadlineInfo | null): Promise<void> {
+    const connectedPlayerIds = await this.connectedPlayerIdsInGame(state);
     for (const socket of this.ctx.getWebSockets()) {
       this.sendStateTo(socket, state, events, deadline, connectedPlayerIds);
     }
@@ -791,12 +906,21 @@ export class Room {
     socket.send(JSON.stringify(message));
   }
 
-  // Việc 4.3: trong số NGƯỜI CHƠI CỦA VÁN ĐANG CHẠY (state.players), ai đang
-  // có socket mở thật sự ngay lúc gọi hàm này — dùng để (1) gửi kèm cho client
-  // hiện chú thích "đã mất kết nối", và (2) tự huỷ ván nếu còn quá ít người
-  // (xem maybeAbandonGame() ở webSocketClose).
-  private connectedPlayerIdsInGame(state: GameState): string[] {
+  // Việc 4.3: trong số NGƯỜI CHƠI CỦA VÁN ĐANG CHẠY (state.players), ai được
+  // coi là "đang kết nối" ngay lúc gọi hàm này — dùng để (1) gửi kèm cho
+  // client hiện chú thích "đã mất kết nối", và (2) tự huỷ ván nếu còn quá ít
+  // người (xem finalizeDueDisconnects()). Không chỉ tính socket ĐANG THẬT SỰ
+  // mở — CỘNG THÊM cả những ai socket vừa đóng nhưng vẫn còn trong ĐỘ TRỄ
+  // "coi là mất kết nối" (PENDING_DISCONNECT_KEY, xem markDisconnectPending())
+  // — nếu không, 1 hành động BẤT KỲ của người khác trong lúc đang chờ độ trễ
+  // sẽ vô tình phát broadcastState() mới, lộ ngay huy hiệu "mất kết nối" sớm
+  // hơn cả độ trễ đã định, đi ngược lại đúng mục đích của độ trễ đó.
+  private async connectedPlayerIdsInGame(state: GameState): Promise<string[]> {
     const connected = new Set(this.joinedPlayers().map((p) => p.id));
+    const pendingDisconnects = await this.ctx.storage.get<Record<string, number>>(PENDING_DISCONNECT_KEY);
+    if (pendingDisconnects) {
+      for (const id of Object.keys(pendingDisconnects)) connected.add(id);
+    }
     return state.players.filter((p) => connected.has(p.id)).map((p) => p.id);
   }
 
@@ -863,51 +987,88 @@ export class Room {
   }
 
   // Dọn dẹp DÙNG CHUNG cho cả webSocketClose() lẫn webSocketError() — 1 socket
-  // vừa rời phòng (dù rời sạch hay rời vì lỗi): chuyển quyền chủ phòng nếu cần,
-  // huỷ ván nếu chỉ còn ≤1 người, báo lại danh sách phòng cho người còn lại.
+  // vừa đóng (dù đóng sạch hay vì lỗi). KHÔNG kết luận "đã rời hẳn" ngay ở
+  // đây nữa (bug thật đã gặp: khoá màn hình di động vài giây/mất mạng chốc
+  // lát cũng đóng socket y hệt rời hẳn) — chỉ ghi nhận độ trễ, xem
+  // markDisconnectPending()/finalizeDueDisconnects().
   private async handleSocketGone(ws: WebSocket): Promise<void> {
-    // Báo cho người còn lại biết phòng vừa vơi đi 1 người — loại trừ ĐÚNG
-    // socket này theo tham chiếu (không phải theo playerId, xem ghi chú ở
-    // joinedPlayers()) — getWebSockets() có thể vẫn còn liệt kê nó lúc này.
-    const remaining = this.joinedPlayers(ws);
+    const attachment = ws.deserializeAttachment() as SocketAttachment | null;
+    if (!attachment?.playerId) return; // socket này chưa từng "join", không có gì để theo dõi
 
-    // Chủ phòng KHÔNG cần chuyển thủ công ở đây nữa — getOwnerId() tự tính
-    // lại ngay lần gọi TIẾP THEO (vd broadcastLobby ở cuối hàm này), luôn ra
-    // đúng người có thứ tự vào phòng thấp nhất trong số CÒN KẾT NỐI. Chủ
-    // phòng vừa rời (dù rời hẳn hay chỉ mất mạng tạm) tự động không còn được
-    // tính nữa vì không có socket nào của họ đang mở; nối lại thì tự nhiên có
-    // socket lại, tự động được tính lại đúng theo thứ tự cũ của họ.
+    // Vẫn còn ÍT NHẤT 1 socket khác của ĐÚNG playerId này đang mở (vd tự nối
+    // lại xong TRƯỚC KHI server kịp nhận ra socket cũ đã đóng, xem ghi chú
+    // `excludeSocket` ở joinedPlayers()) -> không phải mất kết nối thật, họ
+    // vẫn đang có mặt, không cần làm gì thêm.
+    if (this.joinedPlayers(ws).some((p) => p.id === attachment.playerId)) return;
 
-    // Việc 4.3: ván đang chơi dở mà giờ chỉ còn 0-1 người CỦA VÁN ĐÓ còn kết
-    // nối -> huỷ luôn, không để nó tự chạy 1 mình mãi bằng toàn hết-giờ-tự-
-    // động (xem abandonGame()). Dùng `remaining` đã tính sẵn ở trên (đã loại
-    // trừ đúng socket vừa đóng) thay vì gọi lại connectedPlayerIdsInGame() từ
-    // joinedPlayers() — lúc này getWebSockets() có thể vẫn còn liệt kê socket
-    // đang đóng.
+    await this.markDisconnectPending(attachment.playerId);
+  }
+
+  // Xử lý đúng lúc: những playerId đã hết ĐỘ TRỄ (xem markDisconnectPending())
+  // mà VẪN CHƯA tự nối lại (nếu đã nối lại, clearDisconnectPending() đã xoá
+  // họ khỏi PENDING_DISCONNECT_KEY từ trước, không bao giờ tới đây) — giờ mới
+  // THẬT SỰ coi là đã mất kết nối: huỷ ván nếu ván đang chơi dở chỉ còn ≤1
+  // người của ván đó còn kết nối (xem abandonGame(), việc 4.3), và báo lại
+  // danh sách phòng/trạng thái "đang kết nối" cho mọi người. Gọi từ alarm()
+  // — lúc này (đã qua ít nhất DISCONNECT_GRACE_MS) mọi socket thật sự đã đóng
+  // chắc chắn không còn nằm trong ctx.getWebSockets() nữa, không cần loại trừ
+  // gì như handleSocketGone() cũ.
+  private async finalizeDueDisconnects(): Promise<void> {
+    const pending = await this.ctx.storage.get<Record<string, number>>(PENDING_DISCONNECT_KEY);
+    if (!pending) return;
+
+    const now = Date.now();
+    const dueIds = Object.keys(pending).filter((id) => pending[id] <= now);
+    if (dueIds.length === 0) return;
+
+    for (const id of dueIds) delete pending[id];
+    if (Object.keys(pending).length === 0) {
+      await this.ctx.storage.delete(PENDING_DISCONNECT_KEY);
+    } else {
+      await this.ctx.storage.put(PENDING_DISCONNECT_KEY, pending);
+    }
+
+    // Danh sách "lobby" hiển thị chỉ tính ai ĐANG THẬT SỰ có socket mở — khác
+    // `connectedPlayerIds` bên dưới (CỘNG THÊM cả người đang trong độ trễ
+    // riêng của họ, nếu có).
+    const remaining = this.joinedPlayers();
+
     const state = await this.ctx.storage.get<GameState>(GAME_STATE_KEY);
     if (state && !state.winner) {
-      const remainingIdsInGame = remaining.filter((p) => state.players.some((sp) => sp.id === p.id));
-      if (remainingIdsInGame.length <= 1) {
-        await this.abandonGame(ws, "disconnect");
+      // KHÔNG dùng thẳng `remaining` (chỉ tính socket ĐANG mở) để quyết định
+      // huỷ ván — 1 playerId khác của CHÍNH ván này có thể đang trong độ trễ
+      // riêng của HỌ (chưa tới hạn), vẫn cần được tính là "còn đó" để không
+      // huỷ oan (đúng ca bug gốc: nhiều socket đóng gần như đồng thời, xem
+      // ghi chú DISCONNECT_GRACE_MS) — connectedPlayerIdsInGame() đã cộng
+      // đúng cả 2 nhóm này.
+      const connectedPlayerIds = await this.connectedPlayerIdsInGame(state);
+      if (connectedPlayerIds.length <= 1) {
+        // KHÔNG return ở đây — abandonGame() chỉ phát "game_abandoned", CHƯA
+        // phát "lobby" (bug thật đã gặp lúc tự kiểm bằng trình duyệt: chủ
+        // phòng quay về lobby nhưng vẫn thấy tên người vừa mất kết nối treo
+        // lại trong danh sách "Đã vào phòng"). Phải chạy tiếp xuống dưới để
+        // gửi đúng "lobby" MỚI (đã loại người vừa rời) — giống nguyên bản
+        // trước khi có độ trễ, "lobby" luôn gửi kèm ngay sau "game_abandoned".
+        // KHÔNG gửi thêm "state" nữa bên dưới (khác nhánh else) — GAME_STATE_KEY
+        // vừa bị abandonGame() xoá, gửi "state" cũ (biến `state` đọc từ TRƯỚC
+        // khi xoá) sẽ đè client quay lại màn hình ván ngay sau khi vừa nhận
+        // "game_abandoned" chuyển họ về lobby.
+        await this.abandonGame(undefined, "disconnect");
       } else {
-        // Báo NGAY cho người còn lại biết ai vừa mất kết nối — không đợi tới
-        // hành động kế tiếp mới cập nhật `connectedPlayerIds` (state không đổi
-        // gì, chỉ gửi lại để vẽ đúng chú thích "đã mất kết nối"). Dùng thẳng
-        // `remainingIdsInGame` (đã loại trừ đúng socket vừa đóng) thay vì gọi
-        // connectedPlayerIdsInGame() — hàm đó đọc lại joinedPlayers(), lúc này
-        // getWebSockets() có thể vẫn còn liệt kê socket đang đóng.
+        // Báo NGAY cho mọi người biết ai vừa mất kết nối thật — không đợi
+        // tới hành động kế tiếp mới cập nhật `connectedPlayerIds` (state
+        // không đổi gì, chỉ gửi lại để vẽ đúng chú thích "đã mất kết nối").
         const deadline = await this.ctx.storage.get<DeadlineInfo>(DEADLINE_KEY);
-        const connectedPlayerIds = remainingIdsInGame.map((p) => p.id);
         for (const socket of this.ctx.getWebSockets()) {
-          if (socket !== ws) this.sendStateTo(socket, state, [], deadline ?? null, connectedPlayerIds);
+          this.sendStateTo(socket, state, [], deadline ?? null, connectedPlayerIds);
         }
       }
     }
 
-    const message: ServerMessage = { type: "lobby", players: remaining, ownerId: await this.getOwnerId(ws) };
+    const message: ServerMessage = { type: "lobby", players: remaining, ownerId: await this.getOwnerId() };
     const payload = JSON.stringify(message);
     for (const socket of this.ctx.getWebSockets()) {
-      if (socket !== ws) socket.send(payload);
+      socket.send(payload);
     }
   }
 
@@ -933,7 +1094,11 @@ export class Room {
     await this.ctx.storage.delete(GAME_STATE_KEY);
     await this.ctx.storage.delete(DEADLINE_KEY);
     await this.ctx.storage.delete(PAUSED_PLAY_KEY);
-    await this.ctx.storage.deleteAlarm();
+    // KHÔNG deleteAlarm() thẳng — có thể vẫn còn NGƯỜI KHÁC (không liên quan
+    // ván vừa huỷ) đang trong độ trễ "coi là mất kết nối" (xem
+    // PENDING_DISCONNECT_KEY), scheduleAlarm() tự giữ lại alarm cho đúng việc
+    // đó nếu có.
+    await this.scheduleAlarm();
 
     const message: ServerMessage = { type: "game_abandoned", reason };
     const payload = JSON.stringify(message);

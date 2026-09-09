@@ -88,7 +88,7 @@ export function renderHubScreen(container: HTMLElement, expandedLockedGame: HubG
 
   const subtitle = document.createElement("p");
   subtitle.className = "hub-subtitle";
-  subtitle.textContent = "Chọn một trò bên dưới để bắt đầu — mở link là chơi luôn, không cần đăng nhập hay cài gì cả.";
+  subtitle.textContent = "Chọn một trò bên dưới để bắt đầu.";
 
   const titleBlock = document.createElement("div");
   titleBlock.appendChild(eyebrow);
