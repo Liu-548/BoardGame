@@ -347,7 +347,10 @@ function renderScreen(): void {
 
   switch (screen) {
     case "hub":
-      renderHubScreen(root, hubExpandedLockedGame, { onSelectGame: onHubSelectGame, onToggleLockedNote: onHubToggleLockedNote });
+      renderHubScreen(root, hubExpandedLockedGame, betaLinkInfo(), {
+        onSelectGame: onHubSelectGame,
+        onToggleLockedNote: onHubToggleLockedNote,
+      });
       return;
     case "home":
       renderHomeScreen(root, betaLinkInfo(), { onPlayLocal, onPlayNetwork, onShowCardReference, onBackToHub });
