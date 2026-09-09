@@ -1404,6 +1404,23 @@ body.landing-bg {
   text-align: right;
 }
 
+/* Cột phải gộp `hub-header__meta` + link Bản Beta/Về bản chính — xem ghi chú
+   HubBetaLinkInfo ở hub/ui.ts. */
+.hub-header__meta-col {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.5rem;
+}
+
+/* Cỡ nhỏ hơn `.link-button` gốc (dùng ở màn "Chọn cách chơi" riêng của
+   Bang!, nằm giữa các nút to) — ở đây chỉ là 1 chi tiết góc trên Sảnh, không
+   cần to bằng nút chính. */
+.hub-header__beta-link {
+  font-size: 0.8rem;
+  padding: 0.3rem 0.7rem;
+}
+
 .hub-eyebrow {
   margin: 0 0 0.25rem;
   font-size: 0.8rem;

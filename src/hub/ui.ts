@@ -10,6 +10,19 @@
 
 export type HubGameId = "bang" | "mahjong" | "coup";
 
+// Bản Beta song song (docs/roadmap/LO-TRINH.md) — trước đây chỉ có ở màn
+// "Chọn cách chơi" riêng của Bang! (src/games/bang/client/ui.ts's
+// renderHomeScreen()), chủ dự án phản hồi muốn thấy NGAY ở Sảnh (màn đầu
+// tiên) cho dễ tìm — main.ts tính sẵn label/href (đọc location.hostname) rồi
+// truyền vào đây, giống hệt cách renderHomeScreen() nhận. Định nghĩa RIÊNG
+// interface này (không import BetaLinkInfo từ src/games/bang/) để giữ đúng
+// nguyên tắc file này không đụng gì tới code của Bang! — cùng hình dạng nên
+// main.ts truyền thẳng kết quả betaLinkInfo() vào được, không cần chuyển đổi.
+export interface HubBetaLinkInfo {
+  label: string;
+  href: string;
+}
+
 export interface HubHandlers {
   onSelectGame(id: HubGameId): void;
   onToggleLockedNote(id: HubGameId): void;
@@ -72,7 +85,12 @@ function createStarIcon(): SVGSVGElement {
   return svg;
 }
 
-export function renderHubScreen(container: HTMLElement, expandedLockedGame: HubGameId | null, handlers: HubHandlers): void {
+export function renderHubScreen(
+  container: HTMLElement,
+  expandedLockedGame: HubGameId | null,
+  betaLink: HubBetaLinkInfo,
+  handlers: HubHandlers
+): void {
   container.replaceChildren();
 
   const header = document.createElement("div");
@@ -101,8 +119,16 @@ export function renderHubScreen(container: HTMLElement, expandedLockedGame: HubG
   meta.appendChild(document.createElement("br"));
   meta.appendChild(document.createTextNode("2 trò còn lại sắp có"));
 
+  // Cột phải gộp chung `meta` + link Bản Beta/Về bản chính, canh phải cả 2 —
+  // tách khỏi `header` (flex `space-between` 2 cột) để không bị đếm nhầm
+  // thành cột thứ 3.
+  const metaCol = document.createElement("div");
+  metaCol.className = "hub-header__meta-col";
+  metaCol.appendChild(meta);
+  metaCol.appendChild(betaLinkButton(betaLink));
+
   header.appendChild(titleBlock);
-  header.appendChild(meta);
+  header.appendChild(metaCol);
   container.appendChild(header);
 
   const shelf = document.createElement("div");
@@ -111,6 +137,20 @@ export function renderHubScreen(container: HTMLElement, expandedLockedGame: HubG
     shelf.appendChild(renderHubCard(game, expandedLockedGame === game.id, handlers));
   }
   container.appendChild(shelf);
+}
+
+// Chỉ mở URL khác ở TAB MỚI, không có logic chuyển đổi runtime nào cả, nên
+// là 1 thẻ `<a>` thường (trông giống button qua class `.link-button`, xem
+// style.css) — mirror đúng `linkButton()` ở src/games/bang/client/ui.ts
+// (không import thẳng, xem ghi chú HubBetaLinkInfo).
+function betaLinkButton(betaLink: HubBetaLinkInfo): HTMLAnchorElement {
+  const el = document.createElement("a");
+  el.textContent = betaLink.label;
+  el.href = betaLink.href;
+  el.target = "_blank";
+  el.rel = "noopener noreferrer";
+  el.className = "link-button hub-header__beta-link";
+  return el;
 }
 
 function renderHubCard(game: HubGameEntry, noteOpen: boolean, handlers: HubHandlers): HTMLElement {
