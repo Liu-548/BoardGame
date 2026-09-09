@@ -90,7 +90,17 @@ export type ClientMessage =
   // sửa lại tuỳ chọn TRƯỚC khi bắt đầu ván mới — không tự tạo ván nào cả.
   // Client tự hỏi xác nhận TRƯỚC khi gửi (giống `force: true`) vì đây là hành
   // động HUỶ NGANG, không hoàn tác được.
-  | { type: "return_to_lobby" };
+  | { type: "return_to_lobby" }
+  // Bổ sung — "nhịp tim": client tự gửi định kỳ (xem net.ts) trong lúc còn
+  // kết nối, kể cả không ai bấm gì. Server chỉ cần NHẬN được tin nhắn (bất kỳ
+  // loại nào, không riêng "ping") để biết socket còn sống — xem
+  // touchLastSeen() ở room.ts. Lý do cần thêm loại tin nhắn riêng: nếu người
+  // chơi ngồi im không thao tác gì suốt nhiều phút (vẫn đang xem bài, chưa
+  // tới lượt), sẽ không có tin nhắn nào khác được gửi lên, khiến server không
+  // còn cách nào phân biệt "vẫn đang xem, mạng vẫn tốt" với "socket đã chết
+  // lâm sàng, server chưa kịp phát hiện" (ca "1 client kẹt lại từ hôm qua" đã
+  // gặp thật khi test).
+  | { type: "ping" };
 
 // ----- Server → Client -----
 

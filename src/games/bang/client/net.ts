@@ -18,10 +18,17 @@ export interface NetHandlers {
 }
 
 const RECONNECT_DELAY_MS = 1000;
+// Bổ sung — "nhịp tim": gửi định kỳ trong lúc còn kết nối (xem protocol.ts's
+// ClientMessage "ping") để server biết socket còn sống ngay cả khi người chơi
+// không thao tác gì (đang xem bài, chưa tới lượt...) — server dùng để lọc bỏ
+// những socket đã "chết lâm sàng" mà chưa kịp nhận ra qua sự kiện "close"
+// (vd rớt mạng đột ngột, không đóng socket "sạch").
+const PING_INTERVAL_MS = 20_000;
 
 export class RoomConnection {
   private ws: WebSocket | null = null;
   private closedByUser = false;
+  private pingIntervalId: ReturnType<typeof setInterval> | null = null;
 
   constructor(
     private readonly url: string,
@@ -39,6 +46,7 @@ export class RoomConnection {
     ws.addEventListener("open", () => {
       this.send({ type: "join", playerId: this.playerId, name: this.name });
       this.handlers.onConnected?.();
+      this.pingIntervalId = setInterval(() => this.send({ type: "ping" }), PING_INTERVAL_MS);
     });
 
     ws.addEventListener("message", (event) => {
@@ -50,6 +58,10 @@ export class RoomConnection {
     // 2 trường hợp đều tự thử lại, trừ khi chính người dùng gọi close() (vd
     // rời phòng chủ động).
     ws.addEventListener("close", () => {
+      if (this.pingIntervalId) {
+        clearInterval(this.pingIntervalId);
+        this.pingIntervalId = null;
+      }
       this.handlers.onDisconnected?.();
       if (!this.closedByUser) {
         setTimeout(() => this.connect(), RECONNECT_DELAY_MS);

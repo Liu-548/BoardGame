@@ -2156,6 +2156,11 @@ function onNetworkConfirmNewGame(): void {
     force: true,
   });
   networkConfirmingNewGame = false;
+  // Đóng luôn dialog Cài đặt — trước đây chỉ tắt ở nhánh "game_abandoned" (nút
+  // "Về phòng chờ"), nhánh "state" (ván mới bắt đầu ngay) không hề đụng tới,
+  // nên dialog cũ vẫn đè lên màn hình ván mới cho tới khi tự tay đóng.
+  networkSettingsDialogOpen = false;
+  render();
 }
 
 function onNetworkCancelNewGameConfirm(): void {
@@ -2176,9 +2181,13 @@ function onNetworkRequestReturnToLobby(): void {
 function onNetworkConfirmReturnToLobby(): void {
   netConnection?.send({ type: "return_to_lobby" });
   networkConfirmingReturnToLobby = false;
-  // KHÔNG render() ở đây — chờ ServerMessage "game_abandoned" gửi về (xem
-  // onNetworkMessage()) mới thật sự đổi `screen` sang "network-lobby", giống
-  // hệt cách onNetworkConfirmNewGame() ở trên chờ "state" gửi về.
+  // Đóng dialog Cài đặt NGAY (không chờ ServerMessage "game_abandoned" mới tắt
+  // như trước) — dialog cũ đóng sẵn từ NHÁNH ĐÓ rồi, nhưng phải đợi 1 vòng
+  // round-trip server mới thấy, trong lúc đó dialog vẫn đứng yên trên màn hình
+  // dù người chơi vừa xác nhận xong. `screen` vẫn ở "network-game" tới khi
+  // "game_abandoned" gửi về, giống hệt onNetworkConfirmNewGame() ở trên.
+  networkSettingsDialogOpen = false;
+  render();
 }
 
 function onNetworkCancelReturnToLobbyConfirm(): void {
