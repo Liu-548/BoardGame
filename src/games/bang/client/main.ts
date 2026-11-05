@@ -30,6 +30,7 @@ import type { PlayerView } from "../core/view";
 import { RoomConnection } from "./net";
 import type { DeadlineInfo, ServerMessage } from "../protocol";
 import { renderHubScreen } from "../../../hub/ui";
+import { mountWerewolf } from "../../werewolf/client/main";
 import type { HubGameId } from "../../../hub/ui";
 import {
   applyStoredSettings,
@@ -94,6 +95,7 @@ type Screen =
   | "network-form"
   | "network-lobby"
   | "network-game"
+  | "external" // game khác tự vẽ vào #game-root (vd Ma Sói, D-03) — Bang! không vẽ gì
   | "card-reference"; // việc 4.6: màn hình tra cứu, xem được từ home, quay lại home
 
 let screen: Screen = "hub";
@@ -315,6 +317,7 @@ function restoreFocusState(saved: { selectionStart: number | null; selectionEnd:
 // touchcancel/tự ẩn sau AUTO_HIDE_MS gọi hideOverlay(), xem ui.ts) sẽ vẽ lại
 // bình thường, cập nhật bù mọi thay đổi bị hoãn trong lúc giữ.
 function render(): void {
+  if (screen === "external") return;
   if (document.querySelector(".card-box--holding")) return;
   const scrollPositions = captureScrollPositions();
   const focusState = captureFocusState();
@@ -586,6 +589,18 @@ function renderScreen(): void {
 // Sảnh chọn game — Mạt Chược/Coup chưa có code thật nên onSelectGame() chỉ
 // thật sự điều hướng khi bấm Bang!, còn lại đi qua onHubToggleLockedNote().
 function onHubSelectGame(id: HubGameId): void {
+  if (id === "werewolf") {
+    // D-03: Ma Sói tự vẽ vào root; thoát thì về Sảnh và Bang! vẽ lại như bình thường.
+    screen = "external";
+    const heading = document.getElementById("app-heading");
+    if (heading) heading.hidden = true;
+    document.body.classList.remove("landing-bg");
+    mountWerewolf(root, () => {
+      screen = "hub";
+      render();
+    });
+    return;
+  }
   if (id !== "bang") return;
   screen = "home";
   render();

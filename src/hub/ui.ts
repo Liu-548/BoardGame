@@ -8,7 +8,7 @@
 // xem README.md trong 2 thư mục đó) — thẻ của 2 game này bấm vào chỉ xổ ra 1
 // dòng ghi chú ngay dưới thẻ, không dẫn đi đâu cả.
 
-export type HubGameId = "bang" | "mahjong" | "coup";
+export type HubGameId = "bang" | "werewolf" | "mahjong" | "coup";
 
 // Bản Beta song song (docs/roadmap/LO-TRINH.md) — trước đây chỉ có ở màn
 // "Chọn cách chơi" riêng của Bang! (src/games/bang/client/ui.ts's
@@ -48,6 +48,15 @@ const GAMES: HubGameEntry[] = [
     posterIsWordmark: true,
     description: "Miền Tây hoang dã: cảnh sát, ngoài vòng pháp luật và phản diện so tài bằng bài lá và súng.",
     playersHint: "2–8 người",
+    locked: false,
+  },
+  {
+    id: "werewolf",
+    title: "Ma Sói",
+    posterGlyph: "🐺",
+    posterIsWordmark: false,
+    description: "Đêm xuống, Sói săn mồi; ban ngày cả làng tranh luận xem ai là Sói. Máy làm quản trò thay người.",
+    playersHint: "6–12 người",
     locked: false,
   },
   {
@@ -115,9 +124,9 @@ export function renderHubScreen(
 
   const meta = document.createElement("p");
   meta.className = "hub-header__meta";
-  meta.appendChild(document.createTextNode("Bang! chơi được ngay"));
+  meta.appendChild(document.createTextNode("Bang! và Ma Sói chơi được ngay"));
   meta.appendChild(document.createElement("br"));
-  meta.appendChild(document.createTextNode("2 trò còn lại sắp có"));
+  meta.appendChild(document.createTextNode("2 trò nữa sắp có"));
 
   // Cột phải gộp chung `meta` + link Bản Beta/Về bản chính, canh phải cả 2 —
   // tách khỏi `header` (flex `space-between` 2 cột) để không bị đếm nhầm

@@ -1825,3 +1825,10 @@ không còn phần nào của nhân vật này bị bỏ dở.
 - Lệch nhỏ so với 02: adapter thêm `sanitizeConfig` (ép config thô từ client); message `lobby` thêm `configError` và mỗi người có `waiting`; `set_config` với `config: null` = quay về bộ gợi ý. Bộ gợi ý tự theo số người đang kết nối cho tới khi chủ phòng sửa tay.
 - Kiểm bằng `wrangler dev` + 6 WebSocket thô (`test/werewolf/smoke-server.mjs`): 15/15 mục OK (tên trùng bị từ chối, chỉ chủ phòng bắt đầu, config sai → configError, Dân chỉ thấy vai mình, Bảo vệ đổi 3 lần người khác không nhận gói, TIME_UP/giả mạo bị chặn, alarm tự sang ngày, vào lại đúng ghế, mất kết nối không huỷ ván, người vào giữa ván chờ ván sau).
 - Môi trường: `wrangler dev` phải dùng `--persist-to` ngoài thư mục dự án (thư mục này cấm xoá file nên SQLite lỗi).
+
+## Ma Sói — W7+W8+W9: client, màn chơi, Sảnh (2026-11-05)
+- `src/shared/room/identity.ts` (mã trình duyệt khoá theo phòng+tên), `net.ts` (WebSocket tự nối lại + gửi lại `join` + ping 20s + độ lệch đồng hồ D-23).
+- `werewolf/client/`: `turn.ts` (hàm thuần: tiêu đề pha chỉ nêu tên vai R-80, "đang làm được gì" theo view, dịch nhật ký), `ui.ts` (form tên/mã phòng, phòng chờ có +/−, "Dùng gợi ý", chọn giây đêm, khoá Bắt đầu khi `configError`; khung màn chơi dựng 1 lần, thẻ cập nhật theo playerId, đồng hồ chỉ sửa 1 node bằng `setInterval` 250ms — D-65/66/68), `main.ts` (`mountWerewolf`), `style.css` (lưới auto-fill, dọc: thao tác dính đáy, ngang: 2 cột).
+- Sảnh: thẻ "Ma Sói" (chơi được); `bang/client/main.ts` thêm `screen = "external"` + gọi `mountWerewolf`, `render()` bỏ qua khi external. Chỉ 4 chỗ ngoài thư mục Ma Sói như 02 mục 9 (index.ts, wrangler, main.ts, hub/ui.ts) + `public/style.css` thêm màu poster.
+- Lệch nhỏ: vai của chính mình ẩn trên thẻ (chỉ xem qua nút "Vai của tôi", đúng 02 mục 8.1); Tiên tri soi ngay khi chạm (đúng R-42c, không có bước xác nhận).
+- Kiểm tự động bằng Playwright (6 trình duyệt, `wrangler dev`): vào phòng → chủ phòng chỉnh giây → bắt đầu → chơi Đêm 1 (Bảo vệ/Sói thấy nhau/Tiên tri/Phù thủy cứu) → Ngày 1 (kết thúc sớm, bỏ phiếu, biện hộ, phán quyết) → Đêm 2; không lỗi console.

@@ -1,0 +1,70 @@
+/* Ma Sói — dùng lại biến màu của public/style.css (sáng/tối tự theo). */
+/* Ma Sói dùng cả màn hình: bỏ lề/độ rộng tối đa của body (public/style.css) để không bị cuộn trang thừa. */
+body.ww-active { background: var(--color-bg-alt); margin: 0; padding: 0; max-width: none; }
+.ww-screen { max-width: 32rem; margin: 0 auto; padding: 1rem; display: flex; flex-direction: column; gap: 0.75rem; }
+.ww-title { margin: 0; }
+.ww-label { display: flex; flex-direction: column; gap: 0.25rem; }
+.ww-label input, .ww-label select { min-height: 2.75rem; font-size: 1rem; padding: 0 0.5rem; }
+.ww-error { color: var(--color-danger); background: var(--color-danger-bg); padding: 0.5rem; border-radius: 0.4rem; margin: 0; }
+.ww-note { color: var(--color-text-muted); margin: 0; }
+.ww-btn { min-height: 2.75rem; padding: 0 1rem; border: 1px solid var(--color-border-strong); border-radius: 0.5rem; background: var(--color-bg); color: var(--color-text); font-size: 1rem; cursor: pointer; }
+.ww-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.ww-btn--primary { background: var(--color-text); color: var(--color-bg); }
+.ww-btn--pressed { background: var(--color-text); color: var(--color-bg); }
+.ww-btn--link { border-color: transparent; background: transparent; text-decoration: underline; }
+.ww-btn--small { min-height: 2.75rem; padding: 0 0.6rem; font-size: 0.85rem; }
+/* Nút nhỏ cố ý: phải min-height:0 (bài học Bang! 2026-09-09). */
+.ww-step { min-height: 0; width: 2.5rem; height: 2.5rem; border-radius: 50%; border: 1px solid var(--color-border-strong); background: var(--color-bg); color: var(--color-text); font-size: 1.25rem; cursor: pointer; }
+.ww-step:disabled { opacity: 0.4; }
+.ww-players { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.3rem; }
+.ww-player { display: flex; gap: 0.5rem; align-items: center; padding: 0.5rem; background: var(--color-bg); border: 1px solid var(--color-card-border); border-radius: 0.4rem; }
+.ww-player--me { border-color: var(--color-border-strong); font-weight: 600; }
+.ww-tag { font-size: 0.75rem; padding: 0.1rem 0.4rem; border-radius: 0.6rem; background: var(--color-bg-panel); color: var(--color-text-muted); }
+.ww-tag--off { background: var(--color-danger-bg); color: var(--color-danger); }
+.ww-roles { display: flex; flex-direction: column; gap: 0.3rem; }
+.ww-role { display: flex; align-items: center; gap: 0.6rem; }
+.ww-role__name { flex: 1; }
+.ww-role__count { min-width: 1.5rem; text-align: center; font-weight: 600; }
+
+/* ---- Màn chơi ---- */
+.ww-game { min-height: 100dvh; display: flex; flex-direction: column; }
+.ww-top { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 0.5rem; padding: 0.4rem 0.75rem; background: var(--color-bg); border-bottom: 1px solid var(--color-border); }
+.ww-top__title { flex: 1; font-weight: 600; font-size: 0.9rem; line-height: 1.2; }
+.ww-top__clock { font-variant-numeric: tabular-nums; font-weight: 700; min-width: 3rem; text-align: right; }
+.ww-offline { background: var(--color-danger-bg); color: var(--color-danger); text-align: center; padding: 0.3rem; }
+.ww-rolepanel { padding: 0.5rem 0.75rem; background: var(--color-bg-panel); font-weight: 600; }
+.ww-body { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+/* D-60: lưới tự co giãn, không giả định tối đa 12 người. */
+.ww-grid { flex: 1; display: grid; grid-template-columns: repeat(auto-fill, minmax(7.5rem, 1fr)); gap: 0.5rem; padding: 0.75rem; align-content: start; }
+.ww-card { position: relative; display: flex; flex-direction: column; gap: 0.15rem; padding: 0.5rem; min-height: 4.5rem; background: var(--color-bg); border: 1px solid var(--color-card-border); border-radius: 0.5rem; }
+.ww-card--me { border: 2px solid var(--color-border-strong); }
+.ww-card--dead { opacity: 0.5; }
+.ww-card--tappable { cursor: pointer; }
+.ww-card--picked { outline: 3px solid var(--color-text); }
+.ww-card__seat { position: absolute; top: 0.25rem; right: 0.4rem; font-size: 0.75rem; color: var(--color-text-muted); }
+.ww-card__name { font-weight: 600; overflow-wrap: anywhere; }
+.ww-card__role { font-size: 0.8rem; color: var(--color-text-muted); }
+.ww-card__chips { display: flex; flex-wrap: wrap; gap: 0.2rem; }
+.ww-chip { font-size: 0.7rem; padding: 0.05rem 0.35rem; border-radius: 0.6rem; background: var(--color-bg-panel); border: 1px solid var(--color-card-border); }
+/* D-61: dọc → khu thao tác dính đáy. */
+.ww-side { position: sticky; bottom: 0; z-index: 4; display: flex; flex-direction: column; gap: 0.5rem; padding: 0.6rem 0.75rem; background: var(--color-bg); border-top: 1px solid var(--color-border); max-height: 45dvh; overflow-y: auto; }
+.ww-hint { margin: 0; }
+.ww-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.ww-result { display: flex; flex-direction: column; gap: 0.4rem; }
+.ww-result__text { margin: 0; font-weight: 700; font-size: 1.1rem; }
+.ww-log { margin: 0; padding-left: 1.1rem; font-size: 0.85rem; color: var(--color-text-muted); }
+.ww-toast { position: fixed; left: 50%; bottom: 5rem; transform: translateX(-50%); background: var(--color-text); color: var(--color-bg); padding: 0.5rem 0.9rem; border-radius: 0.5rem; z-index: 50; max-width: 90vw; }
+
+/* D-62: ngang → 2 cột, lưới trái, thao tác phải. */
+@media (orientation: landscape) {
+  .ww-body { flex-direction: row; overflow: hidden; height: calc(100dvh - 3.2rem); }
+  .ww-grid { overflow-y: auto; }
+  .ww-side { position: static; width: 20rem; max-height: none; border-top: 0; border-left: 1px solid var(--color-border); overflow-y: auto; }
+}
+@media (orientation: landscape) and (max-height: 30rem) {
+  .ww-top { padding: 0.15rem 0.5rem; }
+  .ww-top__title { font-size: 0.85rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ww-body { height: calc(100dvh - 2.6rem); }
+}
+/* D-63: vùng chạm lớn đã có qua .ww-btn; nút nhỏ cố ý khai min-height:0 ở trên. */
+@media (max-width: 480px) { .ww-btn { min-height: 2.75rem; } .ww-step { min-height: 0; } }

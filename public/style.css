@@ -1499,6 +1499,11 @@ body.landing-bg {
   opacity: 0.9;
 }
 
+.hub-card__poster--werewolf {
+  color: #fff;
+  background: radial-gradient(120% 140% at 70% 20%, #4b3f72 0%, #1d1b33 70%);
+}
+
 .hub-card__poster--coup {
   background-image: linear-gradient(135deg, transparent 46%, var(--color-border) 46% 54%, transparent 54%);
 }
