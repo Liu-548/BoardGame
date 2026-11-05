@@ -1950,3 +1950,15 @@ Chạy bằng Playwright (6 trình duyệt riêng, `wrangler dev` + bản `vite 
 ## Ma Sói — Tối đa 20 người (2026-11-06)
 - `core/types.ts` `MAX_PLAYERS` 12 → 20; `core/setup.ts` bảng gợi ý Sói cho 13–20 người (3,4,4,4,4,5,5,5 — giữ tỉ lệ ~1/4 như bảng cũ); Sảnh ghi "6–20 người"; mô tả Kỵ sĩ bỏ số 12 cố định.
 - Docs: R-01a, bảng R-01e (01-LUAT), 02-THIET-KE mục 5.1. Test `setup.test.ts` mở rộng bảng gợi ý 6–20. 917 test pass, typecheck sạch.
+
+## Sắp xếp lại thư mục dự án (2026-11-06)
+
+Chỉ dời file + sửa đường dẫn, không đổi logic. Mỗi game có đồ riêng trong thư mục của nó; thư mục chung chỉ còn đồ dùng chung và docs.
+- Test Bang! `test/{core,characters,dodge-city,high-noon,a-fistful-of-cards,custom-characters}/` → `test/bang/...` (import `../../src` → `../../../src`).
+- Ảnh Bang! `public/sprites/` → `public/bang/sprites/`; URL lúc chạy `/sprites/...` → `/bang/sprites/...` (5 hàm `*ImageUrl()` ở `bang/client/ui.ts`).
+- Script sinh ảnh + README ảnh ra khỏi `public/` (trước đây bị đưa lên web) → `src/games/bang/tools/sprites/` (`generate-sprites.py`, vẫn ghi ảnh vào `public/bang/sprites/`).
+- Docs Bang! `docs/bang-rules/` → `docs/bang/rules/`, `docs/ui-ux/` → `docs/bang/ui-ux/`. `docs/roadmap/` và `docs/werewolf/` giữ nguyên.
+- Worker entry chung (định tuyến cả Bang! lẫn Ma Sói) `src/games/bang/server/index.ts` → `src/server/index.ts`; `wrangler.jsonc` `main` đổi theo.
+- Đường dẫn trong comment/docs/CLAUDE.md đã cập nhật; các mục CHANGELOG cũ giữ nguyên đường dẫn lúc đó.
+- Chưa làm (để đợt sau): tách `public/style.css` (chung + Sảnh + Bang!) và tách điều khiển Sảnh ra khỏi `bang/client/main.ts`.
+- typecheck sạch, 917 test pass, `vite build` + `wrangler deploy --dry-run` OK, `/bang/sprites/*.png` trả 200.

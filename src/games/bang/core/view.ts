@@ -93,15 +93,15 @@ export interface PlayerView {
   // liên quan bài úp/thông tin ẩn nào.
   joseDelgadoUsesThisTurn: number;
   docHolydayUsedThisTurn: boolean;
-  // Bộ mở rộng "custom_characters" (The DareDevil, xem docs/bang-rules/House_Rule.txt mục
+  // Bộ mở rộng "custom_characters" (The DareDevil, xem docs/bang/rules/House_Rule.txt mục
   // I) — client cần biết đúng như core để tự vẽ/ẩn nút "Dùng kỹ năng" (tối đa
   // 1 lần/lượt, giống Doc Holyday). KHÔNG bí mật gì, cùng lý do 2 field trên.
   fairKillerUsedThisTurn: boolean;
-  // Bộ mở rộng "custom_characters" (Jonny Bettor, xem docs/bang-rules/House_Rule.txt mục I)
+  // Bộ mở rộng "custom_characters" (Jonny Bettor, xem docs/bang/rules/House_Rule.txt mục I)
   // — client cần biết đúng như core để tự vẽ/ẩn nút "Dùng kỹ năng" (tối đa 2
   // lần/lượt, giống José Delgado). KHÔNG bí mật gì, cùng lý do các field trên.
   gamblerUsesThisTurn: number;
-  // Bộ mở rộng "custom_characters" (Elena Noir, xem docs/bang-rules/House_Rule.txt mục I) —
+  // Bộ mở rộng "custom_characters" (Elena Noir, xem docs/bang/rules/House_Rule.txt mục I) —
   // client cần biết đúng như core để tự vẽ nút "vũ trang" (chỉ hiện khi KHÔNG
   // đang Miễn Tử) và hiển thị trạng thái "đang Miễn Tử (còn N lượt)". KHÔNG bí
   // mật gì — không liên quan bài úp/thông tin ẩn nào, giống 2 field trên. THEO
@@ -109,7 +109,7 @@ export interface PlayerView {
   // thể mượn khả năng này, cần trạng thái riêng với Elena Noir thật).
   elenaNoirArmed: Record<string, boolean>;
   elenaNoirImmortalTurnsLeft: Record<string, number>;
-  // Bộ mở rộng "custom_characters" (Nomad Norman, xem docs/bang-rules/House_Rule.txt mục I) —
+  // Bộ mở rộng "custom_characters" (Nomad Norman, xem docs/bang/rules/House_Rule.txt mục I) —
   // BÍ MẬT, KHÁC HẲN elenaNoirArmed ngay phía trên (field đó công khai vì
   // không có gì để giấu). CHỈ chứa ĐÚNG 1 key — của chính viewerId (nếu có) —
   // mọi playerId khác KHÔNG xuất hiện trong map này (không phải `false`, mà
@@ -117,12 +117,12 @@ export interface PlayerView {
   // `drifterShield[viewerId]`; coi bất kỳ playerId nào khác là "không biết"
   // (không đọc được, không phải biết chắc là false).
   drifterShield: Record<string, boolean>;
-  // Bộ mở rộng "custom_characters" (Marcel Marcelo, xem docs/bang-rules/House_Rule.txt mục I)
+  // Bộ mở rộng "custom_characters" (Marcel Marcelo, xem docs/bang/rules/House_Rule.txt mục I)
   // — cùng lý do KHÔNG bí mật như 2 field Elena Noir ở trên: ai "cùng vào tù"
   // với ai, và ai sắp mất lượt kế tiếp, đều công khai (không liên quan bài úp).
   marcelJailCompanion: GameState["marcelJailCompanion"];
   marcelCompanionSkipNextTurn: GameState["marcelCompanionSkipNextTurn"];
-  // Bộ mở rộng "custom_characters" (Aura The Soul-Weaver, xem docs/bang-rules/House_Rule.txt mục I) —
+  // Bộ mở rộng "custom_characters" (Aura The Soul-Weaver, xem docs/bang/rules/House_Rule.txt mục I) —
   // client cần biết đúng như core để tự ẩn nút "hồi sinh" nếu đã dùng hết
   // lượt. KHÔNG bí mật gì (giống elenaNoirArmed/marcelJailCompanion — công
   // khai, không cần lọc theo viewerId).

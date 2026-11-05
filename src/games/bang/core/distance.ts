@@ -82,7 +82,7 @@ export function computeDistance(
   const targetEquipment = getEffectiveEquipment(state, target);
 
   // Mở rộng A Fistful of Cards, lá "Ambush" — ĐÃ XÁC NHẬN qua FAQ Q17 chính
-  // thức (KHÁC ghi chú *dev cũ trong docs/bang-rules/Luat_Bang_Mo_Rong_FistfulOfCards.txt,
+  // thức (KHÁC ghi chú *dev cũ trong docs/bang/rules/Luat_Bang_Mo_Rong_FistfulOfCards.txt,
   // chủ dự án đã duyệt lại và chọn theo FAQ): khoảng cách vòng tròn CƠ BẢN =
   // 1, rồi VẪN chạy tiếp toàn bộ phần cộng/trừ Scope/Mustang/Binocular/
   // Hideout/hook nhân vật bên dưới như bình thường — KHÔNG ép cứng bằng 1.

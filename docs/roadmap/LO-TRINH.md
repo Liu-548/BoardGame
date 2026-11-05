@@ -83,7 +83,7 @@
 | 4.3 | Xử lý người bỏ ván giữa chừng | Ván không bị treo |
 | 4.4 | Giao diện dễ nhìn hơn, responsive | Chơi được trên điện thoại |
 | 4.5 | Kiểm tra hạn mức Cloudflare | Xem dashboard, duration/ngày gần 0 |
-| 4.6 | Hình ảnh lá bài | Ảnh để trong `public/sprites/`, bổ sung dần và gắn vào từng lá tương ứng trong game — **không vội**, có ảnh tới đâu gắn tới đó, thiếu ảnh vẫn hiển thị bằng chữ như cũ — ✅ **phần khung đã xong** (component `.card-box`, mô tả lá bài, màn hình "Chú giải lá bài"), **còn thiếu ảnh thật** (chưa có file nào trong `public/sprites/`), xem chi tiết ở CLAUDE.md |
+| 4.6 | Hình ảnh lá bài | Ảnh để trong `public/bang/sprites/`, bổ sung dần và gắn vào từng lá tương ứng trong game — **không vội**, có ảnh tới đâu gắn tới đó, thiếu ảnh vẫn hiển thị bằng chữ như cũ — ✅ **phần khung đã xong** (component `.card-box`, mô tả lá bài, màn hình "Chú giải lá bài"), **còn thiếu ảnh thật** (chưa có file nào trong `public/bang/sprites/`), xem chi tiết ở CLAUDE.md |
 
 ---
 
@@ -91,7 +91,7 @@
 
 | # | Việc | Ghi chú |
 |---|---|---|
-| 5.1 | Hệ thống hook cho nhân vật | `onLoseLife`, `onLoseLifeFromCard`, `onDrawPhase`, `onDrawCheck`, `modifyDistance`, `onOutgoingBang`, `onHandEmpty`, `onAnyDeath`, `cardAlias`, `activatedAbility` (xem `docs/bang-rules/NHAN-VAT-BANG-CO-BAN.txt`) — ✅ **xong khung**: 4/9 hook đã nối dây thật (`modifyDistance`/`onLoseLife`/`onLoseLifeFromCard`/`onAnyDeath`) + `core/characters.ts` (registry rỗng), 5 hook còn lại để dành cho 5.2. Xem chi tiết ở CLAUDE.md |
+| 5.1 | Hệ thống hook cho nhân vật | `onLoseLife`, `onLoseLifeFromCard`, `onDrawPhase`, `onDrawCheck`, `modifyDistance`, `onOutgoingBang`, `onHandEmpty`, `onAnyDeath`, `cardAlias`, `activatedAbility` (xem `docs/bang/rules/NHAN-VAT-BANG-CO-BAN.txt`) — ✅ **xong khung**: 4/9 hook đã nối dây thật (`modifyDistance`/`onLoseLife`/`onLoseLifeFromCard`/`onAnyDeath`) + `core/characters.ts` (registry rỗng), 5 hook còn lại để dành cho 5.2. Xem chi tiết ở CLAUDE.md |
 | 5.2 | 16 nhân vật bản cơ bản | Mỗi nhân vật là dữ liệu + hook, **không** phải `if/else` — ✅ **HOÀN TẤT**: ĐỦ 16/16 nhân vật (7 đợt) + cơ chế "phát 2 lá chọn 1" (core + UI hotseat/qua mạng + đồng hồ 30 giây thật, tự chốt ngẫu nhiên khi hết giờ) **ĐÃ BẬT THẬT** ở `room.ts`/`main.ts` — chơi được qua giao diện thật hoàn chỉnh. Xem chi tiết ở CLAUDE.md |
 | 5.3 | Bật/tắt house rules | Cấu hình theo phòng — ✅ **4/6 ý tưởng nháp xong** (core + UI hotseat/qua mạng): tăng khoảng cách +1, bắt buộc súng mới đánh Bang!, cấm dùng 2 lá trùng tên/lượt, Bia vẫn có tác dụng khi còn 2 người. Còn lại "gộp 2 lá Beer hồi máu người khác" (cần cơ chế chọn mục tiêu mới) để dành đợt sau. Xem chi tiết ở CLAUDE.md |
 | 5.4 | Expansion (Dodge City) | Ước lượng ban đầu "chỉ là thêm file dữ liệu + hook" **SAI** — thực tế cần ≥4 hook mới + 1 cơ chế uỷ quyền toàn hệ thống (Vera Custer). 🔶 **CORE HOÀN TẤT (A-F đều XONG, kể cả 15/15 nhân vật mục C) — CHỈ CÒN UI**. Mục A/B/D/E/F + mục C (15/15 nhân vật, Vera Custer là người cuối cùng) đều đã XONG. Còn ĐÚNG UI thật cho toàn bộ Dodge City (40 lá/trang bị trì hoãn/mục D/15 nhân vật). Xem "Ghi chú cho 5.4" bên dưới |
@@ -115,7 +115,7 @@ Vài ý tưởng đã nghĩ ra (mỗi luật khi thiết kế thật sẽ nói r
 
 ### Ghi chú cho 5.4 — mở rộng Dodge City: ✅ ĐÃ CHỐT kiến trúc + toàn bộ luật mơ hồ, CHƯA VIẾT DÒNG CODE NÀO
 
-Đặc tả gốc: `docs/bang-rules/Luat_Bang_Mo_Rong_DodgeCity.txt` (chủ dự án cung cấp, đọc kỹ TRỪ phần
+Đặc tả gốc: `docs/bang/rules/Luat_Bang_Mo_Rong_DodgeCity.txt` (chủ dự án cung cấp, đọc kỹ TRỪ phần
 High Noon — mở rộng KHÁC trong cùng hộp vật lý, ngoài phạm vi). File đó đã tự liệt
 kê rất nhiều điểm `[CẦN KIỂM CHỨNG]`/`[CẦN HOOK MỚI]`/`[ĐỔI STATE]` — đã bàn hết với
 chủ dự án (đúng quy tắc CLAUDE.md "luật Bang! không rõ ràng → dừng lại và hỏi"), chốt
@@ -578,7 +578,7 @@ Danh sách việc chủ dự án yêu cầu ghi lại 2026-08-23 để làm sau 
 XONG cùng ngày**, giữ lại mục này làm nhật ký đối chiếu:
 
 - ✅ Đổi tên **The Fair Killer** → **The DareDevil** (đã rà toàn bộ file chữ:
-  `docs/bang-rules/House_Rule.txt`, `CLAUDE.md`, `CHANGELOG.md`, comment trong code — id nội
+  `docs/bang/rules/House_Rule.txt`, `CLAUDE.md`, `CHANGELOG.md`, comment trong code — id nội
   bộ `the_fair_killer`/`fairKillerUsedThisTurn` GIỮ NGUYÊN, chỉ đổi tên hiển
   thị + mọi chỗ nhắc tên bằng chữ).
 - ✅ **Marcel Marcelo**: khi bị nhốt tù giờ chỉ rút **ĐÚNG 1 lá** (trước đây
@@ -596,7 +596,7 @@ XONG cùng ngày**, giữ lại mục này làm nhật ký đối chiếu:
 - ✅ Đổi tên **The Dealer** → **Envoy Evy**
 - ✅ Đổi tên **The Sentinel** → **Aura The Soul-Weaver**
 - ✅ Đổi tên **The Beggar** → **Paul Pauper** (nhân vật này CHƯA CODE — chỉ
-  đổi tên trong đặc tả `docs/bang-rules/House_Rule.txt`, chờ tới lượt code thật)
+  đổi tên trong đặc tả `docs/bang/rules/House_Rule.txt`, chờ tới lượt code thật)
 
 Cách đổi tên: viết 1 script Node.js một lần (`node ...mjs`, đọc/ghi UTF-8
 tường minh — tránh lỗi PowerShell `Get-Content`/`Set-Content` làm hỏng dấu

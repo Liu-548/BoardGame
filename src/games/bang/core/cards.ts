@@ -4,7 +4,7 @@
 import type { Card, ExpansionId, Suit, Rank } from "./types";
 
 // Tên các loại lá bài nâu (đánh từ tay, chơi xong vào chồng bỏ)
-// Mở rộng Dodge City đợt 2 (docs/bang-rules/Luat_Bang_Mo_Rong_DodgeCity.txt, mục 2 nhóm NÂU) —
+// Mở rộng Dodge City đợt 2 (docs/bang/rules/Luat_Bang_Mo_Rong_DodgeCity.txt, mục 2 nhóm NÂU) —
 // thêm 7 tên mới: brawl, dodge, punch, rag_time, springfield, tequila, whisky.
 export type BrownCardName =
   | "bang"
@@ -44,7 +44,7 @@ export type BlueCardName =
   | "binocular"
   | "hideout";
 
-// Mở rộng Dodge City (docs/bang-rules/Luat_Bang_Mo_Rong_DodgeCity.txt, mục 1.1 + mục 2 nhóm
+// Mở rộng Dodge City (docs/bang/rules/Luat_Bang_Mo_Rong_DodgeCity.txt, mục 1.1 + mục 2 nhóm
 // VÀNG — đổi tên từ "green-bordered" gốc, xem ghi chú màu ở đầu file .txt).
 // Là 1 BIẾN THỂ của trang bị (đứng yên trước mặt, chịu luật "không 2 lá cùng
 // tên" y hệt BlueCardName) — KHÁC BIỆT DUY NHẤT: không dùng được ngay trong
@@ -193,7 +193,7 @@ export const DEFAULT_CARD_COUNTS: Record<CardName, number> = {
 // dodge_city — với các tên đã có sẵn trong bộ cơ bản (bang, beer, missed,
 // cat_balou, general_store, indians, panic, barrel, dynamite, remington,
 // rev_carabine), số ở đây = số gốc CỘNG THÊM số lá Dodge City in trong danh
-// sách bài chính thức (xem docs/bang-rules/Luat_Bang_Mo_Rong_DodgeCity.txt mục 2). ĐỢT 1: 6 lá
+// sách bài chính thức (xem docs/bang/rules/Luat_Bang_Mo_Rong_DodgeCity.txt mục 2). ĐỢT 1: 6 lá
 // vàng không cần hook mới. ĐỢT 2: nốt 34/40 lá còn lại — 6 lá xanh (Barrel/
 // Dynamite/Remington/Rev.Carabine thêm bản sao thứ 2, Binocular/Hideout hoàn
 // toàn mới), 14 lá nâu (7 tên trùng bộ cơ bản thêm bản sao, 7 tên mới: Brawl/
@@ -239,7 +239,7 @@ export const EXPANSION_CARD_COUNTS: Record<ExpansionId, Partial<Record<CardName,
     pepperbox: 1,
     howitzer: 1,
   },
-  // Bộ mở rộng "custom_characters" (Elena Noir, xem docs/bang-rules/House_Rule.txt) — CHỈ
+  // Bộ mở rộng "custom_characters" (Elena Noir, xem docs/bang/rules/House_Rule.txt) — CHỈ
   // thêm nhân vật, KHÔNG thêm lá bài nào — object rỗng vẫn PHẢI có mặt vì
   // Record<ExpansionId, ...> bắt buộc đủ mọi key của union (ExpansionId).
   custom_characters: {},

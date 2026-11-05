@@ -40,7 +40,7 @@ const CARD_LABELS: Record<CardName, string> = {
   mustang: "Ngựa Mustang (+1)",
   jail: "Nhà tù",
   dynamite: "Thuốc nổ",
-  // Mở rộng Dodge City (đợt 1/40 lá — xem docs/bang-rules/Luat_Bang_Mo_Rong_DodgeCity.txt).
+  // Mở rộng Dodge City (đợt 1/40 lá — xem docs/bang/rules/Luat_Bang_Mo_Rong_DodgeCity.txt).
   bible: "Kinh Thánh",
   sombrero: "Mũ Sombrero",
   ten_gallon_hat: "Mũ 10 Gallon",
@@ -108,7 +108,7 @@ const CARD_DESCRIPTIONS: Record<CardName, string> = {
   canteen: "Trang bị trì hoãn — chờ tới lượt sau của chính mình mới bỏ ra dùng, tự hồi 1 máu.",
   pony_express: "Trang bị trì hoãn — chờ tới lượt sau của chính mình mới bỏ ra dùng, rút thêm 3 lá từ bộ bài.",
   // Mở rộng Dodge City đợt 2 (34/40 lá còn lại) — mô tả theo ĐÚNG luật đã cài
-  // trong reduce.ts (xem docs/bang-rules/Luat_Bang_Mo_Rong_DodgeCity.txt).
+  // trong reduce.ts (xem docs/bang/rules/Luat_Bang_Mo_Rong_DodgeCity.txt).
   binocular: "Nhìn người khác gần hơn 1 khi mình đánh Bang! — cộng dồn được với Ống nhắm.",
   hideout: "Người khác nhìn mình xa hơn 1 — cộng dồn được với Ngựa Mustang.",
   brawl: "Bỏ kèm 1 lá phụ để bắt TẤT CẢ người khác bỏ 1 lá — tự chọn tay hay sân cho từng người.",
@@ -183,7 +183,7 @@ const BLUE_CARD_NAMES: readonly CardName[] = [
 ];
 // Mở rộng Dodge City — trang bị "trì hoãn" (xem cards.ts's YellowCardName).
 // ĐỔI MÀU so với sách luật gốc (gọi là "green-bordered") — xem ghi chú màu ở
-// đầu docs/bang-rules/Luat_Bang_Mo_Rong_DodgeCity.txt: xanh lá ĐÃ dành riêng cho khung nhân
+// đầu docs/bang/rules/Luat_Bang_Mo_Rong_DodgeCity.txt: xanh lá ĐÃ dành riêng cho khung nhân
 // vật trong dự án này, nên nhóm bài này dùng màu vàng thay thế.
 const YELLOW_CARD_NAMES: readonly CardName[] = [
   "bible", "sombrero", "ten_gallon_hat", "iron_plate", "canteen", "pony_express",
@@ -200,11 +200,11 @@ function cardTypeModifierClass(name: CardName): string {
 }
 
 // Việc 4.6: chưa có ảnh thật nào — quy ước đường dẫn TRƯỚC, ảnh thêm dần vào
-// public/sprites/<tên lá>.png sau (đúng tinh thần docs/roadmap/LO-TRINH.md: "có ảnh tới đâu
+// public/bang/sprites/<tên lá>.png sau (đúng tinh thần docs/roadmap/LO-TRINH.md: "có ảnh tới đâu
 // gắn tới đó"). Ảnh thiếu thì <img> bắn sự kiện "error", appendCardVisual() ẩn
 // nó đi — quay về hiển thị CHỈ chữ như trước việc 4.6, không vỡ giao diện.
 function cardImageUrl(name: CardName): string {
-  return `/sprites/${name}.png`;
+  return `/bang/sprites/${name}.png`;
 }
 
 // Việc bổ sung sau 4.6: nhấn giữ 1 lá bài để xem mô tả chức năng.
@@ -424,7 +424,7 @@ function equipmentDangerClass(cardName: CardName): string | undefined {
 
 // Giai đoạn 5, cơ chế "phát 2 lá nhân vật, chọn giữ 1" — mô tả ngắn chức năng
 // từng nhân vật, soạn theo ĐÚNG hook đã cài trong core/characters.ts (đọc lại
-// file đó trước khi viết, không chép nguyên văn docs/bang-rules/NHAN-VAT-BANG-CO-BAN.txt vì
+// file đó trước khi viết, không chép nguyên văn docs/bang/rules/NHAN-VAT-BANG-CO-BAN.txt vì
 // vài chỗ mô tả gốc là house rule/quyết định lúc code, vd Kit Carlson bỏ lá
 // thứ 3 vào chồng bỏ thay vì trả lại đỉnh bộ bài). Dùng chung `title`/nhấn giữ
 // giống CARD_DESCRIPTIONS (attachDescriptionReveal() trong appendCardVisual()).
@@ -468,7 +468,7 @@ const CHARACTER_DESCRIPTIONS: Record<string, string> = {
   belle_star: "Trong lượt của mình, trang bị của TẤT CẢ người khác tạm mất tác dụng (khoảng cách, Thùng rượu, súng...).",
   vera_custer:
     "Đầu lượt bắt buộc chọn 1 người chơi khác còn sống để mượn khả năng nhân vật của họ tới hết lượt sau — không mượn số máu.",
-  // Bộ mở rộng "custom_characters" (xem docs/bang-rules/House_Rule.txt mục I) — nhân vật TỰ
+  // Bộ mở rộng "custom_characters" (xem docs/bang/rules/House_Rule.txt mục I) — nhân vật TỰ
   // CHẾ, soạn theo ĐÚNG logic đã cài trong core/reduce.ts/characters.ts.
   elena_noir:
     "Đòn lẽ ra giết mình (Bia không cứu được) sẽ kích hoạt Miễn Tử 2 lượt: KHÔNG thể chết (máu giữ ở 0) dù vẫn bị mọi lá bài nhắm tới và gây sát thương bình thường (Bang!, Đấu tay đôi, Người da đỏ, Cat Balou, Panic!, Thuốc nổ...) — ngoại lệ DUY NHẤT là không thể bị nhốt tù (Jail) trong lúc này. Chết chắc chắn khi hết 2 lượt. Đầu mỗi lượt (khi không Miễn Tử) được chọn vũ trang trước (rút 1 lá) hoặc rút 2 lá bình thường (không vũ trang thì không kích hoạt Miễn Tử nếu chết trong lượt đó).",
@@ -497,7 +497,7 @@ const CHARACTER_DESCRIPTIONS: Record<string, string> = {
 };
 
 function characterImageUrl(characterId: string): string {
-  return `/sprites/characters/${characterId}.png`;
+  return `/bang/sprites/characters/${characterId}.png`;
 }
 
 function characterLabel(characterId: string): string {
@@ -567,7 +567,7 @@ function characterChip(characterId: string): HTMLSpanElement {
 // lớp phủ đẹp hơn đặt CHỒNG lên, không phải điều kiện để hiểu được máu bao
 // nhiêu.
 function bulletImageUrl(full: boolean): string {
-  return full ? "/sprites/bullet-full.png" : "/sprites/bullet-empty.png";
+  return full ? "/bang/sprites/bullet-full.png" : "/bang/sprites/bullet-empty.png";
 }
 
 function renderHpTrack(hp: number, maxHp: number): HTMLSpanElement {
@@ -604,7 +604,7 @@ function renderHpTrack(hp: number, maxHp: number): HTMLSpanElement {
 // <img> lỗi thì tự ẩn, chỉ còn nền xám + chữ "Bộ bài" (cardBox vẫn đọc được
 // bình thường, không vỡ giao diện).
 function deckBackImageUrl(): string {
-  return "/sprites/card-back.png";
+  return "/bang/sprites/card-back.png";
 }
 
 function renderDeckPileBox(): HTMLSpanElement {
@@ -619,7 +619,7 @@ function renderDeckPileBox(): HTMLSpanElement {
 // tên nhau lúc nào không biết. Quy ước y hệt cardImageUrl(): thiếu file thì
 // <img> bắn "error", chỗ gọi tự ẩn nó đi, quay về hiện CHỈ chữ.
 function eventImageUrl(eventId: string): string {
-  return `/sprites/events/${eventId}.png`;
+  return `/bang/sprites/events/${eventId}.png`;
 }
 
 // Mở rộng High Noon/A Fistful of Cards — khung nhỏ hiện lá sự kiện, dùng CHUNG
@@ -860,7 +860,7 @@ const EXPANSION_DESCRIPTIONS: Record<ExpansionId, string> = {
     "Luật đã cài đủ core, NHƯNG giao diện CHƯA có nút bấm cho lá vàng 'trì hoãn' (kích hoạt lá đã bày sẵn/đỡ Missed! " +
     "bằng trang bị) hay lá nâu cần bỏ kèm 1 lá phụ (Brawl/Rag Time/Springfield/Tequila/Whisky) — chỉ nên bật để thử " +
     "qua mã nguồn/test, CHƯA nên bật khi chơi thật với bạn bè.",
-  // Nhân vật TỰ CHẾ (không thuộc bản gốc/Dodge City, xem docs/bang-rules/House_Rule.txt) —
+  // Nhân vật TỰ CHẾ (không thuộc bản gốc/Dodge City, xem docs/bang/rules/House_Rule.txt) —
   // KHÔNG thêm lá bài nào, chỉ thêm nhân vật vào bộ bốc "phát 2 lá chọn giữ
   // 1". Tên hiển thị trong ván luôn có đuôi "*ex".
   custom_characters:
@@ -2142,7 +2142,7 @@ export interface UiHandlers {
   // chọn lá gì nên dùng thẳng `onUseChuckWengamAbility`, gửi đi ngay).
   onArmAbility(playerId: string, ability: UseAbilityCharacter): void;
   onUseChuckWengamAbility(playerId: string): void;
-  // Bộ mở rộng "custom_characters" (The DareDevil, xem docs/bang-rules/House_Rule.txt mục
+  // Bộ mở rộng "custom_characters" (The DareDevil, xem docs/bang/rules/House_Rule.txt mục
   // I) — không cần bỏ lá nào (giống Chuck Wengam) NHƯNG cần chọn mục tiêu
   // (giống Doc Holyday) — nhảy THẲNG sang bước "picking-ability-target" với
   // cardIds rỗng, bỏ qua hẳn bước "picking-ability-cards" (0 lá thì không có
@@ -2163,30 +2163,30 @@ export interface UiHandlers {
   // Mở rộng Dodge City, mục C nhóm C (Vera Custer) — chọn mượn khả năng của
   // người chơi `targetId` (bắt buộc chọn, không có lựa chọn "không mượn ai").
   onPickBorrowedCharacter(targetId: string): void;
-  // Bộ mở rộng "custom_characters" (Elena Noir, xem docs/bang-rules/House_Rule.txt mục I) —
+  // Bộ mở rộng "custom_characters" (Elena Noir, xem docs/bang/rules/House_Rule.txt mục I) —
   // trả lời NEED_PICK_ARMED. true = vũ trang (rút 1 lá lượt này); false =
   // không vũ trang (rút 2 lá bình thường, dùng cho nút "Không vũ trang" —
   // KHÔNG tái dùng onRespondTakeConsequence dù kết quả cuối tương đương, để
   // nút bấm rõ nghĩa hơn là "chọn không" thay vì "mặc định/hết giờ").
   onPickArmed(armed: boolean): void;
-  // Bộ mở rộng "custom_characters" (Nomad Norman, xem docs/bang-rules/House_Rule.txt mục I) —
+  // Bộ mở rộng "custom_characters" (Nomad Norman, xem docs/bang/rules/House_Rule.txt mục I) —
   // trả lời NEED_USE_DRIFTER_SHIELD: muốn dùng lá chắn. Nút "Không dùng" tái
   // dùng onRespondTakeConsequence() (RESPOND không kèm useShield = từ chối),
   // KHÔNG cần tham số boolean như onPickArmed — chỉ 1 nhánh cần handler mới.
   onUseDrifterShield(): void;
-  // Bộ mở rộng "custom_characters" (Envoy Evy, xem docs/bang-rules/House_Rule.txt mục I) —
+  // Bộ mở rộng "custom_characters" (Envoy Evy, xem docs/bang/rules/House_Rule.txt mục I) —
   // trả lời NEED_USE_DEALER_TRADE: muốn đưa 2 lá ngẫu nhiên cho người vừa
   // đánh mình. Nút "Không, chịu mất máu" tái dùng onRespondTakeConsequence().
   onUseDealerTrade(): void;
-  // Bộ mở rộng "custom_characters" (Aura The Soul-Weaver, xem docs/bang-rules/House_Rule.txt mục I) —
+  // Bộ mở rộng "custom_characters" (Aura The Soul-Weaver, xem docs/bang/rules/House_Rule.txt mục I) —
   // trả lời NEED_SENTINEL_REVIVE: đồng ý trả 2 máu tối đa vĩnh viễn để hồi
   // sinh. Nút "Từ chối" tái dùng onRespondTakeConsequence().
   onUseSentinelRevive(): void;
-  // Bộ mở rộng "custom_characters" (Marcel Marcelo, xem docs/bang-rules/House_Rule.txt mục I)
+  // Bộ mở rộng "custom_characters" (Marcel Marcelo, xem docs/bang/rules/House_Rule.txt mục I)
   // — trả lời NEED_PICK_MARCEL_COMPANION: chọn `targetId` làm người "cùng vào
   // tù" (bắt buộc chọn, không có lựa chọn "không chọn ai").
   onPickMarcelCompanion(targetId: string): void;
-  // Bộ mở rộng "custom_characters" (The Thief, xem docs/bang-rules/House_Rule.txt mục I) —
+  // Bộ mở rộng "custom_characters" (The Thief, xem docs/bang/rules/House_Rule.txt mục I) —
   // trả lời NEED_PICK_THIEF_TARGET: chọn `targetId` để cướp ngẫu nhiên 1 lá.
   // "Bỏ qua" dùng onRespondTakeConsequence() (KHÔNG bắt buộc chọn, khác Marcel
   // Marcelo ở trên).
@@ -2677,7 +2677,7 @@ function renderPlayer(
   );
   el.appendChild(roleAndHp);
 
-  // Bộ mở rộng "custom_characters" (Elena Noir, xem docs/bang-rules/House_Rule.txt mục I) —
+  // Bộ mở rộng "custom_characters" (Elena Noir, xem docs/bang/rules/House_Rule.txt mục I) —
   // đọc theo effectiveCharacterId() (Vera Custer mượn khả năng Elena Noir vẫn
   // phải hiện đúng badge này).
   if (
@@ -3743,7 +3743,7 @@ function renderCardReferenceGroup(
 // vì ghi cứng "16" như bản đầu — số này đã tăng nhiều lần) — dùng chung
 // CHARACTER_DESCRIPTIONS đã soạn sẵn cho màn hình chọn nhân vật, không soạn
 // lại lần 2. Hiện kèm số máu (`bullets`, CHƯA cộng +1 nếu là Cảnh sát trưởng
-// — đúng số liệu tĩnh của nhân vật, giống cách docs/bang-rules/NHAN-VAT-BANG-CO-BAN.txt ghi).
+// — đúng số liệu tĩnh của nhân vật, giống cách docs/bang/rules/NHAN-VAT-BANG-CO-BAN.txt ghi).
 function renderCharacterReferenceGroup(container: HTMLElement, query: string): boolean {
   const characterIds = Object.keys(CHARACTERS);
   const matched = characterIds.filter((id) =>
@@ -3814,7 +3814,7 @@ function renderEventReferenceGroup(container: HTMLElement, query: string): boole
 // Tách riêng phần NỘI DUNG (không có tiêu đề/nút quay lại) — dùng chung cho
 // CẢ 2 nơi: màn hình đầy đủ (renderCardReferenceScreen, vào từ home) LẪN
 // dialog mở giữa ván (renderApp()/renderNetworkGame() — nút mới ở toolbar,
-// xem docs/ui-ux/GIAO-DIEN-UI-UX.txt/yêu cầu bổ sung "xem thư viện bài mà không văng ra
+// xem docs/bang/ui-ux/GIAO-DIEN-UI-UX.txt/yêu cầu bổ sung "xem thư viện bài mà không văng ra
 // khỏi ván"). Dialog tự có sẵn tiêu đề + nút "Đóng" riêng (renderDialog()),
 // không cần lặp lại ở đây. `query` rỗng = hiện đủ mọi thứ (hành vi cũ).
 function renderCardReferenceBody(container: HTMLElement, query: string): void {

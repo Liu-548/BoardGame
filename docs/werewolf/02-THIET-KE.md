@@ -28,7 +28,7 @@ test/werewolf/        ← test core (xem 04-KIEM-THU)
 
 Nối vào dự án hiện có (thay đổi **tối thiểu** ngoài thư mục mới):
 - **D-01** `wrangler.jsonc`: thêm binding `WEREWOLF_ROOM` → class `WerewolfRoom`, migration mới `{ "tag": "v2", "new_sqlite_classes": ["WerewolfRoom"] }`, thêm `"/werewolf/*"` vào `run_worker_first`. Khai **cả** ở `env.beta` (wrangler không kế thừa `durable_objects`).
-- **D-02** `src/games/bang/server/index.ts` (Worker entry hiện tại): thêm 1 nhánh định tuyến `/werewolf/room/<mã>` → `env.WEREWOLF_ROOM`, và `export { WerewolfRoom }`. Nhánh `/room/<mã>` của Bang! giữ nguyên.
+- **D-02** `src/server/index.ts` (Worker entry hiện tại): thêm 1 nhánh định tuyến `/werewolf/room/<mã>` → `env.WEREWOLF_ROOM`, và `export { WerewolfRoom }`. Nhánh `/room/<mã>` của Bang! giữ nguyên.
 - **D-03** Sảnh (`src/hub/ui.ts`): thêm thẻ "Ma Sói" (đang chơi được). Sảnh hiện được vẽ từ `bang/client/main.ts`, nên ở đó thêm đúng 1 nhánh: chọn `"werewolf"` → đặt `screen = "external"` (Bang! `render()` gặp giá trị này thì không vẽ gì) rồi gọi `mountWerewolf(root, onExit)` của Ma Sói. `onExit` đưa về Sảnh.
 
 ## 1. Kiểu dữ liệu core (`core/types.ts`)
@@ -254,7 +254,7 @@ type ServerMessage =
 | 1 | `reduce` trả `{ state, events }` | Trả `{ state, error? }`, không có `events` | `events` gửi chung cho mọi máy là nguồn lộ thông tin (D-31) |
 | 2 | Stack `state.pending` (quy tắc 5) | Dùng `phase` + `phaseEndsAt` | Không có phản ứng lồng nhau (D-11) |
 | 3 | `setupGame(playerIds, seed, options)` | Thêm tham số `now`, nhận cả tên | Cần đặt hạn giờ pha đầu (D-12) |
-| 4 | Chỉ sửa trong thư mục game | Sửa nhỏ `wrangler.jsonc`, `bang/server/index.ts`, `bang/client/main.ts`, `hub/ui.ts` | Sảnh + Worker entry hiện nằm trong Bang! (D-01..03) |
+| 4 | Chỉ sửa trong thư mục game | Sửa nhỏ `wrangler.jsonc`, `server/index.ts` (trước 2026-11-06: `bang/server/index.ts`), `bang/client/main.ts`, `hub/ui.ts` | Sảnh + Worker entry hiện nằm trong Bang! (D-01..03) |
 | 5 | Mất kết nối 60s rồi huỷ ván (Bang!) | Giữ ghế tới hết ván | R-72 chủ dự án chốt |
 
 ## 10. Chỗ AI tự quyết — ĐÃ DUYỆT

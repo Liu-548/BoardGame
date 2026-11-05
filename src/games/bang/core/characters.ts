@@ -1,5 +1,5 @@
 // Giai đoạn 5 — hệ thống hook cho nhân vật (việc 5.1) + 6 nhân vật cơ bản đầu
-// tiên (việc 5.2, đợt 1). Xem docs/bang-rules/NHAN-VAT-BANG-CO-BAN.txt để biết đủ 16 nhân vật
+// tiên (việc 5.2, đợt 1). Xem docs/bang/rules/NHAN-VAT-BANG-CO-BAN.txt để biết đủ 16 nhân vật
 // dự tính và toàn bộ 9 loại hook.
 //
 // Vì sao nhân vật không nằm trong GameState: quy tắc 3 CLAUDE.md — state
@@ -162,7 +162,7 @@ export interface CharacterHooks {
   // chính mình.
   onAnyDeath?(next: GameState, self: PlayerState, deadPlayer: PlayerState): GameEvent[];
 
-  // Bộ mở rộng "custom_characters" (Victor Boozer, xem docs/bang-rules/House_Rule.txt mục I) —
+  // Bộ mở rộng "custom_characters" (Victor Boozer, xem docs/bang/rules/House_Rule.txt mục I) —
   // gọi ngay khi 1 lá Beer THẬT SỰ hồi máu cho `drinker` (đã trừ maxHp, xem
   // playBeer() trong reduce.ts — CHỈ Beer, không phải mọi nguồn hồi máu).
   // Caller đã tự loại `drinker` ra khỏi vòng lặp (không gọi hook của chính
@@ -267,7 +267,7 @@ export interface CharacterDefinition {
   id: string;
   name: string; // tên nhân vật — HIỂN THỊ RIÊNG với tên người chơi (xem ui.ts, việc bổ sung sau 4.6)
   // Máu tối đa CHƯA cộng +1 Cảnh sát trưởng (setup.ts tự cộng thêm nếu vai là
-  // sheriff) — đúng thuật ngữ "bullets" trong docs/bang-rules/NHAN-VAT-BANG-CO-BAN.txt.
+  // sheriff) — đúng thuật ngữ "bullets" trong docs/bang/rules/NHAN-VAT-BANG-CO-BAN.txt.
   bullets: number;
   // Willy the Kid: bỏ hẳn giới hạn "1 Bang!/lượt" (xem playBang() trong
   // reduce.ts) dù không cầm Volcanic. Đây là DỮ LIỆU tĩnh (luôn true/không có
@@ -373,7 +373,7 @@ export interface CharacterDefinition {
   // trên (hàm TRUNG TÂM mọi hook/field tĩnh khác trong file này đều tra qua,
   // tự động "mượn" đúng mà không cần biết gì về field này).
   canBorrowCharacterAbilities?: boolean;
-  // Bộ mở rộng "custom_characters" (Elena Noir, xem docs/bang-rules/House_Rule.txt mục I) —
+  // Bộ mở rộng "custom_characters" (Elena Noir, xem docs/bang/rules/House_Rule.txt mục I) —
   // đầu MỖI lượt của chính người này (khi KHÔNG đang trong trạng thái Miễn Tử
   // — GameState.elenaNoirImmortalTurnsLeft === null), được HỎI (xem
   // NEED_PICK_ARMED ở types.ts + handleDrawCards()/respondToPickArmed() trong
@@ -392,7 +392,7 @@ export interface CharacterDefinition {
   // mỗi người có entry RIÊNG theo id, không tranh nhau state. Xem ghi chú đầy
   // đủ ở 2 field đó (types.ts).
   canArmImmortality?: boolean;
-  // Bộ mở rộng "custom_characters" (Marcel Marcelo, xem docs/bang-rules/House_Rule.txt mục I)
+  // Bộ mở rộng "custom_characters" (Marcel Marcelo, xem docs/bang/rules/House_Rule.txt mục I)
   // — bó gọn 3 hệ quả CÙNG kích hoạt bởi 1 khả năng duy nhất (khác Elena Noir
   // ở trên chỉ có 1 hệ quả): (1) vừa bị Jail gắn lên -> LẬP TỨC chọn 1 người
   // "cùng vào tù" (playJail()); (2) draw!-check Jail đầu lượt của CHÍNH người
@@ -407,7 +407,7 @@ export interface CharacterDefinition {
   // khỏi cần sửa lại lần 2 nếu 1 ván có CẢ Marcel thật LẪN Vera Custer mượn
   // đúng anh ta.
   canJailCompanion?: boolean;
-  // Bộ mở rộng "custom_characters" (Mary Rose, xem docs/bang-rules/House_Rule.txt mục I) — cả
+  // Bộ mở rộng "custom_characters" (Mary Rose, xem docs/bang/rules/House_Rule.txt mục I) — cả
   // 2 field dưới đây HOÀN TOÀN KHÔNG CẦN state gì trong GameState (khác Elena
   // Noir/Marcel Marcelo ở trên) — tính lại NGAY MỖI LẦN qua
   // getEffectiveCharacterDefinition(), không có gì để lưu theo thời gian, nên
@@ -424,7 +424,7 @@ export interface CharacterDefinition {
   // "chịu mất máu" của respondToMissed() + pushMaryRoseReflection() trong
   // reduce.ts.
   canReflectBangDamage?: boolean;
-  // Bộ mở rộng "custom_characters" (The Thief, xem docs/bang-rules/House_Rule.txt mục I) —
+  // Bộ mở rộng "custom_characters" (The Thief, xem docs/bang/rules/House_Rule.txt mục I) —
   // KHÔNG thay pha rút bình thường (khác Jesse Jones/canStealFirstDrawCard) —
   // rút 2 lá từ bộ bài NHƯ THƯỜNG xong mới CỘNG THÊM 1 draw!, ra chất đỏ (Cơ/
   // Rô) thì được hỏi chọn 1 người khác còn sống để cướp ngẫu nhiên 1 lá. HOÀN
@@ -433,7 +433,7 @@ export interface CharacterDefinition {
   // completeDrawPhase()/resolveDrawCheck()/respondToPickThiefTarget() trong
   // reduce.ts.
   canStealCardOnRedDraw?: boolean;
-  // Bộ mở rộng "custom_characters" (Jonny Bettor, xem docs/bang-rules/House_Rule.txt mục I) —
+  // Bộ mở rộng "custom_characters" (Jonny Bettor, xem docs/bang/rules/House_Rule.txt mục I) —
   // kỹ năng CHỦ ĐỘNG dùng action USE_ABILITY (giống Sid Ketchum/Chuck Wengam)
   // nhưng CHỈ trong lượt của chính mình (giống Chuck Wengam, khác Sid
   // Ketchum): bỏ ĐÚNG 2 lá bất kỳ trên tay rồi draw!, ra chất đỏ (Cơ/Rô) thì
@@ -441,7 +441,7 @@ export interface CharacterDefinition {
   // trước đây không giới hạn — xem GameState.gamblerUsesThisTurn, giống José
   // Delgado). Xem useGamblerDraw()/resolveDrawCheck() trong reduce.ts.
   canDiscardTwoToGambleDraw?: boolean;
-  // Bộ mở rộng "custom_characters" (The DareDevil, xem docs/bang-rules/House_Rule.txt mục
+  // Bộ mở rộng "custom_characters" (The DareDevil, xem docs/bang/rules/House_Rule.txt mục
   // I) — kỹ năng CHỦ ĐỘNG dùng action USE_ABILITY (giống Doc Holyday) nhưng
   // KHÔNG cần bỏ lá nào (giống Chuck Wengam): tự mất 1 máu để bắn hiệu ứng
   // Bang! vào `targetId` bất kỳ, bỏ qua khoảng cách/tầm súng hoàn toàn,
@@ -449,7 +449,7 @@ export interface CharacterDefinition {
   // GameState.fairKillerUsedThisTurn), chặn nếu chỉ còn 1 máu (không tự sát
   // được). Xem useFairKillerShot() trong reduce.ts.
   canShootByLosingLife?: boolean;
-  // Bộ mở rộng "custom_characters" (Nomad Norman, xem docs/bang-rules/House_Rule.txt mục I) —
+  // Bộ mở rộng "custom_characters" (Nomad Norman, xem docs/bang/rules/House_Rule.txt mục I) —
   // cờ tĩnh bật/tắt TOÀN BỘ cơ chế "lá chắn": (1) draw! bí mật đầu lượt CHÍNH
   // mình (completeDrawPhase() trong reduce.ts), (2) mọi điểm áp sát thương
   // đều PHẢI hỏi "dùng khiên?" nếu mục tiêu có cờ này — KỂ CẢ khi
@@ -459,7 +459,7 @@ export interface CharacterDefinition {
   // GameState.drifterShield/drifterHiddenCard mới là nơi lưu trạng thái. Xem
   // maybeAskDrifterShield()/respondToUseDrifterShield() trong reduce.ts.
   hasDrifterShield?: boolean;
-  // Bộ mở rộng "custom_characters" (Envoy Evy, xem docs/bang-rules/House_Rule.txt mục I) —
+  // Bộ mở rộng "custom_characters" (Envoy Evy, xem docs/bang/rules/House_Rule.txt mục I) —
   // cờ tĩnh: mỗi khi bị nhắm bởi 1 đòn "kiểu Bang!" (đi qua NEED_MISSED —
   // Bang!/Gatling/Punch/Springfield/Derringer/Knife/Pepperbox/Buffalo Rifle/
   // Howitzer/Doc Holyday...) và không đỡ được, được hỏi có muốn đưa 2 lá NGẪU
@@ -469,7 +469,7 @@ export interface CharacterDefinition {
   // phải giấu). Xem maybeAskDealerTrade()/respondToUseDealerTrade() trong
   // reduce.ts.
   hasDealerTrade?: boolean;
-  // Bộ mở rộng "custom_characters" (Aura The Soul-Weaver, xem docs/bang-rules/House_Rule.txt mục I) —
+  // Bộ mở rộng "custom_characters" (Aura The Soul-Weaver, xem docs/bang/rules/House_Rule.txt mục I) —
   // cờ tĩnh: bất kỳ lúc nào có 1 người chơi (kể cả chính Aura The Soul-Weaver) sắp bị
   // ghi nhận CHẾT (đã hết mọi cách tự cứu — Bia/Elena Noir Miễn Tử), được hỏi
   // SAU CÙNG có muốn trả 2 máu tối đa vĩnh viễn để hồi sinh người đó với ĐÚNG
@@ -478,7 +478,7 @@ export interface CharacterDefinition {
   // sentinelUsed mới là nơi lưu trạng thái. Xem eliminateIfDead()/
   // maybeAskSentinelRevive()/respondToSentinelRevive() trong reduce.ts.
   canReviveOthers?: boolean;
-  // Bộ mở rộng "custom_characters" (The Nobody, xem docs/bang-rules/House_Rule.txt mục I) —
+  // Bộ mở rộng "custom_characters" (The Nobody, xem docs/bang/rules/House_Rule.txt mục I) —
   // cờ tĩnh: bị NHẮM TỚI bởi bất kỳ lá nào (Bang!/Gatling/Punch/Springfield/
   // Derringer/Knife/Pepperbox/Buffalo Rifle/Howitzer/Doc Holyday/Fair
   // Killer/Indians!/Đấu tay đôi/Cat Balou/Can Can/Brawl — NHÓM A, đợt đầu;
@@ -495,7 +495,7 @@ export interface CharacterDefinition {
   // respondToDuel()/pushDiscardFromZoneReaction(). KHÔNG cần state gì riêng
   // (tính lại mỗi lần), không xung đột Vera Custer.
   hasNobodyImmunity?: boolean;
-  // Bộ mở rộng "custom_characters" (Paul Pauper, xem docs/bang-rules/House_Rule.txt mục I) —
+  // Bộ mở rộng "custom_characters" (Paul Pauper, xem docs/bang/rules/House_Rule.txt mục I) —
   // mỗi khi 1 NGƯỜI CHƠI KHÁC (KHÔNG tính lượt của chính Paul Pauper) đánh lá
   // thứ 4 trở đi trong lượt của họ, Paul Pauper draw! 1 lần; ra đỏ (Cơ/Rô) thì
   // lá đó bị CHẶN HOÀN TOÀN (không hiệu ứng gì) và đi thẳng vào tay Paul
@@ -924,7 +924,7 @@ export const CHARACTERS: Record<string, CharacterDefinition> = {
     hooks: {},
   },
 
-  // ----- Bộ mở rộng "custom_characters" — nhân vật TỰ CHẾ, xem docs/bang-rules/House_Rule.txt -----
+  // ----- Bộ mở rộng "custom_characters" — nhân vật TỰ CHẾ, xem docs/bang/rules/House_Rule.txt -----
 
   elena_noir: {
     id: "elena_noir",

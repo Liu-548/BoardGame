@@ -165,7 +165,7 @@ function handleDrawCards(
   const next = cloneState(state);
   const player = next.players[next.currentPlayerIndex];
 
-  // Bộ mở rộng "custom_characters" (Marcel Marcelo, xem docs/bang-rules/House_Rule.txt mục I)
+  // Bộ mở rộng "custom_characters" (Marcel Marcelo, xem docs/bang/rules/House_Rule.txt mục I)
   // — vừa thoát tù thành công Ở ĐÚNG lượt này (cờ đặt ở nhánh Jail của
   // resolveDrawCheck()): rút THẲNG 3 lá thay vì hỏi han gì (Phương án C), rồi
   // tiêu thụ (xoá) cờ ngay. Xét TRƯỚC MỌI nhánh "hỏi trước khi rút" khác —
@@ -199,7 +199,7 @@ function handleDrawCards(
 // gốc "sau bước đánh bài"): hỏi NGAY tại đây.
 function completeDrawPhase(next: GameState, player: PlayerState, events: GameEvent[]): Result {
   next.turnPhase = "play";
-  // Bộ mở rộng "custom_characters" (The Thief, xem docs/bang-rules/House_Rule.txt mục I) —
+  // Bộ mở rộng "custom_characters" (The Thief, xem docs/bang/rules/House_Rule.txt mục I) —
   // CỘNG THÊM sau khi pha rút (dù rút bằng đường nào — bình thường/Pedro
   // Ramirez/Jesse Jones/Kit Carlson/Pat Brennan/Elena Noir/Hard Liquor... đều
   // đi qua đúng 1 điểm cuối này) đã xong: đẩy draw! kiểm tra chất đỏ. Đẩy
@@ -215,7 +215,7 @@ function completeDrawPhase(next: GameState, player: PlayerState, events: GameEve
       matchSuits: ["hearts", "diamonds"],
     });
   }
-  // Bộ mở rộng "custom_characters" (Nomad Norman, xem docs/bang-rules/House_Rule.txt mục I) —
+  // Bộ mở rộng "custom_characters" (Nomad Norman, xem docs/bang/rules/House_Rule.txt mục I) —
   // draw! BÍ MẬT đầu lượt CHÍNH mình, cùng khuôn The Thief ở trên (đẩy ở đúng
   // 1 điểm cuối pha rút, KHÔNG đẩy ở Bước 0/applyJailCheck() — tự phát hiện đặt
   // ở đó sẽ SAI vì Lasso khiến applyJailCheck() không bao giờ chạy tới, và bị
@@ -327,7 +327,7 @@ function continueDrawCardsAfterHardLiquor(next: GameState, player: PlayerState):
     return { state: next, events: [] };
   }
 
-  // Bộ mở rộng "custom_characters" (Elena Noir, xem docs/bang-rules/House_Rule.txt mục I) —
+  // Bộ mở rộng "custom_characters" (Elena Noir, xem docs/bang/rules/House_Rule.txt mục I) —
   // ĐANG trong trạng thái Miễn Tử (có entry trong elenaNoirImmortalTurnsLeft,
   // theo playerId — xem ghi chú ở GameState): rút THẲNG 3 lá, không hỏi vũ
   // trang gì cả (đã miễn nhiễm chết rồi, hỏi vô nghĩa). KHÔNG đang Miễn Tử:
@@ -604,7 +604,7 @@ function respondToPickDrawOrEquipment(
   return completeDrawPhase(next, player, [{ type: "CARDS_DRAWN", playerId: player.id, count: drawnCount }]);
 }
 
-// Bộ mở rộng "custom_characters" (Elena Noir, xem docs/bang-rules/House_Rule.txt mục I) — trả
+// Bộ mở rộng "custom_characters" (Elena Noir, xem docs/bang/rules/House_Rule.txt mục I) — trả
 // lời NEED_PICK_ARMED. `armed: true` -> chỉ rút 1 lá lượt này, đặt
 // elenaNoirArmed[playerId] = true (bảo vệ tới đầu lượt kế tiếp của CHÍNH
 // người này — bị GHI ĐÈ ở chính chỗ này lần rút bài sau, không tự hết hạn
@@ -674,7 +674,7 @@ function respondToPickBorrowedCharacter(
   };
 }
 
-// Bộ mở rộng "custom_characters" (Marcel Marcelo, xem docs/bang-rules/House_Rule.txt mục I)
+// Bộ mở rộng "custom_characters" (Marcel Marcelo, xem docs/bang/rules/House_Rule.txt mục I)
 // — trả lời NEED_PICK_MARCEL_COMPANION. BẮT BUỘC chọn đúng 1 người chơi khác
 // còn sống (không giới hạn khoảng cách, được phép trùng người vừa đánh Jail
 // lên mình) — không có lựa chọn "không chọn ai". Hết giờ thì room.ts tự chọn
@@ -698,7 +698,7 @@ function respondToPickMarcelCompanion(
     throw new Error("Mục tiêu không hợp lệ");
   }
 
-  // Bộ mở rộng "custom_characters" (The Nobody, xem docs/bang-rules/House_Rule.txt mục I,
+  // Bộ mở rộng "custom_characters" (The Nobody, xem docs/bang/rules/House_Rule.txt mục I,
   // NHÓM B) — "cùng vào tù" áp dụng NGAY LẬP TỨC bình thường (ghi nhận
   // companion), không có pending sẵn để huỷ — phải HOÃN LẠI, hỏi draw!
   // trước. Không khớp: ghi nhận companion như thường (xem
@@ -723,7 +723,7 @@ function respondToPickMarcelCompanion(
   };
 }
 
-// Bộ mở rộng "custom_characters" (The Thief, xem docs/bang-rules/House_Rule.txt mục I) — trả
+// Bộ mở rộng "custom_characters" (The Thief, xem docs/bang/rules/House_Rule.txt mục I) — trả
 // lời NEED_PICK_THIEF_TARGET. KHÔNG bắt buộc như Marcel Marcelo ở trên — bỏ
 // trống targetId = tự nguyện bỏ qua, không lấy gì cả (an toàn để room.ts vẫn
 // có 1 hành động hợp lệ khi hết giờ mà không còn ai có bài, xem
@@ -926,7 +926,7 @@ function handlePlayCard(
     throw new Error(`Người chơi ${player.id} không có lá bài ${action.cardId} trong tay`);
   }
 
-  // Bộ mở rộng "custom_characters" (Paul Pauper, xem docs/bang-rules/House_Rule.txt mục I) —
+  // Bộ mở rộng "custom_characters" (Paul Pauper, xem docs/bang/rules/House_Rule.txt mục I) —
   // CHẶN NGAY TẠI ĐÂY, TRƯỚC KHI lá rời tay/vào chồng bỏ/gắn sân/dispatch bất
   // kỳ play*() nào. Đây là lá thứ 4 trở đi (cardsPlayedThisTurn đã đếm đủ 3)
   // của 1 người KHÔNG PHẢI Paul Pauper, VÀ có 1 Paul Pauper còn sống khác trên
@@ -1052,7 +1052,7 @@ function handlePlayCard(
         // sân ngay khi vào tay (xem giveCardToPlayer() trong equipment.ts). Nhánh
         // này chỉ có thể chạy tới nếu có bug ở nơi khác làm lọt Dynamite vào tay.
         throw new Error("Dynamite không được đánh chủ động — tự động xuống sân ngay khi vào tay");
-      // Mở rộng Dodge City đợt 2 (mục 2, nhóm NÂU) — xem docs/bang-rules/Luat_Bang_Mo_Rong_DodgeCity.txt.
+      // Mở rộng Dodge City đợt 2 (mục 2, nhóm NÂU) — xem docs/bang/rules/Luat_Bang_Mo_Rong_DodgeCity.txt.
       case "dodge":
         // Y hệt "missed" ở trên: không tự đánh ra lúc tới lượt mình, chỉ dùng để
         // PHẢN ỨNG (đi qua RESPOND, xem actsAsMissed()/respondToMissed()).
@@ -1156,7 +1156,7 @@ function playBang(
     { type: "CARD_PLAYED", playerId: player.id, cardId: action.cardId, targetId: target.id },
   ];
 
-  // Bộ mở rộng "custom_characters" (Mary Rose, xem docs/bang-rules/House_Rule.txt mục I) —
+  // Bộ mở rộng "custom_characters" (Mary Rose, xem docs/bang/rules/House_Rule.txt mục I) —
   // đánh Bang! chủ động phải bỏ ĐỦ 2 lá Bang!. Lá THỨ NHẤT (action.cardId) đã
   // rời tay/vào chồng bỏ ở handlePlayCard() TRƯỚC KHI gọi tới đây — chỉ cần
   // tìm và bỏ thêm 1 lá "bang" THỨ 2 còn lại trên tay. Không đủ thì throw
@@ -1312,8 +1312,8 @@ function pushMissedReaction(
 // vào số Missed! cần thiết (mặc định 1, không đổi gì so với trước — MỌI chỗ
 // gọi cũ đều không truyền, giữ nguyên hành vi). Sniper truyền 2: người thường
 // cần 2 (1 * 2), Slab the Killer (onOutgoingBang trả 2) cần 4 (2 * 2) — đúng
-// *dev đã chốt trong docs/bang-rules/Luat_Bang_Mo_Rong_FistfulOfCards.txt.
-// Bộ mở rộng "custom_characters" (The Nobody, xem docs/bang-rules/House_Rule.txt mục I) — đẩy
+// *dev đã chốt trong docs/bang/rules/Luat_Bang_Mo_Rong_FistfulOfCards.txt.
+// Bộ mở rộng "custom_characters" (The Nobody, xem docs/bang/rules/House_Rule.txt mục I) — đẩy
 // NEED_DRAW_CHECK bắt buộc của The Nobody LÊN TRÊN pending vừa đẩy ngay trước
 // đó (`target` = người vừa bị nhắm tới) — đúng mẫu Barrel: draw! của The
 // Nobody phải chạy TRƯỚC (đúng thứ tự "trước khi lá bài chính thức kích hoạt"
@@ -1456,7 +1456,7 @@ function playDuel(
   }
 
   // Mở rộng Dodge City, mục C nhóm B (Apache Kid) — ĐÃ SỬA LẠI theo yêu cầu
-  // chủ dự án (khác quyết định cũ ghi trong docs/bang-rules/Luat_Bang_Mo_Rong_DodgeCity.txt/
+  // chủ dự án (khác quyết định cũ ghi trong docs/bang/rules/Luat_Bang_Mo_Rong_DodgeCity.txt/
   // CHANGELOG.md, vốn nói "Duel không áp dụng miễn nhiễm"): CHỈ tra chất của
   // ĐÚNG lá Duel khởi xướng (action.cardId) — Rô thì miễn nhiễm HẲN, huỷ toàn
   // bộ ván đấu tay đôi ngay từ đầu, không đẩy pending gì cả. Nếu lá Duel
@@ -1496,7 +1496,7 @@ function playDuel(
 // General Store: lật số lá bằng số người còn sống, người đánh bài chọn trước,
 // rồi lần lượt từng người theo chiều kim đồng hồ chọn 1 lá cho tới hết.
 //
-// Bộ mở rộng "custom_characters" (The Nobody, xem docs/bang-rules/House_Rule.txt mục I) — lá
+// Bộ mở rộng "custom_characters" (The Nobody, xem docs/bang/rules/House_Rule.txt mục I) — lá
 // này "nhắm CẢ BÀN", nên draw! bắt buộc của The Nobody phải XONG TRƯỚC khi
 // biết lật MẤY lá (bị bỏ qua thì lật ít hơn 1 lá) — KHÁC hẳn nhóm A còn lại
 // (Bang!/Indians!/Duel/Cat Balou..., chỉ cần đẩy NEED_DRAW_CHECK LÊN TRÊN 1
@@ -1661,7 +1661,7 @@ function applyPanicEffect(
     stolenCardId = targetCardId;
   }
 
-  // Bộ mở rộng "custom_characters" (The Nobody, xem docs/bang-rules/House_Rule.txt mục I,
+  // Bộ mở rộng "custom_characters" (The Nobody, xem docs/bang/rules/House_Rule.txt mục I,
   // NHÓM B) — lá này áp dụng NGAY LẬP TỨC bình thường, không có pending sẵn
   // để huỷ như nhóm A — phải HOÃN LẠI phần chuyển lá, hỏi draw! trước.
   if (getEffectiveCharacterDefinition(next, target)?.hasNobodyImmunity === true) {
@@ -1868,7 +1868,7 @@ function playPunch(
 
 // Rag Time (mở rộng Dodge City) — bỏ kèm 1 lá phụ (mục 1.2), hiệu ứng y hệt
 // Panic! (applyPanicEffect()) nhưng KHÔNG giới hạn khoảng cách (*dev note của
-// chủ dự án trong docs/bang-rules/Luat_Bang_Mo_Rong_DodgeCity.txt, mục 2).
+// chủ dự án trong docs/bang/rules/Luat_Bang_Mo_Rong_DodgeCity.txt, mục 2).
 function playRagTime(
   next: GameState,
   player: PlayerState,
@@ -1937,7 +1937,7 @@ function playTequila(
     ...extraEvents,
   ];
 
-  // Bộ mở rộng "custom_characters" (The Nobody, xem docs/bang-rules/House_Rule.txt mục I,
+  // Bộ mở rộng "custom_characters" (The Nobody, xem docs/bang/rules/House_Rule.txt mục I,
   // NHÓM B) — lá này áp dụng NGAY LẬP TỨC bình thường, không có pending sẵn
   // để huỷ như nhóm A — phải HOÃN LẠI phần hồi máu, hỏi draw! trước. KHÔNG
   // cần GameState.pendingNobodyCheck gì thêm — chỉ 1 mục tiêu duy nhất, đủ
@@ -2194,7 +2194,7 @@ function playJail(
   if (getEffectiveCharacterHooks(next, target).isImmuneToCard?.(next, action.cardId) === true) {
     throw new Error("Apache Kid miễn nhiễm với lá chất Rô — không thể đánh Jail chất Rô lên người này");
   }
-  // Bộ mở rộng "custom_characters" (Elena Noir, xem docs/bang-rules/House_Rule.txt mục I) —
+  // Bộ mở rộng "custom_characters" (Elena Noir, xem docs/bang/rules/House_Rule.txt mục I) —
   // KHÔNG bị nhốt tù trong lúc Miễn Tử (ngoại lệ DUY NHẤT — mọi lá khác vẫn
   // nhắm tới cô bình thường, chỉ riêng Jail bị chặn hẳn NGAY LÚC ĐÁNH, y hệt
   // cách chặn Apache Kid/Cảnh sát trưởng ở trên — KHÔNG dùng isImmuneToCard
@@ -2210,7 +2210,7 @@ function playJail(
     { type: "CARD_PLAYED", playerId: player.id, cardId: action.cardId, targetId: target.id },
   ];
 
-  // Bộ mở rộng "custom_characters" (The Nobody, xem docs/bang-rules/House_Rule.txt mục I,
+  // Bộ mở rộng "custom_characters" (The Nobody, xem docs/bang/rules/House_Rule.txt mục I,
   // NHÓM B) — lá này áp dụng NGAY LẬP TỨC bình thường (gắn thẳng lên sân),
   // không có pending sẵn để huỷ như nhóm A — phải HOÃN LẠI, hỏi draw! trước.
   // Không khớp thì mới thật sự gắn lá VÀ mới xét tiếp Marcel companion (nếu
@@ -2229,7 +2229,7 @@ function playJail(
 
   target.equipment.push(action.cardId);
 
-  // Bộ mở rộng "custom_characters" (Marcel Marcelo, xem docs/bang-rules/House_Rule.txt mục I)
+  // Bộ mở rộng "custom_characters" (Marcel Marcelo, xem docs/bang/rules/House_Rule.txt mục I)
   // — vừa bị nhốt tù xong, LẬP TỨC chọn 1 người chơi khác còn sống bất kỳ
   // (không giới hạn khoảng cách, kể cả chính người vừa đánh Jail) để "cùng vào
   // tù" — đẩy pending NGAY trước khi trả về, y hệt cơ chế Missed!/mượn khả
@@ -2318,7 +2318,7 @@ function playBeer(next: GameState, player: PlayerState, cardId: string): Result 
     if (restored > 0) {
       player.hp += restored;
       events.push({ type: "HP_RESTORED", playerId: player.id, amount: restored });
-      // Bộ mở rộng "custom_characters" (Victor Boozer, xem docs/bang-rules/House_Rule.txt mục
+      // Bộ mở rộng "custom_characters" (Victor Boozer, xem docs/bang/rules/House_Rule.txt mục
       // I) — ăn theo Beer của NGƯỜI KHÁC, CHỈ khi Beer THẬT SỰ hồi máu (restored
       // > 0). Loại chính người vừa uống ra khỏi vòng lặp — Beer tự đánh không
       // ăn theo, đúng *dev đã chốt.
@@ -2339,7 +2339,7 @@ function playBeer(next: GameState, player: PlayerState, cardId: string): Result 
   return { state: next, events };
 }
 
-// Bộ mở rộng "custom_characters" (The Nobody, xem docs/bang-rules/House_Rule.txt mục I, NHÓM
+// Bộ mở rộng "custom_characters" (The Nobody, xem docs/bang/rules/House_Rule.txt mục I, NHÓM
 // B) — Saloon "nhắm CẢ BÀN" nhưng KHÁC Cửa hàng tổng hợp (nhóm A): hồi máu
 // từng người KHÔNG phụ thuộc lẫn nhau (không như số lá lật ra phải biết
 // TRƯỚC), nên người khác cứ hồi máu NGAY bình thường — chỉ HOÃN riêng phần
@@ -2643,7 +2643,7 @@ function useDocHolydayShot(
   };
 }
 
-// Bộ mở rộng "custom_characters" (Jonny Bettor, xem docs/bang-rules/House_Rule.txt mục I) —
+// Bộ mở rộng "custom_characters" (Jonny Bettor, xem docs/bang/rules/House_Rule.txt mục I) —
 // CHỈ dùng được TRONG lượt của chính mình (khác Sid Ketchum), tối đa 2
 // LẦN/lượt (đếm bằng GameState.gamblerUsesThisTurn, reset ở advanceTurn(),
 // giống José Delgado — ĐÃ SỬA 2026-08-23, trước đây không giới hạn): bỏ ĐÚNG
@@ -2688,7 +2688,7 @@ function useGamblerDraw(
   // Holyday) — draw! của kỹ năng này CHƯA xảy ra ngay, còn phải chờ RESPOND
   // riêng ở resolveDrawCheck(). Gọi ở đây sẽ có khoảng hở "tay vừa về 0"
   // trước khi rút 1-3 lá thật, khiến Suzy Lafayette rút bù 1 lá THỪA không
-  // cần thiết. Hook gọi Ở ĐÓ, sau khi rút xong (xem docs/bang-rules/House_Rule.txt mục I).
+  // cần thiết. Hook gọi Ở ĐÓ, sau khi rút xong (xem docs/bang/rules/House_Rule.txt mục I).
   next.pending.push({
     kind: "NEED_DRAW_CHECK",
     player: nextPlayer.id,
@@ -2702,7 +2702,7 @@ function useGamblerDraw(
   };
 }
 
-// Bộ mở rộng "custom_characters" (The DareDevil, xem docs/bang-rules/House_Rule.txt mục I)
+// Bộ mở rộng "custom_characters" (The DareDevil, xem docs/bang/rules/House_Rule.txt mục I)
 // — CHỈ dùng được TRONG lượt của chính mình (khác Sid Ketchum), tối đa 1
 // LẦN/lượt (giống Doc Holyday): KHÔNG bỏ lá nào (cardIds phải rỗng, giống
 // Chuck Wengam), tự mất 1 máu để bắn hiệu ứng Bang! vào `targetId` bất kỳ —
@@ -3092,7 +3092,7 @@ function respondToMissed(
 
     const events: GameEvent[] = [{ type: "MISSED_PLAYED", playerId: player.id }];
     // Mở rộng Dodge City — Bible (nhóm VÀNG) và Dodge (nhóm NÂU) đều kèm rút
-    // thêm 1 lá khi dùng để đỡ thành công (xem mục 2, docs/bang-rules/Luat_Bang_Mo_Rong_DodgeCity.txt).
+    // thêm 1 lá khi dùng để đỡ thành công (xem mục 2, docs/bang/rules/Luat_Bang_Mo_Rong_DodgeCity.txt).
     if (cardName === "bible" || cardName === "dodge") {
       const drawnCount = drawCardsForPlayer(next, player, 1);
       if (drawnCount > 0) {
@@ -3130,7 +3130,7 @@ function respondToMissed(
 
   const damageEvents = applyDamage(next, player, 1, top.source.from, { kind: "bang_missed", missedTop: top });
 
-  // Bộ mở rộng "custom_characters" (Mary Rose, xem docs/bang-rules/House_Rule.txt mục I) —
+  // Bộ mở rộng "custom_characters" (Mary Rose, xem docs/bang/rules/House_Rule.txt mục I) —
   // THẬT SỰ mất máu (nhánh "chịu mất máu", không đỡ được) VÀ nguồn là Bang!
   // ĐƠN LẺ (top.source.card === "bang" — literal, KHÔNG tính Gatling/Duel/
   // Indians!: Gatling cũng qua đây nhưng source.card = "gatling"; Duel/
@@ -3219,7 +3219,7 @@ function respondToRussianRouletteChain(
   return { state: next, events };
 }
 
-// Bộ mở rộng "custom_characters" (Nomad Norman, xem docs/bang-rules/House_Rule.txt mục I) —
+// Bộ mở rộng "custom_characters" (Nomad Norman, xem docs/bang/rules/House_Rule.txt mục I) —
 // trả lời NEED_USE_DRIFTER_SHIELD. Đọc drifterShield[player.id] THẬT (KHÔNG
 // tin action.useShield mù quáng) — nếu client gửi true nhưng không có khiên
 // thật (hết giờ tự trả lời sai/client cũ/gian lận) thì coi như từ chối,
@@ -3320,7 +3320,7 @@ function respondToUseDrifterShield(
   }
 }
 
-// Bộ mở rộng "custom_characters" (Envoy Evy, xem docs/bang-rules/House_Rule.txt mục I) — trả
+// Bộ mở rộng "custom_characters" (Envoy Evy, xem docs/bang/rules/House_Rule.txt mục I) — trả
 // lời NEED_USE_DEALER_TRADE. Đọc lại điều kiện THẬT (còn ≥2 lá, người nhận
 // còn sống) thay vì tin action.useDealerTrade mù quáng — phòng trường hợp tay
 // đã đổi giữa lúc đẩy pending và lúc trả lời (dù hiếm, không phải bí mật nên
@@ -3649,7 +3649,7 @@ function resolveDrawCheck(
     throw new Error("Không còn lá nào để draw! (cả bộ bài lẫn chồng bài đã bỏ đều hết)");
   }
 
-  // Bộ mở rộng "custom_characters" (Nomad Norman, xem docs/bang-rules/House_Rule.txt mục I) —
+  // Bộ mở rộng "custom_characters" (Nomad Norman, xem docs/bang/rules/House_Rule.txt mục I) —
   // draw! này PHẢI GIỮ KÍN, nhánh RIÊNG, tách khỏi mọi logic thường bên dưới
   // (Lucky Duke/Barrel/Dynamite/Jail/Vendetta/Thief — không cái nào áp dụng
   // cho draw! cá nhân bí mật này). KHÔNG được next.discardPile.push() lá này
@@ -3677,7 +3677,7 @@ function resolveDrawCheck(
   //
   // Bộ mở rộng "custom_characters" (The Nobody) — NGOẠI LỆ DUY NHẤT: đọc
   // THẲNG chất thật (cardSuitRankFromId()), KHÔNG qua getEffectiveSuit() — đã
-  // chốt trong docs/bang-rules/House_Rule.txt mục I ("bẫy Blessing/Curse"): Curse biến MỌI lá
+  // chốt trong docs/bang/rules/House_Rule.txt mục I ("bẫy Blessing/Curse"): Curse biến MỌI lá
   // thành Bích, nếu đọc chất đã đổi thì suốt vòng Curse anh ta miễn nhiễm
   // 100% mọi thứ — đổi từ Cơ (bản gốc) sang Bích chỉ dời cái bẫy từ Blessing
   // sang Curse, không gỡ được. Blessing/Curse vẫn áp bình thường cho MỌI draw!
@@ -3735,7 +3735,7 @@ function resolveDrawCheck(
 
   events.unshift({ type: "DRAW_CHECK_RESOLVED", playerId: action.playerId, cardId, matched });
 
-  // Bộ mở rộng "custom_characters" (The Nobody, xem docs/bang-rules/House_Rule.txt mục I) —
+  // Bộ mở rộng "custom_characters" (The Nobody, xem docs/bang/rules/House_Rule.txt mục I) —
   // ra Bích: lá vừa nhắm tới anh ta VÔ HIỆU HOÀN TOÀN. Tìm đúng pending gốc
   // (NEED_MISSED/NEED_DISCARD_BANG/NEED_DUEL_RESPONSE/NEED_DISCARD_FROM_ZONE
   // của CHÍNH anh ta — đúng mẫu findIndex của nhánh "barrel" bên dưới) rồi bỏ
@@ -3806,7 +3806,7 @@ function resolveDrawCheck(
     return { state: next, events };
   }
 
-  // Bộ mở rộng "custom_characters" (The Nobody, xem docs/bang-rules/House_Rule.txt mục I,
+  // Bộ mở rộng "custom_characters" (The Nobody, xem docs/bang/rules/House_Rule.txt mục I,
   // NHÓM B) — Panic!/Rag Time/Conestoga: khớp thì lá vẫn ở nguyên chỗ cũ
   // (chưa từng rời target — applyPanicEffect() chỉ XÁC ĐỊNH trước, chưa
   // splice()); không khớp thì mới THẬT SỰ chuyển qua performPanicSteal().
@@ -3907,7 +3907,7 @@ function resolveDrawCheck(
     return { state: next, events };
   }
 
-  // Bộ mở rộng "custom_characters" (Paul Pauper, xem docs/bang-rules/House_Rule.txt mục I) —
+  // Bộ mở rộng "custom_characters" (Paul Pauper, xem docs/bang/rules/House_Rule.txt mục I) —
   // draw! CHẶN lá thứ 4+ của người khác (đẩy ở handlePlayCard(), lá VẪN CÒN
   // NGUYÊN trong tay người đánh — xem GameState.pendingPaulPauperPlay). Khớp
   // (đỏ): lá đi THẲNG vào tay Paul Pauper — KHÔNG dispatch play*() nào, coi
@@ -4104,7 +4104,7 @@ function resolveDrawCheck(
     return { state: next, events };
   }
 
-  // Bộ mở rộng "custom_characters" (The Thief, xem docs/bang-rules/House_Rule.txt mục I) —
+  // Bộ mở rộng "custom_characters" (The Thief, xem docs/bang/rules/House_Rule.txt mục I) —
   // khớp chất đỏ (Cơ/Rô) -> hỏi chọn 1 người khác còn sống để cướp ngẫu nhiên
   // 1 lá (xem respondToPickThiefTarget() bên dưới). Không khớp -> lượt đó
   // không có gì thêm, đã đủ với DRAW_CHECK_RESOLVED vừa unshift ở trên.
@@ -4112,7 +4112,7 @@ function resolveDrawCheck(
     next.pending.push({ kind: "NEED_PICK_THIEF_TARGET", player: top.player });
   }
 
-  // Bộ mở rộng "custom_characters" (Jonny Bettor, xem docs/bang-rules/House_Rule.txt mục I) —
+  // Bộ mở rộng "custom_characters" (Jonny Bettor, xem docs/bang/rules/House_Rule.txt mục I) —
   // khớp chất đỏ (Cơ/Rô) -> rút 3 lá; không khớp -> rút 1 lá. Lucky Duke đã
   // tự áp dụng ở phần lật lá phía trên (đọc `matched` sau khi tính) — không
   // cần code riêng ở đây. triggerHandEmptyHook() gọi Ở ĐÂY (SAU khi rút xong,
@@ -4130,7 +4130,7 @@ function resolveDrawCheck(
 
 // ----- Việc 1.13: chết, thưởng/phạt, điều kiện thắng -----
 
-// Bộ mở rộng "custom_characters" (Nomad Norman, xem docs/bang-rules/House_Rule.txt mục I) —
+// Bộ mở rộng "custom_characters" (Nomad Norman, xem docs/bang/rules/House_Rule.txt mục I) —
 // chèn TRƯỚC 1 cụm sát thương SẮP áp dụng, y hệt khuôn "đẩy pending lên trên
 // rồi return" của Barrel (xem ghi chú resolveDrawCheck() nhánh dynamite/
 // applyDynamiteAndJailChecks() gọi tiếp Jail sau khi Dynamite giải quyết
@@ -4154,7 +4154,7 @@ function maybeAskDrifterShield(
   return true;
 }
 
-// Bộ mở rộng "custom_characters" (Envoy Evy, xem docs/bang-rules/House_Rule.txt mục I) —
+// Bộ mở rộng "custom_characters" (Envoy Evy, xem docs/bang/rules/House_Rule.txt mục I) —
 // chèn TRƯỚC 1 đòn "kiểu Bang!" (qua NEED_MISSED) SẮP áp dụng, cùng khuôn
 // maybeAskDrifterShield() ở trên nhưng CHỈ đẩy pending khi THẬT SỰ đủ điều
 // kiện (khác Nomad Norman — "còn đủ 2 lá" vốn đã công khai qua handCount, không
@@ -4183,7 +4183,7 @@ function maybeAskDealerTrade(
 // truyền null nếu tự chết (Dynamite) — không có thưởng/phạt trong ca đó.
 // `resume` = TÁI DÙNG đúng resume Nomad Norman đã dùng ở lời gọi maybeAskDrifterShield()
 // ngay trước đó tại CÙNG điểm gọi (bộ mở rộng "custom_characters", The
-// Aura The Soul-Weaver, xem docs/bang-rules/House_Rule.txt mục I) — eliminateIfDead() cần nó để biết chạy
+// Aura The Soul-Weaver, xem docs/bang/rules/House_Rule.txt mục I) — eliminateIfDead() cần nó để biết chạy
 // tiếp phần "sau đó" nào nếu phải hỏi Aura The Soul-Weaver. Người gọi PHẢI kiểm tra
 // sentinelReviveIsPending(next) NGAY SAU lời gọi này — true nghĩa là 1
 // NEED_SENTINEL_REVIVE vừa được đẩy lên, phải return events tích luỹ TỚI GIỜ
@@ -4237,7 +4237,7 @@ function triggerLoseLifeHooks(
 // nguồn sát thương (Bang!/Gatling/Duel/Indians!/Dynamite) nên "Bia hồi sinh"
 // đặt ĐÚNG 1 chỗ này là áp dụng đủ cho tất cả, không cần sửa từng nơi.
 //
-// *** THỨ TỰ CÁC CƠ CHẾ CHẶN CÁI CHẾT (docs/bang-rules/House_Rule.txt mục I, ghi chú The
+// *** THỨ TỰ CÁC CƠ CHẾ CHẶN CÁI CHẾT (docs/bang/rules/House_Rule.txt mục I, ghi chú The
 // Aura The Soul-Weaver) — CHỐT TẬP TRUNG DUY NHẤT Ở ĐÂY, đừng cài rời rạc nơi khác: ***
 //   1. Elena Noir ĐANG trong Miễn Tử (máu giữ nguyên ở 0, không chạm gì khác)
 //   2. Bia hồi sinh tự động (bỏ 1 lá Bia, về 1 máu)
@@ -4254,7 +4254,7 @@ function eliminateIfDead(
 ): GameEvent[] {
   if (target.hp > 0) return [];
 
-  // Bộ mở rộng "custom_characters" (Elena Noir, xem docs/bang-rules/House_Rule.txt mục I) —
+  // Bộ mở rộng "custom_characters" (Elena Noir, xem docs/bang/rules/House_Rule.txt mục I) —
   // ĐÃ đang trong Miễn Tử (đòn kích hoạt đầu tiên đã xử lý ở nhánh riêng bên
   // dưới, xong 1 lần thì elenaNoirImmortalTurnsLeft khác null suốt 2 lượt) —
   // MỌI sát thương tiếp theo trong lúc này giữ máu NGUYÊN ở 0, không chạm gì
@@ -4270,7 +4270,7 @@ function eliminateIfDead(
   }
 
   // Bia "hồi sinh" — TỰ ĐỘNG (không hỏi người chơi, đúng ghi chú "tự động"
-  // trong docs/bang-rules/NHAN-VAT-BANG-CO-BAN.txt, mục Sid Ketchum): còn ít nhất 1 lá Bia
+  // trong docs/bang/rules/NHAN-VAT-BANG-CO-BAN.txt, mục Sid Ketchum): còn ít nhất 1 lá Bia
   // trên tay VÀ tổng số người còn sống (TÍNH CẢ target — target.alive vẫn
   // đang true tới tận eliminatePlayer()) lớn hơn 2 -> bỏ 1 lá Bia, kéo THẲNG
   // về 1 máu (không phải +1 từ số âm nếu bị dư sát thương), không chết. Bằng
@@ -4318,7 +4318,7 @@ function eliminateIfDead(
       ? [{ type: "BEER_INEFFECTIVE", playerId: target.id }]
       : [];
 
-  // Bộ mở rộng "custom_characters" (Elena Noir, xem docs/bang-rules/House_Rule.txt mục I) —
+  // Bộ mở rộng "custom_characters" (Elena Noir, xem docs/bang/rules/House_Rule.txt mục I) —
   // Bia không cứu được (hoặc không có) — đòn này lẽ ra giết cô. Đang "vũ
   // trang" khả năng Miễn Tử VÀ CHƯA đang trong Miễn Tử (có entry trong
   // elenaNoirImmortalTurnsLeft nghĩa là đã kích hoạt từ trước — không kích
@@ -4339,7 +4339,7 @@ function eliminateIfDead(
     return [...ineffectiveEvents, { type: "ELENA_NOIR_IMMORTAL_TRIGGERED", playerId: target.id, turnsLeft: 2 }];
   }
 
-  // Bộ mở rộng "custom_characters" (Aura The Soul-Weaver, xem docs/bang-rules/House_Rule.txt mục I) —
+  // Bộ mở rộng "custom_characters" (Aura The Soul-Weaver, xem docs/bang/rules/House_Rule.txt mục I) —
   // SAU CÙNG, khi mọi cách tự cứu ở trên đều đã thất bại: có ai đủ điều kiện
   // (còn sống, canReviveOthers, chưa dùng — kể cả chính target nếu target là
   // Aura The Soul-Weaver) thì HỎI thay vì loại luôn. Đẩy pending -> DỪNG NGAY, người
@@ -4353,7 +4353,7 @@ function eliminateIfDead(
   return [...ineffectiveEvents, ...eliminatePlayer(next, target, killerId)];
 }
 
-// Bộ mở rộng "custom_characters" (Aura The Soul-Weaver, xem docs/bang-rules/House_Rule.txt mục I) —
+// Bộ mở rộng "custom_characters" (Aura The Soul-Weaver, xem docs/bang/rules/House_Rule.txt mục I) —
 // tìm TẤT CẢ người chơi còn sống có canReviveOthers === true (thường là
 // đúng 1 Aura The Soul-Weaver, hiếm khi 2 — Aura The Soul-Weaver thật VÀ Vera Custer đang
 // mượn cùng lúc) và CHƯA dùng (sentinelUsed[id] khác true), kể cả chính
@@ -4385,7 +4385,7 @@ function maybeAskSentinelRevive(
   return true;
 }
 
-// Bộ mở rộng "custom_characters" (Aura The Soul-Weaver, xem docs/bang-rules/House_Rule.txt mục I) —
+// Bộ mở rộng "custom_characters" (Aura The Soul-Weaver, xem docs/bang/rules/House_Rule.txt mục I) —
 // trả lời NEED_SENTINEL_REVIVE. Đọc lại sentinelUsed[sentinel.id] THẬT (không
 // tin action.reviveTarget mù quáng — phòng hết giờ/client cũ gửi true dù đã
 // dùng, không phải bí mật nên không cần kỹ tính như Nomad Norman). Từ chối (hoặc
@@ -4413,7 +4413,7 @@ function respondToSentinelRevive(
   if (accepted) {
     next.sentinelUsed[sentinel.id] = true;
     // "2 MÁU TỐI ĐA VĨNH VIỄN" — trừ thẳng maxHp, kẹp hp hiện tại xuống theo
-    // (đã chốt trong docs/bang-rules/House_Rule.txt mục I, ghi chú Aura The Soul-Weaver).
+    // (đã chốt trong docs/bang/rules/House_Rule.txt mục I, ghi chú Aura The Soul-Weaver).
     sentinel.maxHp -= 2;
     sentinel.hp = Math.min(sentinel.hp, sentinel.maxHp);
     target.hp = 1; // target.alive vẫn true suốt từ đầu (chưa từng gọi eliminatePlayer())
@@ -4570,7 +4570,7 @@ function assertPhase(state: GameState, phase: GameState["turnPhase"]): void {
 }
 
 // Trả về GameEvent[] (khác `void` trước đây) vì bộ mở rộng "custom_characters"
-// (Elena Noir, xem docs/bang-rules/House_Rule.txt mục I) có thể khiến việc "chuyển lượt" kéo
+// (Elena Noir, xem docs/bang/rules/House_Rule.txt mục I) có thể khiến việc "chuyển lượt" kéo
 // theo cả 1 người chết (chết chắc chắn sau đúng 2 lượt Miễn Tử) — cascade
 // events đó phải truyền ngược lên MỌI nơi gọi hàm này (4 chỗ, xem lịch sử
 // sửa). Người MỚI kết thúc lượt CHƯA bị đổi (next.currentPlayerIndex vẫn trỏ
@@ -4642,7 +4642,7 @@ export function applyTurnStartChecks(next: GameState, options: { skipEventReveal
   // Dynamite/Jail (đã hỏi lại và chốt đúng thứ tự này) — nhờ vậy người bị
   // Jail/Marcel companion bỏ qua HẲN lượt vẫn ăn đủ sát thương này mà không
   // cần code riêng cho từng trường hợp, vì lúc này 2 bước đó còn chưa chạy.
-  // Bộ mở rộng "custom_characters" (Nomad Norman, xem docs/bang-rules/House_Rule.txt mục I) —
+  // Bộ mở rộng "custom_characters" (Nomad Norman, xem docs/bang/rules/House_Rule.txt mục I) —
   // hỏi dùng khiên TRƯỚC khi áp sát thương High Noon, SAU CÙNG (đòn này không
   // có gì để đỡ trước đó — không qua Barrel/Missed!, nên "sau cùng" ở đây là
   // ngay lập tức). Bị chặn -> DỪNG HẲN Bước 0 tại đây, chờ trả lời (đúng khuôn
@@ -4870,7 +4870,7 @@ function applyDynamiteAndJailChecks(next: GameState, player: PlayerState): void 
   // không nổ, không giam, lượt chạy thẳng như không có 2 lá đó (2 lá vẫn nằm
   // nguyên trên sân, chỉ tạm ngưng tác dụng, tự động trở lại khi Lasso bị đè).
   // Cố tình KHÔNG đi qua getEffectiveEquipment() ở đây (khác ý tưởng ban đầu
-  // trong docs/bang-rules/Luat_Bang_Mo_Rong_FistfulOfCards.txt) — chặn thẳng bằng isEventActive
+  // trong docs/bang/rules/Luat_Bang_Mo_Rong_FistfulOfCards.txt) — chặn thẳng bằng isEventActive
   // để không phải truyền thêm tham số phân biệt "vô hiệu do Lasso" với "vô
   // hiệu do Belle Star" (2 lá không liên quan gì nhau, không cần chung 1 đường).
   if (isEventActive(next, "lasso")) return;

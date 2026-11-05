@@ -1,5 +1,5 @@
 // Lá sự kiện (High Noon + A Fistful of Cards) — xem mục 1.1
-// docs/bang-rules/Luat_Bang_Mo_Rong_HighNoon.txt. KHÔNG PHẢI Card: không suit/rank, không vào
+// docs/bang/rules/Luat_Bang_Mo_Rong_HighNoon.txt. KHÔNG PHẢI Card: không suit/rank, không vào
 // bộ bài rút (deck/discardPile), không ai cầm trên tay, không bị Cat Balou/
 // Panic! đụng tới. Đây là dữ liệu THUẦN — hiệu ứng của từng lá nằm rải ở đúng
 // chỗ luật gốc tương ứng trong reduce.ts/distance.ts, KHÔNG gom vào đây.
@@ -90,7 +90,7 @@ export const EVENT_CARDS: Record<EventId, EventDefinition> = {
 // của MỌI bộ đang bật, đúng khuôn EXPANSION_CARD_COUNTS (cards.ts)/
 // EXPANSION_CHARACTER_IDS (characters.ts). "abandoned_mine" CỐ TÌNH bị loại
 // khỏi đây (chủ dự án quyết định tạm bỏ lá này khỏi bộ bài, xem
-// docs/bang-rules/Luat_Bang_Mo_Rong_FistfulOfCards.txt) — EventDefinition vẫn khai báo đủ ở
+// docs/bang/rules/Luat_Bang_Mo_Rong_FistfulOfCards.txt) — EventDefinition vẫn khai báo đủ ở
 // trên, chỉ không đưa vào bộ bốc thật.
 //
 // (2026-08-08) CÙNG LÝ DO: "ghost_town" (High Noon)/"dead_man"/

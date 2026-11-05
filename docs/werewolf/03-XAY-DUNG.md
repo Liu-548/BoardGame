@@ -20,7 +20,7 @@
 | **W3** | `reduce` ban ngày + điều kiện thắng | `core/reduce.ts` | W2 | T-DAY, T-WIN, T-SIM |
 | **W4** | `viewFor` | `core/view.ts` | W3 | T-VIEW |
 | **W5** | Khung phòng chung: hàm thuần (nhận diện, băm view) + `BaseRoom` + protocol | `src/shared/room/*` | — | T-ROOM |
-| **W6** | `WerewolfRoom` + định tuyến + wrangler | `werewolf/server/room.ts`, `bang/server/index.ts`, `wrangler.jsonc` | W4, W5 | M-01 (phần server, test bằng 2 tab thô) |
+| **W6** | `WerewolfRoom` + định tuyến + wrangler | `werewolf/server/room.ts`, `server/index.ts` (trước 2026-11-06: `bang/server/index.ts`), `wrangler.jsonc` | W4, W5 | M-01 (phần server, test bằng 2 tab thô) |
 | **W7** | Client: nối mạng + phòng chờ (nhập tên, config, bộ gợi ý) | `shared/room/net.ts`, `identity.ts`, `werewolf/client/*` | W6 | M-01, M-04, M-05 |
 | **W8** | Client: màn chơi (thanh trên, lưới thẻ tên, khu thao tác, đồng hồ) dọc + ngang | `werewolf/client/ui.ts`, `style.css` | W7 | M-02, M-03, M-06, M-07, M-08 |
 | **W9** | Thẻ "Ma Sói" ở Sảnh + `mountWerewolf` + nhánh `screen = "external"` | `hub/ui.ts`, `bang/client/main.ts` | W8 | M-09 |

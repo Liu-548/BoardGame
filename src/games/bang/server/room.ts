@@ -770,7 +770,7 @@ export class Room {
       // targetId vẫn hợp lệ, nhưng đó là lựa chọn TỰ NGUYỆN của người chơi,
       // không phải hành vi mặc định lúc hết giờ) — house rule đã chốt tự chọn
       // NGẪU NHIÊN 1 người còn sống CÓ BÀI, chỉ rơi về "không chọn ai" khi thật
-      // sự không còn ai có bài (xem docs/bang-rules/House_Rule.txt mục I).
+      // sự không còn ai có bài (xem docs/bang/rules/House_Rule.txt mục I).
       case "NEED_PICK_THIEF_TARGET": {
         const player = state.players.find((p) => p.id === top.player);
         if (!player) return null;
