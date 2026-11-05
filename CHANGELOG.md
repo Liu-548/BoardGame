@@ -1818,3 +1818,10 @@ không còn phần nào của nhân vật này bị bỏ dở.
 - `core/reduce.ts` thêm EXTEND_DISCUSSION, TOGGLE_END_EARLY (quá nửa = count*2 > sống), CAST_VOTE, CAST_VERDICT, TIME_UP cho thảo luận/bỏ phiếu/biện hộ/phán quyết; kết thúc sớm khi mọi người đã chọn (R-52c, R-54b). Thắng/hoà qua `checkWinner`.
 - `core/view.ts`: `WerewolfView` khai báo từng trường; người chết chỉ thêm vai mọi người (D-34); wolfPicks chỉ Sói sống trong pha wolves; bittenId chỉ Phù thủy từ pha witch.
 - Test: `day.test.ts` (T-D, T-W, T-SIM, T-P-02) + `view.test.ts` (T-V-01..13). 89 test Ma Sói pass, typecheck sạch.
+
+## Ma Sói — W5+W6: khung phòng chung + server (2026-11-05)
+- `src/shared/room/`: `protocol.ts`, `logic.ts` (normalizeName, decideJoin, viewHash FNV-1a, pickOwner — hàm thuần, T-R-01..08), `base-room.ts` (Durable Object gốc: acceptWebSocket, nhịp tim 90s, chủ phòng, `commit()` = lưu → alarm → gửi view chỉ khi băm đổi). Bang! KHÔNG đổi.
+- `werewolf/server/room.ts`: `WerewolfRoom` chỉ nối adapter. `bang/server/index.ts` thêm route `/werewolf/room/<mã>`; `wrangler.jsonc` thêm binding `WEREWOLF_ROOM`, migration v2, `run_worker_first` (cả env.beta).
+- Lệch nhỏ so với 02: adapter thêm `sanitizeConfig` (ép config thô từ client); message `lobby` thêm `configError` và mỗi người có `waiting`; `set_config` với `config: null` = quay về bộ gợi ý. Bộ gợi ý tự theo số người đang kết nối cho tới khi chủ phòng sửa tay.
+- Kiểm bằng `wrangler dev` + 6 WebSocket thô (`test/werewolf/smoke-server.mjs`): 15/15 mục OK (tên trùng bị từ chối, chỉ chủ phòng bắt đầu, config sai → configError, Dân chỉ thấy vai mình, Bảo vệ đổi 3 lần người khác không nhận gói, TIME_UP/giả mạo bị chặn, alarm tự sang ngày, vào lại đúng ghế, mất kết nối không huỷ ván, người vào giữa ván chờ ván sau).
+- Môi trường: `wrangler dev` phải dùng `--persist-to` ngoài thư mục dự án (thư mục này cấm xoá file nên SQLite lỗi).

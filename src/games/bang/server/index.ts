@@ -7,15 +7,21 @@
 // đâu cả. Chưa có màn hình lobby để tự sinh mã (việc 3.9) — tạm thời ai gõ mã
 // gì trên URL thì vào đúng phòng đó, kể cả mã tự bịa.
 
+import { WerewolfRoom } from "../../werewolf/server/room";
 import { Room } from "./room";
 
 export interface Env {
   ROOM: DurableObjectNamespace;
+  WEREWOLF_ROOM: DurableObjectNamespace;
 }
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
+    // D-02: Ma Sói có đường riêng, nhánh /room/<mã> của Bang! giữ nguyên.
+    const werewolf = url.pathname.match(/^\/werewolf\/room\/([^/]+)\/?$/);
+    if (werewolf) return env.WEREWOLF_ROOM.get(env.WEREWOLF_ROOM.idFromName(werewolf[1])).fetch(request);
+
     const match = url.pathname.match(/^\/room\/([^/]+)\/?$/);
 
     if (!match) {
@@ -29,4 +35,4 @@ export default {
   },
 };
 
-export { Room };
+export { Room, WerewolfRoom };

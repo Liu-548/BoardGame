@@ -1,0 +1,31 @@
+// Message chung client↔server cho mọi game dùng khung phòng chung (02 mục 7).
+// Phần riêng từng game (config, action, view) đi qua kiểu `unknown`, game tự ép kiểu.
+
+export type ClientMessage =
+  | { type: "join"; name: string; token: string }
+  | { type: "set_config"; config: unknown | null } // chỉ chủ phòng; null = quay về bộ gợi ý
+  | { type: "start_game" } // chỉ chủ phòng; seed do server sinh
+  | { type: "action"; action: unknown } // server kiểm playerId khớp socket, ghi đè `now`
+  | { type: "return_to_lobby" } // chỉ chủ phòng, chỉ khi ván đã kết thúc
+  | { type: "ping" };
+
+export interface LobbyPlayer {
+  playerId: string;
+  name: string;
+  connected: boolean;
+  waiting: boolean; // vào giữa ván → chờ ván sau (D-43.3)
+}
+
+export type ServerMessage =
+  | { type: "joined"; playerId: string }
+  | { type: "join_rejected"; reason: string }
+  | {
+      type: "lobby";
+      players: LobbyPlayer[];
+      ownerId: string | null;
+      config: unknown;
+      configError: string | null; // validateConfig của game, null = hợp lệ
+      inGame: boolean;
+    }
+  | { type: "state"; view: unknown; serverNow: number }
+  | { type: "error"; message: string };
