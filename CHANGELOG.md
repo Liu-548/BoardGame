@@ -1832,3 +1832,18 @@ không còn phần nào của nhân vật này bị bỏ dở.
 - Sảnh: thẻ "Ma Sói" (chơi được); `bang/client/main.ts` thêm `screen = "external"` + gọi `mountWerewolf`, `render()` bỏ qua khi external. Chỉ 4 chỗ ngoài thư mục Ma Sói như 02 mục 9 (index.ts, wrangler, main.ts, hub/ui.ts) + `public/style.css` thêm màu poster.
 - Lệch nhỏ: vai của chính mình ẩn trên thẻ (chỉ xem qua nút "Vai của tôi", đúng 02 mục 8.1); Tiên tri soi ngay khi chạm (đúng R-42c, không có bước xác nhận).
 - Kiểm tự động bằng Playwright (6 trình duyệt, `wrangler dev`): vào phòng → chủ phòng chỉnh giây → bắt đầu → chơi Đêm 1 (Bảo vệ/Sói thấy nhau/Tiên tri/Phù thủy cứu) → Ngày 1 (kết thúc sớm, bỏ phiếu, biện hộ, phán quyết) → Đêm 2; không lỗi console.
+
+## Ma Sói — W10: kiểm tay M-01..M-10 (2026-11-05)
+Chạy bằng Playwright (6 trình duyệt riêng, `wrangler dev` + bản `vite build`) thay cho kiểm tay; script nằm ngoài repo.
+- **M-01** đã kiểm: config đổi hiện ngay ở tab khác; config sai → khoá Bắt đầu + lý do; người không phải chủ không thấy nút Bắt đầu.
+- **M-02** đã kiểm (lượt chạy trước): thanh trên chỉ nêu tên vai; người không có việc cùng thấy 1 dòng "Trời tối…"; Sói thấy chip lựa chọn của nhau, Dân không thấy; phiếu ngày hiện dưới thẻ.
+- **M-03** đã kiểm sau khi SỬA LỖI: F5 trước đây về Sảnh. Nay lưu phiên trong `sessionStorage` (`resumeWerewolf()` gọi lúc mở trang) → vào lại đúng ghế/vai, đồng hồ tiếp tục (0:07 → 0:07).
+- **M-04** đã kiểm: đóng tab → người khác thấy 📴; mở lại cùng tên nhận đúng ghế/vai, ván không huỷ. Chưa kiểm ca socket "ma" im lặng quá 90s (cần chờ thật; logic nằm ở `connectedIds()`).
+- **M-05** đã kiểm: trùng tên đang kết nối bị từ chối "Tên đã có người dùng"; vào lại đúng ghế bằng cùng mã trình duyệt.
+- **M-06** đã kiểm: 390×760 và 760×390 không tràn ngang; ngang chuyển 2 cột. (Dùng setViewportSize thật.)
+- **M-07** đã kiểm: Dân nhận 0 gói state khi Bảo vệ đổi lựa chọn 3 lần (cả ở trình duyệt lẫn WebSocket thô).
+- **M-08** đã kiểm một phần: phần tử thẻ giữ nguyên qua cập nhật server, không reload trang. Chưa thử dialog/gõ chữ (Ma Sói v1 không có dialog hay ô nhập trong ván).
+- **M-09** đã kiểm: Sảnh → Ma Sói → Rời → Bang! hiện màn "Chọn cách chơi"; WebSocket `/room/<mã>` của Bang! vẫn 101. Chưa chơi trọn 1 lượt Bang!. Không lỗi console.
+- **M-10** đã kiểm: ván 1 Sói chơi tới hết → Phe Dân thắng, lật đủ 6 vai; 1 tab đóng rồi "Về phòng chờ" → phòng chờ còn 5 người đang kết nối.
+- **Lỗi tìm thấy và đã sửa trong W10:** (1) F5 mất phòng (trên); (2) chạm nhanh +/− ở phòng chờ làm mất lần chạm vì dùng số cũ → nay cập nhật theo cấu hình mới nhất chưa xác nhận.
+- Toàn bộ 873 test pass, typecheck sạch. Ma Sói v1 xong; chưa deploy.

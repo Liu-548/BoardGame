@@ -3,13 +3,15 @@ import "./style.css";
 import { getOrCreateToken } from "../../../shared/room/identity";
 import { RoomClient } from "../../../shared/room/net";
 import type { ServerMessage } from "../../../shared/room/protocol";
-import type { Action } from "../core/types";
+import type { Action, Config } from "../core/types";
 import type { WerewolfView } from "../core/view";
 import { createGameFrame, renderForm, renderLobby } from "./ui";
 import type { GameFrame } from "./ui";
 
 type Lobby = Extract<ServerMessage, { type: "lobby" }>;
 const NAME_KEY = "ww:name";
+// Phiên đang chơi (sessionStorage: sống qua F5 trong cùng tab) để tải lại trang vẫn vào lại đúng phòng (M-03).
+const SESSION_KEY = "ww:session";
 const CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
 function serverUrl(code: string): string {
@@ -28,7 +30,35 @@ function readName(): string {
   }
 }
 
-export function mountWerewolf(root: HTMLElement, onExit: () => void): void {
+function saveSession(name: string, code: string): void {
+  try {
+    sessionStorage.setItem(SESSION_KEY, JSON.stringify({ name, code }));
+  } catch {
+    // không lưu được thì F5 sẽ về Sảnh
+  }
+}
+function clearSession(): void {
+  try {
+    sessionStorage.removeItem(SESSION_KEY);
+  } catch {
+    // bỏ qua
+  }
+}
+
+// Gọi lúc mở trang: nếu tab này đang ở trong phòng Ma Sói thì vào lại, trả true.
+export function resumeWerewolf(root: HTMLElement, onExit: () => void): boolean {
+  let saved: { name: string; code: string } | null = null;
+  try {
+    saved = JSON.parse(sessionStorage.getItem(SESSION_KEY) ?? "null");
+  } catch {
+    saved = null;
+  }
+  if (!saved || typeof saved.name !== "string" || typeof saved.code !== "string") return false;
+  mountWerewolf(root, onExit, saved);
+  return true;
+}
+
+export function mountWerewolf(root: HTMLElement, onExit: () => void, resume?: { name: string; code: string }): void {
   document.body.classList.add("ww-active");
   let conn: RoomClient | null = null;
   let roomCode = "";
@@ -37,6 +67,8 @@ export function mountWerewolf(root: HTMLElement, onExit: () => void): void {
   let view: WerewolfView | null = null;
   let frame: GameFrame | null = null;
   let clockTimer: ReturnType<typeof setInterval> | null = null;
+  // Cấu hình đang chờ server xác nhận (để chạm nhanh +/− không dùng số cũ).
+  let localConfig: Config | null = null;
   let draft = { name: readName(), code: "" };
 
   const stopClock = () => {
@@ -48,12 +80,14 @@ export function mountWerewolf(root: HTMLElement, onExit: () => void): void {
     conn?.close();
     conn = null;
     stopClock();
+    clearSession();
     document.body.classList.remove("ww-active");
     root.replaceChildren();
     onExit();
   }
 
   function showForm(error: string | null): void {
+    clearSession();
     conn?.close();
     conn = null;
     frame = null;
@@ -68,6 +102,7 @@ export function mountWerewolf(root: HTMLElement, onExit: () => void): void {
     const cleanCode = code.trim().toUpperCase();
     if (!cleanCode) return showForm("Hãy nhập hoặc tạo mã phòng");
     draft = { name, code: cleanCode };
+    saveSession(name, cleanCode);
     try {
       localStorage.setItem(NAME_KEY, name.trim());
     } catch {
@@ -96,6 +131,7 @@ export function mountWerewolf(root: HTMLElement, onExit: () => void): void {
         return;
       case "lobby":
         lobby = m;
+        localConfig = null;
         if (!m.inGame) view = null; // ván đã kết thúc/huỷ → về phòng chờ
         return refresh();
       case "state":
@@ -130,7 +166,11 @@ export function mountWerewolf(root: HTMLElement, onExit: () => void): void {
     frame = null;
     stopClock();
     renderLobby(root, lobby, myId, roomCode, {
-      onSetConfig: (config) => conn?.send({ type: "set_config", config }),
+      onSetConfig: (update) => {
+        if (!lobby) return;
+        localConfig = update ? update(localConfig ?? (lobby.config as Config)) : null;
+        conn?.send({ type: "set_config", config: localConfig });
+      },
       onStart: () => conn?.send({ type: "start_game" }),
       onLeave: leave,
     });
@@ -143,5 +183,6 @@ export function mountWerewolf(root: HTMLElement, onExit: () => void): void {
     frame.setClock(`${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")}`);
   }
 
-  showForm(null);
+  if (resume) join(resume.name, resume.code);
+  else showForm(null);
 }

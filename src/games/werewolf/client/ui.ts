@@ -73,7 +73,8 @@ function labelled(text: string, input: HTMLElement): HTMLLabelElement {
 
 // ---------- Phòng chờ (cũng dùng làm màn "chờ ván sau") ----------
 export interface LobbyHandlers {
-  onSetConfig(config: Config | null): void;
+  // `update` nhận cấu hình MỚI NHẤT (kể cả chưa được server xác nhận) → chạm nhanh nhiều lần không mất lần nào.
+  onSetConfig(update: ((current: Config) => Config) | null): void;
   onStart(): void;
   onLeave(): void;
 }
@@ -113,7 +114,7 @@ export function renderLobby(root: HTMLElement, lobby: Lobby, myId: string, roomC
       if (s * 1000 === config.nightStepMs) o.selected = true;
       sel.appendChild(o);
     }
-    sel.addEventListener("change", () => h.onSetConfig({ ...config, nightStepMs: Number(sel.value) * 1000 }));
+    sel.addEventListener("change", () => h.onSetConfig((c) => ({ ...c, nightStepMs: Number(sel.value) * 1000 })));
     secs.appendChild(sel);
     wrap.appendChild(secs);
 
@@ -143,8 +144,7 @@ function roleRow(role: Role, config: Config, isOwner: boolean, h: LobbyHandlers)
   const row = el("div", "ww-role");
   row.appendChild(el("span", "ww-role__name", ROLE_LABEL[role]));
   const set = (delta: number) => {
-    const next = Math.max(0, Math.min(MAX_PLAYERS, config.roleCounts[role] + delta));
-    h.onSetConfig({ ...config, roleCounts: { ...config.roleCounts, [role]: next } });
+    h.onSetConfig((c) => ({ ...c, roleCounts: { ...c.roleCounts, [role]: Math.max(0, Math.min(MAX_PLAYERS, c.roleCounts[role] + delta)) } }));
   };
   const minus = button("−", () => set(-1), "ww-step");
   const plus = button("+", () => set(1), "ww-step");

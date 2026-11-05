@@ -30,7 +30,7 @@ import type { PlayerView } from "../core/view";
 import { RoomConnection } from "./net";
 import type { DeadlineInfo, ServerMessage } from "../protocol";
 import { renderHubScreen } from "../../../hub/ui";
-import { mountWerewolf } from "../../werewolf/client/main";
+import { mountWerewolf, resumeWerewolf } from "../../werewolf/client/main";
 import type { HubGameId } from "../../../hub/ui";
 import {
   applyStoredSettings,
@@ -2276,4 +2276,14 @@ function onNetworkConfirmCharacterChoice(): void {
   networkDispatch({ type: "CHOOSE_CHARACTER", playerId: myPlayerId, characterId: networkArmedCharacterId });
 }
 
-render();
+// F5 khi đang ở phòng Ma Sói → vào lại đúng phòng (xem resumeWerewolf()); không thì vẽ Sảnh như thường.
+if (
+  resumeWerewolf(root, () => {
+    screen = "hub";
+    render();
+  })
+) {
+  screen = "external";
+} else {
+  render();
+}
