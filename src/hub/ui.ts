@@ -56,7 +56,7 @@ const GAMES: HubGameEntry[] = [
     posterGlyph: "🐺",
     posterIsWordmark: false,
     description: "Đêm xuống, Sói săn mồi; ban ngày cả làng tranh luận xem ai là Sói. Máy làm quản trò thay người.",
-    playersHint: "6–12 người",
+    playersHint: "6–20 người",
     locked: false,
   },
   {

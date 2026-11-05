@@ -75,7 +75,7 @@ describe("T-DAY bỏ phiếu", () => {
     s = act(s, { type: "CAST_VOTE", playerId: "p0", targetId: "p3" });
     s = act(s, { type: "CAST_VOTE", playerId: "p1", targetId: "p4" });
     s = timeUp(s);
-    expect(s.phase).toMatchObject({ kind: "night", night: 2, step: "guard" });
+    expect(s.phase).toMatchObject({ kind: "night", night: 2, step: "first" });
     expect(s.log.at(-1)).toEqual({ kind: "vote_result", day: 1, accusedId: null });
   });
   it("T-D-10 không ai bầu / toàn trắng → sang đêm", () => {
@@ -158,24 +158,24 @@ describe("T-WIN", () => {
   it("T-W-02 sáng ra Sói sống = số còn lại → wolves", () => {
     let s = makeGame(STD6);
     s = kill(s, "p2", "p3"); // còn p0,p1 | p4,p5
-    s = skipTo(s, { kind: "night", step: "wolves" });
+    s = skipTo(s, { kind: "night", step: "first" });
     s = act(s, { type: "WOLF_PICK", playerId: "p0", targetId: "p4" });
     s = skipTo(s, { kind: "ended" }); // p4 chết → 2 Sói vs 1 Dân
     expect(s.phase).toEqual({ kind: "ended", winner: "wolves" });
   });
   it("T-W-03 độc Sói cuối + cắn Dân cuối → draw", () => {
     let s = makeGame(["wolf", "villager", "witch"]);
-    s = skipTo(s, { kind: "night", step: "wolves" });
+    s = skipTo(s, { kind: "night", step: "first" });
     s = act(s, { type: "WOLF_PICK", playerId: "p0", targetId: "p1" });
-    s = skipTo(s, { kind: "night", step: "witch" });
+    s = skipTo(s, { kind: "night", step: "second" });
     s = act(s, { type: "WITCH_SET", playerId: "p2", save: false, poisonTarget: "p0" });
     s = timeUp(s);
     expect(ids(s)).toEqual(["p2"]); // phù thủy còn sống
     // cắn cả Phù thủy: dựng tay trạng thái 1 Sói + 1 Dân cuối cùng
     let t = makeGame(["wolf", "witch"]);
-    t = skipTo(t, { kind: "night", step: "wolves" });
+    t = skipTo(t, { kind: "night", step: "first" });
     t = act(t, { type: "WOLF_PICK", playerId: "p0", targetId: "p1" });
-    t = skipTo(t, { kind: "night", step: "witch" });
+    t = skipTo(t, { kind: "night", step: "second" });
     t = act(t, { type: "WITCH_SET", playerId: "p1", save: false, poisonTarget: "p0" });
     expect(timeUp(t).phase).toEqual({ kind: "ended", winner: "draw" });
   });
@@ -192,7 +192,7 @@ describe("T-WIN", () => {
 describe("T-SIM", () => {
   it("T-SIM-01 STD6 → Dân thắng ở Ngày 2", () => {
     let s = makeGame(STD6);
-    s = skipTo(s, { kind: "night", step: "wolves" });
+    s = skipTo(s, { kind: "night", step: "first" });
     s = act(s, { type: "WOLF_PICK", playerId: "p0", targetId: "p5" });
     s = skipTo(s, { kind: "discussion" }); // p5 chết
     expect(s.lastNightDeaths).toEqual(["p5"]);
@@ -202,7 +202,7 @@ describe("T-SIM", () => {
     s = timeUp(s);
     for (const p of ["p1", "p2", "p3", "p4"]) s = act(s, { type: "CAST_VERDICT", playerId: p, choice: "kill" });
     expect(s.phase).toMatchObject({ kind: "night", night: 2 });
-    s = skipTo(s, { kind: "night", step: "witch" });
+    s = skipTo(s, { kind: "night", step: "second" });
     s = act(s, { type: "WITCH_SET", playerId: "p3", save: false, poisonTarget: "p1" });
     s = timeUp(s);
     expect(s.phase).toEqual({ kind: "ended", winner: "village" });
@@ -210,17 +210,17 @@ describe("T-SIM", () => {
   });
   it("T-SIM-02 STD6 → Sói thắng", () => {
     let s = makeGame(STD6);
-    s = skipTo(s, { kind: "night", step: "wolves" });
+    s = skipTo(s, { kind: "night", step: "first" });
     s = act(s, { type: "WOLF_PICK", playerId: "p0", targetId: "p2" });
     s = skipTo(s, { kind: "vote" }); // Ngày 1 trôi qua, không ai bầu
-    s = skipTo(s, { kind: "night", step: "wolves" });
+    s = skipTo(s, { kind: "night", step: "first" });
     s = act(s, { type: "WOLF_PICK", playerId: "p1", targetId: "p3" });
     s = skipTo(s, { kind: "ended" });
     expect(s.phase).toEqual({ kind: "ended", winner: "wolves" });
   });
   it("T-P-02 cùng seed + log → state giống hệt", () => {
     const run = () => {
-      let s = skipTo(makeGame(STD6, { seed: 9 }), { kind: "night", step: "wolves" });
+      let s = skipTo(makeGame(STD6, { seed: 9 }), { kind: "night", step: "first" });
       s = act(s, { type: "WOLF_PICK", playerId: "p0", targetId: "p2" });
       s = act(s, { type: "WOLF_PICK", playerId: "p1", targetId: "p3" });
       return skipTo(s, { kind: "vote" });

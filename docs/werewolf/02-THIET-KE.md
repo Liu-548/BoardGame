@@ -37,7 +37,7 @@ Toàn bộ là JSON thuần (quy tắc 3): không class, Map, Set, hàm.
 
 ```ts
 type Role = "wolf" | "villager" | "seer" | "witch" | "guard";
-type NightStep = "guard" | "wolves" | "seer" | "witch";        // thứ tự cố định R-31
+type NightStep = "first" | "second";  // R-31 (sửa 2026-11-05): pha 1 = Sói+Bảo vệ+Tiên tri cùng lúc, pha 2 = Phù thủy
 type Winner = "village" | "wolves" | "draw";                    // R-60
 
 interface Config {
@@ -46,6 +46,7 @@ interface Config {
 }
 
 type Phase =
+  | { kind: "reveal" }                                   // R-30a: Xem vai 6 giây trước Đêm 1
   | { kind: "night"; night: number; step: NightStep }
   | { kind: "discussion"; day: number }
   | { kind: "vote"; day: number }
@@ -130,6 +131,9 @@ verdict ──TIME_UP | mọi người có quyền đã chọn (R-54b)──► 
 - **D-14** Bình minh (thứ tự tính, áp cùng lúc): `dies = {}`; nếu `bittenId` và không (`guardTarget === bittenId` hoặc `witchSave`) → thêm `bittenId`; nếu `witchPoisonTarget` → thêm. Trừ bình ứng với lựa chọn đêm đó (`witchSave` → `potions.save=false`; poison tương tự). `lastGuardTarget = guardTarget`. Kiểm thắng: c (hoà) → a → b (R-60).
 - **D-15** Kiểm tra hợp lệ theo từng action (đúng pha, đúng vai, người gửi còn sống, mục tiêu còn sống, ràng buộc R-40b/R-42a/R-43b,c). Ví dụ `WITCH_SET.save=true` khi `bittenId === null` hoặc `potions.save === false` → lỗi.
 
+- **D-16 (vai mới, 01 mục 12)** Mọi cái chết đi qua `applyDeaths(ids, cause)`: kéo người yêu chết theo, đẩy Thợ săn/Trưởng làng vào `deathQueue`, bật `cubRevenge` (Sói con), đặt `knightCurse` (Kỵ sĩ bị cắn). Sau mỗi đợt chết gọi `continueAfterDeaths`: pha `hunter` (30s) trước → kiểm thắng → pha `successor` (30s) → quay về `resume` (`{day}` → `election` nếu bật Trưởng làng và chưa bầu, rồi `discussion`; `{night}` → đêm mới). Kẻ chán đời bị treo → `ended(tanner)` ngay; Kẻ ngốc → `idiotRevealed`.
+- **D-17** `checkWinner(state)`: cặp đôi khác phe tách riêng; hết người → hoà; chỉ còn cặp đôi → `lovers`; hết Sói và không còn cặp đôi khác phe → `village`; Sói ≥ phần còn lại (tính cả cặp đôi) → `wolves`.
+
 ## 4. Đồng hồ (bài học từ Bang!: "reset time")
 
 Ở Bang!, hạn giờ nằm **ngoài** state, server tự đoán lại mỗi lần có hành động (`scheduleDeadline()` so sánh "decision") → dễ cấp lại giờ mới khi không nên. Ma Sói làm ngược lại:
@@ -153,7 +157,7 @@ interface GameAdapter<S, A, V, C> {
   deadline(state: S): number | null;             // Ma Sói: state.phaseEndsAt
   timeUpAction(state: S, now: number): A;        // Ma Sói: TIME_UP
   isOver(state: S): boolean;
-  minPlayers: number; maxPlayers: number;        // Ma Sói: 6 / 12 (R-01a, hằng số)
+  minPlayers: number; maxPlayers: number;        // Ma Sói: 6 / 20 (R-01a, hằng số)
 }
 ```
 `BaseRoom` không biết gì về luật. Chỉ dùng `ctx.acceptWebSocket` + `webSocketMessage/Close/Error` (quy tắc 7), không `setTimeout/setInterval` (quy tắc 8), không `fetch` treo (quy tắc 9).
@@ -206,9 +210,11 @@ interface GameAdapter<S, A, V, C> {
 type ClientMessage =
   | { type: "join"; name: string; token: string }
   | { type: "set_config"; config: unknown }        // chỉ chủ phòng; server validate bằng adapter
-  | { type: "start_game" }                         // chỉ chủ phòng; seed do server sinh
+  | { type: "start_game"; force?: boolean }       // chỉ chủ phòng; seed do server sinh; force = bắt đầu lại giữa ván
   | { type: "action"; action: unknown }            // server gán playerId? KHÔNG — kiểm playerId khớp socket, gán now
-  | { type: "return_to_lobby" }                    // chỉ chủ phòng, chỉ khi isOver
+  | { type: "return_to_lobby" }                    // chỉ chủ phòng: hủy ván (kể cả đang chơi), cả phòng về phòng chờ
+  | { type: "skip_phase"; token: number | null }   // chỉ chủ phòng, CHỈ bản beta (biến DEV_TOOLS): kết thúc pha ngay = TIME_UP sớm; token = GameAdapter.phaseToken (Ma Sói: phaseSeq), pha đã đổi thì bỏ qua
+  | { type: "set_test_roles"; roles: Record<string, string> | null } // chỉ chủ phòng, CHỈ bản beta: phòng test tự gán vai (null = tắt)
   | { type: "ping" };
 type ServerMessage =
   | { type: "joined"; playerId: string }

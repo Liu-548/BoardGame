@@ -5,7 +5,7 @@ import { RoomClient } from "../../../shared/room/net";
 import type { ServerMessage } from "../../../shared/room/protocol";
 import type { Action, Config } from "../core/types";
 import type { WerewolfView } from "../core/view";
-import { createGameFrame, renderForm, renderLobby } from "./ui";
+import { applyEffectsPref, createGameFrame, renderForm, renderLobby } from "./ui";
 import type { GameFrame } from "./ui";
 
 type Lobby = Extract<ServerMessage, { type: "lobby" }>;
@@ -17,6 +17,9 @@ const CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 function serverUrl(code: string): string {
   const host = new URLSearchParams(location.search).get("server") ?? location.host;
   return `${location.protocol === "https:" ? "wss" : "ws"}://${host}/werewolf/room/${encodeURIComponent(code)}`;
+}
+function seatKey(v: WerewolfView): string {
+  return v.players.map((p) => `${p.id}:${p.seat}`).join(",");
 }
 function makeCode(): string {
   const bytes = crypto.getRandomValues(new Uint8Array(5));
@@ -58,8 +61,20 @@ export function resumeWerewolf(root: HTMLElement, onExit: () => void): boolean {
   return true;
 }
 
+// Font của Ma Sói (Google Fonts, có font dự phòng của hệ thống nếu không tải được). Gắn 1 lần.
+function loadFonts(): void {
+  if (document.getElementById("ww-fonts")) return;
+  const link = document.createElement("link");
+  link.id = "ww-fonts";
+  link.rel = "stylesheet";
+  link.href = "https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;700&family=Noto+Serif+Display:wght@600;700&display=swap";
+  document.head.appendChild(link);
+}
+
 export function mountWerewolf(root: HTMLElement, onExit: () => void, resume?: { name: string; code: string }): void {
+  loadFonts();
   document.body.classList.add("ww-active");
+  applyEffectsPref();
   let conn: RoomClient | null = null;
   let roomCode = "";
   let myId: string | null = null;
@@ -69,6 +84,9 @@ export function mountWerewolf(root: HTMLElement, onExit: () => void, resume?: { 
   let clockTimer: ReturnType<typeof setInterval> | null = null;
   // Cấu hình đang chờ server xác nhận (để chạm nhanh +/− không dùng số cũ).
   let localConfig: Config | null = null;
+  let localTestRoles: Record<string, string> | null = null; // bảng gán vai đang chờ server xác nhận (phòng test)
+  // Đã bấm "Về phòng chờ" sau khi hết ván → bỏ qua view của ván cũ (vd lúc nối lại) cho tới ván mới.
+  let dismissedEnded = false;
   let draft = { name: readName(), code: "" };
 
   const stopClock = () => {
@@ -81,7 +99,7 @@ export function mountWerewolf(root: HTMLElement, onExit: () => void, resume?: { 
     conn = null;
     stopClock();
     clearSession();
-    document.body.classList.remove("ww-active");
+    document.body.classList.remove("ww-active", "ww-day", "ww-fx");
     root.replaceChildren();
     onExit();
   }
@@ -132,11 +150,22 @@ export function mountWerewolf(root: HTMLElement, onExit: () => void, resume?: { 
       case "lobby":
         lobby = m;
         localConfig = null;
-        if (!m.inGame) view = null; // ván đã kết thúc/huỷ → về phòng chờ
+        localTestRoles = null;
+        // Ván bị huỷ → về phòng chờ. Ván đã kết thúc thì giữ màn kết quả tới khi người chơi tự bấm "Về phòng chờ".
+        if (!m.inGame && view?.phase.kind !== "ended") view = null;
         return refresh();
-      case "state":
-        view = m.view as WerewolfView;
+      case "state": {
+        const next = m.view as WerewolfView;
+        if (next.phase.kind === "ended" && dismissedEnded) return;
+        dismissedEnded = false;
+        // Ván mới (bắt đầu lại): dựng lại khung để không sót thẻ/kết quả của ván cũ.
+        if (frame && view && (next.phaseSeq < view.phaseSeq || seatKey(next) !== seatKey(view))) {
+          frame = null;
+          stopClock();
+        }
+        view = next;
         return refresh();
+      }
     }
   }
 
@@ -150,11 +179,18 @@ export function mountWerewolf(root: HTMLElement, onExit: () => void, resume?: { 
 
   function refresh(): void {
     if (!myId || !lobby) return;
-    if (view && lobby.inGame) {
+    if (view && (lobby.inGame || view.phase.kind === "ended")) {
       if (!frame) {
         frame = createGameFrame(root, {
           onAction: send,
-          onReturnToLobby: () => conn?.send({ type: "return_to_lobby" }),
+          onReturnToLobby: () => {
+            dismissedEnded = true;
+            view = null;
+            refresh();
+          },
+          onRestart: () => conn?.send({ type: "start_game", force: true }),
+          onCancelGame: () => conn?.send({ type: "return_to_lobby" }),
+          onSkipPhase: (token) => conn?.send({ type: "skip_phase", token }),
           onLeave: leave,
         });
         clockTimer = setInterval(tickClock, 250); // D-65: chỉ sửa chữ của đồng hồ
@@ -170,6 +206,11 @@ export function mountWerewolf(root: HTMLElement, onExit: () => void, resume?: { 
         if (!lobby) return;
         localConfig = update ? update(localConfig ?? (lobby.config as Config)) : null;
         conn?.send({ type: "set_config", config: localConfig });
+      },
+      onSetTestRoles: (update) => {
+        if (!lobby) return;
+        localTestRoles = update ? update(localTestRoles ?? lobby.testRoles ?? {}) : null;
+        conn?.send({ type: "set_test_roles", roles: localTestRoles });
       },
       onStart: () => conn?.send({ type: "start_game" }),
       onLeave: leave,

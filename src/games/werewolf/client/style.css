@@ -1,70 +1,253 @@
-/* Ma Sói — dùng lại biến màu của public/style.css (sáng/tối tự theo). */
-/* Ma Sói dùng cả màn hình: bỏ lề/độ rộng tối đa của body (public/style.css) để không bị cuộn trang thừa. */
-body.ww-active { background: var(--color-bg-alt); margin: 0; padding: 0; max-width: none; }
-.ww-screen { max-width: 32rem; margin: 0 auto; padding: 1rem; display: flex; flex-direction: column; gap: 0.75rem; }
-.ww-title { margin: 0; }
-.ww-label { display: flex; flex-direction: column; gap: 0.25rem; }
-.ww-label input, .ww-label select { min-height: 2.75rem; font-size: 1rem; padding: 0 0.5rem; }
-.ww-error { color: var(--color-danger); background: var(--color-danger-bg); padding: 0.5rem; border-radius: 0.4rem; margin: 0; }
-.ww-note { color: var(--color-text-muted); margin: 0; }
-.ww-btn { min-height: 2.75rem; padding: 0 1rem; border: 1px solid var(--color-border-strong); border-radius: 0.5rem; background: var(--color-bg); color: var(--color-text); font-size: 1rem; cursor: pointer; }
+/* Ma Sói — "làng đêm dưới đèn lồng". Màu riêng theo thời điểm (không theo Sáng/Tối của Sảnh):
+   đêm = chàm đậm có quầng trăng, ngày (body.ww-day) = rơm nắng. Mọi màu đi qua token --ww-*. */
+body.ww-active {
+  --ww-bg: #0d1330;
+  --ww-bg-deep: #080c20;
+  --ww-panel: #161d40;
+  --ww-panel-2: #1d2550;
+  --ww-line: #2c3670;
+  --ww-ink: #efe6d2;
+  --ww-mist: #9ba1c4;
+  --ww-lantern: #e9b85b;
+  --ww-lantern-ink: #2a1a03;
+  --ww-blood: #e0605a;
+  --ww-village: #86abef;
+  --ww-glow: rgba(233, 184, 91, 0.16);
+  --ww-display: "Noto Serif Display", "Iowan Old Style", Georgia, serif;
+  --ww-body: "Be Vietnam Pro", system-ui, -apple-system, "Segoe UI", sans-serif;
+  margin: 0;
+  padding: 0;
+  max-width: none;
+  min-height: 100dvh;
+  color: var(--ww-ink);
+  font-family: var(--ww-body);
+  color-scheme: dark;
+  /* quầng trăng + vài ngôi sao (gradient tĩnh, không chuyển động) */
+  background:
+    radial-gradient(circle at 86% 4%, var(--ww-glow), transparent 18rem),
+    radial-gradient(1px 1px at 12% 18%, #fff8, transparent 60%),
+    radial-gradient(1px 1px at 34% 8%, #fff6, transparent 60%),
+    radial-gradient(1.5px 1.5px at 58% 22%, #fff7, transparent 60%),
+    radial-gradient(1px 1px at 72% 12%, #fff5, transparent 60%),
+    radial-gradient(1px 1px at 22% 40%, #fff4, transparent 60%),
+    linear-gradient(180deg, var(--ww-bg) 0%, var(--ww-bg-deep) 100%) fixed;
+}
+body.ww-active.ww-day {
+  --ww-bg: #e9cd92;
+  --ww-bg-deep: #d6b071;
+  --ww-panel: #f4e3bd;
+  --ww-panel-2: #faedcf;
+  --ww-line: #c9a465;
+  --ww-ink: #2c1d0e;
+  --ww-mist: #6f5737;
+  --ww-lantern: #9c3e12;
+  --ww-lantern-ink: #fff3df;
+  --ww-blood: #a92a21;
+  --ww-village: #28539f;
+  --ww-glow: rgba(255, 246, 214, 0.75);
+  color-scheme: light;
+  background:
+    radial-gradient(circle at 86% 0%, var(--ww-glow), transparent 20rem),
+    linear-gradient(180deg, var(--ww-bg) 0%, var(--ww-bg-deep) 100%) fixed;
+}
+
+/* ---- Khung chung ---- */
+.ww-screen { max-width: 34rem; margin: 0 auto; padding: 1.25rem 1rem 2rem; display: flex; flex-direction: column; gap: 1rem; }
+.ww-panel { display: flex; flex-direction: column; gap: 0.6rem; padding: 0.9rem; background: var(--ww-panel); border: 1px solid var(--ww-line); border-radius: 0.9rem; }
+.ww-panel__title { margin: 0; font: 700 1.3rem/1.15 var(--ww-display); }
+.ww-label { display: flex; flex-direction: column; gap: 0.3rem; }
+.ww-label__text { font-size: 0.85rem; color: var(--ww-mist); }
+.ww-active input, .ww-active select { min-height: 2.75rem; font: 1rem var(--ww-body); padding: 0 0.7rem; color: var(--ww-ink); background: var(--ww-bg-deep); border: 1px solid var(--ww-line); border-radius: 0.55rem; }
+.ww-active input:focus-visible, .ww-active select:focus-visible, .ww-btn:focus-visible { outline: 2px solid var(--ww-lantern); outline-offset: 2px; }
+.ww-error { color: var(--ww-blood); background: color-mix(in srgb, var(--ww-blood) 14%, transparent); border: 1px solid color-mix(in srgb, var(--ww-blood) 45%, transparent); padding: 0.55rem 0.7rem; border-radius: 0.55rem; margin: 0; }
+.ww-note { color: var(--ww-mist); margin: 0; }
+.ww-note--center { text-align: center; }
+.ww-footrow { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; justify-content: center; }
+
+/* ---- Nút: mặc định viền mảnh; primary = đèn lồng ---- */
+.ww-btn { min-height: 2.75rem; padding: 0 1rem; border: 1px solid var(--ww-line); border-radius: 0.6rem; background: var(--ww-panel-2); color: var(--ww-ink); font: 500 1rem var(--ww-body); cursor: pointer; }
 .ww-btn:disabled { opacity: 0.45; cursor: not-allowed; }
-.ww-btn--primary { background: var(--color-text); color: var(--color-bg); }
-.ww-btn--pressed { background: var(--color-text); color: var(--color-bg); }
-.ww-btn--link { border-color: transparent; background: transparent; text-decoration: underline; }
-.ww-btn--small { min-height: 2.75rem; padding: 0 0.6rem; font-size: 0.85rem; }
+.ww-btn--ghost { background: transparent; }
+.ww-btn--primary, .ww-btn--pressed { background: var(--ww-lantern); border-color: var(--ww-lantern); color: var(--ww-lantern-ink); font-weight: 700; }
+.ww-btn--block { width: 100%; min-height: 3.1rem; font-size: 1.05rem; }
+.ww-btn--small { min-height: 2.5rem; padding: 0 0.65rem; font-size: 0.9rem; }
+.ww-btn--link { border-color: transparent; background: transparent; color: var(--ww-mist); text-decoration: underline; }
+.ww-btn--dev { border-style: dashed; color: var(--ww-mist); background: transparent; }
+.ww-btn--danger { border-color: var(--ww-blood); background: color-mix(in srgb, var(--ww-blood) 15%, transparent); color: var(--ww-blood); }
 /* Nút nhỏ cố ý: phải min-height:0 (bài học Bang! 2026-09-09). */
-.ww-step { min-height: 0; width: 2.5rem; height: 2.5rem; border-radius: 50%; border: 1px solid var(--color-border-strong); background: var(--color-bg); color: var(--color-text); font-size: 1.25rem; cursor: pointer; }
-.ww-step:disabled { opacity: 0.4; }
-.ww-players { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.3rem; }
-.ww-player { display: flex; gap: 0.5rem; align-items: center; padding: 0.5rem; background: var(--color-bg); border: 1px solid var(--color-card-border); border-radius: 0.4rem; }
-.ww-player--me { border-color: var(--color-border-strong); font-weight: 600; }
-.ww-tag { font-size: 0.75rem; padding: 0.1rem 0.4rem; border-radius: 0.6rem; background: var(--color-bg-panel); color: var(--color-text-muted); }
-.ww-tag--off { background: var(--color-danger-bg); color: var(--color-danger); }
-.ww-roles { display: flex; flex-direction: column; gap: 0.3rem; }
+.ww-step { min-height: 0; width: 2.5rem; height: 2.5rem; border-radius: 50%; border: 1px solid var(--ww-line); background: var(--ww-panel-2); color: var(--ww-ink); font-size: 1.25rem; cursor: pointer; }
+.ww-step:disabled { opacity: 0.35; }
+
+/* ---- Avatar: chữ cái đầu trên nền màu riêng ---- */
+.ww-avatar { --hue: 220; display: inline-grid; place-items: center; flex-shrink: 0; border-radius: 50%; font: 700 1rem var(--ww-display); color: #fff; background: radial-gradient(circle at 30% 25%, hsl(var(--hue) 55% 58%), hsl(var(--hue) 45% 30%)); box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.18); }
+.ww-avatar--sm { width: 2rem; height: 2rem; font-size: 1.05rem; }
+.ww-avatar--md { width: 3.1rem; height: 3.1rem; font-size: 1.6rem; }
+
+/* ---- Màn nhập tên ---- */
+.ww-hero { position: relative; text-align: center; padding: 1.5rem 0 0.25rem; }
+.ww-hero__moon { display: block; width: 4.5rem; height: 4.5rem; margin: 0 auto 0.5rem; border-radius: 50%; background: radial-gradient(circle at 38% 35%, #fff6dc, #e9c27a 60%, #b98a3c); box-shadow: 0 0 3rem 0.5rem var(--ww-glow), 0 0 0.6rem rgba(255, 230, 170, 0.5); }
+.ww-hero__title { margin: 0; font: 700 clamp(3rem, 14vw, 4.2rem)/1 var(--ww-display); letter-spacing: 0.01em; text-wrap: balance; }
+.ww-hero__tag { margin: 0.5rem auto 0; max-width: 26rem; color: var(--ww-mist); }
+.ww-coderow { display: flex; gap: 0.5rem; }
+.ww-coderow input { flex: 1; min-width: 0; text-transform: uppercase; letter-spacing: 0.12em; font-weight: 700; }
+
+/* ---- Phòng chờ ---- */
+.ww-lobbyhead { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; }
+.ww-lobbyhead__title { margin: 0; font: 700 clamp(1.9rem, 8vw, 2.4rem)/1.05 var(--ww-display); }
+.ww-players { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.4rem; }
+.ww-player { display: flex; gap: 0.6rem; align-items: center; min-height: 2.75rem; padding: 0.35rem 0.55rem; background: var(--ww-panel-2); border: 1px solid transparent; border-radius: 0.65rem; }
+.ww-player--me { border-color: var(--ww-lantern); }
+.ww-player--off { opacity: 0.6; }
+.ww-player__name { flex: 1; min-width: 0; overflow-wrap: anywhere; font-weight: 500; }
+.ww-tag { font-size: 0.75rem; padding: 0.15rem 0.5rem; border-radius: 1rem; background: var(--ww-bg-deep); color: var(--ww-mist); white-space: nowrap; }
+.ww-tag--off { color: var(--ww-blood); }
+.ww-roles { display: flex; flex-direction: column; gap: 0.35rem; }
 .ww-role { display: flex; align-items: center; gap: 0.6rem; }
 .ww-role__name { flex: 1; }
-.ww-role__count { min-width: 1.5rem; text-align: center; font-weight: 600; }
+.ww-role__count { min-width: 1.75rem; text-align: center; font: 700 1.3rem var(--ww-display); }
+.ww-testbox { border-style: dashed; }
+.ww-testrole { margin-left: auto; min-height: 2.25rem !important; font-size: 0.9rem !important; max-width: 9.5rem; }
 
 /* ---- Màn chơi ---- */
 .ww-game { min-height: 100dvh; display: flex; flex-direction: column; }
-.ww-top { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 0.5rem; padding: 0.4rem 0.75rem; background: var(--color-bg); border-bottom: 1px solid var(--color-border); }
-.ww-top__title { flex: 1; font-weight: 600; font-size: 0.9rem; line-height: 1.2; }
-.ww-top__clock { font-variant-numeric: tabular-nums; font-weight: 700; min-width: 3rem; text-align: right; }
-.ww-offline { background: var(--color-danger-bg); color: var(--color-danger); text-align: center; padding: 0.3rem; }
-.ww-rolepanel { padding: 0.5rem 0.75rem; background: var(--color-bg-panel); font-weight: 600; }
+.ww-top { position: sticky; top: 0; z-index: 5; padding: 0.4rem 0.75rem 0.7rem; background: linear-gradient(180deg, var(--ww-bg-deep), color-mix(in srgb, var(--ww-bg) 88%, transparent)); border-bottom: 1px solid var(--ww-line); backdrop-filter: blur(6px); }
+.ww-top__bar { display: flex; align-items: center; gap: 0.35rem; }
+.ww-top__spacer { flex: 1; }
+.ww-top__sky { display: flex; align-items: flex-end; gap: 0.75rem; margin-top: 0.35rem; }
+.ww-top__title { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.ww-top__main { font: 700 clamp(1.6rem, 7vw, 2.1rem)/1.05 var(--ww-display); }
+.ww-top__sub { font-size: 0.95rem; color: var(--ww-mist); }
+.ww-top__sub:empty { display: none; }
+.ww-top__clock { flex-shrink: 0; min-width: 4.2rem; padding: 0.3rem 0.6rem; text-align: center; font: 700 1.35rem var(--ww-body); font-variant-numeric: tabular-nums; color: var(--ww-lantern); border: 1px solid color-mix(in srgb, var(--ww-lantern) 55%, transparent); border-radius: 2rem; background: color-mix(in srgb, var(--ww-lantern) 10%, transparent); }
+.ww-top__clock:empty { display: none; }
+.ww-offline { background: color-mix(in srgb, var(--ww-blood) 25%, var(--ww-bg)); color: var(--ww-ink); text-align: center; padding: 0.35rem; }
+.ww-rolepanel { padding: 0.9rem; background: var(--ww-panel); border-bottom: 1px solid var(--ww-line); display: flex; justify-content: center; }
+.ww-rolepanel[hidden] { display: none; }
 .ww-body { flex: 1; display: flex; flex-direction: column; min-height: 0; }
-/* D-60: lưới tự co giãn, không giả định tối đa 12 người. */
-.ww-grid { flex: 1; display: grid; grid-template-columns: repeat(auto-fill, minmax(7.5rem, 1fr)); gap: 0.5rem; padding: 0.75rem; align-content: start; }
-.ww-card { position: relative; display: flex; flex-direction: column; gap: 0.15rem; padding: 0.5rem; min-height: 4.5rem; background: var(--color-bg); border: 1px solid var(--color-card-border); border-radius: 0.5rem; }
-.ww-card--me { border: 2px solid var(--color-border-strong); }
-.ww-card--dead { opacity: 0.5; }
-.ww-card--tappable { cursor: pointer; }
-.ww-card--picked { outline: 3px solid var(--color-text); }
-.ww-card__seat { position: absolute; top: 0.25rem; right: 0.4rem; font-size: 0.75rem; color: var(--color-text-muted); }
-.ww-card__name { font-weight: 600; overflow-wrap: anywhere; }
-.ww-card__role { font-size: 0.8rem; color: var(--color-text-muted); }
-.ww-card__chips { display: flex; flex-wrap: wrap; gap: 0.2rem; }
-.ww-chip { font-size: 0.7rem; padding: 0.05rem 0.35rem; border-radius: 0.6rem; background: var(--color-bg-panel); border: 1px solid var(--color-card-border); }
-/* D-61: dọc → khu thao tác dính đáy. */
-.ww-side { position: sticky; bottom: 0; z-index: 4; display: flex; flex-direction: column; gap: 0.5rem; padding: 0.6rem 0.75rem; background: var(--color-bg); border-top: 1px solid var(--color-border); max-height: 45dvh; overflow-y: auto; }
-.ww-hint { margin: 0; }
-.ww-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; }
-.ww-result { display: flex; flex-direction: column; gap: 0.4rem; }
-.ww-result__text { margin: 0; font-weight: 700; font-size: 1.1rem; }
-.ww-log { margin: 0; padding-left: 1.1rem; font-size: 0.85rem; color: var(--color-text-muted); }
-.ww-toast { position: fixed; left: 50%; bottom: 5rem; transform: translateX(-50%); background: var(--color-text); color: var(--color-bg); padding: 0.5rem 0.9rem; border-radius: 0.5rem; z-index: 50; max-width: 90vw; }
+/* D-60: lưới tự co giãn (3 cột trên điện thoại dọc), không giả định tối đa 12 người. */
+.ww-grid { flex: 0 0 auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(6.4rem, 1fr)); gap: 0.6rem; padding: 0.85rem 0.75rem; align-content: start; }
+.ww-card { position: relative; display: flex; flex-direction: column; align-items: center; gap: 0.25rem; padding: 0.7rem 0.35rem 0.55rem; text-align: center; background: color-mix(in srgb, var(--ww-panel) 88%, transparent); border: 1px solid var(--ww-line); border-radius: 0.9rem; }
+.ww-card__face { display: flex; align-items: center; justify-content: center; gap: 0.35rem; }
+.ww-card__ava { position: relative; display: inline-flex; }
+.ww-card__status { position: absolute; right: -0.45rem; bottom: -0.3rem; font-size: 1rem; line-height: 1; }
+.ww-card__thumb:empty { display: none; }
+.ww-card__seat { position: absolute; top: 0.35rem; left: 0.5rem; font-size: 0.75rem; color: var(--ww-mist); font-variant-numeric: tabular-nums; }
+.ww-card__name { font-weight: 700; line-height: 1.2; overflow-wrap: anywhere; }
+.ww-card__role { font-size: 0.78rem; color: var(--ww-mist); }
+.ww-card__role:empty { display: none; }
+.ww-card__chips { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.2rem; }
+.ww-card--me { border-color: var(--ww-lantern); }
+.ww-card--me .ww-card__name::after { content: " (bạn)"; font-weight: 400; color: var(--ww-mist); }
+.ww-card--tappable { cursor: pointer; border-style: dashed; border-color: color-mix(in srgb, var(--ww-lantern) 60%, transparent); }
+.ww-card--picked { border: 2px solid var(--ww-lantern); background: color-mix(in srgb, var(--ww-lantern) 16%, var(--ww-panel)); }
+.ww-card--picked .ww-avatar { box-shadow: 0 0 0 3px var(--ww-lantern), 0 0 1rem var(--ww-lantern); }
+.ww-card--dead { opacity: 0.55; }
+.ww-card--dead .ww-avatar { filter: grayscale(1); }
+.ww-card--dead .ww-card__name { text-decoration: line-through; }
+.ww-chip { font-size: 0.7rem; padding: 0.1rem 0.4rem; border-radius: 1rem; background: var(--ww-bg-deep); border: 1px solid var(--ww-line); }
+/* D-61: khu thao tác = khung nổi ngay DƯỚI lưới (gần giữa màn hình); lưới dài thì dính đáy. */
+.ww-side { position: sticky; bottom: calc(0.6rem + env(safe-area-inset-bottom, 0px)); z-index: 4; display: flex; flex-direction: column; align-items: center; gap: 0.75rem; margin: 0.25rem 0.75rem 0.75rem; padding: 1rem 0.9rem; background: color-mix(in srgb, var(--ww-panel) 97%, transparent); border: 1px solid var(--ww-line); border-radius: 1.1rem; box-shadow: 0 0.6rem 2rem rgba(0, 0, 0, 0.3); max-height: 60dvh; overflow-y: auto; }
+.ww-hint { margin: 0; max-width: 30rem; text-align: center; font-size: 1.08rem; line-height: 1.45; }
+.ww-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.6rem; width: 100%; max-width: 30rem; }
+.ww-actions:empty { display: none; }
+.ww-actions .ww-btn { flex: 1 1 8.5rem; max-width: 15rem; min-height: 3.5rem; font-size: 1.15rem; font-weight: 700; border-radius: 0.9rem; }
+.ww-log { align-self: stretch; margin: 0; padding: 0.5rem 0 0 1.1rem; font-size: 0.82rem; color: var(--ww-mist); border-top: 1px dashed var(--ww-line); }
+.ww-log:empty { display: none; }
+.ww-logtoggle { align-self: flex-start; }
+.ww-log--mini li:not(:last-child) { display: none; }
+.ww-toast { position: fixed; left: 50%; bottom: 6rem; transform: translateX(-50%); background: var(--ww-ink); color: var(--ww-bg); padding: 0.55rem 0.95rem; border-radius: 0.6rem; z-index: 60; max-width: 90vw; }
+
+/* ---- Kết quả ---- */
+.ww-result { display: flex; flex-direction: column; align-items: center; gap: 0.9rem; width: 100%; }
+.ww-result__actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.6rem; width: 100%; max-width: 26rem; }
+.ww-result__actions .ww-btn { flex: 1 1 10rem; min-height: 3.4rem; font-size: 1.1rem; border-radius: 0.9rem; }
+/* Hết ván: ẩn lưới người chơi + gợi ý, màn kết quả chiếm trọn chỗ (lá bài đã có đủ tên + vai). */
+.ww-game--ended .ww-grid, .ww-game--ended .ww-hint, .ww-game--ended .ww-actions { display: none; }
+.ww-game--ended .ww-side { position: static; flex: 1; justify-content: flex-start; max-height: none; margin: 0; padding: 1.5rem 1rem 2rem; background: transparent; border: 0; border-radius: 0; box-shadow: none; overflow: visible; }
+.ww-game--ended .ww-endcards { max-width: 34rem; gap: 0.8rem; }
+.ww-game--ended .ww-rolecard--md { width: 6.4rem; }
+.ww-game--ended .ww-endcard { max-width: 6.4rem; }
+.ww-game--ended .ww-log { max-width: 30rem; width: 100%; align-self: center; }
+.ww-result[hidden] { display: none; }
+.ww-result__text { margin: 0; text-align: center; font: 700 clamp(2rem, 9vw, 2.6rem)/1.05 var(--ww-display); }
+.ww-result[data-winner="wolves"] .ww-result__text { color: var(--ww-blood); }
+.ww-result[data-winner="village"] .ww-result__text { color: var(--ww-village); }
+.ww-result[data-winner="tanner"] .ww-result__text { color: #b08a3e; }
+.ww-result[data-winner="lovers"] .ww-result__text { color: #d06a9a; }
+.ww-label--check { flex-direction: row; align-items: center; gap: 0.5rem; }
+.ww-endcards { display: flex; flex-wrap: wrap; gap: 0.6rem; justify-content: center; padding: 0.25rem 0; }
+.ww-endcard { display: flex; flex-direction: column; align-items: center; gap: 0.25rem; max-width: 5.5rem; }
+.ww-endcard__name { font-size: 0.82rem; text-align: center; overflow-wrap: anywhere; }
+.ww-endcard--dead .ww-rolecard { filter: grayscale(0.8); opacity: 0.65; }
+
+/* ---- Thư viện vai ---- */
+.ww-library { display: flex; flex-direction: column; gap: 0.6rem; padding: 0.9rem; background: var(--ww-panel); border: 1px solid var(--ww-line); border-radius: 0.9rem; }
+.ww-library[hidden] { display: none; } /* display:flex ở trên đè thuộc tính hidden */
+.ww-library h3 { margin: 0; font: 700 1.3rem var(--ww-display); }
+.ww-libitem { display: flex; gap: 0.7rem; align-items: flex-start; padding: 0.6rem; background: var(--ww-panel-2); border-radius: 0.65rem; }
+.ww-libitem p { margin: 0.35rem 0 0; line-height: 1.45; }
+.ww-libitem__text { flex: 1; min-width: 0; }
+.ww-libitem__head { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem; }
+/* Trong ván: khung thư viện tự cuộn, không đẩy lưới thẻ ra khỏi màn hình. */
+.ww-game > .ww-library { border-radius: 0; border-width: 0 0 1px; max-height: 50dvh; overflow-y: auto; }
+
+/* ---- Thẻ vai (client/cards.ts) ---- */
+.ww-rolecard { --team: #4a7bd0; display: inline-flex; flex-direction: column; flex-shrink: 0; border: 2px solid var(--team); border-radius: 0.55rem; overflow: hidden; background: #0b0f22; box-shadow: 0 3px 10px rgba(0, 0, 0, 0.35); }
+.ww-rolecard--wolves { --team: #c0352f; }
+.ww-rolecard--solo { --team: #b08a3e; }
+.ww-rolecard__art { position: relative; overflow: hidden; aspect-ratio: 2 / 3; display: grid; place-items: center; background: linear-gradient(160deg, color-mix(in srgb, var(--team) 70%, #000), #0b0f22); }
+.ww-rolecard__art img { width: 100%; height: 100%; display: block; user-select: none; -webkit-touch-callout: none; pointer-events: none; }
+.ww-rolecard__bg { position: absolute; inset: 0; object-fit: cover; filter: blur(10px) brightness(0.55); transform: scale(1.15); }
+.ww-rolecard__img { position: relative; object-fit: contain; }
+.ww-rolecard__icon { font-size: 2.6em; line-height: 1; }
+.ww-rolecard__name { padding: 0.2rem 0.3rem; text-align: center; font-weight: 700; font-size: 0.8rem; background: var(--team); color: #fff; line-height: 1.15; overflow-wrap: anywhere; }
+.ww-rolecard--sm { width: 2.2rem; border-width: 1px; border-radius: 0.3rem; font-size: 0.55rem; }
+.ww-rolecard--md { width: 5.5rem; }
+.ww-rolecard--lg { width: min(13rem, 55vw); font-size: 1.6rem; }
+.ww-rolecard--lg .ww-rolecard__name { font: 700 1.3rem var(--ww-display); padding: 0.4rem; }
+
+/* ---- Animation chia vai (pha Xem vai) ---- */
+.ww-reveal { position: fixed; inset: 0; z-index: 50; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1rem; padding: 1rem; background: radial-gradient(circle at 50% 40%, rgba(20, 26, 60, 0.92), rgba(4, 6, 16, 0.96)); color: #f3ead6; text-align: center; cursor: pointer; }
+.ww-reveal__title { font: 700 2rem/1.1 var(--ww-display); }
+.ww-reveal__slot { perspective: 800px; }
+.ww-reveal__slot .ww-rolecard { animation: ww-tick 0.12s ease-out; }
+.ww-reveal__slot--flip .ww-rolecard { animation: ww-flip 0.6s ease-out; box-shadow: 0 0 2.5rem color-mix(in srgb, var(--team) 70%, transparent); }
+.ww-reveal__caption { min-height: 1.4em; font-weight: 700; }
+.ww-reveal__hint { font-size: 0.85rem; opacity: 0.7; }
+@keyframes ww-tick { from { transform: translateY(-6%) scale(0.96); opacity: 0.6; } }
+@keyframes ww-flip { 0% { transform: rotateY(90deg) scale(0.9); } 60% { transform: rotateY(-8deg) scale(1.05); } 100% { transform: none; } }
+@media (prefers-reduced-motion: reduce) { .ww-reveal__slot .ww-rolecard { animation: none; } }
+
+/* ---- Hiệu ứng chuyển cảnh (tắt được trong Cài đặt; body.ww-fx chỉ có khi đang bật) ---- */
+body.ww-fx .ww-card, body.ww-fx .ww-top, body.ww-fx .ww-side, body.ww-fx .ww-btn, body.ww-fx .ww-chip, body.ww-fx .ww-top__clock {
+  transition: background-color 0.8s ease, border-color 0.8s ease, color 0.8s ease;
+}
+.ww-banner { position: fixed; inset: 0; z-index: 40; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.4rem; padding: 1rem; text-align: center; pointer-events: none; background: radial-gradient(ellipse at 50% 45%, color-mix(in srgb, var(--ww-bg-deep) 70%, transparent), transparent 70%); animation: ww-banner 1.8s ease forwards; }
+.ww-banner__main { font: 700 clamp(2.2rem, 11vw, 3.4rem)/1.05 var(--ww-display); text-shadow: 0 0.2rem 1.5rem var(--ww-bg-deep); }
+.ww-banner__sub { font-size: 1.1rem; color: var(--ww-ink); text-shadow: 0 0.1rem 0.8rem var(--ww-bg-deep); }
+@keyframes ww-banner { 0% { opacity: 0; transform: scale(0.96); } 18% { opacity: 1; transform: none; } 75% { opacity: 1; } 100% { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .ww-banner { display: none; } }
+
+/* ---- Dialog Cài đặt (dùng khung app-dialog của Sảnh) ---- */
+dialog.app-dialog.ww-dialog { width: min(92vw, 24rem); max-width: none; height: auto; max-height: 90dvh; background: var(--ww-panel); color: var(--ww-ink); border: 1px solid var(--ww-line); border-radius: 1rem; font-family: var(--ww-body); }
+.ww-dialog[open] { display: flex; flex-direction: column; gap: 0.7rem; }
+.ww-dialog .dialog__title { font: 700 1.5rem var(--ww-display); margin: 0; }
+.ww-dialog .settings-group { margin-bottom: 0.2rem; }
+.ww-dialog .settings-group__label { color: var(--ww-mist); font-weight: 500; }
+.ww-dialog .segmented { border-color: var(--ww-line); }
+.ww-dialog .segmented button { min-height: 2.5rem; padding: 0 1rem; background: var(--ww-panel-2); color: var(--ww-ink); border-color: var(--ww-line); font: 500 0.95rem var(--ww-body); }
+.ww-dialog .segmented button[aria-pressed="true"] { background: var(--ww-lantern); color: var(--ww-lantern-ink); }
 
 /* D-62: ngang → 2 cột, lưới trái, thao tác phải. */
 @media (orientation: landscape) {
-  .ww-body { flex-direction: row; overflow: hidden; height: calc(100dvh - 3.2rem); }
-  .ww-grid { overflow-y: auto; }
-  .ww-side { position: static; width: 20rem; max-height: none; border-top: 0; border-left: 1px solid var(--color-border); overflow-y: auto; }
+  .ww-body { flex-direction: row; overflow: hidden; height: calc(100dvh - 6.2rem); }
+  .ww-grid { flex: 1; overflow-y: auto; }
+  .ww-side { position: static; width: 21rem; max-height: none; margin: 0.75rem 0.75rem 0.75rem 0; justify-content: center; overflow-y: auto; }
+  .ww-game--ended .ww-side { width: auto; margin: 0; overflow-y: auto; }
 }
 @media (orientation: landscape) and (max-height: 30rem) {
-  .ww-top { padding: 0.15rem 0.5rem; }
-  .ww-top__title { font-size: 0.85rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .ww-body { height: calc(100dvh - 2.6rem); }
+  .ww-top { padding: 0.2rem 0.5rem 0.35rem; }
+  .ww-top__sky { margin-top: 0.1rem; }
+  .ww-top__main { font-size: 1.3rem; }
+  .ww-body { height: calc(100dvh - 4.6rem); }
 }
-/* D-63: vùng chạm lớn đã có qua .ww-btn; nút nhỏ cố ý khai min-height:0 ở trên. */
-@media (max-width: 480px) { .ww-btn { min-height: 2.75rem; } .ww-step { min-height: 0; } }

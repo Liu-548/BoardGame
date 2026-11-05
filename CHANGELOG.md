@@ -1853,3 +1853,100 @@ Chạy bằng Playwright (6 trình duyệt riêng, `wrangler dev` + bản `vite 
 - Đối chiếu từng đêm khớp luật: Đêm 1 Tiên tri bị cắn + được cứu, Dân bị độc → chỉ Dân chết (R-44); Đêm 2 hai Sói chọn khác nhau → bốc ngẫu nhiên trúng Bảo vệ, Bảo vệ tự bảo vệ → không ai chết (R-41c, R-40a); Đêm 3 hết bình cứu → người bị cắn chết. Ngày 1 không ai bị đưa lên (hoà/phiếu trắng, R-52e); Ngày 2, 3 treo cổ đúng người bị đưa lên.
 - Hết ván lật vai khớp 100% với vai thật; "Về phòng chờ" còn đủ 8 người; không lỗi console.
 - Deploy: CHƯA làm được từ máy ảo (không đăng nhập Cloudflare) — chủ dự án tự chạy `npm run deploy:beta`.
+
+## Ma Sói — Thư viện vai (2026-11-05)
+- Giống "Thư viện bài" của Bang!: nút "📖 Thư viện vai" ở màn nhập tên, phòng chờ và thanh trên trong ván (nút 📖). Liệt kê 5 vai: phe, thứ tự thức ban đêm, "Tối đa 1/ván", mô tả khả năng viết theo đúng 01-LUAT (R-40..R-43), cuối khung có thứ tự đêm + điều kiện thắng.
+- Dữ liệu `ROLE_INFO` + `wakeOrder()` ở `werewolf/client/turn.ts` (thứ tự thức lấy thẳng từ `NIGHT_STEP_ORDER` của core, không chép tay). Thêm vai mở rộng: thêm 1 dòng vào `ROLE_INFO`, test `library.test.ts` bắt thiếu.
+- Trạng thái đóng/mở nhớ ở cấp module → phòng chờ dựng lại khi có người vào và cập nhật trong ván đều không tự đóng khung (D-66). Không đụng core/server.
+- Lỗi tìm thấy lúc tự kiểm và đã sửa: `.ww-library { display:flex }` đè thuộc tính `hidden` nên khung luôn hiện → thêm `.ww-library[hidden] { display:none }`.
+- Kiểm bằng Playwright (6 trình duyệt, `wrangler dev`): mở ở màn nhập tên (đủ 5 vai), vẫn mở sau khi 5 người vào phòng, người khác không bị mở theo, mang sang ván, bật/tắt được trong ván, không tràn ngang ở 390px, không lỗi console. 876 test pass, typecheck sạch. Chưa deploy.
+
+## Ma Sói — Cài đặt, Về phòng chờ, Hủy ván, Bắt đầu lại (2026-11-05)
+- **Cài đặt (mọi người)**: nút ⚙️ trên thanh trên trong ván + nút "⚙️ Cài đặt" ở phòng chờ. Giao diện Sáng/Tối, Cỡ chữ — dùng CHUNG khoá `bang_theme`/`bang_font_size` với Bang! (1 lựa chọn cho cả Sảnh). `<dialog>` gắn vào `body` nên phòng chờ dựng lại cũng không mất.
+- **Về phòng chờ (mọi người, sau khi hết ván)**: chỉ đưa màn hình CỦA NGƯỜI BẤM về phòng chờ; ai chưa bấm vẫn xem kết quả. Server: ván đã kết thúc vẫn nằm trong storage nhưng tính là "không đang chơi" (`isActive()` ở `base-room.ts`) → `lobby.inGame=false`, chủ phòng sửa cấu hình/bắt đầu ván mới được ngay, người "chờ ván sau" được vào ván kế.
+- **Chủ phòng**: "🔄 Bắt đầu lại" (ở màn kết quả, và trong Cài đặt cả khi đang chơi — `start_game` thêm `force`, giống Bang!), "✖ Hủy ván" trong Cài đặt (`return_to_lobby` bỏ điều kiện "ván đã kết thúc", cả phòng về phòng chờ). Việc ảnh hưởng cả phòng trong Cài đặt phải bấm 2 lần (lần 1 hiện câu xác nhận).
+- Client dựng lại khung màn chơi khi nhận ván mới (phaseSeq giảm hoặc đổi ghế) để không sót thẻ/kết quả ván cũ; đã bấm "Về phòng chờ" thì bỏ qua view của ván cũ khi nối lại.
+- Kiểm bằng Playwright (6 trình duyệt, `wrangler dev`): chơi tới hết ván (Phe Dân thắng) → Bình về phòng chờ (Chi vẫn xem kết quả) → An bắt đầu lại từ màn kết quả, cả 6 về Đêm 1 → Cài đặt: Bình không thấy mục Chủ phòng, đổi Sáng + chữ Lớn áp dụng ngay, không tràn ngang 390px → An bắt đầu lại giữa ván (bấm 2 lần) → An hủy ván, cả 6 về phòng chờ. Không lỗi console. 876 test pass, typecheck sạch. Chưa deploy.
+
+## Ma Sói — Thẻ vai (ảnh) + chia thư mục ảnh (2026-11-05)
+- Thư mục ảnh mới `src/games/werewolf/assets/` (xem `assets/README.md`): `roles/<wolf|villager|seer|witch|guard>/` là ảnh thẻ dùng trong game, `originals/` là ảnh gốc (thư mục `Pic/` cũ dời vào đây, KHÔNG đưa vào bản build). Thêm ảnh = bỏ file vào đúng thư mục vai, không sửa code (`client/cards.ts` quét bằng `import.meta.glob`; khai kiểu tối thiểu trong `client/css.d.ts` vì dự án không nạp `vite/client`).
+- Ảnh đã nén sang webp (1,6 MB → ~80 KB): `wolf-1` (Ma_Soi_1), `wolf-2`/`wolf-3` (tách đôi ảnh ghép Ma_Soi_2 theo khe trắng giữa), `wolf-4` (Ma_Soi_4). `Ma_Soi_3` trùng y hệt `Ma_Soi_2`, để lại trong `originals/` (thư mục dự án không cho xoá file).
+- `roleCard(role, key, size)`: ảnh + icon + tên vai, viền/ảnh tạm theo phe; vai chưa có ảnh → icon lớn làm ảnh tạm. `pickImage()` băm mã người chơi → mỗi người 1 ảnh cố định cả ván, mọi máy thấy giống nhau (test `cards.test.ts`).
+- Hiện ở: nút "Vai của tôi" (lá to), ô người chơi khi được phép thấy vai (lá nhỏ góc phải — đồng đội Sói, người chết, hết ván; icon + tên vai vẫn giữ), Thư viện vai, màn kết quả (lật bài cả bàn, người chết xám).
+- Sửa kèm: `.ww-result`/`.ww-rolepanel` có `display` riêng đè thuộc tính `hidden` → thêm `[hidden] { display:none }`.
+- Kiểm bằng Playwright + ảnh chụp: Sói thấy lá đồng đội, Tiên tri không thấy lá ai; hết ván lật đủ 6 lá; không tràn ngang 420px; không lỗi console. 878 test pass, typecheck sạch.
+- CHƯA làm: animation chia vai + pha "Xem vai" trước Đêm 1 (chờ duyệt cách làm phần core).
+
+## Ma Sói — Nút "Bỏ qua pha" cho chủ phòng, CHỈ bản beta (2026-11-05)
+- Chủ phòng thấy nút "⏭ Bỏ qua pha (thử nghiệm)" ở khu thao tác, bỏ qua được MỌI pha có đồng hồ. Server làm y hệt hết giờ (`timeUpAction` → TIME_UP sớm): ai đã chọn thì áp dụng như thường, chưa chọn = không hành động. Không đổi core.
+- Chỉ bản beta: `wrangler.jsonc` env.beta thêm `vars.DEV_TOOLS = "1"` → `WerewolfRoom` truyền vào `BaseRoom(…, devTools)`; message `lobby` thêm `devTools` để client biết hiện nút; bản chính server từ chối `skip_phase` ("Chỉ có ở bản thử nghiệm"). Chạy thử ở máy: `npx wrangler dev --env beta`.
+- Kiểm: `wrangler dev --env beta` + 6 trình duyệt — chỉ chủ phòng thấy nút; Đêm 1: bỏ qua Bảo vệ → Sói chọn Binh → bỏ qua Sói/Tiên tri/Phù thủy → Bình minh Binh chết đúng; bỏ qua Thảo luận/Bỏ phiếu → "không ai bị đưa lên" → Đêm 2. `wrangler dev` (bản chính): `lobby.devTools=false`, gửi thẳng `skip_phase` bị từ chối. 878 test pass, typecheck sạch.
+
+## Ma Sói — Pha "Xem vai" + animation chia vai (2026-11-05)
+- Core (đã duyệt trước khi viết): `Phase` thêm `{ kind: "reveal" }` (R-30a mới trong 01-LUAT). `setupGame` mở ván ở pha này, `ROLE_REVEAL_MS = 6000` (types.ts); `TIME_UP` trong pha này → `startNight(state, 1, now)`. Mọi hành động khác bị từ chối bằng lỗi chung (các kiểm tra pha sẵn có tự chặn). `viewFor` không đổi (không lộ gì thêm).
+- Test: T-SET-04 sửa (mở ở reveal, hết giờ → Đêm 1, phaseSeq 2), T-SET-05 sửa, T-SET-07 mới (không ai hành động được, TIME_UP cũ bị bỏ qua). `makeGame()` trong `test/werewolf/helpers.ts` tự bỏ qua pha Xem vai → các test đêm/ngày cũ không phải sửa.
+- Client: tiêu đề "🃏 Chia vai". `playRoleReveal()` (cards.ts): lớp phủ, lá quay qua các vai CÓ trong ván (cấu hình công khai), chậm dần ~2,3s rồi lật ra vai của mình (viền sáng màu phe); Sói thấy "Đồng đội: …". Chạm khi đang quay → lật ngay; chạm sau khi lật → đóng; sang Đêm 1 tự đóng. Máy bật "giảm chuyển động" thì lật ngay. Lớp phủ gắn vào khung màn chơi nên rời phòng/ván mới cũng tự mất.
+- Kiểm bằng Playwright (6 trình duyệt, `wrangler dev`): cả 6 thấy lớp phủ; vai lật ra khớp vai thật; 2 Sói thấy tên nhau, người khác không; chạm bỏ qua/đóng đều đúng; Đêm 1 bắt đầu đúng sau 6,0s, lớp phủ tự đóng ở cả 6 máy; ảnh chụp lúc quay và lúc lật đúng thiết kế; không lỗi console. 879 test pass, typecheck sạch.
+
+## Ma Sói — Xếp ảnh mới cho đủ 5 vai, `originals/` → `temp/` (2026-11-05)
+- 12 ảnh mới nén webp (cạnh dài ≤ 800px, 12–67 KB) vào `assets/roles/`: Bảo vệ 2, Dân làng 4, Phù thủy 2, Tiên tri 3 (+ Sói 4 có sẵn) → cả 5 vai đều có ảnh. `Dan_Lang_1_2_3` là 1 ảnh liền (3 con mèo, chữ "DÂN NGU" vắt qua giữa) → giữ thành 1 lá, không tách. `Soi_Con_1` (Sói con — vai chưa có trong game) để ở `roles/wolf_cub/`, mẫu quét trong `cards.ts` chỉ liệt kê 5 vai đang có nên không bị đóng gói.
+- Đã xoá toàn bộ ảnh gốc (kể cả `Ma_Soi_3` trùng); `assets/originals/` đổi thành `assets/temp/` = chỗ bỏ ảnh thô chờ xếp, `.gitignore` bên trong để git bỏ qua ảnh thô. README cập nhật.
+- Thẻ vai giờ hiện TRỌN ảnh (`object-fit: contain`) + nền là chính ảnh đó làm mờ — ảnh meme nằm ngang có chữ không bị cắt mất chữ.
+- Kiểm: build có đúng 15 ảnh (không có wolf_cub); Thư viện vai tải đủ 5 ảnh, ảnh chụp đúng; 879 test pass, typecheck sạch.
+
+## Ma Sói — Tách ảnh 3 mèo Dân làng + thêm Sói (2026-11-05)
+- `Dan_Lang_1_2_3`: xoá chữ "DÂN NGU" (vẽ lại nền tường bằng inpaint), tách thành 3 ảnh dọc theo khoảng giữa các con mèo, viết chữ mới cùng kiểu (trắng viền đen): "ĐÊM QUA AI CHẾT?", "TUI DÂN THIỆT MÀ", "VOTE AI ĐÂY?" → `villager-1/2/3.webp`. Ảnh Dân làng cũ đổi số thành `villager-4/5/6` (khớp Dan_Lang_4/5/6).
+- `temp/Ma_Soi_5.png` → `roles/wolf/wolf-5.webp`, xoá file thô trong `temp/`.
+- Hiện có: Sói 5, Dân làng 6, Tiên tri 3, Phù thủy 2, Bảo vệ 2 (bản build 18 ảnh).
+
+## Ma Sói — Phòng test (chủ phòng tự gán vai, CHỈ bản beta) + sửa nút Bỏ qua pha (2026-11-05)
+- Phòng chờ bản beta có khung "🧪 Phòng test": chủ phòng bật "Gán vai thủ công" → ô chọn vai cạnh từng người (người khác chỉ xem vai được gán). Số lượng vai suy ra từ bảng gán, vẫn kiểm `validateConfig`; thiếu người chưa gán / bảng sai luật → khoá Bắt đầu kèm lý do. Bảng gán giữ qua các ván (Bắt đầu lại dùng lại).
+- Server: message `set_test_roles` (chủ phòng, chỉ `DEV_TOOLS`, không khi đang chơi; lọc kiểu/kích thước), lưu storage `testRoles`, `lobby.testRoles`. `GameAdapter.setupWithRoles?` tuỳ chọn — Ma Sói cài ở `server/room.ts`: tạo ván bằng `setupGame` như thường rồi đặt lại vai từng người (không đổi core). Test `test-room.test.ts` (3 test).
+- SỬA LỖI nút Bỏ qua pha: bấm đúng lúc pha vừa tự hết giờ thì server nhận cả TIME_UP của alarm lẫn lệnh bỏ qua → bỏ qua liền 2 pha. Nay `skip_phase` kèm `deadline` pha client đang thấy; khác hạn giờ hiện tại thì bỏ qua lệnh.
+- Kiểm: kịch bản Playwright 6 người (bản beta ở máy, vai gán cố định) chụp 26 tình huống: phòng test, chia vai (5 vai), từng pha đêm, ngày 1 (thảo luận/bỏ phiếu/biện hộ/phán quyết, Vai của tôi, Thư viện, Cài đặt chủ phòng/người thường), Phe Dân thắng, Bắt đầu lại, Phe Sói thắng, Về phòng chờ. 0 lỗi console. 882 test pass, typecheck sạch.
+
+## Ma Sói — Làm lại giao diện "làng đêm dưới đèn lồng" + hiệu ứng chuyển cảnh tắt được (2026-11-05)
+- Chủ dự án chốt (hỏi trước khi làm): phong cách làng đêm u tối, lưới thẻ có avatar, làm cả 4 màn; hiệu ứng ban đầu "không" rồi đổi ý: CÓ nhưng phải tắt được.
+- Màu riêng của Ma Sói (token `--ww-*` trên `body.ww-active`, không theo Sáng/Tối của Sảnh): đêm = chàm đậm có quầng trăng + vài sao; ngày (`body.ww-day`, thảo luận → phán quyết, và hết ván nếu Dân thắng) = màu rơm. Font: Noto Serif Display (tiêu đề, có số thẳng — Cormorant Garamond bị loại vì "1" trông như "ı") + Be Vietnam Pro, nạp Google Fonts bằng `<link>` lúc mở Ma Sói, có font dự phòng.
+- Màn nhập tên: trăng + tiêu đề lớn, ô mã phòng có nút "Tạo mã mới" cạnh. Phòng chờ: tiêu đề "Phòng XXXX" + "Chép mã", các khung Người chơi (avatar), Phòng test, Vai trong ván; "Bắt đầu ván" nút lớn màu đèn lồng.
+- Màn chơi: dải trên = hàng nút nhỏ + tên pha in lớn (dòng chính/dòng phụ tách từ `phaseTitle` theo " — ") + đồng hồ dạng viên; ô người chơi = số ghế, avatar chữ cái đầu (màu cố định theo mã người chơi), 💀/📴 trên avatar, lá vai nhỏ cạnh avatar khi được thấy vai, tên (" (bạn)" bằng CSS, không đổi textContent), viền nét đứt khi chạm được, viền đèn lồng khi đang chọn. Kết quả: tiêu đề lớn màu theo phe thắng.
+- Cài đặt Ma Sói: bỏ Sáng/Tối (không áp dụng ở Ma Sói), thêm "Hiệu ứng chuyển cảnh Bật/Tắt" (`localStorage ww_effects`), dialog dùng màu Ma Sói và cao vừa nội dung trên điện thoại.
+- Hiệu ứng (chỉ khi bật và máy không bật "giảm chuyển động"): chữ lớn thoáng qua ~1,8s không chặn thao tác — "Đêm N buông xuống", "Trời sáng · <ai> đã chết / Đêm qua không ai chết", công bố phe thắng; màu ô/thanh chuyển dần giữa đêm và ngày (`body.ww-fx`). Tắt thì animation chia vai cũng lật ngay.
+- Kiểm: kịch bản Playwright 6 người chụp 30 tình huống (máy Em bật hiệu ứng, 5 máy tắt — xác nhận máy tắt không có chữ chuyển cảnh và lật vai ngay). 0 lỗi console, 882 test pass, typecheck sạch.
+
+## Ma Sói — Nút thao tác lớn ở giữa + màn kết thúc che lưới (2026-11-05)
+- Khu thao tác (`.ww-side`) thành khung nổi ngay DƯỚI lưới người chơi (lưới không còn giãn hết chiều cao) → nằm gần giữa màn hình; lưới dài thì khung vẫn dính đáy. Gợi ý căn giữa, nút pha cao 3,5rem, chữ 1,15rem, chia đều hàng.
+- Hết ván: thêm class `ww-game--ended` → ẩn lưới người chơi + gợi ý, màn kết quả chiếm trọn chỗ (tên phe thắng, lá bài lớn hơn, "Về phòng chờ"/"Bắt đầu lại" chung 1 hàng nút lớn, nhật ký ván bên dưới).
+- Kiểm: chụp lại 30 tình huống (dọc 390px) + màn ngang 760×390 (2 cột, không tràn ngang). 0 lỗi console, 882 test pass, typecheck sạch.
+
+## Ma Sói — "Xong lượt" ban đêm, che bằng thời gian ngẫu nhiên (2026-11-05)
+- Đổi luật R-81 (chủ dự án duyệt cách làm + chọn phương án "che bằng thời gian ngẫu nhiên" sau khi được báo rủi ro lộ thông tin): người giữ vai bấm "Xong lượt" → pha còn ngẫu nhiên 3–8 giây (RNG seed) rồi sang, không quá hạn cũ; đã chọn giữ nguyên, chưa chọn = bỏ qua, đã Xong thì khoá lựa chọn. Sói: mọi Sói sống phải Xong, chưa đủ bầy thì bấm lại để bỏ Xong. Vai không còn ai sống: pha kéo dài ngẫu nhiên 8–20 giây (R-81b) để kết thúc sớm không lộ vai còn sống. Không bấm (mất kết nối) → đủ giờ. Bể role (để sau): vai trống vẫn hiện lượt, chạy theo R-81b.
+- Core: `GameState.stepDone`, action `FINISH_STEP`, `enterNightStep()` (dùng cho mọi lần vào pha đêm, gồm rút ngắn vai đã chết). View: ban đêm `phaseEndsAt = null` với người KHÔNG giữ vai đang thức (R-81d — đồng hồ bị rút khi bấm Xong sẽ lộ lúc bấm); `stepDone` chỉ gửi cho người đang thức (Sói thấy cả bầy).
+- "Bỏ qua pha" (beta): `skip_phase` đổi `deadline` → `token`; `GameAdapter.phaseToken` (Ma Sói = phaseSeq) vì chủ phòng ban đêm có thể không thấy hạn giờ.
+- Client: nút "✅ Xong lượt" / Sói "✅ Xong (n/tổng)" ↔ "↩️ Bỏ Xong (n/tổng)" / "Cả bầy đã xong".
+- Test `night-finish.test.ts` (13 test: Xong + khoá, Xong sát giờ không kéo dài, Xong không làm gì = bỏ qua, Sói đủ bầy/bỏ Xong/khoá, Sói chết 1 con, không đúng người, tất định, vai chết rút 8–20s, cấu hình ngắn không vượt, vai sống đủ giờ, view đồng hồ/stepDone). T-T-02 đổi tên cho đúng nghĩa mới. 895 test pass, typecheck sạch.
+- Kiểm trên trình duyệt (6 máy, đêm 30s): Dân không thấy đồng hồ đêm, Bảo vệ thấy; Bảo vệ/Sói(2/2)/Tiên tri/Phù thủy bấm Xong → sang pha sau 3,2 / 6,1 / 6,6 / 3,4 giây; 1/2 Sói Xong thì chưa rút; Tiên tri Xong không soi = bỏ lượt; "Bỏ qua pha" ban đêm vẫn chạy. Không lỗi console.
+
+## Ma Sói — Vai mới đợt 1: gộp pha đêm thành 2 pha, bỏ "Xong lượt" (2026-11-05)
+- Chủ dự án chọn 9 vai mới (Thợ săn, Già làng, Kẻ ngốc, Cupid, Trưởng làng, Sói con, Sói nguyền, Kẻ chán đời, Kỵ sĩ) + yêu cầu gộp các pha không phụ thuộc nhau, bỏ kết thúc sớm ban đêm, nút kích hoạt cho vai năng lực đặc biệt. Lộ trình 4 đợt ghi ở 01-LUAT mục 12 (kèm luật Cupid đã chốt).
+- Đổi luật R-31: đêm = pha 1 (Sói, Bảo vệ, Tiên tri cùng lúc) → pha 2 (Phù thủy, biết ai bị cắn) → Bình minh. R-80: tiêu đề đêm "Các vai đang thức dậy" / "Lượt cuối của đêm". R-81 trả về như cũ (chạy đủ giờ, không kết thúc sớm).
+- Core: `NightStep = "first" | "second"`, `NIGHT_STEP_ROLES` (vai → pha, thay `NIGHT_STEP_ROLE`), `nightActor()` kiểm "vai thức ở pha hiện tại"; Sói chốt cắn khi hết pha 1. GỠ toàn bộ "Xong lượt" vừa làm (`stepDone`, `FINISH_STEP`, rút giờ ngẫu nhiên, ẩn đồng hồ đêm, `night-finish.test.ts`). Giữ `GameAdapter.phaseToken` cho "Bỏ qua pha".
+- Client: bỏ nút Xong; Thư viện vai ghi "Thức ở pha 1/2" và dòng "Đêm: pha 1 (…) → pha 2 (…) → Bình minh. Các vai cùng pha thức cùng lúc."
+- Test: đổi tên pha trong mọi test, 2 test đổi nghĩa (Bảo vệ sai pha = pha 2; Sói không thấy phiếu nhau ở pha 2), thêm 3 test gộp pha. 885 test pass, typecheck sạch.
+- Kiểm: chụp lại 30 tình huống — đêm 1 chỉ còn 2 pha, Bảo vệ/Sói/Tiên tri cùng thao tác pha 1, Phù thủy pha 2. 0 lỗi console.
+
+## Ma Sói — Vai mới đợt 2–4: 8 vai + Trưởng làng (2026-11-05)
+- Luật chốt với chủ dự án (01-LUAT mục 12, R-90..98): Thợ săn bắn khi chết kiểu gì cũng được (30s); Kỵ sĩ nguyền Sói gần nhất phía ghế nhỏ hơn; Cupid ghép được chính mình, cặp đôi khác phe là phe riêng; Trưởng làng phiếu x2 cả bỏ phiếu và phán quyết, chết thì chọn kế nhiệm; Sói nguyền kích hoạt ban ngày, dùng ở pha 2, bị cứu thì chưa tính đã dùng.
+- Core: `types.ts` thêm 8 vai, `WOLF_ROLES`/`isWolfRole`, pha `election`/`hunter`/`successor`, người thắng `tanner`/`lovers`, log `hunter_shot`/`mayor`, action `CUPID_PICK`/`ARM_CURSE`/`CURSE_SET`/`HUNTER_SHOOT`/`MAYOR_PASS`, `WOLF_PICK.second`, `WITCH_SET.saveSecond`, `Config.mayor`. `reduce.ts` viết lại phần chết: `applyDeaths` + `continueAfterDeaths` (D-16), `checkWinner(state)` (D-17). `setup.ts`: mọi vai chức năng tối đa 1, cấu hình cũ thiếu vai → 0. `view.ts`: Sói thấy cả bầy, cặp đôi thấy vai nhau, Kẻ ngốc lộ công khai, `mayorId`, `lovers`, `wolfPicks2`, `cupid`, `curse`, Phù thủy thấy 2 người bị cắn.
+- Server: `sanitizeConfig` nhận `mayor`, vai thiếu → 0.
+- Client: nhãn + mô tả 8 vai (phe "Phe riêng" cho Kẻ chán đời), mục Trưởng làng trong Thư viện vai, ô "👑 Bầu Trưởng làng" ở phòng chờ, pha bầu/Thợ săn/kế nhiệm (người chết vẫn thao tác được), Sói cắn 2, Phù thủy 2 nút cứu, Cupid chọn 2, nút "🩸 Kích hoạt nguyền" ban ngày, Kẻ ngốc mất nút bỏ phiếu, 👑/💘 cạnh tên, nhật ký mới, màu kết quả tanner/lovers.
+- Test: `roles.test.ts` (24 test, mỗi vai ≥ 2 tình huống), sửa `library.test.ts`/`setup.test.ts`/`test-room.test.ts` cho 13 vai. 909 test pass, typecheck sạch.
+
+
+## Ma Sói — Nút thu nhỏ khung lịch sử (2026-11-05)
+- `client/ui.ts`: nút "▾ Thu nhỏ lịch sử" / "▸ Lịch sử (n)" phía trên nhật ký; thu nhỏ thì chỉ còn dòng mới nhất. Lựa chọn nhớ trên máy (localStorage `ww_log`), nút ẩn khi nhật ký trống. CSS `.ww-logtoggle`, `.ww-log--mini`.
+- Kiểm trên trình duyệt: bấm thu nhỏ còn 1 dòng, tải lại trang vẫn giữ trạng thái thu nhỏ, 0 lỗi console.
+
+## Ma Sói — Tối đa 20 người (2026-11-06)
+- `core/types.ts` `MAX_PLAYERS` 12 → 20; `core/setup.ts` bảng gợi ý Sói cho 13–20 người (3,4,4,4,4,5,5,5 — giữ tỉ lệ ~1/4 như bảng cũ); Sảnh ghi "6–20 người"; mô tả Kỵ sĩ bỏ số 12 cố định.
+- Docs: R-01a, bảng R-01e (01-LUAT), 02-THIET-KE mục 5.1. Test `setup.test.ts` mở rộng bảng gợi ý 6–20. 917 test pass, typecheck sạch.

@@ -14,7 +14,7 @@
 
 ## 1. Thiết lập ván
 
-- **R-01a** Số người: 6–12 ở v1. Giới hạn trên là 1 hằng số, phải nâng được khi có bản mở rộng (không viết code/UI giả định tối đa 12).
+- **R-01a** Số người: 6–20 (nâng từ 12 lên 20 ngày 2026-11-06). Giới hạn trên là 1 hằng số `MAX_PLAYERS`, không viết code/UI giả định số tối đa.
 - **R-01b** Chủ phòng chọn số lượng từng vai ở phòng chờ. Có bộ gợi ý theo số người (bảng R-01e), chủ phòng sửa được.
 - **R-01c** Hợp lệ khi: tổng số vai = số người; Sói ≥ 1; Sói < số người không phải Sói; Tiên tri/Phù thủy/Bảo vệ mỗi vai tối đa 1.
 - **R-01d** Cấu hình vai (vai nào, bao nhiêu) là **công khai** cho mọi người trong phòng.
@@ -29,6 +29,14 @@
 | 10 | 3 | 1 | 1 | 1 | 4 |
 | 11 | 3 | 1 | 1 | 1 | 5 |
 | 12 | 3 | 1 | 1 | 1 | 6 |
+| 13 | 3 | 1 | 1 | 1 | 7 |
+| 14 | 4 | 1 | 1 | 1 | 7 |
+| 15 | 4 | 1 | 1 | 1 | 8 |
+| 16 | 4 | 1 | 1 | 1 | 9 |
+| 17 | 4 | 1 | 1 | 1 | 10 |
+| 18 | 5 | 1 | 1 | 1 | 10 |
+| 19 | 5 | 1 | 1 | 1 | 11 |
+| 20 | 5 | 1 | 1 | 1 | 12 |
 
 - **R-01f** Chia vai ngẫu nhiên qua RNG có seed (quy tắc 2 CLAUDE.md).
 - **R-01g** Đầu ván mỗi người chỉ thấy vai của mình. Sói thấy thêm danh sách đồng đội Sói.
@@ -46,7 +54,11 @@
 ## 3. Vòng chơi
 
 - **R-30** Ván bắt đầu bằng **Đêm 1**, sau đó Ngày 1, Đêm 2, Ngày 2... cho tới khi có phe thắng.
-- **R-31** Đêm: các pha vai lần lượt theo thứ tự **Bảo vệ → Sói → Tiên tri → Phù thủy**, rồi tới Bình minh (R-44).
+  - a. *(bổ sung 2026-11-05)* Trước Đêm 1 có pha **Xem vai** 6 giây: mỗi người xem lá vai của mình (animation chia vai; Sói thấy thêm đồng đội). Không ai hành động được; hết giờ sang Đêm 1.
+- **R-31** *(sửa 2026-11-05 — trước đây 4 pha lần lượt Bảo vệ → Sói → Tiên tri → Phù thủy)* Đêm có **2 pha**, các vai trong cùng pha thức **cùng lúc**, rồi tới Bình minh (R-44):
+  - **Pha 1**: Sói, Bảo vệ, Tiên tri (các vai không cần thông tin của nhau).
+  - **Pha 2**: Phù thủy (cần biết ai bị cắn — chốt ở cuối pha 1 theo R-41c).
+  - Pha không có vai nào trong cấu hình thì bỏ (R-82): vd không có Phù thủy → không có pha 2.
 - **R-32** Thứ tự pha đêm v1 cố định. (Sau này chủ phòng sắp xếp được, xem mục 10. Ràng buộc khi làm: Phù thủy luôn phải sau Sói.)
 - **R-33** Ngày: Thảo luận → Bỏ phiếu → (nếu có người bị đưa lên) Biện hộ → Phán quyết → Đêm kế tiếp (mục 5).
 
@@ -120,8 +132,8 @@
 
 ## 8. Chống lộ thông tin (bắt buộc)
 
-- **R-80** Thông báo pha chỉ nêu **tên vai** ("🔮 Tiên tri đang thức dậy"), **không bao giờ** nêu tên người.
-- **R-81** Mỗi pha đêm có thời gian **cố định**: chạy đủ giờ **kể cả khi** người giữ vai đã chết, đã thao tác xong, hoặc mất kết nối. Không có nút kết thúc sớm ban đêm, kể cả cho Sói.
+- **R-80** Thông báo pha **không bao giờ** nêu tên người. Ban đêm chỉ ghi "Các vai đang thức dậy" (pha 1) / "Lượt cuối của đêm" (pha 2).
+- **R-81** Mỗi pha đêm có thời gian **cố định**: chạy đủ giờ **kể cả khi** người giữ vai đã chết, đã thao tác xong, hoặc mất kết nối. Không có nút kết thúc sớm ban đêm, kể cả cho Sói. *(Ngày 2026-11-05 từng thử nút "Xong lượt" + che bằng thời gian ngẫu nhiên; chủ dự án bỏ, thay bằng gộp pha R-31.)*
 - **R-82** Pha của vai **không có trong cấu hình ván** (R-01d công khai) thì bỏ qua hẳn. Vai **có** trong cấu hình thì luôn chạy, dù vai đó còn sống hay không. (Thiết kế dữ liệu phải chừa chỗ cho "bể role", mục 10.)
 - **R-83** Ban đêm, màn hình của người không phải vai đang thức phải giống hệt nhau giữa mọi máy.
 - **R-84** Dữ liệu mạng cũng không được lộ (vd chỉ gửi gói tin cho đúng người có màn hình thay đổi). Chi tiết kỹ thuật ở 02-THIET-KE.
@@ -130,7 +142,7 @@
 
 | Pha | Mặc định | Chủ phòng chỉnh được ở v1? |
 |---|---|---|
-| Mỗi pha vai ban đêm | 30 giây | **Có** (cài đặt phòng chờ, áp dụng chung mọi pha đêm) |
+| Mỗi pha đêm (pha 1, pha 2) | 30 giây | **Có** (cài đặt phòng chờ, áp dụng chung mọi pha đêm) |
 | Thảo luận | 3 phút (+60s, R-51a) | Không |
 | Bỏ phiếu | 30 giây | Không |
 | Biện hộ | 30 giây | Không |
@@ -142,7 +154,26 @@
 - Phương án hoà phiếu "bầu lại giữa những người hoà" (R-52e).
 - Vai mở rộng, số người > 12.
 - Chỉnh các mốc thời gian ban ngày.
-- **Bể role**: cố định số Sói và số Dân (hoặc vài chức năng), các lá còn lại bốc ngẫu nhiên từ "bể" cho đủ số người. Ban đêm, mọi vai **có trong bể** đều có lượt dù thực tế không ai giữ vai đó ("lượt chết", chạy đủ giờ theo R-81) → Sói dễ giả vai hơn. Khi đó R-82 đổi thành "vai có trong bể thì luôn chạy".
+- **Bể role**: cố định số Sói và số Dân (hoặc vài chức năng), các lá còn lại bốc ngẫu nhiên từ "bể" cho đủ số người. Ban đêm, mọi vai **có trong bể** đều có lượt dù thực tế không ai giữ vai đó ("lượt chết", chạy đủ giờ theo R-81 — chủ dự án chốt 2026-11-05: vai trống vẫn hiện lượt) → Sói dễ giả vai hơn. Khi đó R-82 đổi thành "vai có trong bể thì luôn chạy".
+
+## 12. Vai mới (chủ dự án chọn và chốt 2026-11-05 — ĐÃ LÀM)
+
+Mỗi vai chức năng tối đa 1/ván (chỉ Sói và Dân làng được nhiều). Phe Sói = Sói + Sói con + Sói nguyền (Tiên tri soi ra "Là Sói"); số Sói phải ≥ 1 và < số người còn lại.
+
+**Đêm (R-31 mở rộng)**: pha 1 = bầy Sói (cả 3 loại), Bảo vệ, Tiên tri, Cupid (chỉ đêm 1); pha 2 = Phù thủy, Sói nguyền (khi đã kích hoạt). Có Phù thủy **hoặc Sói nguyền** trong cấu hình thì pha 2 luôn chạy đủ giờ (không lộ việc kích hoạt).
+
+**Bình minh (thứ tự)**: với từng người bị cắn (1 hoặc 2): được Bảo vệ/Phù thủy cứu → sống; nếu là mục tiêu nguyền → hoá Sói, không chết; nếu là Già làng chưa dính cắn → sống (đánh dấu); còn lại chết. Rồi bình độc. Rồi Sói bị Kỵ sĩ nguyền (từ đêm trước). Mỗi cái chết kéo theo người yêu chết theo ngay. Công bố chết → Thợ săn bắn (nếu có) → kiểm thắng → Trưởng làng chết chọn kế nhiệm → (Ngày 1 có Trưởng làng: bầu) → thảo luận.
+
+- **R-90 Thợ săn**: chết kiểu gì (cắn, độc, treo, bị bắn, chết theo người yêu, Kỵ sĩ) cũng được bắn 1 người còn sống (không phải mình) trong 30 giây. Chết đêm → bắn sau công bố Bình minh; bị treo → ngay sau phán quyết. Hết giờ / bấm "Không bắn" = không bắn. Phát bắn có thể kết thúc ván. Nhiều Thợ săn chết cùng lúc không thể xảy ra (tối đa 1).
+- **R-91 Già làng**: chịu được lần **Sói cắn** đầu tiên (không ai được báo). Độc, treo, bắn vẫn chết ngay.
+- **R-92 Kẻ ngốc**: lần đầu bị phán "Giết" → không chết, vai lật công khai, mất quyền bỏ phiếu/phán quyết/không tính vào "mọi người đã bỏ phiếu". Lần sau bị treo → chết.
+- **R-93 Kẻ chán đời**: phe riêng. Bị treo cổ → **thắng một mình, ván kết thúc ngay**. Chết kiểu khác → chỉ là chết.
+- **R-94 Sói con**: thức cắn cùng bầy. Chết (kiểu gì) → đêm kế tiếp bầy cắn **2 người** (2 lượt chọn riêng; người thứ 2 tính đa số trong phiếu thứ 2, không trùng người thứ 1). Phù thủy thấy cả 2, chỉ có 1 bình cứu → cứu tối đa 1.
+- **R-95 Sói nguyền**: thức cắn cùng bầy. Một lần/ván: ban ngày bấm "🩸 Kích hoạt nguyền" (bấm lại để huỷ). Đêm đó ở pha 2 chọn 1 người vừa bị cắn → người đó **thành Sói** thay vì chết (bầy Sói thấy ngay từ sáng). Người đó được Bảo vệ/Phù thủy cứu → nguyền không tác dụng và **chưa tính là đã dùng**.
+- **R-96 Kỵ sĩ**: bị **Sói cắn** chết → Sói còn sống gần nhất đi về phía **ghế số nhỏ hơn** (vòng: 4, 3, 2, 1, rồi ghế cuối…) chết vào Bình minh hôm sau (cùng lúc các cái chết đêm đó). Chết kiểu khác (kể cả chết theo người yêu) → không có hiệu ứng.
+- **R-97 Cupid**: đêm 1 pha 1 chọn 2 người (được chọn chính mình), chọn lại để bỏ. Hết pha 1 mới chốt; chọn thiếu → không có cặp đôi. Cặp đôi thấy vai của nhau ngay và thấy 💘; Cupid ghép người khác thì chỉ thấy ai là cặp đôi, không thấy vai. Một người chết → người kia chết theo ngay (cùng thời điểm). Cặp đôi **khác phe** (Sói + không Sói, hoặc có Kẻ chán đời) là phe riêng: thắng khi chỉ còn đúng 2 người họ; khi đó Làng chưa thắng dù hết Sói ngoài cặp, và Sói tính cặp đôi vào "phần còn lại". Cặp đôi cùng phe → thắng theo phe mình.
+- **R-98 Trưởng làng** (danh hiệu, bật trong cài đặt phòng): đầu Ngày 1 bầu 60 giây (mọi người đã bầu → chốt ngay; hoà hoặc không ai bầu → bốc ngẫu nhiên trong nhóm cao nhất / mọi người còn sống). Phiếu Trưởng làng tính **x2** ở bỏ phiếu và phán quyết. Trưởng làng chết → chọn người kế nhiệm còn sống trong 30 giây; hết giờ → làng mất Trưởng làng.
+- Quy tắc chung (chủ dự án): vai có năng lực cần kích hoạt riêng → có nút riêng, bấm thì đêm tiếp theo mới có lượt (hiện chỉ Sói nguyền).
 
 ## 11. Các chỗ đã chốt khi duyệt (2026-11-05)
 

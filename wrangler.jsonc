@@ -30,6 +30,8 @@
   "env": {
     "beta": {
       "name": "bang-boardgame-beta",
+      // Công cụ thử nghiệm CHỈ bản beta (vd chủ phòng Ma Sói bỏ qua pha). Bản chính không có biến này.
+      "vars": { "DEV_TOOLS": "1" },
       // wrangler CẢNH BÁO "durable_objects" không tự kế thừa vào environment
       // con (khác đa số field khác) — phải khai lại y hệt gốc, không phải lỗi
       // đánh máy.

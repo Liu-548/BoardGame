@@ -11,11 +11,15 @@ export interface GameAdapter<S, A, V, C> {
   // Ép dữ liệu thô từ client thành C hợp lệ về hình dạng (không xét số người); null = từ chối.
   sanitizeConfig(raw: unknown): C | null;
   setup(players: { id: string; name: string }[], seed: number, config: C, now: number): S;
+  // Phòng test (chỉ bản thử nghiệm): tạo ván với vai chủ phòng tự gán (playerId → vai). Lỗi trả về câu báo.
+  setupWithRoles?(players: { id: string; name: string }[], seed: number, config: C, now: number, roles: Record<string, string>): { state: S } | { error: string };
   reduce(state: S, action: A): { state: S; error?: string };
   viewFor(state: S, playerId: string): V;
   deadline(state: S): number | null;
   timeUpAction(state: S, now: number): A;
   isOver(state: S): boolean;
+  // Mã nhận diện pha hiện tại (mặc định = hạn giờ). Dùng khi client không được thấy hạn giờ thật.
+  phaseToken?(state: S): number | null;
   minPlayers: number;
   maxPlayers: number;
 }
@@ -33,6 +37,7 @@ interface StoredConfig<C> {
 const SEATS_KEY = "seats";
 const GAME_KEY = "game";
 const CONFIG_KEY = "config";
+const TEST_ROLES_KEY = "testRoles";
 // D-44: "đang kết nối" = có tin nhắn trong 90s gần nhất (client ping mỗi 20s).
 const STALE_SOCKET_MS = 90_000;
 
@@ -41,7 +46,11 @@ export abstract class BaseRoom<S, A extends { type: string }, V, C> {
   // Chỉ để tránh phát lobby thừa; mất khi hibernate cũng không sao (chỉ thêm 1 lần phát).
   private lastLobbyHash = "";
 
-  constructor(ctx: DurableObjectState, protected readonly adapter: GameAdapter<S, A, V, C>) {
+  constructor(
+    ctx: DurableObjectState,
+    protected readonly adapter: GameAdapter<S, A, V, C>,
+    private readonly devTools = false, // bật bằng biến DEV_TOOLS (chỉ bản beta, wrangler.jsonc)
+  ) {
     this.ctx = ctx;
   }
 
@@ -97,26 +106,40 @@ export abstract class BaseRoom<S, A extends { type: string }, V, C> {
     const seats = await this.getSeats();
     const game = await this.getGame();
     const connected = this.connectedIds();
-    const playing = seats.filter((s) => !s.waiting && connected.has(s.playerId));
+    const active = this.isActive(game);
+    // "Chờ ván sau" chỉ có nghĩa khi ván đang chơi; hết ván thì ai cũng vào được ván kế.
+    const playing = seats.filter((s) => (!s.waiting || !active) && connected.has(s.playerId));
     const config = await this.currentConfig(playing.length);
     const players: LobbyPlayer[] = seats.map((s) => ({
       playerId: s.playerId,
       name: s.name,
       connected: connected.has(s.playerId),
-      waiting: s.waiting,
+      waiting: s.waiting && active,
     }));
     const message: ServerMessage = {
       type: "lobby",
       players,
       ownerId: pickOwner(seats.map((s) => s.playerId), connected),
       config,
-      configError: game ? null : this.adapter.validateConfig(config, playing.length),
-      inGame: game !== null,
+      configError: active ? null : this.adapter.validateConfig(config, playing.length),
+      devTools: this.devTools,
+      testRoles: this.devTools ? await this.getTestRoles() : null,
+      inGame: active,
     };
     const hash = viewHash(message);
     if (!force && hash === this.lastLobbyHash) return;
     this.lastLobbyHash = hash;
     for (const ws of this.openSockets()) if (this.attachment(ws).playerId) this.send(ws, message);
+  }
+
+  private async getTestRoles(): Promise<Record<string, string> | null> {
+    return (await this.ctx.storage.get<Record<string, string>>(TEST_ROLES_KEY)) ?? null;
+  }
+
+  // Ván đang chơi thật sự. Ván đã kết thúc vẫn nằm trong storage (để ai chưa xem kết quả vẫn xem được)
+  // nhưng phòng coi như đang ở phòng chờ.
+  private isActive(game: S | null): game is S {
+    return game !== null && !this.adapter.isOver(game);
   }
 
   // D-30: chỉ gửi view cho socket nào có băm view khác lần trước.
@@ -165,13 +188,19 @@ export abstract class BaseRoom<S, A extends { type: string }, V, C> {
         await this.handleSetConfig(ws, msg.config);
         break;
       case "start_game":
-        await this.handleStart(ws);
+        await this.handleStart(ws, msg.force === true);
         break;
       case "action":
         await this.handleAction(ws, msg.action);
         break;
       case "return_to_lobby":
         await this.handleReturnToLobby(ws);
+        break;
+      case "set_test_roles":
+        await this.handleSetTestRoles(ws, msg.roles);
+        break;
+      case "skip_phase":
+        await this.handleSkipPhase(ws, msg.token);
         break;
     }
     await this.broadcastLobby(); // phát khi có đổi (kể cả ai đó vừa im lặng quá 90s)
@@ -229,7 +258,7 @@ export abstract class BaseRoom<S, A extends { type: string }, V, C> {
 
   private async handleSetConfig(ws: WebSocket, raw: unknown): Promise<void> {
     if (!(await this.ownerOnly(ws))) return;
-    if (await this.getGame()) return this.send(ws, { type: "error", message: "Ván đang chơi, không sửa được cấu hình" });
+    if (this.isActive(await this.getGame())) return this.send(ws, { type: "error", message: "Ván đang chơi, không sửa được cấu hình" });
     let config: C | null = null;
     if (raw !== null) {
       config = this.adapter.sanitizeConfig(raw);
@@ -239,19 +268,29 @@ export abstract class BaseRoom<S, A extends { type: string }, V, C> {
     await this.broadcastLobby(true);
   }
 
-  private async handleStart(ws: WebSocket): Promise<void> {
+  private async handleStart(ws: WebSocket, force: boolean): Promise<void> {
     if (!(await this.ownerOnly(ws))) return;
-    if (await this.getGame()) return this.send(ws, { type: "error", message: "Ván đang chơi" });
-    const seats = await this.getSeats();
+    if (!force && this.isActive(await this.getGame())) return this.send(ws, { type: "error", message: "Ván đang chơi" });
+    // Không còn ván đang chơi (hoặc bắt đầu lại) → người "chờ ván sau" được vào ván này.
+    const seats = (await this.getSeats()).map((s) => ({ ...s, waiting: false }));
     const connected = this.connectedIds();
     // Chỉ người đang kết nối được vào ván; ghế mất kết nối bị bỏ (họ vào lại sẽ chờ ván sau).
     const players = seats.filter((s) => !s.waiting && connected.has(s.playerId));
     const config = await this.currentConfig(players.length);
-    const err = this.adapter.validateConfig(config, players.length);
-    if (err) return this.send(ws, { type: "error", message: err });
-    await this.ctx.storage.put(SEATS_KEY, seats.filter((s) => s.waiting || players.includes(s)));
     const seed = crypto.getRandomValues(new Uint32Array(1))[0];
-    const state = this.adapter.setup(players.map((s) => ({ id: s.playerId, name: s.name })), seed, config, Date.now());
+    const list = players.map((s) => ({ id: s.playerId, name: s.name }));
+    const testRoles = this.devTools && this.adapter.setupWithRoles ? await this.getTestRoles() : null;
+    let state: S;
+    if (testRoles && this.adapter.setupWithRoles) {
+      const r = this.adapter.setupWithRoles(list, seed, config, Date.now(), testRoles);
+      if ("error" in r) return this.send(ws, { type: "error", message: r.error });
+      state = r.state;
+    } else {
+      const err = this.adapter.validateConfig(config, players.length);
+      if (err) return this.send(ws, { type: "error", message: err });
+      state = this.adapter.setup(list, seed, config, Date.now());
+    }
+    await this.ctx.storage.put(SEATS_KEY, players);
     await this.commit(state);
     await this.broadcastLobby(true);
   }
@@ -273,8 +312,7 @@ export abstract class BaseRoom<S, A extends { type: string }, V, C> {
 
   private async handleReturnToLobby(ws: WebSocket): Promise<void> {
     if (!(await this.ownerOnly(ws))) return;
-    const game = await this.getGame();
-    if (!game || !this.adapter.isOver(game)) return this.send(ws, { type: "error", message: "Ván chưa kết thúc" });
+    if (!(await this.getGame())) return this.send(ws, { type: "error", message: "Không có ván nào" });
     const connected = this.connectedIds();
     // D-45: phòng chờ chỉ giữ người đang kết nối; người chờ ván sau trở thành người chơi thường.
     const seats = (await this.getSeats()).filter((s) => connected.has(s.playerId)).map((s) => ({ ...s, waiting: false }));
@@ -283,6 +321,39 @@ export abstract class BaseRoom<S, A extends { type: string }, V, C> {
     await this.ctx.storage.deleteAlarm();
     for (const sock of this.openSockets()) sock.serializeAttachment({ ...this.attachment(sock), lastViewHash: null });
     await this.broadcastLobby(true);
+  }
+
+  // Phòng test: chủ phòng bật/tắt và sửa bảng gán vai (chỉ lúc không có ván đang chơi).
+  private async handleSetTestRoles(ws: WebSocket, raw: unknown): Promise<void> {
+    if (!this.devTools) return this.send(ws, { type: "error", message: "Chỉ có ở bản thử nghiệm" });
+    if (!(await this.ownerOnly(ws))) return;
+    if (this.isActive(await this.getGame())) return this.send(ws, { type: "error", message: "Ván đang chơi" });
+    if (raw === null) {
+      await this.ctx.storage.delete(TEST_ROLES_KEY);
+    } else {
+      if (typeof raw !== "object" || Array.isArray(raw)) return this.send(ws, { type: "error", message: "Bảng gán vai không hợp lệ" });
+      const entries = Object.entries(raw as Record<string, unknown>).filter(
+        (e): e is [string, string] => typeof e[1] === "string" && e[0].length <= 64 && e[1].length <= 32,
+      );
+      if (entries.length > this.adapter.maxPlayers * 2) return this.send(ws, { type: "error", message: "Bảng gán vai không hợp lệ" });
+      await this.ctx.storage.put(TEST_ROLES_KEY, Object.fromEntries(entries));
+    }
+    await this.broadcastLobby(true);
+  }
+
+  // Công cụ thử: chủ phòng kết thúc pha ngay = TIME_UP sớm. Ai đã chọn thì áp dụng như thường, chưa chọn = không hành động.
+  private async handleSkipPhase(ws: WebSocket, seenToken: unknown): Promise<void> {
+    if (!this.devTools) return this.send(ws, { type: "error", message: "Chỉ có ở bản thử nghiệm" });
+    if (!(await this.ownerOnly(ws))) return;
+    const game = await this.getGame();
+    if (!this.isActive(game) || this.adapter.deadline(game) === null) {
+      return this.send(ws, { type: "error", message: "Không có pha nào để bỏ qua" });
+    }
+    const token = this.adapter.phaseToken ? this.adapter.phaseToken(game) : this.adapter.deadline(game);
+    if (token !== seenToken) return; // pha đã đổi trước khi lệnh tới: không bỏ qua thêm
+    const result = this.adapter.reduce(game, this.adapter.timeUpAction(game, Date.now()));
+    if (result.error) return this.send(ws, { type: "error", message: result.error });
+    await this.commit(result.state);
   }
 
   // D-21: alarm sớm thì đặt lại; đúng hạn thì TIME_UP.

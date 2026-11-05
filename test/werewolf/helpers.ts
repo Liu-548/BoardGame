@@ -15,11 +15,14 @@ export function deepFreeze<T>(o: T): T {
 }
 
 // Ván với vai cố định; id p0.. theo thứ tự mảng.
-export function makeGame(roles: Role[], opts: { nightStepMs?: number; seed?: number; now?: number } = {}): GameState {
+export function makeGame(roles: Role[], opts: { nightStepMs?: number; seed?: number; now?: number; mayor?: boolean } = {}): GameState {
   const roleCounts = Object.fromEntries(ALL_ROLES.map((r) => [r, roles.filter((x) => x === r).length])) as Record<Role, number>;
-  const config = { roleCounts, nightStepMs: opts.nightStepMs ?? 30_000 };
+  const config = { roleCounts, nightStepMs: opts.nightStepMs ?? 30_000, mayor: opts.mayor ?? false };
   const players = roles.map((_, i) => ({ id: `p${i}`, name: `P${i}` }));
-  const s = setupGame(players, opts.seed ?? 1, config, opts.now ?? 1000);
+  const now = opts.now ?? 1000;
+  const setup = setupGame(players, opts.seed ?? 1, config, now);
+  // Bỏ qua pha "Xem vai" (R-30a) để test đêm/ngày bắt đầu từ Đêm 1 như trước; test riêng ở setup.test.ts.
+  const s = reduce(setup, { type: "TIME_UP", phaseSeq: setup.phaseSeq, now }).state;
   return { ...s, players: s.players.map((p, i) => ({ ...p, role: roles[i] })) };
 }
 

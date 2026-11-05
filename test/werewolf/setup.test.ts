@@ -1,11 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { setupGame, suggestedConfig, validateConfig } from "../../src/games/werewolf/core/setup";
+import { reduce } from "../../src/games/werewolf/core/reduce";
 import type { Config } from "../../src/games/werewolf/core/types";
+import { ALL_ROLES } from "../../src/games/werewolf/core/types";
 
 const mkPlayers = (n: number) => Array.from({ length: n }, (_, i) => ({ id: `p${i}`, name: `P${i}` }));
 const cfg = (wolf: number, villager: number, seer = 1, witch = 1, guard = 1): Config => ({
-  roleCounts: { wolf, villager, seer, witch, guard },
+  roleCounts: { ...(Object.fromEntries(ALL_ROLES.map((r) => [r, 0])) as Config["roleCounts"]), wolf, villager, seer, witch, guard },
   nightStepMs: 30_000,
+  mayor: false,
 });
 
 describe("T-SET-01 validateConfig", () => {
@@ -14,15 +17,18 @@ describe("T-SET-01 validateConfig", () => {
   it("0 Sói", () => expect(validateConfig(cfg(0, 3), 6)).not.toBeNull());
   it("Sói ≥ số không phải Sói", () => expect(validateConfig(cfg(3, 0), 6)).not.toBeNull());
   it("2 Tiên tri", () => expect(validateConfig(cfg(2, 0, 2), 6)).not.toBeNull());
-  it("số người < 6 hoặc > 12", () => {
+  it("số người < 6 hoặc > 20", () => {
     expect(validateConfig(suggestedConfig(6), 5)).not.toBeNull();
-    expect(validateConfig(suggestedConfig(12), 13)).not.toBeNull();
+    expect(validateConfig(suggestedConfig(20), 21)).not.toBeNull();
   });
 });
 
 describe("T-SET-02 suggestedConfig", () => {
-  const table: Record<number, [number, number]> = { 6: [2, 1], 7: [2, 2], 8: [2, 3], 9: [2, 4], 10: [3, 4], 11: [3, 5], 12: [3, 6] };
-  for (const n of [6, 7, 8, 9, 10, 11, 12]) {
+  const table: Record<number, [number, number]> = {
+    6: [2, 1], 7: [2, 2], 8: [2, 3], 9: [2, 4], 10: [3, 4], 11: [3, 5], 12: [3, 6],
+    13: [3, 7], 14: [4, 7], 15: [4, 8], 16: [4, 9], 17: [4, 10], 18: [5, 10], 19: [5, 11], 20: [5, 12],
+  };
+  for (const n of Object.keys(table).map(Number)) {
     it(`n=${n} khớp bảng R-01e và hợp lệ`, () => {
       const c = suggestedConfig(n);
       expect([c.roleCounts.wolf, c.roleCounts.villager]).toEqual(table[n]);
@@ -47,20 +53,41 @@ describe("setupGame", () => {
     expect(s.players.filter((p) => p.role === "villager")).toHaveLength(3);
   });
 
-  it("T-SET-04 pha đầu là đêm 1, phaseSeq=1, phaseEndsAt=now+nightStepMs", () => {
+  it("T-SET-04 pha đầu là Xem vai 6 giây (R-30a); hết giờ → Đêm 1, phaseSeq+1, phaseEndsAt=now+nightStepMs", () => {
     const s = setupGame(mkPlayers(6), 1, suggestedConfig(6), 1000);
-    expect(s.phase).toEqual({ kind: "night", night: 1, step: "guard" });
+    expect(s.phase).toEqual({ kind: "reveal" });
     expect(s.phaseSeq).toBe(1);
-    expect(s.phaseEndsAt).toBe(31_000);
+    expect(s.phaseEndsAt).toBe(7_000);
+    const n = reduce(s, { type: "TIME_UP", phaseSeq: 1, now: 7_000 }).state;
+    expect(n.phase).toEqual({ kind: "night", night: 1, step: "first" });
+    expect(n.phaseSeq).toBe(2);
+    expect(n.phaseEndsAt).toBe(37_000);
+  });
+
+  it("T-SET-07 trong pha Xem vai không ai hành động được; TIME_UP cũ bị bỏ qua (R-30a, D-21)", () => {
+    const s = setupGame(mkPlayers(6), 1, suggestedConfig(6), 1000);
+    const wolf = s.players.find((p) => p.role === "wolf")!.id;
+    const guard = s.players.find((p) => p.role === "guard")!.id;
+    for (const a of [
+      { type: "GUARD_PICK", playerId: guard, targetId: guard, now: 2000 },
+      { type: "WOLF_PICK", playerId: wolf, targetId: guard, now: 2000 },
+      { type: "TOGGLE_END_EARLY", playerId: wolf, now: 2000 },
+      { type: "CAST_VOTE", playerId: wolf, targetId: "blank", now: 2000 },
+    ] as const) {
+      const r = reduce(s, a);
+      expect(r.error).toBeDefined();
+      expect(r.state).toBe(s);
+    }
+    expect(reduce(s, { type: "TIME_UP", phaseSeq: 0, now: 9_000 }).state).toBe(s);
   });
 
   it("T-SET-05 nightSteps đúng thứ tự, bỏ vai không có", () => {
-    expect(setupGame(mkPlayers(6), 1, suggestedConfig(6), 0).nightSteps).toEqual(["guard", "wolves", "seer", "witch"]);
+    expect(setupGame(mkPlayers(6), 1, suggestedConfig(6), 0).nightSteps).toEqual(["first", "second"]);
     const noGuardSeer = setupGame(mkPlayers(6), 1, cfg(2, 2, 0, 1, 0), 0);
-    expect(noGuardSeer.nightSteps).toEqual(["wolves", "witch"]);
-    expect(noGuardSeer.phase).toEqual({ kind: "night", night: 1, step: "wolves" });
+    expect(noGuardSeer.nightSteps).toEqual(["first", "second"]);
+    expect(reduce(noGuardSeer, { type: "TIME_UP", phaseSeq: 1, now: 0 }).state.phase).toEqual({ kind: "night", night: 1, step: "first" });
     // ca biên: chỉ Sói + Dân
-    expect(setupGame(mkPlayers(6), 1, cfg(2, 4, 0, 0, 0), 0).nightSteps).toEqual(["wolves"]);
+    expect(setupGame(mkPlayers(6), 1, cfg(2, 4, 0, 0, 0), 0).nightSteps).toEqual(["first"]); // không có Phù thủy → không có pha 2
   });
 
   it("T-SET-06 state là JSON thuần", () => {

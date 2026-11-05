@@ -34,38 +34,38 @@ describe("T-VIEW vai", () => {
 });
 
 describe("T-VIEW thông tin đêm", () => {
-  it("T-V-03 wolfPicks: chỉ Sói sống, trong pha wolves", () => {
-    let s = at("wolves");
+  it("T-V-03 wolfPicks: chỉ Sói sống, trong pha 1", () => {
+    let s = at("first");
     s = act(s, { type: "WOLF_PICK", playerId: "p0", targetId: "p5" });
     expect(viewFor(s, "p1").wolfPicks).toEqual({ p0: "p5" });
     for (const id of ["p2", "p3", "p4", "p5"]) expect(viewFor(s, id).wolfPicks).toBeUndefined();
     const dead = { ...s, players: s.players.map((p) => (p.id === "p5" ? { ...p, alive: false } : p)) };
     expect(viewFor(dead, "p5").wolfPicks).toBeUndefined();
-    expect(viewFor(at("seer", s), "p0").wolfPicks).toBeUndefined();
+    expect(viewFor(at("second", s), "p0").wolfPicks).toBeUndefined(); // hết pha 1 thì không còn thấy
   });
-  it("T-V-04 bittenId chỉ Phù thủy, chỉ từ pha witch", () => {
-    let s = at("wolves");
+  it("T-V-04 bittenId chỉ Phù thủy, chỉ từ pha 2", () => {
+    let s = at("first");
     s = act(s, { type: "WOLF_PICK", playerId: "p0", targetId: "p5" });
-    expect(viewFor(at("seer", s), "p3").witch?.bittenId).toBeNull();
-    const w = at("witch", s);
+    expect(viewFor(at("first", s), "p3").witch?.bittenId).toBeNull();
+    const w = at("second", s);
     expect(viewFor(w, "p3").witch?.bittenId).toBe("p5");
     for (const id of ["p0", "p2", "p4", "p5"]) expect(JSON.stringify(viewFor(w, id))).not.toContain("bittenId");
   });
   it("T-V-05 seerResults chỉ Tiên tri", () => {
-    let s = at("seer");
+    let s = at("first");
     s = act(s, { type: "SEER_PICK", playerId: "p2", targetId: "p0" });
     expect(viewFor(s, "p2").seer?.results).toHaveLength(1);
     for (const id of ["p0", "p3", "p4", "p5"]) expect(viewFor(s, id).seer).toBeUndefined();
   });
   it("T-V-06 số bình chỉ Phù thủy", () => {
-    const s = at("witch");
+    const s = at("second");
     expect(viewFor(s, "p3").witch?.potions).toEqual({ save: true, poison: true });
     for (const id of ["p0", "p2", "p4", "p5"]) expect(viewFor(s, id).witch).toBeUndefined();
   });
   it("T-V-09 không lộ rngState/token/guardTarget/witchPoisonTarget", () => {
-    let s = at("guard");
+    let s = at("first");
     s = act(s, { type: "GUARD_PICK", playerId: "p4", targetId: "p5" });
-    s = at("witch", s);
+    s = at("second", s);
     s = act(s, { type: "WITCH_SET", playerId: "p3", save: false, poisonTarget: "p5" });
     for (const id of ["p0", "p1", "p2", "p3", "p4", "p5"]) {
       const t = j(s, id);
@@ -80,7 +80,7 @@ describe("T-VIEW thông tin đêm", () => {
   it("T-V-10 mọi pha đêm: 2 Dân có view giống hệt (bỏ trường của tôi)", () => {
     let s = makeGame([...V8], { seed: 2 });
     s = act(s, { type: "GUARD_PICK", playerId: "p4", targetId: "p5" });
-    for (const step of ["guard", "wolves", "seer", "witch"] as NightStep[]) {
+    for (const step of ["first", "second"] as NightStep[]) {
       s = at(step, s);
       const strip = (id: string) => {
         const v = viewFor(s, id) as unknown as Record<string, unknown>;
@@ -104,15 +104,15 @@ describe("T-VIEW gói tin chỉ gửi khi đổi (D-30)", () => {
     expect(j(s2, "p4")).not.toBe(j(s, "p4"));
   });
   it("T-V-12 Tiên tri / Phù thủy / Sói đổi → chỉ người liên quan đổi", () => {
-    const sSeer = at("seer");
+    const sSeer = at("first");
     const s2 = act(sSeer, { type: "SEER_PICK", playerId: "p2", targetId: "p0" });
     expect(others(s2, ["p0", "p1", "p3", "p4", "p5"])).toEqual(others(sSeer, ["p0", "p1", "p3", "p4", "p5"]));
-    let w = at("wolves");
+    let w = at("first");
     w = act(w, { type: "WOLF_PICK", playerId: "p0", targetId: "p5" });
     const w2 = act(w, { type: "WOLF_PICK", playerId: "p0", targetId: "p4" });
     expect(others(w2, ["p2", "p3", "p4", "p5"])).toEqual(others(w, ["p2", "p3", "p4", "p5"]));
     expect(j(w2, "p1")).not.toBe(j(w, "p1"));
-    let t = at("witch");
+    let t = at("second");
     const t2 = act(t, { type: "WITCH_SET", playerId: "p3", save: false, poisonTarget: "p5" });
     expect(others(t2, ["p0", "p1", "p2", "p4", "p5"])).toEqual(others(t, ["p0", "p1", "p2", "p4", "p5"]));
     t = timeUp(t2);

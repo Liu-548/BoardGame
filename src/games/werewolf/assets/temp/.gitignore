@@ -1,0 +1,4 @@
+# Ảnh thô chờ xếp: không đưa lên git (xếp xong sẽ được nén vào roles/<vai>/ rồi xoá).
+*
+!.gitignore
+!.gitkeep
