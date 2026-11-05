@@ -1,0 +1,304 @@
+/* CSS DÙNG CHUNG mọi màn (Sảnh, Bang!, Ma Sói): biến màu, giao diện Tối, cỡ chữ,
+   phần tử gốc (body/button/input), khung dialog + nhóm cài đặt. Tách từ public/style.css (2026-11-06). */
+
+/* Việc 4.4: box-sizing border-box cho MỌI phần tử — không có nó, input/button
+   có padding sẽ bị CỘNG THÊM vào width khai báo, dễ tràn ngang trên màn hình
+   hẹp (điện thoại) mà không thấy rõ nguyên nhân. */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+/* Đợt 1 UI/UX (GIAO-DIEN-UI-UX.txt, mục 1): "chrome" (khung/nền/viền chung của
+   giao diện) CHỈ được dùng thang xám + đúng 1 màu đỏ làm điểm nhấn nguy hiểm/
+   khẩn cấp — 7 màu lá bài (nâu/xanh dương/xanh lá/vàng/tím/xanh lá nhạt/đen)
+   dành RIÊNG cho lá bài, không được mượn cho trạng thái giao diện. Gom thành
+   biến ở đây để đổi 1 chỗ là đổi khắp nơi (đặc tả: "dùng biến theme để đổi
+   sáng/tối dễ" — mới chỉ thiết lập theme SÁNG, dark mode để dành sau). */
+:root {
+  --color-border: #999;
+  --color-border-strong: #333;
+  --color-text-muted: #666;
+  --color-danger: #c0392b;
+  --color-danger-bg: #fdecea;
+  --color-bg: #fff;
+  --color-bg-alt: #f2f2f2;
+  --color-bg-panel: #f4f4f4;
+  --color-text: #222;
+  --color-card-border: #ccc;
+}
+
+/* Hoàn thiện dialog Cài đặt — giao diện Tối, bật qua thuộc tính
+   `data-theme="dark"` trên `<html>` (xem applyStoredSettings()/dòng
+   `onchange` ở renderSettingsDialogBody(), ui.ts — lưu localStorage, áp dụng
+   NGAY lúc chọn, không cần tải lại trang). Chỉ đổi biến "chrome" trung tính
+   (nền/viền/chữ xám) — 7 màu lá bài (nâu/xanh dương/xanh lá...) giữ NGUYÊN,
+   không đổi theo theme (đúng mục 1: màu lá bài không phải màu trạng thái). */
+html[data-theme="dark"] {
+  --color-border: #666;
+  --color-border-strong: #ccc;
+  --color-text-muted: #aaa;
+  --color-danger: #e74c3c;
+  --color-danger-bg: #4a2323;
+  --color-bg: #1e1e1e;
+  --color-bg-alt: #2a2a2a;
+  --color-bg-panel: #262626;
+  --color-text: #eee;
+  --color-card-border: #555;
+}
+
+/* Hoàn thiện dialog Cài đặt — cỡ chữ, bật qua class trên `<html>` (mặc định
+   "vừa" — không cần class gì). Chỉ đổi font-size GỐC của toàn trang — mọi
+   đơn vị rem trong CSS (kể cả .card-box 4.5rem cố định) tự co giãn theo,
+   không cần sửa lại từng chỗ. */
+html.font-size-small {
+  font-size: 87.5%;
+}
+
+html.font-size-large {
+  font-size: 118.75%;
+}
+
+/* Thanh cuộn (scrollbar) — mặc định trình duyệt (đặc biệt Windows/Chrome, kiểu
+   "cổ điển" không phải overlay) vẽ thanh cuộn xám sáng KÈM 2 nút mũi tên 2 đầu,
+   lạc hẳn ra khỏi theme (nhất là giao diện Tối). Đã thử tô lại màu qua
+   `scrollbar-color`/`::-webkit-scrollbar-thumb` + ẩn nút qua
+   `::-webkit-scrollbar-button{display:none}` — máy tự kiểm (`getComputedStyle`)
+   xác nhận CSS áp dụng đúng, nhưng 2 nút mũi tên VẪN hiện trên Chrome/Windows
+   kiểu cổ điển (do trình duyệt vẽ đè bằng theme hệ điều hành, không tuân theo
+   CSS ở bước vẽ cuối — giới hạn của riêng nền tảng này). Cách chắc chắn nhất,
+   ĐÚNG CHUẨN carousel vuốt ngang trên di động (Instagram/Netflix... đều làm
+   vậy): ẨN HẲN thanh cuộn ở 2 khung dành riêng cho vuốt-xem (`.roster` — dải
+   người chơi màn "Chọn nhân vật", `.players` — dải ghế người chơi trong ván),
+   không cố tô màu nữa. Cuộn/vuốt vẫn hoạt động bình thường, chỉ là không có
+   thanh nhìn thấy được — trên điện thoại thật (nơi thanh cuộn vốn ẩn tới khi
+   chạm) sẽ không khác gì; trên desktop mất chỉ dấu thanh cuộn nhưng đổi lại
+   không còn "lạc quẻ" nữa. Các khung cuộn KHÁC (dialog, `.log-list`...) vẫn
+   giữ thanh cuộn mảnh đã tô màu theo theme — nơi đó là ĐỌC/CUỘN chứ không
+   phải "carousel vuốt ngang", giữ chỉ dấu cuộn vẫn có ích. */
+:root {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border-strong) var(--color-bg-alt);
+}
+
+*::-webkit-scrollbar {
+  width: 0.5rem;
+  height: 0.5rem;
+}
+
+*::-webkit-scrollbar-button {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+*::-webkit-scrollbar-track {
+  background: var(--color-bg-alt);
+}
+
+*::-webkit-scrollbar-thumb {
+  background: var(--color-border-strong);
+  border-radius: 999px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--color-text-muted);
+}
+
+body {
+  font-family: sans-serif;
+  max-width: 60rem;
+  margin: 2rem auto;
+  padding: 0 1rem;
+  background: var(--color-bg);
+  color: var(--color-text);
+}
+
+button {
+  font-size: 1rem;
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+}
+
+/* Link Bản Beta/Về bản chính (màn hình chính) — `<a>` trông giống button
+   nhưng KHÔNG PHẢI button (chỉ mở URL khác ở tab mới, không có handler JS gì
+   để bấm gọi). display:inline-block để padding/border ăn đúng như button. */
+.link-button {
+  display: inline-block;
+  font-size: 1rem;
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+  border: 1px solid var(--color-border);
+  border-radius: 0.25rem;
+  color: inherit;
+  text-decoration: none;
+  background: var(--color-bg-panel);
+}
+
+/* Input trần (chưa gắn class riêng) — dùng chung cho ô nhập tên/mã phòng ở
+   màn hình chơi qua mạng. `.setup-list input` (hotseat) kế thừa từ đây, chỉ
+   cần thêm layout riêng (xem bên dưới). */
+input[type="text"] {
+  font-size: 1rem;
+  padding: 0.4rem 0.6rem;
+  width: 100%;
+  max-width: 20rem;
+}
+
+/* Đợt sửa giao diện dialog Cài đặt — nhóm nút gộp (segmented control) thay
+   radio trần cho Giao diện/Cỡ chữ, công tắc gạt (switch) thay checkbox trần
+   cho Âm thanh/Rung — xem renderSegmentedControl()/renderSwitchRow(), ui.ts. */
+.settings-group {
+  margin-bottom: 1rem;
+}
+
+.settings-group__label {
+  font-size: 0.82rem;
+  font-weight: bold;
+  margin: 0 0 0.4rem;
+}
+
+.segmented {
+  display: inline-flex;
+  border: 1px solid var(--color-border);
+  border-radius: 0.4rem;
+  overflow: hidden;
+}
+
+.segmented button {
+  font-size: 0.82rem;
+  padding: 0.4rem 0.8rem;
+  border: none;
+  border-right: 1px solid var(--color-border);
+  background: var(--color-bg-panel);
+  color: var(--color-text);
+}
+
+.segmented button:last-child {
+  border-right: none;
+}
+
+.segmented button[aria-pressed="true"] {
+  background: var(--color-danger);
+  color: #fff;
+}
+
+/* Việc 4.4: màn hình hẹp (điện thoại) — thu gọn khoảng trắng, tăng kích
+   thước vùng bấm cho ngón tay (khuyến nghị chung ~44px), và mỗi người chơi
+   chiếm trọn 1 hàng thay vì chen 2 cột chật (14rem × 2 đã vừa gần khít màn
+   hình 480px, dễ bị dính/lệch dòng nếu vẫn để flex-wrap tự do). */
+@media (max-width: 480px) {
+  body {
+    margin: 1rem auto;
+    padding: 0 0.75rem;
+  }
+
+  h1 {
+    font-size: 1.4rem;
+  }
+
+  h2 {
+    font-size: 1.15rem;
+  }
+
+  h3 {
+    font-size: 1.05rem;
+  }
+
+  button {
+    padding: 0.65rem 1rem;
+    min-height: 2.75rem;
+  }
+
+  /* Sửa lỗi "nút bị kéo ra không đẹp" (báo lại 2026-09-09): luật `min-height:
+     2.75rem` ở trên áp dụng cho MỌI `<button>`, kể cả 2 nút hình tròn/pill cỡ
+     NHỎ CỐ Ý bên dưới (`.dialog__close` cao 1.9rem=30.4px, `.switch` cao
+     1.5rem=24px) — CSS coi `min-height` là NGƯỠNG SÀN, luôn thắng `height` nhỏ
+     hơn nó dù `height` khai báo sau, nên 2 nút này bị ép cao 44px: nút đóng
+     "✕" biến từ tròn thành HÌNH TRỨNG, công tắc gạt "Cài đặt" biến từ dạng
+     pill dẹt thành gần như HÌNH TRÒN to bất thường (dễ thấy nhất trên di
+     động, nơi dialog chiếm toàn màn hình — xem @media max-width:480px phía
+     trên khai `dialog.app-dialog{height:100%}`). Trả lại đúng kích thước gốc
+     cho 2 nút này — chúng vốn đã đủ lớn để chạm ngón tay (30-42px), không cần
+     ép theo ngưỡng 44px chung. */
+  .dialog__close {
+    min-height: 0;
+  }
+
+  /* Đợt 3 UI/UX (mục 9): "Điện thoại: dialog chiếm gần toàn màn" — bỏ khung
+     bo góc căn giữa, cho dialog phủ gần trọn viewport. */
+  dialog.app-dialog {
+    width: 100%;
+    max-width: none;
+    height: 100%;
+    max-height: none;
+    border-radius: 0;
+  }
+}
+
+/* Đợt sửa giao diện — "Dialog dùng chung một kiểu: nền mờ sau, hộp giữa, nút
+   đóng rõ." Dùng THẲNG <dialog> gốc HTML: browser tự lo phần "hộp giữa" (UA
+   stylesheet căn `margin: auto` khi showModal()) — ở đây chỉ cần khung viền +
+   bóng đổ (nổi hẳn lên so với nền mờ phía sau, ::backdrop) + nút đóng tròn
+   "✕" GÓC TRÊN PHẢI (position: absolute, luôn thấy được dù cuộn nội dung tới
+   đâu — xem renderDialog(), ui.ts). "Không làm gián đoạn ván" tự đúng vì
+   dialog chỉ là 1 lớp phủ, DOM bàn chơi phía dưới vẫn nguyên vẹn, showModal()
+   không xoá gì cả. */
+dialog.app-dialog {
+  position: relative;
+  border: 1px solid var(--color-border);
+  border-radius: 0.6rem;
+  padding: 1.2rem 1.1rem 1.1rem;
+  max-width: 26rem;
+  width: 90%;
+  background: var(--color-bg);
+  color: var(--color-text);
+  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.28);
+}
+
+dialog.app-dialog::backdrop {
+  background: rgba(0, 0, 0, 0.45);
+}
+
+.dialog__title {
+  margin: 0 0 0.9rem;
+  font-size: 1.05rem;
+  padding-right: 1.6rem;
+}
+
+.dialog__close {
+  position: absolute;
+  top: 0.7rem;
+  right: 0.7rem;
+  width: 1.9rem;
+  height: 1.9rem;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-panel);
+  color: var(--color-text-muted);
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.dialog__close:hover {
+  border-color: var(--color-danger);
+  color: var(--color-danger);
+}
+
+/* Sảnh chọn game (src/hub/) — màn đầu tiên khi mở link, đứng TRƯỚC màn "Chọn
+   cách chơi" của Bang!. Mạt Chược/Coup chỉ là thẻ khoá — bấm vào xổ ra 1 dòng
+   ghi chú ngay dưới thẻ đó (.hub-lock-note), không dẫn đi đâu cả. "Chrome"
+   (khung/nút/chữ) vẫn CHỈ dùng thang xám + đúng 1 màu đỏ sẵn có (đúng quy tắc
+   đợt 1 UI/UX) — chỉ RIÊNG phần "ảnh bìa" nhỏ trong mỗi thẻ (.hub-card__poster)
+   mới có hoạ tiết/gradient/font riêng cho từng game, y hệt bản xem trước đã
+   duyệt (Artifact) — xem font Rye/Big Shoulders Display khai ở index.html. */
+/* Sảnh + màn "Vào phòng chơi"/"Phòng chờ" (main.ts's renderScreen() gắn class
+   này vào <body> theo đúng 3 màn đó) — nền hơi xám để thẻ/khối (nền trắng/đen
+   tuỳ theme) "nổi" lên rõ hơn thay vì hoà lẫn vào nền. Dùng lại ĐÚNG
+   --color-bg-alt sẵn có, không thêm màu mới; mọi màn khác của Bang! không có
+   class này nên vẫn giữ nguyên nền cũ. */
+body.landing-bg {
+  background: var(--color-bg-alt);
+}

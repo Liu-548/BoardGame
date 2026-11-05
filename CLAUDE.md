@@ -33,6 +33,8 @@ Chủ dự án **mới học lập trình, kiến thức web ở mức dưới c
 
 ```
 src/
+  main.ts          ← ĐIỂM VÀO của trang (index.html): vẽ Sảnh, giao #game-root cho
+                      game được chọn (mountBang/mountWerewolf), nạp CSS chung trước
   hub/             ← MỚI: màn hình đầu tiên khi mở link — chọn 1 trong các
                       game (Bang!/Mạt Chược/Coup), CHƯA vào thẳng ván Bang!
                       như trước. Xem docs/roadmap/LO-TRINH.md.
@@ -40,6 +42,8 @@ src/
     index.ts       ← Worker entry CHUNG mọi game: định tuyến /room/<mã> → Bang!,
                       /werewolf/room/<mã> → Ma Sói (dời khỏi bang/server/ 2026-11-06)
   shared/room/     ← khung phòng chung (BaseRoom, net, protocol...) — Ma Sói dùng
+  shared/style.css ← CSS chung mọi màn (biến màu, Tối, cỡ chữ, button/input, dialog)
+  shared/beta-link.ts, shared/css.d.ts ← link Beta (Sảnh + Bang!), kiểu cho import CSS
   games/
     bang/
       core/          ← luật chơi. THUẦN. Không biết gì về mạng, DOM, Cloudflare.
@@ -65,7 +69,8 @@ src/
       client/
         net.ts       ← WebSocket, reconnect
         ui.ts        ← vẽ DOM
-        main.ts
+        main.ts      ← mountBang(onExit) — Sảnh gọi khi bấm thẻ Bang!
+        style.css    ← CSS riêng Bang! (import từ main.ts)
       protocol.ts    ← kiểu dữ liệu message client↔server (ClientMessage/
                         ServerMessage). Cả server/ và client/ đều cần đọc kiểu
                         này nên không đặt trong core/ (core/ vẫn không import
@@ -90,7 +95,6 @@ index.html       ← trang gốc, Vite mặc định tìm ở đây (không ph�
                    xem ghi chú việc 2.1 bên dưới)
 public/          ← tài sản tĩnh copy y nguyên lên web
   bang/sprites/    ← ảnh lá bài/nhân vật/sự kiện Bang! (URL /bang/sprites/...)
-  style.css        ← CSS chung + Sảnh + Bang! (chưa tách, để đợt sau)
 docs/            ← MỚI: file .txt/.md đặc tả luật/thiết kế (chủ dự án viết),
                    dời ra khỏi gốc dự án cho gọn
   roadmap/         LO-TRINH.md (lộ trình chung)

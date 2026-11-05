@@ -8,6 +8,7 @@
 // xem README.md trong 2 thư mục đó) — thẻ của 2 game này bấm vào chỉ xổ ra 1
 // dòng ghi chú ngay dưới thẻ, không dẫn đi đâu cả.
 
+import "./style.css";
 export type HubGameId = "bang" | "werewolf" | "mahjong" | "coup";
 
 // Bản Beta song song (docs/roadmap/LO-TRINH.md) — trước đây chỉ có ở màn

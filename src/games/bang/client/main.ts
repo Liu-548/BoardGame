@@ -29,9 +29,8 @@ import type { Action, ExpansionId, GameState, HouseRuleId } from "../core/types"
 import type { PlayerView } from "../core/view";
 import { RoomConnection } from "./net";
 import type { DeadlineInfo, ServerMessage } from "../protocol";
-import { renderHubScreen } from "../../../hub/ui";
-import { mountWerewolf, resumeWerewolf } from "../../werewolf/client/main";
-import type { HubGameId } from "../../../hub/ui";
+import "./style.css";
+import { betaLinkInfo } from "../../../shared/beta-link";
 import {
   applyStoredSettings,
   cardActsAsBang,
@@ -49,7 +48,7 @@ import {
   triggerVisualEffect,
   vibrateForTurn,
 } from "./ui";
-import type { BetaLinkInfo, DrawCheckNotice, LobbyPlayer, Selection, UseAbilityCharacter } from "./ui";
+import type { DrawCheckNotice, LobbyPlayer, Selection, UseAbilityCharacter } from "./ui";
 
 const root = document.getElementById("game-root") as HTMLDivElement;
 
@@ -88,21 +87,18 @@ const NO_TARGET_YELLOW_ACTIVATIONS = new Set<CardName>(["canteen", "pony_express
 const DEFAULT_PLAYER_NAMES = ["An", "Bình", "Chi", "Dũng"];
 
 type Screen =
-  | "hub" // Sảnh chọn game (src/hub/) — màn ĐẦU TIÊN khi mở link, xem renderHubScreen()
+  | "inactive" // Bang! không vẽ gì — Sảnh (src/main.ts) hoặc game khác đang dùng #game-root
   | "home"
   | "local-setup"
   | "local-game"
   | "network-form"
   | "network-lobby"
   | "network-game"
-  | "external" // game khác tự vẽ vào #game-root (vd Ma Sói, D-03) — Bang! không vẽ gì
   | "card-reference"; // việc 4.6: màn hình tra cứu, xem được từ home, quay lại home
 
-let screen: Screen = "hub";
-
-// Chỉ Sảnh dùng tới — thẻ Mạt Chược/Coup (chưa có code thật) đang mở ghi chú
-// hay không. null = không thẻ nào đang mở.
-let hubExpandedLockedGame: HubGameId | null = null;
+let screen: Screen = "inactive";
+// Gọi khi bấm "về Sảnh" — do src/main.ts truyền vào qua mountBang().
+let exitToHub: () => void = () => {};
 
 // ----- Chế độ chơi chung 1 máy (hotseat, việc 2.x) -----
 let playerNames: string[] = [...DEFAULT_PLAYER_NAMES];
@@ -317,7 +313,7 @@ function restoreFocusState(saved: { selectionStart: number | null; selectionEnd:
 // touchcancel/tự ẩn sau AUTO_HIDE_MS gọi hideOverlay(), xem ui.ts) sẽ vẽ lại
 // bình thường, cập nhật bù mọi thay đổi bị hoãn trong lúc giữ.
 function render(): void {
-  if (screen === "external") return;
+  if (screen === "inactive") return;
   if (document.querySelector(".card-box--holding")) return;
   const scrollPositions = captureScrollPositions();
   const focusState = captureFocusState();
@@ -335,26 +331,19 @@ function render(): void {
 }
 
 function renderScreen(): void {
-  // "Bang!" chỉ có ý nghĩa SAU KHI đã rời Sảnh — Sảnh tự vẽ tiêu đề riêng
-  // (renderHubScreen(), src/hub/ui.ts), không cần #app-heading nữa.
+  // Tiêu đề "Bang!" — Sảnh (src/main.ts) ẩn nó đi khi quay về.
   const appHeading = document.getElementById("app-heading");
-  if (appHeading) appHeading.hidden = screen === "hub";
+  if (appHeading) appHeading.hidden = false;
 
-  // Nền hơi xám (khác trắng tinh) ở Sảnh + 2 màn "chơi cùng bạn bè" trước lúc
+  // Nền hơi xám (khác trắng tinh) ở Sảnh (src/main.ts tự bật) + 2 màn "chơi cùng bạn bè" trước lúc
   // vào ván (vào phòng/phòng chờ) — để thẻ/khối (nền trắng) "nổi" lên rõ hơn
   // thay vì hoà lẫn vào nền, giống bản xem trước đã duyệt. Dùng lại ĐÚNG biến
   // --color-bg-alt sẵn có (không thêm màu mới) — mọi màn khác của Bang! (kể
   // cả "Chọn cách chơi" — đã có màu đỏ của vé làm điểm nhấn riêng) vẫn giữ
   // nguyên nền trắng như cũ.
-  document.body.classList.toggle("landing-bg", screen === "hub" || screen === "network-form" || screen === "network-lobby");
+  document.body.classList.toggle("landing-bg", screen === "network-form" || screen === "network-lobby");
 
   switch (screen) {
-    case "hub":
-      renderHubScreen(root, hubExpandedLockedGame, betaLinkInfo(), {
-        onSelectGame: onHubSelectGame,
-        onToggleLockedNote: onHubToggleLockedNote,
-      });
-      return;
     case "home":
       renderHomeScreen(root, betaLinkInfo(), { onPlayLocal, onPlayNetwork, onShowCardReference, onBackToHub });
       return;
@@ -586,34 +575,16 @@ function renderScreen(): void {
 
 // ----- Màn hình chọn cách chơi -----
 
-// Sảnh chọn game — Mạt Chược/Coup chưa có code thật nên onSelectGame() chỉ
-// thật sự điều hướng khi bấm Bang!, còn lại đi qua onHubToggleLockedNote().
-function onHubSelectGame(id: HubGameId): void {
-  if (id === "werewolf") {
-    // D-03: Ma Sói tự vẽ vào root; thoát thì về Sảnh và Bang! vẽ lại như bình thường.
-    screen = "external";
-    const heading = document.getElementById("app-heading");
-    if (heading) heading.hidden = true;
-    document.body.classList.remove("landing-bg");
-    mountWerewolf(root, () => {
-      screen = "hub";
-      render();
-    });
-    return;
-  }
-  if (id !== "bang") return;
+// Sảnh (src/main.ts) gọi khi bấm thẻ Bang! — vẽ màn "Chọn cách chơi" vào #game-root.
+export function mountBang(onExit: () => void): void {
+  exitToHub = onExit;
   screen = "home";
   render();
 }
 
-function onHubToggleLockedNote(id: HubGameId): void {
-  hubExpandedLockedGame = hubExpandedLockedGame === id ? null : id;
-  render();
-}
-
 function onBackToHub(): void {
-  screen = "hub";
-  render();
+  screen = "inactive";
+  exitToHub();
 }
 
 function onPlayLocal(): void {
@@ -1397,22 +1368,6 @@ function roomWebSocketUrl(code: string): string {
   const host = params.get("server") ?? location.host;
   const protocol = location.protocol === "https:" ? "wss" : "ws";
   return `${protocol}://${host}/room/${code}`;
-}
-
-// Bản Beta song song (docs/roadmap/LO-TRINH.md) — 2 domain deploy thật cố định, KHÔNG suy
-// ra từ location (khác roomWebSocketUrl() ở trên, chỗ đó cần theo ĐÚNG domain
-// đang chạy để WebSocket nối đúng server; ở đây ngược lại, luôn phải trỏ SANG
-// domain KIA). Đang ở bản beta thì hiện link "Về bản chính"; mọi domain khác
-// (bản chính, hay chạy cục bộ qua `vite dev`) đều hiện link "Bản Beta".
-const MAIN_SITE_URL = "https://bang-boardgame.nguyenngoctuan548.workers.dev/";
-const BETA_SITE_URL = "https://bang-boardgame-beta.nguyenngoctuan548.workers.dev/";
-const BETA_HOSTNAME = "bang-boardgame-beta.nguyenngoctuan548.workers.dev";
-
-function betaLinkInfo(): BetaLinkInfo {
-  if (location.hostname === BETA_HOSTNAME) {
-    return { label: "Về bản chính", href: MAIN_SITE_URL };
-  }
-  return { label: "Bản Beta (thử nghiệm)", href: BETA_SITE_URL };
 }
 
 // Bug đã sửa (báo lỗi thật từ chủ dự án): trước đây MỖI LẦN onJoinRoom() chạy
@@ -2274,16 +2229,4 @@ function onNetworkArmCharacterChoice(characterId: string): void {
 function onNetworkConfirmCharacterChoice(): void {
   if (!networkArmedCharacterId) return;
   networkDispatch({ type: "CHOOSE_CHARACTER", playerId: myPlayerId, characterId: networkArmedCharacterId });
-}
-
-// F5 khi đang ở phòng Ma Sói → vào lại đúng phòng (xem resumeWerewolf()); không thì vẽ Sảnh như thường.
-if (
-  resumeWerewolf(root, () => {
-    screen = "hub";
-    render();
-  })
-) {
-  screen = "external";
-} else {
-  render();
 }

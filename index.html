@@ -18,17 +18,16 @@
       rel="stylesheet"
       href="https://fonts.googleapis.com/css2?family=Rye&family=Big+Shoulders+Display:wght@600;700&display=swap"
     />
-    <link rel="stylesheet" href="/style.css" />
   </head>
   <body>
     <!-- Sảnh chọn game (src/hub/) là màn ĐẦU TIÊN, không thuộc riêng Bang! —
-         nên tiêu đề "Bang!" giờ chỉ hiện SAU KHI đã chọn vào Bang!, do
-         main.ts ẩn/hiện bằng #app-heading.hidden (xem renderScreen()). -->
+         nên tiêu đề "Bang!" chỉ hiện SAU KHI đã chọn vào Bang!: src/main.ts
+         (showHub) ẩn, bang/client/main.ts (renderScreen) hiện lại. -->
     <h1 id="app-heading" hidden>Bang!</h1>
 
     <!-- Việc 2.2: chỉ vẽ state ra đây bằng chữ, chưa bấm bài được (việc 2.3). -->
     <div id="game-root"></div>
 
-    <script type="module" src="/src/games/bang/client/main.ts"></script>
+    <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

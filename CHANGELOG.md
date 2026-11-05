@@ -1960,5 +1960,11 @@ Chỉ dời file + sửa đường dẫn, không đổi logic. Mỗi game có đ
 - Docs Bang! `docs/bang-rules/` → `docs/bang/rules/`, `docs/ui-ux/` → `docs/bang/ui-ux/`. `docs/roadmap/` và `docs/werewolf/` giữ nguyên.
 - Worker entry chung (định tuyến cả Bang! lẫn Ma Sói) `src/games/bang/server/index.ts` → `src/server/index.ts`; `wrangler.jsonc` `main` đổi theo.
 - Đường dẫn trong comment/docs/CLAUDE.md đã cập nhật; các mục CHANGELOG cũ giữ nguyên đường dẫn lúc đó.
-- Chưa làm (để đợt sau): tách `public/style.css` (chung + Sảnh + Bang!) và tách điều khiển Sảnh ra khỏi `bang/client/main.ts`.
+- (Đợt sau ngay trong ngày đã tách nốt CSS + điều khiển Sảnh, xem mục kế tiếp.)
 - typecheck sạch, 917 test pass, `vite build` + `wrangler deploy --dry-run` OK, `/bang/sprites/*.png` trả 200.
+
+## Tách nốt: CSS + điều khiển Sảnh (2026-11-06)
+
+- `public/style.css` (2300 dòng) tách 3 file theo người dùng class (script tự quét, kiểm 278/278 rule khớp file gốc, không mất/thừa): `src/shared/style.css` (biến màu, Tối, cỡ chữ, body/button/input, `.link-button`, `landing-bg`, dialog, `.settings-group`/`.segmented` — Ma Sói cũng dùng), `src/hub/style.css` (`.hub-*`), `src/games/bang/client/style.css` (còn lại). Không còn `<link href="/style.css">` — CSS đi qua Vite như CSS Ma Sói.
+- Điểm vào mới `src/main.ts` (index.html trỏ vào đây): vẽ Sảnh, bấm Bang! → `mountBang(showHub)`, bấm Ma Sói → `mountWerewolf(root, showHub)`, F5 trong phòng Ma Sói → `resumeWerewolf()`. `bang/client/main.ts` bỏ hẳn màn "hub"/"external" (gộp thành `"inactive"` = Bang! không vẽ), không còn import Sảnh/Ma Sói.
+- `betaLinkInfo()` dời sang `src/shared/beta-link.ts` (Sảnh + màn "Chọn cách chơi" Bang! cùng dùng). `css.d.ts` dời sang `src/shared/` (kiểu toàn cục cho mọi import CSS).
