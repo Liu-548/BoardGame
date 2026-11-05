@@ -1,10 +1,14 @@
-// Luật Ma Sói: ban đêm + Bình minh + TIME_UP (W2). Ban ngày làm ở W3.
+// Luật Ma Sói: ban đêm + Bình minh + ban ngày + TIME_UP (W2, W3).
 // reduce THUẦN: không sửa state đầu vào, không dùng ngẫu nhiên/đồng hồ hệ thống (quy tắc 1-3 CLAUDE.md).
 import { nextRandom } from "../../bang/core/rng";
 import type { Action, GameState, NightStep, PlayerState, Winner } from "./types";
 
-// R-09/R-51: thời lượng các pha ban ngày.
+// R-09/R-51..54: thời lượng các pha ban ngày.
 export const DISCUSSION_MS = 180_000;
+export const EXTEND_MS = 60_000; // R-51a
+export const VOTE_MS = 30_000;
+export const DEFENSE_MS = 30_000;
+export const VERDICT_MS = 30_000;
 
 // D-33: một câu lỗi chung cho mọi trường hợp "không được làm lúc này" — không lộ vai.
 export const GENERIC_ERROR = "Bạn không thể làm việc này lúc này";
@@ -105,10 +109,113 @@ function resolveDawn(state: GameState, now: number): GameState {
   };
 }
 
+
+// ---------- Ban ngày (W3) ----------
+
+const alivePlayers = (state: GameState) => state.players.filter((p) => p.alive);
+
+// Đổi sang pha mới: phaseSeq+1, đặt hạn giờ (D-12).
+function enterPhase(state: GameState, phase: GameState["phase"], now: number, ms: number): GameState {
+  return { ...state, phase, phaseSeq: state.phaseSeq + 1, phaseEndsAt: now + ms };
+}
+
+function enterVote(state: GameState, day: number, now: number): GameState {
+  return { ...enterPhase(state, { kind: "vote", day }, now, VOTE_MS), votes: {} };
+}
+
+// R-52d,e: phiếu trắng không phải ứng viên; cao nhất > 0 và duy nhất mới bị đưa lên.
+function resolveVote(state: GameState, day: number, now: number): GameState {
+  const counts = new Map<string, number>();
+  for (const t of Object.values(state.votes)) if (t !== "blank") counts.set(t, (counts.get(t) ?? 0) + 1);
+  const max = counts.size ? Math.max(...counts.values()) : 0;
+  const top = [...counts].filter(([, n]) => n === max).map(([id]) => id);
+  if (max > 0 && top.length === 1) {
+    const accusedId = top[0];
+    const logged = { ...state, log: [...state.log, { kind: "vote_result" as const, day, accusedId }] };
+    return enterPhase(logged, { kind: "defense", day, accusedId }, now, DEFENSE_MS);
+  }
+  const logged = { ...state, log: [...state.log, { kind: "vote_result" as const, day, accusedId: null }] };
+  return startNight(logged, day + 1, now);
+}
+
+// R-54c: Giết > Tha mới chết (không lật vai). R-54d: rồi kiểm thắng.
+function resolveVerdict(state: GameState, day: number, accusedId: string, now: number): GameState {
+  const kills = Object.values(state.verdicts).filter((v) => v === "kill").length;
+  const spares = Object.values(state.verdicts).filter((v) => v === "spare").length;
+  const killed = kills > spares;
+  const players = killed ? state.players.map((p) => (p.id === accusedId ? { ...p, alive: false } : p)) : state.players;
+  const next = { ...state, players, log: [...state.log, { kind: "verdict_result" as const, day, accusedId, killed }] };
+  const winner = checkWinner(players);
+  return winner ? endGame(next, winner) : startNight(next, day + 1, now);
+}
+
+function dayTimeUp(state: GameState, now: number): GameState {
+  const ph = state.phase;
+  switch (ph.kind) {
+    case "discussion":
+      return enterVote(state, ph.day, now);
+    case "vote":
+      return resolveVote(state, ph.day, now);
+    case "defense":
+      return { ...enterPhase(state, { kind: "verdict", day: ph.day, accusedId: ph.accusedId }, now, VERDICT_MS), verdicts: {} };
+    case "verdict":
+      return resolveVerdict(state, ph.day, ph.accusedId, now);
+    default:
+      return state; // ended: không đổi gì
+  }
+}
+
+// Người gửi còn sống? (R-70)
+const aliveActor = (state: GameState, id: string) => findPlayer(state, id)?.alive === true;
+
+function dayAction(state: GameState, action: Action): Result {
+  const ph = state.phase;
+  switch (action.type) {
+    case "EXTEND_DISCUSSION": {
+      if (ph.kind !== "discussion" || !aliveActor(state, action.playerId) || state.extendUsed) return fail(state);
+      return { state: { ...state, extendUsed: true, phaseEndsAt: (state.phaseEndsAt ?? 0) + EXTEND_MS } };
+    }
+    case "TOGGLE_END_EARLY": {
+      if (ph.kind !== "discussion" || !aliveActor(state, action.playerId)) return fail(state);
+      const endEarly = { ...state.endEarly };
+      if (endEarly[action.playerId]) delete endEarly[action.playerId];
+      else endEarly[action.playerId] = true;
+      const next = { ...state, endEarly };
+      // R-51b: quá nửa người còn sống đang bật → kết thúc ngay.
+      if (Object.keys(endEarly).length * 2 > alivePlayers(state).length) return { state: enterVote(next, ph.day, action.now) };
+      return { state: next };
+    }
+    case "CAST_VOTE": {
+      if (ph.kind !== "vote" || !aliveActor(state, action.playerId)) return fail(state);
+      const votes = { ...state.votes };
+      if (action.targetId === null) delete votes[action.playerId];
+      else if (action.targetId !== "blank" && !aliveActor(state, action.targetId)) return fail(state);
+      else votes[action.playerId] = action.targetId;
+      const next = { ...state, votes };
+      // R-52c: mọi người còn sống đã bỏ phiếu → kết thúc ngay.
+      if (alivePlayers(state).every((p) => votes[p.id] !== undefined)) return { state: resolveVote(next, ph.day, action.now) };
+      return { state: next };
+    }
+    case "CAST_VERDICT": {
+      if (ph.kind !== "verdict" || !aliveActor(state, action.playerId) || action.playerId === ph.accusedId) return fail(state);
+      const verdicts = { ...state.verdicts };
+      if (action.choice === null) delete verdicts[action.playerId];
+      else verdicts[action.playerId] = action.choice;
+      const next = { ...state, verdicts };
+      // R-54b: mọi người có quyền đã chọn → kết thúc ngay.
+      const voters = alivePlayers(state).filter((p) => p.id !== ph.accusedId);
+      if (voters.every((p) => verdicts[p.id] !== undefined)) return { state: resolveVerdict(next, ph.day, ph.accusedId, action.now) };
+      return { state: next };
+    }
+    default:
+      return fail(state);
+  }
+}
+
 function timeUp(state: GameState, action: Extract<Action, { type: "TIME_UP" }>): Result {
   // D-21: TIME_UP của pha cũ (pha đã đổi) bị bỏ qua, không báo lỗi.
   if (action.phaseSeq !== state.phaseSeq) return { state };
-  if (state.phase.kind !== "night") return { state }; // ban ngày: W3
+  if (state.phase.kind !== "night") return { state: dayTimeUp(state, action.now) };
 
   let s = state;
   if (state.phase.step === "wolves") s = resolveWolfBite(s);
@@ -185,7 +292,6 @@ export function reduce(state: GameState, action: Action): Result {
     }
 
     default:
-      // Ban ngày: chưa làm (W3).
-      return fail(state);
+      return dayAction(state, action);
   }
 }

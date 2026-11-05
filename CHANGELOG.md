@@ -1813,3 +1813,8 @@ không còn phần nào của nhân vật này bị bỏ dở.
 - Hoà phiếu Sói bốc bằng `nextRandom(rngState)` trên danh sách xếp theo ghế → tất định.
 - Test: `test/werewolf/helpers.ts` + `night.test.ts` (T-N, T-DW, T-T, T-P-02/03; 34 test; helper deep-freeze state → T-P-01). Toàn bộ 827 test pass, typecheck sạch.
 - Làm trên nhánh `feature/ma-soi` (tách khỏi `main`). Việc kế: W3.
+
+## Ma Sói — W3+W4: ban ngày, thắng, viewFor (2026-11-05)
+- `core/reduce.ts` thêm EXTEND_DISCUSSION, TOGGLE_END_EARLY (quá nửa = count*2 > sống), CAST_VOTE, CAST_VERDICT, TIME_UP cho thảo luận/bỏ phiếu/biện hộ/phán quyết; kết thúc sớm khi mọi người đã chọn (R-52c, R-54b). Thắng/hoà qua `checkWinner`.
+- `core/view.ts`: `WerewolfView` khai báo từng trường; người chết chỉ thêm vai mọi người (D-34); wolfPicks chỉ Sói sống trong pha wolves; bittenId chỉ Phù thủy từ pha witch.
+- Test: `day.test.ts` (T-D, T-W, T-SIM, T-P-02) + `view.test.ts` (T-V-01..13). 89 test Ma Sói pass, typecheck sạch.
