@@ -1801,3 +1801,15 @@ thì Bình cũng được hồi) — không lỗi console trong suốt ván. Nh�
 5/5 — THE NOBODY *EX HOÀN TẤT TOÀN BỘ 10/10 ĐIỂM CẮM** (5 nhóm A + 5 nhóm B),
 không còn phần nào của nhân vật này bị bỏ dở.
 
+
+## Ma Sói — W1: kiểu dữ liệu + tạo ván (2026-11-05)
+- Thêm `src/games/werewolf/core/types.ts` (kiểu theo 02 mục 1, hằng `MIN_PLAYERS=6`/`MAX_PLAYERS=12` — R-01a) và `core/setup.ts` (`suggestedConfig`, `validateConfig`, `setupGame`). Chia vai bằng `shuffle` của `bang/core/rng.ts` (R-01f). `nightSteps` lọc theo config (R-82).
+- Test: `test/werewolf/setup.test.ts` (T-SET-01..06, 18 test). `npm run typecheck` sạch; toàn bộ 793 test pass (Bang! không đỏ).
+- `PublicLogEntry` tự thiết kế dạng dữ liệu (deaths/vote_result/verdict_result/ended), chưa dùng tới trước W2.
+- Chưa làm: W2 trở đi. Không commit/deploy.
+
+## Ma Sói — W2: reduce ban đêm + Bình minh + TIME_UP (2026-11-05)
+- Thêm `core/reduce.ts` (GUARD_PICK/WOLF_PICK/SEER_PICK/WITCH_SET, TIME_UP đêm, Bình minh D-14, `checkWinner` R-60, `startNight` cho W3 dùng). Lỗi "không được làm lúc này" dùng 1 câu chung `GENERIC_ERROR` (D-33). Ban ngày chưa làm: mọi action ngày bị từ chối, TIME_UP ngày không đổi gì.
+- Hoà phiếu Sói bốc bằng `nextRandom(rngState)` trên danh sách xếp theo ghế → tất định.
+- Test: `test/werewolf/helpers.ts` + `night.test.ts` (T-N, T-DW, T-T, T-P-02/03; 34 test; helper deep-freeze state → T-P-01). Toàn bộ 827 test pass, typecheck sạch.
+- Làm trên nhánh `feature/ma-soi` (tách khỏi `main`). Việc kế: W3.
