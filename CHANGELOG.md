@@ -1847,3 +1847,9 @@ Chạy bằng Playwright (6 trình duyệt riêng, `wrangler dev` + bản `vite 
 - **M-10** đã kiểm: ván 1 Sói chơi tới hết → Phe Dân thắng, lật đủ 6 vai; 1 tab đóng rồi "Về phòng chờ" → phòng chờ còn 5 người đang kết nối.
 - **Lỗi tìm thấy và đã sửa trong W10:** (1) F5 mất phòng (trên); (2) chạm nhanh +/− ở phòng chờ làm mất lần chạm vì dùng số cũ → nay cập nhật theo cấu hình mới nhất chưa xác nhận.
 - Toàn bộ 873 test pass, typecheck sạch. Ma Sói v1 xong; chưa deploy.
+
+## Ma Sói — chơi thử trọn ván bằng 8 bot (2026-11-05)
+- 8 trình duyệt Playwright tự bấm giao diện thật (`wrangler dev`, cấu hình gợi ý 8 người: 2 Sói, 3 Dân, Tiên tri, Phù thủy, Bảo vệ; đêm 10s). Ván kết thúc sau 186s, 3 ngày: **Phe Sói thắng** (còn 2 Sói + Phù thủy + Bảo vệ → Sói ≥ phần còn lại, R-60b).
+- Đối chiếu từng đêm khớp luật: Đêm 1 Tiên tri bị cắn + được cứu, Dân bị độc → chỉ Dân chết (R-44); Đêm 2 hai Sói chọn khác nhau → bốc ngẫu nhiên trúng Bảo vệ, Bảo vệ tự bảo vệ → không ai chết (R-41c, R-40a); Đêm 3 hết bình cứu → người bị cắn chết. Ngày 1 không ai bị đưa lên (hoà/phiếu trắng, R-52e); Ngày 2, 3 treo cổ đúng người bị đưa lên.
+- Hết ván lật vai khớp 100% với vai thật; "Về phòng chờ" còn đủ 8 người; không lỗi console.
+- Deploy: CHƯA làm được từ máy ảo (không đăng nhập Cloudflare) — chủ dự án tự chạy `npm run deploy:beta`.
