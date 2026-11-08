@@ -9,7 +9,7 @@
 // dòng ghi chú ngay dưới thẻ, không dẫn đi đâu cả.
 
 import "./style.css";
-export type HubGameId = "bang" | "werewolf" | "mahjong" | "coup";
+export type HubGameId = "bang" | "werewolf" | "cau-ca" | "mahjong" | "coup";
 
 // Bản Beta song song (docs/roadmap/LO-TRINH.md) — trước đây chỉ có ở màn
 // "Chọn cách chơi" riêng của Bang! (src/games/bang/client/ui.ts's
@@ -58,6 +58,15 @@ const GAMES: HubGameEntry[] = [
     posterIsWordmark: false,
     description: "Đêm xuống, Sói săn mồi; ban ngày cả làng tranh luận xem ai là Sói. Máy làm quản trò thay người.",
     playersHint: "6–20 người",
+    locked: false,
+  },
+  {
+    id: "cau-ca",
+    title: "Câu cá",
+    posterGlyph: "🎣",
+    posterIsWordmark: false,
+    description: "Bài Tây: câu lá trên bàn bằng cặp cộng 10, gom bài đỏ, ai nhiều điểm hơn mốc thì thắng.",
+    playersHint: "3–4 người",
     locked: false,
   },
   {
