@@ -188,6 +188,15 @@ Nguyên tắc chung:
 - Khi giải thích, giả định người đọc **chưa biết** thuật ngữ web. Gặp từ mới thì giải thích ngắn ngay tại chỗ.
 - Nếu thấy chủ dự án đang yêu cầu một thứ vi phạm quy tắc ở trên, **nói ra**, đừng lặng lẽ làm theo.
 
+## Quy trình nhánh git — bắt buộc (2026-11-08)
+
+| # | Quy tắc |
+|---|---|
+| 1 | **Mỗi game làm trên 1 nhánh riêng**, tên `feature/<tên-game>` (vd `feature/bang`, `feature/ma-soi`, `feature/mat-chuoc`, `feature/coup`). Việc dùng chung nhiều game (Sảnh `src/hub/`, `src/shared/`, `src/server/index.ts`) làm trên 1 nhánh riêng cho đúng việc đó, không lẫn vào nhánh của 1 game. |
+| 2 | **`main` chỉ chứa bản hoàn thiện.** Không code/commit thẳng lên `main`. Trước khi bắt đầu việc gì, kiểm tra đang ở nhánh nào; đang ở `main` thì tạo/chuyển sang nhánh của game đó trước. |
+| 3 | **Chỉ merge vào `main` khi đã test đầy đủ:** `tsc --noEmit` sạch, `vitest run` pass hết, tự kiểm bằng trình duyệt thật (cả máy tính lẫn điện thoại) cho phần đã đổi, và **chủ dự án đồng ý** merge. Thiếu 1 trong các bước này thì chưa merge. |
+| 4 | Bản chính chỉ deploy từ `main`. Muốn thử bản đang làm trên nhánh thì deploy lên bản beta. |
+
 ## Trạng thái hiện tại
 
 > Cập nhật dòng này mỗi khi xong một giai đoạn. Xem `docs/roadmap/LO-TRINH.md`.
@@ -252,6 +261,8 @@ Còn lại Jeff The Clown trong `docs/bang/rules/House_Rule.txt` mục I (nên l
 Đã tự kiểm ĐẦY ĐỦ bằng trình duyệt thật + `wrangler dev` (2 tab An/Bình, phòng `TEST12`, xoá `.wrangler/state/v3/do` giữa các lần test cho sạch): (1) xác nhận bấm "Bắt đầu ván mới" tắt dialog Cài đặt ngay, ván mới vào thẳng màn "Chọn nhân vật" không bị dialog cũ đè lên; (2) đóng hẳn tab Bình (giả lập mất kết nối) — ngay sau đó (3 giây) tab An KHÔNG hiện gì bất thường, ván vẫn chạy bình thường (đúng kỳ vọng độ trễ); đợi qua 60 giây — tab An tự chuyển về "Phòng chờ" với thông báo "Ván vừa bị huỷ vì không đủ người chơi còn kết nối", danh sách "Đã vào phòng" CHỈ còn đúng "An" (xác nhận bug lobby-treo-tên đã sửa đúng, không còn "Binh" ma). Không lỗi console. `tsc --noEmit` + `vitest run` (775 test) đều pass (không đụng `core/`). Đã commit + push + deploy lên bản beta (mặc định khi gõ "deploy" trống không, theo `[[feedback_deploy_default_beta]]`), đối chiếu bundle hash khớp.
 
 **Đưa link Bản Beta ra Sảnh + deploy lên cả 2 bản (2026-09-09, cùng ngày)** — chủ dự án báo câu chữ Home ở mục 4 phía trên "vẫn chưa sửa": rà lại thì hoá ra ĐÃ sửa đúng (đối chiếu bundle thật của beta xác nhận có câu mới) — chủ dự án đang xem **bản chính**, đợt trước chỉ deploy lên beta theo đúng quy ước mặc định. Đã deploy tiếp lên bản chính (`npm run deploy`), đối chiếu bundle hash khớp cả 2 bản. Nhân tiện chủ dự án yêu cầu thêm: nút "Bản Beta (thử nghiệm)"/"Về bản chính" (`docs/roadmap/LO-TRINH.md`, trước đây CHỈ có ở màn "Chọn cách chơi" riêng của Bang!) cần lộ diện NGAY Ở SẢNH (màn đầu tiên) cho dễ tìm, không phải bấm vào Bang! trước mới thấy. `renderHubScreen()` (`src/hub/ui.ts`) thêm tham số `betaLink: HubBetaLinkInfo` (interface RIÊNG, không import `BetaLinkInfo` từ `src/games/bang/` — giữ đúng nguyên tắc file này không đụng code của Bang!, main.ts vẫn tính label/href y hệt cũ qua `betaLinkInfo()` rồi truyền thẳng vào vì cùng hình dạng), hiện góc trên bên phải header, cùng cột với dòng "Bang! chơi được ngay" (`.hub-header__meta-col` mới, `public/style.css`). Đã tự kiểm bằng trình duyệt thật (`wrangler dev`, phải tự `vite build` lại trước — nhắc lại cho nhớ: `wrangler dev` chỉ phục vụ `dist/` đã build sẵn, KHÔNG tự build lại như `vite dev`): nút hiện đúng vị trí, `href` trỏ đúng sang bản beta, `target="_blank"`. `tsc --noEmit` + `vitest run` (775 test) đều pass. Đã commit + push + deploy lên CẢ 2 bản, đối chiếu bundle hash khớp nhau.
+
+**Bố cục bàn chơi mới + bỏ hotseat (2026-11-08)** — Bang! giờ CHỈ còn chơi qua mạng (hotseat đã xoá theo yêu cầu chủ dự án). Đối thủ là ô gọn quanh bàn (lưới `.round-table`, `TABLE_SLOTS`), trang bị hiện bằng nhóm biểu tượng, nút 👁 mở panel chi tiết, khoảng cách 2 chiều lấy từ `PlayerView.distances` (server tính). Mọi ghi chú cũ bên dưới nhắc tới hotseat/`renderApp()`/nút "Đầy đủ/Gọn" là lịch sử. Xem CHANGELOG mục cùng tên.
 
 **Ma Sói (game thứ 2, đặc tả ở `docs/werewolf/`, làm theo `03-XAY-DUNG.md`, mỗi lần 1 việc):** **W1-W10 XONG (2026-11-05, đã merge vào `main`, chưa deploy)** — core + khung phòng chung `src/shared/room/` + `WerewolfRoom` + client + thẻ ở Sảnh; M-01..M-10 đã kiểm (xem CHANGELOG). Thêm **Thư viện vai** (2026-11-05, `ROLE_INFO` ở `client/turn.ts`, xem CHANGELOG). Thêm **8 vai mới + Trưởng làng** (2026-11-05, luật 01-LUAT mục 12, test `roles.test.ts`). Để sau: bể role, hoà phiếu bầu lại (01-LUAT mục 10).
 
