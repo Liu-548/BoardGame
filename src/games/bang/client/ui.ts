@@ -4,11 +4,11 @@
 // không đặt trong core/ — core/ không quan tâm chuyện trình bày.
 
 import { cardNameFromId, cardSuitRankFromId, isDelayedEquipmentCardName, isSelfEquipBlueCardName, yellowCardActsAsMissed, WEAPON_RANGES } from "../core/cards";
-import type { CardName } from "../core/cards";
+import type { CardName, WeaponCardName } from "../core/cards";
 import { CHARACTERS, computeStartingHp, getCharacterDefinition } from "../core/characters";
 import { EVENT_CARDS, EXPANSION_EVENT_IDS } from "../core/events";
 import type { EventId } from "../core/events";
-import type { CharacterChoice, ExpansionId, GameEvent, GameState, HouseRuleId, PendingAction, PlayerState, Rank, Role, Suit, Winner } from "../core/types";
+import type { ExpansionId, GameEvent, GameState, HouseRuleId, Rank, Role, Suit, Winner } from "../core/types";
 import type { CharacterChoiceView, PendingActionView, PlayerHandView, PlayerView } from "../core/view";
 import type { DeadlineInfo } from "../protocol";
 
@@ -392,22 +392,6 @@ function cardChip(cardId: string, modifierClass?: string): HTMLSpanElement {
   const el = document.createElement("span");
   el.className = ["card-box", "card-box--inert", cardTypeModifierClass(name), modifierClass].filter(Boolean).join(" ");
   appendCardVisual(el, cardImageUrl(name), cardLabel(cardId), CARD_DESCRIPTIONS[name], cardSuitRankFromId(cardId));
-  return el;
-}
-
-// Đợt sửa giao diện bàn chơi — chế độ "Tinh gọn" (nút mới ở toolbar, xem
-// GameToolbarOptions.equipmentCompactMode): thay ẢNH lá bằng CHỮ TÊN lá cho
-// trang bị của NGƯỜI KHÁC khi CHỈ ĐỂ XEM (không bấm được — bấm được thì LUÔN
-// hiện ảnh thật như cũ, xem chỗ gọi ở renderEquipmentSection()/
-// networkRenderEquipmentSection(), vì cần thấy rõ lá nào mới bấm đúng).
-// `modifierClass` (Dynamite/Jail, xem equipmentDangerClass()) vẫn giữ được
-// cảnh báo qua viền/chữ đỏ, chỉ mất icon nổ/còng tay riêng của .card-box.
-function cardNameChip(cardId: string, modifierClass?: string): HTMLSpanElement {
-  const name = cardNameFromId(cardId);
-  const el = document.createElement("span");
-  el.className = ["equip-chip", modifierClass].filter(Boolean).join(" ");
-  el.textContent = cardLabel(cardId);
-  el.title = CARD_DESCRIPTIONS[name] ?? "";
   return el;
 }
 
@@ -829,7 +813,7 @@ const HOUSE_RULE_DESCRIPTIONS: Record<HouseRuleId, string> = {
   beer_below_two: "Bỏ ngoại lệ luật gốc — Bia vẫn hồi máu/cứu mạng bình thường kể cả khi chỉ còn 2 người sống.",
   double_timers:
     "Gấp đôi MỌI mốc thời gian đếm ngược: lượt đánh 60s→120s, phản hồi 15s→30s, bỏ bài thừa 15s→30s, chọn nhân " +
-    "vật 30s→60s. Chỉ có tác dụng khi chơi qua mạng — hotseat không có đồng hồ đếm ngược nào cả.",
+    "vật 30s→60s.",
 };
 const HOUSE_RULE_IDS: HouseRuleId[] = [
   "extra_distance",
@@ -912,34 +896,6 @@ const TOTAL_REGULAR_EVENT_CARDS =
 const MIN_EVENT_DECK_SIZE = 12;
 export const DEFAULT_EVENT_DECK_SIZE = 12;
 
-function renderHouseRuleCheckboxes(
-  container: HTMLElement,
-  selected: HouseRuleId[],
-  onToggle: (id: HouseRuleId) => void
-): void {
-  const wrapper = document.createElement("div");
-  wrapper.className = "panel";
-
-  const heading = document.createElement("p");
-  heading.textContent = "Luật bổ sung (tuỳ chọn, chỉ áp dụng cho ván này):";
-  wrapper.appendChild(heading);
-
-  for (const id of HOUSE_RULE_IDS) {
-    const label = document.createElement("label");
-    label.title = HOUSE_RULE_DESCRIPTIONS[id];
-    const checkbox = document.createElement("input");
-    checkbox.type = "checkbox";
-    checkbox.checked = selected.includes(id);
-    checkbox.addEventListener("change", () => onToggle(id));
-    label.appendChild(checkbox);
-    label.append(" " + HOUSE_RULE_LABELS[id]);
-    wrapper.appendChild(label);
-    wrapper.appendChild(document.createElement("br"));
-  }
-
-  container.appendChild(wrapper);
-}
-
 // Hiện đúng 1 dòng tóm tắt trong LÚC ĐANG CHƠI (đầu bàn chơi) nếu ván này có
 // BẤT KỲ luật bổ sung nào đang bật — không hiện gì nếu mảng rỗng (đúng luật
 // gốc, không cần nhắc).
@@ -949,76 +905,6 @@ function renderActiveHouseRules(container: HTMLElement, houseRules: HouseRuleId[
   el.className = "summary";
   el.textContent = "Luật bổ sung đang bật: " + houseRules.map((id) => HOUSE_RULE_LABELS[id]).join(", ");
   container.appendChild(el);
-}
-
-// Cùng khuôn với renderHouseRuleCheckboxes() ở trên, nhưng cho bộ mở rộng —
-// khối riêng trên màn hình thiết lập ván để không lẫn với "Luật bổ sung".
-function renderExpansionCheckboxes(
-  container: HTMLElement,
-  selected: ExpansionId[],
-  onToggle: (id: ExpansionId) => void,
-  eventDeckSize: number,
-  onEventDeckSizeChange: (size: number) => void
-): void {
-  const wrapper = document.createElement("div");
-  wrapper.className = "panel";
-
-  const heading = document.createElement("p");
-  heading.textContent = "Bộ mở rộng (tuỳ chọn, có thể chọn nhiều bộ cùng lúc):";
-  wrapper.appendChild(heading);
-
-  for (const id of EXPANSION_IDS) {
-    const label = document.createElement("label");
-    label.title = EXPANSION_DESCRIPTIONS[id];
-    const checkbox = document.createElement("input");
-    checkbox.type = "checkbox";
-    checkbox.checked = selected.includes(id);
-    checkbox.addEventListener("change", () => onToggle(id));
-    label.appendChild(checkbox);
-    label.append(" " + EXPANSION_LABELS[id]);
-    wrapper.appendChild(label);
-    wrapper.appendChild(document.createElement("br"));
-  }
-
-  // Nút GỘP High Noon + A Fistful of Cards — xem ghi chú ở
-  // EVENT_CARDS_EXPANSION_LABEL. Gọi onToggle("high_noon") làm đại diện — hàm
-  // toggleEventCardExpansions() ở main.ts đã tự bật/tắt CẢ 2 id cùng lúc.
-  const eventLabel = document.createElement("label");
-  eventLabel.title = EVENT_CARDS_EXPANSION_DESCRIPTION;
-  const eventCheckbox = document.createElement("input");
-  eventCheckbox.type = "checkbox";
-  eventCheckbox.checked = selected.includes("high_noon") && selected.includes("a_fistful_of_cards");
-  eventCheckbox.addEventListener("change", () => onToggle("high_noon"));
-  eventLabel.appendChild(eventCheckbox);
-  eventLabel.append(" " + EVENT_CARDS_EXPANSION_LABEL);
-  wrapper.appendChild(eventLabel);
-  wrapper.appendChild(document.createElement("br"));
-
-  // Số lá sự kiện "thường" muốn rút vào ván (mục 1.6 file luật) — CHỈ có ý
-  // nghĩa khi bộ trên đang bật (2 lá cuối High Noon/A Fistful of Cards không
-  // tính vào đây, luôn giữ nguyên luật cũ: random 1 trong 2). Disable thay vì
-  // ẩn hẳn khi chưa tick, để không mất giá trị đã chọn nếu tick lại.
-  const sizeLabel = document.createElement("label");
-  sizeLabel.title = `Tối thiểu ${MIN_EVENT_DECK_SIZE}, tối đa ${TOTAL_REGULAR_EVENT_CARDS} (đủ số lá thường thật sự có trong bộ bốc).`;
-  sizeLabel.append("Số lá sự kiện thường trong ván: ");
-  const sizeInput = document.createElement("input");
-  sizeInput.type = "number";
-  sizeInput.min = String(MIN_EVENT_DECK_SIZE);
-  sizeInput.max = String(TOTAL_REGULAR_EVENT_CARDS);
-  sizeInput.value = String(eventDeckSize);
-  sizeInput.disabled = !eventCheckbox.checked;
-  sizeInput.addEventListener("change", () => {
-    const parsed = Number.parseInt(sizeInput.value, 10);
-    if (Number.isNaN(parsed)) return;
-    const clamped = Math.min(TOTAL_REGULAR_EVENT_CARDS, Math.max(MIN_EVENT_DECK_SIZE, parsed));
-    onEventDeckSizeChange(clamped);
-  });
-  sizeLabel.appendChild(sizeInput);
-  sizeLabel.append(` (${MIN_EVENT_DECK_SIZE}-${TOTAL_REGULAR_EVENT_CARDS})`);
-  wrapper.appendChild(sizeLabel);
-  wrapper.appendChild(document.createElement("br"));
-
-  container.appendChild(wrapper);
 }
 
 // Đợt sửa giao diện "Phòng chờ" qua mạng — 1 hàng tuỳ chọn có MÔ TẢ HIỆN LUÔN
@@ -1487,27 +1373,6 @@ function iconSettings(): SVGSVGElement {
   return svg;
 }
 
-function iconGrid(): SVGSVGElement {
-  const svg = newIconSvg(false);
-  for (const [x, y] of [
-    [3, 3],
-    [11, 3],
-    [3, 11],
-    [11, 11],
-  ]) {
-    svg.appendChild(svgEl("rect", { x: String(x), y: String(y), width: "6", height: "6", rx: "1" }));
-  }
-  return svg;
-}
-
-function iconList(): SVGSVGElement {
-  const svg = newIconSvg();
-  for (const y of [5, 10, 15]) {
-    svg.appendChild(svgEl("line", { x1: "3", y1: String(y), x2: "17", y2: String(y) }));
-  }
-  return svg;
-}
-
 function toolbarButton(icon: SVGSVGElement, label: string, ariaLabel: string, onClick: () => void, pressed?: boolean): HTMLButtonElement {
   const el = document.createElement("button");
   el.type = "button";
@@ -1530,11 +1395,6 @@ export interface GameToolbarOptions {
   // Chỉ truyền vào (khác `undefined`) khi đang chơi qua mạng — hotseat không
   // có mã phòng để mời.
   onOpenRoomCode: (() => void) | undefined;
-  // Đợt sửa giao diện bàn chơi — nút thứ 5 cùng hàng: chuyển hiển thị trang
-  // bị của NGƯỜI KHÁC giữa "Bình thường" (ảnh lá đầy đủ) và "Tinh gọn" (chỉ
-  // tên) — xem renderEquipmentSection()/networkRenderEquipmentSection().
-  equipmentCompactMode: boolean;
-  onToggleEquipmentCompactMode: () => void;
   // "Bạn" — chỉ có qua mạng (hotseat dùng chung 1 máy, không có khái niệm
   // "bạn" riêng biệt) — hiện máu của chính mình NGAY TRONG thanh dính trên
   // cùng, khỏi phải cuộn xuống ghế của mình ở cuối trang mới thấy được.
@@ -1573,15 +1433,6 @@ function renderGameToolbar(container: HTMLElement, options: GameToolbarOptions):
     actions.appendChild(toolbarButton(iconRoomCode(), "Mã phòng", "Mã phòng / Mời", options.onOpenRoomCode));
   }
   actions.appendChild(toolbarButton(iconSettings(), "Cài đặt", "Cài đặt", options.onOpenSettings));
-  actions.appendChild(
-    toolbarButton(
-      options.equipmentCompactMode ? iconList() : iconGrid(),
-      options.equipmentCompactMode ? "Gọn" : "Đầy đủ",
-      "Chuyển kiểu hiện trang bị của người khác",
-      options.onToggleEquipmentCompactMode,
-      options.equipmentCompactMode
-    )
-  );
 
   toolbar.appendChild(actions);
   container.appendChild(toolbar);
@@ -2117,135 +1968,6 @@ function selectionHintText(selection: Selection): string {
   }
 }
 
-export interface UiHandlers {
-  onDrawCards(): void;
-  onEndTurn(): void;
-  onToggleDiscardCard(cardId: string): void;
-  onConfirmDiscard(): void;
-  onHandCardClick(cardId: string): void;
-  onEquipmentClick(ownerId: string, cardId: string): void;
-  onPlayerClick(targetId: string): void;
-  onStoreOptionClick(cardId: string): void;
-  onZoneClick(zone: "hand" | "equipment"): void;
-  onRespondTakeConsequence(): void;
-  onCancelSelection(): void;
-  onPlayAgain(): void;
-  // Mở rộng Dodge City, mục 1.2 — bấm 1 lá đang ở bước "picking-brawl-zones"
-  // (Brawl) hoặc "picking-extra-discard" (Brawl/Rag Time/Springfield/Tequila/
-  // Whisky) đều KHÔNG dùng hàm này — xem onBrawlZonePick()/onExtraDiscardCardClick()
-  // riêng bên dưới, vì 2 bước đó cần thêm dữ liệu ngoài cardId.
-  onBrawlZonePick(targetId: string, zone: "hand" | "equipment"): void;
-  onBrawlZonesConfirmed(): void;
-  onExtraDiscardCardClick(cardId: string): void;
-  // Mở rộng Dodge City, mục 1.2 — USE_ABILITY. `onArmAbility`: bấm nút "Dùng
-  // kỹ năng" của Sid Ketchum/José Delgado/Doc Holyday (Chuck Wengam không cần
-  // chọn lá gì nên dùng thẳng `onUseChuckWengamAbility`, gửi đi ngay).
-  onArmAbility(playerId: string, ability: UseAbilityCharacter): void;
-  onUseChuckWengamAbility(playerId: string): void;
-  // Bộ mở rộng "custom_characters" (The DareDevil, xem docs/bang/rules/House_Rule.txt mục
-  // I) — không cần bỏ lá nào (giống Chuck Wengam) NHƯNG cần chọn mục tiêu
-  // (giống Doc Holyday) — nhảy THẲNG sang bước "picking-ability-target" với
-  // cardIds rỗng, bỏ qua hẳn bước "picking-ability-cards" (0 lá thì không có
-  // gì để chọn).
-  onArmFairKillerAbility(playerId: string): void;
-  onToggleAbilityCard(cardId: string): void;
-  onConfirmAbilityCards(): void;
-  onAbilityTargetClick(targetId: string): void;
-  // Giai đoạn 5, việc bổ sung — 3 nhân vật (Pedro Ramirez/Jesse Jones/Kit
-  // Carlson) cần lựa chọn riêng ngoài các handler ở trên. "Không chọn"/mặc
-  // định của cả 3 đều tái dùng onRespondTakeConsequence có sẵn.
-  onPickDrawSource(cardId: string): void;
-  onPickDrawTarget(targetId: string, letTargetChoose: boolean): void;
-  onPickKeptCard(cardId: string): void;
-  // Mở rộng Dodge City, mục C nhóm A (Pat Brennan) — chọn lấy đúng 1 lá trang
-  // bị `cardId` của người chơi `targetId` vào tay mình, thay vì rút bài.
-  onPickEquipmentFromPlayer(targetId: string, cardId: string): void;
-  // Mở rộng Dodge City, mục C nhóm C (Vera Custer) — chọn mượn khả năng của
-  // người chơi `targetId` (bắt buộc chọn, không có lựa chọn "không mượn ai").
-  onPickBorrowedCharacter(targetId: string): void;
-  // Bộ mở rộng "custom_characters" (Elena Noir, xem docs/bang/rules/House_Rule.txt mục I) —
-  // trả lời NEED_PICK_ARMED. true = vũ trang (rút 1 lá lượt này); false =
-  // không vũ trang (rút 2 lá bình thường, dùng cho nút "Không vũ trang" —
-  // KHÔNG tái dùng onRespondTakeConsequence dù kết quả cuối tương đương, để
-  // nút bấm rõ nghĩa hơn là "chọn không" thay vì "mặc định/hết giờ").
-  onPickArmed(armed: boolean): void;
-  // Bộ mở rộng "custom_characters" (Nomad Norman, xem docs/bang/rules/House_Rule.txt mục I) —
-  // trả lời NEED_USE_DRIFTER_SHIELD: muốn dùng lá chắn. Nút "Không dùng" tái
-  // dùng onRespondTakeConsequence() (RESPOND không kèm useShield = từ chối),
-  // KHÔNG cần tham số boolean như onPickArmed — chỉ 1 nhánh cần handler mới.
-  onUseDrifterShield(): void;
-  // Bộ mở rộng "custom_characters" (Envoy Evy, xem docs/bang/rules/House_Rule.txt mục I) —
-  // trả lời NEED_USE_DEALER_TRADE: muốn đưa 2 lá ngẫu nhiên cho người vừa
-  // đánh mình. Nút "Không, chịu mất máu" tái dùng onRespondTakeConsequence().
-  onUseDealerTrade(): void;
-  // Bộ mở rộng "custom_characters" (Aura The Soul-Weaver, xem docs/bang/rules/House_Rule.txt mục I) —
-  // trả lời NEED_SENTINEL_REVIVE: đồng ý trả 2 máu tối đa vĩnh viễn để hồi
-  // sinh. Nút "Từ chối" tái dùng onRespondTakeConsequence().
-  onUseSentinelRevive(): void;
-  // Bộ mở rộng "custom_characters" (Marcel Marcelo, xem docs/bang/rules/House_Rule.txt mục I)
-  // — trả lời NEED_PICK_MARCEL_COMPANION: chọn `targetId` làm người "cùng vào
-  // tù" (bắt buộc chọn, không có lựa chọn "không chọn ai").
-  onPickMarcelCompanion(targetId: string): void;
-  // Bộ mở rộng "custom_characters" (The Thief, xem docs/bang/rules/House_Rule.txt mục I) —
-  // trả lời NEED_PICK_THIEF_TARGET: chọn `targetId` để cướp ngẫu nhiên 1 lá.
-  // "Bỏ qua" dùng onRespondTakeConsequence() (KHÔNG bắt buộc chọn, khác Marcel
-  // Marcelo ở trên).
-  onPickThiefTarget(targetId: string): void;
-  // Mở rộng A Fistful of Cards, lá "Hard Liquor" — trả lời
-  // NEED_PICK_HARD_LIQUOR: bỏ qua pha rút để hồi 1 máu. Nút "Rút bài bình
-  // thường" tái dùng onRespondTakeConsequence().
-  onPickHardLiquor(): void;
-  // Mở rộng A Fistful of Cards, lá "Blood Brothers" — trả lời
-  // NEED_BLOOD_BROTHERS_GIFT: tặng 1 máu cho `targetId`. Nút "Không tặng ai"
-  // tái dùng onRespondTakeConsequence().
-  onGiveBloodBrothersGift(targetId: string): void;
-  // Mở rộng A Fistful of Cards, lá "Ranch" — trả lời NEED_RANCH_EXCHANGE: bấm
-  // TỪNG lá muốn đổi (tích luỹ vào selection, không tự gửi), rồi bấm nút "Đổi
-  // bài" (onConfirmRanchExchange) để gửi thật — khác Kit Carlson (tự gửi khi
-  // đủ số lá) vì Ranch không có số lá cố định phải chọn.
-  onToggleRanchCard(cardId: string): void;
-  onConfirmRanchExchange(): void;
-  // Mở rộng A Fistful of Cards, lá "Sniper"/"Ricochet" — đã chọn Bang! + mục
-  // tiêu, sự kiện tương ứng đang chạy: hỏi dùng cách bắn đặc biệt hay Bang!
-  // bình thường. `false` = Bang! thường (gửi PLAY_CARD ngay); `true` = chuyển
-  // tiếp bước kế (chọn lá Bang! phụ cho Sniper, chọn trang bị cho Ricochet).
-  onConfirmBangMode(useSpecial: boolean): void;
-  // Đợt 2 UI/UX (mục 4) — bấm "nở"/"thu gọn" khu trang bị của 1 seat khi bàn
-  // >6 người. Client-only, không phải hành động ván đấu, không gửi lên server.
-  onToggleSeatExpanded(playerId: string): void;
-  // Đợt sửa giao diện bàn chơi — nút "Bình thường"/"Tinh gọn" ở toolbar, xem
-  // GameToolbarOptions.equipmentCompactMode. Client-only, giống hệt
-  // onToggleSeatExpanded (không liên quan GameState, không gửi lên server).
-  onToggleEquipmentCompactMode(): void;
-  // Đợt 3 UI/UX (mục 9) — mở/đóng 2 dialog góc màn hình (nhật ký/cài đặt).
-  // Client-only, y hệt onToggleSeatExpanded — không liên quan GameState.
-  onOpenLogDialog(): void;
-  onCloseLogDialog(): void;
-  onOpenSettingsDialog(): void;
-  onCloseSettingsDialog(): void;
-  // Bổ sung — dialog "Thư viện bài" mở giữa ván, không văng khỏi ván (xem
-  // renderGameToolbar()). Client-only, y hệt 2 dialog trên.
-  onOpenCardReferenceDialog(): void;
-  onCloseCardReferenceDialog(): void;
-  // Bổ sung 2026-08-08 — ô tìm kiếm ĐẦU dialog Thư viện bài (xem
-  // renderCardReferenceSearchBox()). Cập nhật `cardReferenceSearchQuery` ở
-  // options tương ứng RỒI render() lại NGAY (khác mọi input khác trong dự án
-  // — lọc kết quả theo từng phím gõ bắt buộc phải vẽ lại danh sách).
-  onCardReferenceSearchChange(value: string): void;
-  // Nút "Về màn hình chính" BÊN TRONG dialog Cài đặt.
-  onLeaveGame(): void;
-  // Bổ sung — nút "Bắt đầu ván mới" BÊN TRONG dialog Cài đặt. Bấm lần đầu gọi
-  // onRequestNewGame() — ván ĐÃ kết thúc thì main.ts tự bắt đầu ngay (không
-  // cần hỏi); ván CHƯA kết thúc thì main.ts chuyển dialog sang bước xác nhận
-  // (renderSettingsDialogBody() đọc `confirmingNewGame` để đổi nội dung dialog
-  // — KHÔNG mở thêm 1 dialog mới, tránh lỗi chồng dialog đã gặp ở đợt trước).
-  // onConfirmNewGame(): xác nhận huỷ ván cũ, thật sự bắt đầu ván mới.
-  // onCancelNewGameConfirm(): huỷ bước xác nhận, quay lại dialog Cài đặt bình thường.
-  onRequestNewGame(): void;
-  onConfirmNewGame(): void;
-  onCancelNewGameConfirm(): void;
-}
-
 function button(label: string, onClick: () => void): HTMLButtonElement {
   const el = document.createElement("button");
   el.textContent = label;
@@ -2386,800 +2108,6 @@ function hasEnoughMissedToRespond(
   return eligibleFromHand + eligibleFromEquipment >= needed;
 }
 
-function renderHandSection(
-  container: HTMLElement,
-  state: GameState,
-  player: PlayerState,
-  options: RenderOptions,
-  handlers: UiHandlers
-): void {
-  const { selection, discardSelection } = options;
-  const wrapper = document.createElement("div");
-  wrapper.className = "cards";
-
-  const top = state.pending[state.pending.length - 1];
-  const isCurrentTurnToPlay =
-    state.pending.length === 0 &&
-    state.turnPhase === "play" &&
-    state.players[state.currentPlayerIndex].id === player.id;
-  const isDiscarding =
-    state.pending.length === 0 &&
-    state.turnPhase === "discard" &&
-    state.players[state.currentPlayerIndex].id === player.id;
-  const isResponding = top !== undefined && top.player === player.id;
-  const respondableName = isResponding ? respondableCardName(top.kind) : null;
-  const isDiscardFromHand = isResponding && top.kind === "NEED_DISCARD_FROM_ZONE" && top.zone === "hand";
-  // Jesse Jones (đợt 5) — nạn nhân tự chọn 1 lá BẤT KỲ của mình để đưa, không
-  // giới hạn tên lá như respondableCardName (chỉ dùng cho Missed!/Bang!).
-  const isGivingCardToJesse = isResponding && top.kind === "NEED_GIVE_CARD_TO_PLAYER";
-  // Mở rộng Dodge City, mục 1.2 — bước cuối của Brawl/Rag Time/Springfield/
-  // Tequila/Whisky: chọn 1 lá phụ bất kỳ KHÁC lá chính đang đánh (lá đó vẫn
-  // còn TRONG tay lúc này — chưa dispatch — nên phải tự loại trừ ở đây).
-  const isPickingExtraDiscard =
-    selection.step === "picking-extra-discard" && player.id === state.players[state.currentPlayerIndex].id;
-  // Mở rộng Dodge City, mục C — USE_ABILITY (Sid Ketchum/José Delgado/Doc
-  // Holyday) chọn ĐỦ số lá cần trước khi gửi đi. José Delgado CHỈ được chọn
-  // lá xanh dương (equipment "instant") — lá khác hiện dạng chip, không bấm được.
-  const isPickingAbilityCards = selection.step === "picking-ability-cards" && selection.playerId === player.id;
-  // Mở rộng A Fistful of Cards, lá "Ranch" — trả lời NEED_RANCH_EXCHANGE: bấm
-  // TỪNG lá muốn đổi ngay trên khu bài của chính mình, y hệt isDiscarding
-  // nhưng KHÔNG tự gửi (xem onToggleRanchCard()/renderPendingPanel()).
-  const isPickingRanchExchange = isResponding && top!.kind === "NEED_RANCH_EXCHANGE";
-
-  for (const cardId of player.hand) {
-    const name = cardNameFromId(cardId);
-
-    if (isDiscarding) {
-      const selected = discardSelection.includes(cardId);
-      wrapper.appendChild(
-        cardButton(cardId, () => handlers.onToggleDiscardCard(cardId), selected ? "card-box--checked" : undefined)
-      );
-      continue;
-    }
-
-    if (isPickingRanchExchange) {
-      const selectedIds = selection.step === "picking-ranch-exchange" ? selection.selectedCardIds : [];
-      const checked = selectedIds.includes(cardId);
-      wrapper.appendChild(
-        cardButton(cardId, () => handlers.onToggleRanchCard(cardId), checked ? "card-box--checked" : undefined)
-      );
-      continue;
-    }
-
-    if (isPickingExtraDiscard) {
-      if (
-        cardId === selection.cardId ||
-        (selection.restrictToCardName !== undefined && name !== selection.restrictToCardName)
-      ) {
-        wrapper.appendChild(cardChip(cardId));
-      } else {
-        wrapper.appendChild(cardButton(cardId, () => handlers.onExtraDiscardCardClick(cardId)));
-      }
-      continue;
-    }
-
-    if (isPickingAbilityCards) {
-      if (selection.ability === "jose_delgado" && !isSelfEquipBlueCardName(name)) {
-        wrapper.appendChild(cardChip(cardId));
-      } else {
-        const checked = selection.selectedCardIds.includes(cardId);
-        wrapper.appendChild(
-          cardButton(cardId, () => handlers.onToggleAbilityCard(cardId), checked ? "card-box--checked" : undefined)
-        );
-      }
-      continue;
-    }
-
-    if (isDiscardFromHand || isGivingCardToJesse) {
-      wrapper.appendChild(cardButton(cardId, () => handlers.onHandCardClick(cardId)));
-      continue;
-    }
-
-    if (respondableName !== null) {
-      const effChar = effectiveCharacterId(state.veraCusterBorrowedCharacterId, player.characterId);
-      if (
-        cardMatchesRespondable(cardId, effChar, respondableName) &&
-        hasEnoughMissedToRespond(top, player.hand, player.equipment, effChar, state.equipmentPlayedTurn, state.turnNumber)
-      ) {
-        wrapper.appendChild(cardButton(cardId, () => handlers.onHandCardClick(cardId)));
-      } else {
-        wrapper.appendChild(cardChip(cardId));
-      }
-      continue;
-    }
-
-    // Giai đoạn 5 (Calamity Janet) — Missed! của Janet ĐÓNG VAI Bang! nên vẫn
-    // bấm được chủ động trong lượt mình, khác Missed! thường (không bao giờ
-    // đánh chủ động được). Đọc theo effectiveCharacterId() — Vera Custer mượn
-    // Janet cũng phải bấm được y hệt.
-    if (
-      isCurrentTurnToPlay &&
-      (name !== "missed" ||
-        cardActsAsBang(cardId, effectiveCharacterId(state.veraCusterBorrowedCharacterId, player.characterId)))
-    ) {
-      const armed = selection.step === "picking-target" && selection.cardId === cardId;
-      wrapper.appendChild(cardButton(cardId, () => handlers.onHandCardClick(cardId), armed ? "card-box--armed" : undefined));
-      continue;
-    }
-
-    wrapper.appendChild(cardChip(cardId));
-  }
-
-  container.appendChild(wrapper);
-}
-
-function renderEquipmentSection(
-  container: HTMLElement,
-  state: GameState,
-  player: PlayerState,
-  selection: Selection,
-  handlers: UiHandlers,
-  // Đợt sửa giao diện bàn chơi — "Tinh gọn" CHỈ áp dụng cho lá KHÔNG bấm được
-  // (đang chỉ để xem) của NGƯỜI KHÁC — bài của chính mình luôn hiện ảnh thật,
-  // dù bật chế độ nào (xem lời gọi hàm này ở renderPlayer()).
-  compactMode: boolean
-): void {
-  const wrapper = document.createElement("div");
-  wrapper.className = "cards";
-
-  const top = state.pending[state.pending.length - 1];
-  const isDiscardFromEquipment =
-    top !== undefined && top.player === player.id && top.kind === "NEED_DISCARD_FROM_ZONE" && top.zone === "equipment";
-  const isPickingPanicTarget = selection.step === "picking-panic-equipment" && selection.targetId === player.id;
-  // Mở rộng A Fistful of Cards, lá "Ricochet" — đã chọn "Bắn kiểu Ricochet",
-  // giờ chọn ĐÚNG 1 lá trang bị của người này để bắn rụng. KHÔNG loại
-  // Dynamite (khác isPickingPanicTarget ngay dưới) — playRicochetShot() ở
-  // reduce.ts không cấm bắn Dynamite qua Ricochet.
-  const isPickingRicochetEquipment =
-    selection.step === "picking-ricochet-equipment" && selection.targetId === player.id;
-  // Mở rộng Dodge City, mục 1.1 — đang chờ ĐÚNG người này đỡ Bang!/Gatling
-  // (NEED_MISSED): lá vàng trên sân dùng được như Missed! bấm được luôn, y
-  // hệt lá trên tay (xem respondableCardName()/hasEnoughMissedToRespond() ở trên).
-  const isRespondingWithMissed =
-    top !== undefined &&
-    top.player === player.id &&
-    (top.kind === "NEED_MISSED" || top.kind === "NEED_DISCARD_MISSED_OR_DAMAGE");
-  // Mở rộng Dodge City, mục 1.1 — đang chính lượt CHƠI của người này, không có
-  // pending/selection nào khác đang dở dang -> lá vàng "trì hoãn" đã qua đủ 1
-  // lượt bấm được để KÍCH HOẠT (activateDelayedEquipment() ở reduce.ts).
-  const isMyTurnToActivate =
-    state.pending.length === 0 &&
-    state.turnPhase === "play" &&
-    state.players[state.currentPlayerIndex].id === player.id &&
-    selection.step === "idle";
-
-  for (const cardId of player.equipment) {
-    const name = cardNameFromId(cardId);
-    const isDynamite = name === "dynamite";
-    const dangerClass = equipmentDangerClass(name);
-
-    if (isPickingRicochetEquipment) {
-      wrapper.appendChild(cardButton(cardId, () => handlers.onEquipmentClick(player.id, cardId), dangerClass));
-      continue;
-    }
-
-    if (!isDynamite && (isDiscardFromEquipment || isPickingPanicTarget)) {
-      wrapper.appendChild(cardButton(cardId, () => handlers.onEquipmentClick(player.id, cardId), dangerClass));
-      continue;
-    }
-
-    if (
-      isRespondingWithMissed &&
-      equipmentActsAsMissed(
-        cardId,
-        effectiveCharacterId(state.veraCusterBorrowedCharacterId, player.characterId),
-        state.equipmentPlayedTurn,
-        state.turnNumber
-      )
-    ) {
-      wrapper.appendChild(cardButton(cardId, () => handlers.onEquipmentClick(player.id, cardId), dangerClass));
-      continue;
-    }
-
-    if (isMyTurnToActivate && canActivateDelayedEquipment(cardId, state.equipmentPlayedTurn, state.turnNumber)) {
-      wrapper.appendChild(cardButton(cardId, () => handlers.onEquipmentClick(player.id, cardId), dangerClass));
-      continue;
-    }
-
-    wrapper.appendChild(compactMode ? cardNameChip(cardId, dangerClass) : cardChip(cardId, dangerClass));
-  }
-
-  container.appendChild(wrapper);
-}
-
-// Đợt 2 UI/UX (mục 4, "QUY TẮC ĐÔNG NGƯỜI") — dùng CHUNG cho hotseat và qua
-// mạng: TỪ 6 người trở xuống luôn hiện đầy đủ khu trang bị; HƠN 6 người mặc
-// định thu gọn (chỉ hiện SỐ lá), bấm nút mới "nở" ra xem/thu lại — trạng thái
-// nở là CLIENT-ONLY (expandedSeatIds, xem main.ts), không phải GameState.
-// `forceShowFull`: đang có hành động THẬT SỰ cần bấm vào khu trang bị của
-// đúng người này — LUÔN hiện đầy đủ bất kể đang thu gọn hay không (rõ ràng
-// quan trọng hơn gọn gàng, CLAUDE.md).
-function renderPlayerEquipmentArea(
-  container: HTMLElement,
-  totalPlayers: number,
-  playerId: string,
-  equipmentCount: number,
-  expandedSeatIds: string[],
-  onToggle: () => void,
-  forceShowFull: boolean,
-  renderFullEquipment: () => void
-): void {
-  const isCompactSeat = totalPlayers > 6;
-  const isExpanded = expandedSeatIds.includes(playerId);
-  const showFull = !isCompactSeat || isExpanded || forceShowFull;
-
-  if (showFull) {
-    const label = document.createElement("p");
-    label.textContent = "Trang bị:";
-    container.appendChild(label);
-    renderFullEquipment();
-    if (isCompactSeat && !forceShowFull) {
-      container.appendChild(button("▾ Thu gọn trang bị", onToggle));
-    }
-    return;
-  }
-
-  const summary = document.createElement("p");
-  summary.textContent = `Trang bị: ${equipmentCount} lá`;
-  container.appendChild(summary);
-  container.appendChild(button(`▸ Xem trang bị (${equipmentCount})`, onToggle));
-}
-
-function renderPlayer(
-  state: GameState,
-  player: PlayerState,
-  index: number,
-  seatNumber: number,
-  options: RenderOptions,
-  handlers: UiHandlers
-): HTMLElement {
-  const { selection } = options;
-  const el = document.createElement("article");
-  el.className = "player";
-  // Đợt 1 UI/UX (mục 1+8): 1 seat chỉ mang ĐÚNG 1 trong 4 trạng thái, ưu tiên
-  // từ trên xuống — đã chết luôn thắng mọi thứ khác; đang có ai phải phản hồi
-  // (đỉnh stack pending) thì KHÔNG seat nào còn được coi là "đang tới lượt"
-  // nữa (kể cả người vừa đánh bài gốc — họ cũng đang CHỜ như mọi người khác).
-  const topPending = state.pending[state.pending.length - 1];
-  const isTargeted = player.alive && topPending !== undefined && topPending.player === player.id;
-  const isCurrentTurn = player.alive && state.pending.length === 0 && index === state.currentPlayerIndex;
-  if (!player.alive) el.classList.add("player--dead");
-  else if (isTargeted) el.classList.add("player--targeted");
-  else if (isCurrentTurn) el.classList.add("player--current");
-  else el.classList.add("player--waiting");
-
-  const headingRow = document.createElement("div");
-  headingRow.className = "player__heading-row";
-  headingRow.appendChild(seatBadgeSpan(seatNumber));
-  // Đợt 5 UI/UX (mục 4 ý a) — lá nhân vật (đã chọn xong, công khai) sát cạnh
-  // tên, chỉ hiện khi ván có bật cơ chế chọn nhân vật VÀ người này đã chọn.
-  if (player.characterId) {
-    headingRow.appendChild(characterChip(player.characterId));
-  }
-  const heading = document.createElement("h3");
-  heading.textContent = player.name + (isCurrentTurn ? " ← đang tới lượt" : "");
-  headingRow.appendChild(heading);
-  el.appendChild(headingRow);
-
-  if (isTargeted) {
-    const targetedLabel = document.createElement("p");
-    targetedLabel.className = "player--targeted-label";
-    targetedLabel.textContent = "⚠ cần phản hồi";
-    el.appendChild(targetedLabel);
-  }
-
-  const roleText = player.role ? ROLE_LABELS[player.role] : "(chưa chia vai)";
-  const roleAndHp = document.createElement("p");
-  roleAndHp.appendChild(document.createTextNode(`${roleText} · Máu: `));
-  roleAndHp.appendChild(renderHpTrack(player.hp, player.maxHp));
-  roleAndHp.appendChild(
-    document.createTextNode(` · ${player.alive ? "Còn sống" : "Đã chết"}`)
-  );
-  el.appendChild(roleAndHp);
-
-  // Bộ mở rộng "custom_characters" (Elena Noir, xem docs/bang/rules/House_Rule.txt mục I) —
-  // đọc theo effectiveCharacterId() (Vera Custer mượn khả năng Elena Noir vẫn
-  // phải hiện đúng badge này).
-  if (
-    effectiveCharacterId(state.veraCusterBorrowedCharacterId, player.characterId) === "elena_noir" &&
-    state.elenaNoirImmortalTurnsLeft[player.id] !== undefined
-  ) {
-    const immortalLabel = document.createElement("p");
-    immortalLabel.className = "player--targeted-label";
-    immortalLabel.textContent = `☠ Miễn Tử — còn ${state.elenaNoirImmortalTurnsLeft[player.id]} lượt`;
-    el.appendChild(immortalLabel);
-  }
-  // Bộ mở rộng "custom_characters" (Marcel Marcelo) — 2 hướng khác nhau: badge
-  // trên CHÍNH Marcel (player.id là khoá) cho biết đã chỉ định ai; badge trên
-  // NGƯỜI ĐƯỢC CHỌN (player.id là giá trị) cho biết đang chờ ăn theo kết quả.
-  // Không loại trừ 2 badge còn lại (sắp mất lượt) — dùng state trực tiếp,
-  // không lọc theo characterId cụ thể vì đây là trạng thái của người liên quan.
-  const marcelCompanionId = state.marcelJailCompanion[player.id];
-  if (marcelCompanionId) {
-    const label = document.createElement("p");
-    label.className = "player--targeted-label";
-    label.textContent = `Đã chỉ định ${state.players.find((p) => p.id === marcelCompanionId)?.name ?? marcelCompanionId} cùng vào tù`;
-    el.appendChild(label);
-  }
-  if (Object.values(state.marcelJailCompanion).includes(player.id)) {
-    const label = document.createElement("p");
-    label.className = "player--targeted-label";
-    label.textContent = `Đang chờ ăn theo kết quả thoát tù của Marcel Marcelo`;
-    el.appendChild(label);
-  }
-  if (state.marcelCompanionSkipNextTurn[player.id]) {
-    const label = document.createElement("p");
-    label.className = "player--targeted-label";
-    label.textContent = `Sẽ mất lượt kế tiếp (cùng vào tù với Marcel Marcelo)`;
-    el.appendChild(label);
-  }
-
-  const handLabel = document.createElement("p");
-  handLabel.textContent = `Bài trên tay (${player.hand.length}):`;
-  el.appendChild(handLabel);
-  renderHandSection(el, state, player, options, handlers);
-  renderAbilitySection(el, state, player, selection, handlers);
-
-  // Đợt 2 UI/UX (mục 4) — đang có hành động THẬT SỰ cần bấm vào khu trang bị
-  // của người này (Cat Balou bắt bỏ / Panic! chọn mục tiêu / mở rộng Dodge
-  // City: đỡ Bang! bằng lá vàng) → LUÔN hiện đầy đủ, bất kể đang thu gọn —
-  // cùng điều kiện renderEquipmentSection() tự kiểm tra bên trong nó, viết lại
-  // ở đây chỉ để QUYẾT ĐỊNH thu/nở.
-  const forceShowEquipment =
-    (topPending !== undefined &&
-      topPending.player === player.id &&
-      ((topPending.kind === "NEED_DISCARD_FROM_ZONE" && topPending.zone === "equipment") ||
-        topPending.kind === "NEED_MISSED" ||
-        topPending.kind === "NEED_DISCARD_MISSED_OR_DAMAGE")) ||
-    (selection.step === "picking-panic-equipment" && selection.targetId === player.id) ||
-    // Lá "Ricochet" — cùng lý do Panic! ở trên.
-    (selection.step === "picking-ricochet-equipment" && selection.targetId === player.id);
-  renderPlayerEquipmentArea(
-    el,
-    state.players.length,
-    player.id,
-    player.equipment.length,
-    options.expandedSeatIds,
-    () => handlers.onToggleSeatExpanded(player.id),
-    forceShowEquipment,
-    // Hotseat dùng chung 1 máy — mọi người bình đẳng, không có khái niệm
-    // "bài của mình" để miễn trừ chế độ Tinh gọn (khác qua mạng, xem
-    // networkRenderPlayer()) — áp dụng compactMode CHO TẤT CẢ.
-    () => renderEquipmentSection(el, state, player, selection, handlers, options.equipmentCompactMode)
-  );
-
-  // Chọn mục tiêu: chỉ hiện nút này cho người KHÁC người đang cầm bài, và chỉ
-  // khi đang ở bước "picking-target". NGOẠI LỆ: Tequila (mở rộng Dodge City)
-  // cho phép tự chọn CHÍNH MÌNH làm mục tiêu (tự hồi máu) — khác mọi lá khác
-  // dùng bước này.
-  if (selection.step === "picking-target" && player.alive) {
-    const acting = state.players[state.currentPlayerIndex];
-    // Jail KHÔNG BAO GIỜ được đánh lên Cảnh sát trưởng (reduce.ts's playJail()
-    // từ chối hẳn) — ẩn nút luôn ở đây thay vì để người chơi bấm rồi bị dội lỗi,
-    // giống cách room.ts đã lọc sẵn ứng viên cho các trường hợp "chắc chắn bị
-    // từ chối" khác (vd Dynamite miễn nhiễm Cat Balou).
-    const jailOnSheriff = selection.cardName === "jail" && player.role === "sheriff";
-    if ((player.id !== acting.id || selection.cardName === "tequila") && !jailOnSheriff) {
-      el.appendChild(button("Chọn làm mục tiêu", () => handlers.onPlayerClick(player.id)));
-    }
-  }
-
-  // Mở rộng Dodge City, mục C nhóm C (Doc Holyday) — đã chọn đủ 2 lá bỏ, giờ
-  // chọn mục tiêu để bắn (không cho tự chọn chính mình, xem useDocHolydayShot()).
-  if (selection.step === "picking-ability-target" && player.alive && player.id !== selection.playerId) {
-    el.appendChild(button("Chọn làm mục tiêu", () => handlers.onAbilityTargetClick(player.id)));
-  }
-
-  // Cat Balou: sau khi chọn xong mục tiêu, hỏi bỏ tay hay bỏ sân — chỉ hỏi
-  // cho ĐÚNG người vừa được chọn, và chỉ hiện lựa chọn nào còn bài để bỏ.
-  if (selection.step === "picking-cat-balou-zone" && selection.targetId === player.id) {
-    const zoneWrapper = document.createElement("div");
-    zoneWrapper.className = "cards";
-    if (player.hand.length > 0) {
-      zoneWrapper.appendChild(button("Bắt bỏ bài trên tay", () => handlers.onZoneClick("hand")));
-    }
-    if (player.equipment.some((id) => cardNameFromId(id) !== "dynamite")) {
-      zoneWrapper.appendChild(button("Bắt bỏ bài trên sân", () => handlers.onZoneClick("equipment")));
-    }
-    el.appendChild(zoneWrapper);
-  }
-
-  // Brawl (mở rộng Dodge City) — người đánh chọn VÙNG bỏ bài riêng cho TỪNG
-  // người khác còn sống (khác Cat Balou ở trên: đây là người ĐÁNH chọn
-  // TRƯỚC, không phải nạn nhân tự chọn SAU) — hiện cho MỌI người khác, không
-  // chỉ 1 người, đánh dấu ✓ vào vùng đã chọn để biết đã bấm hay chưa.
-  if (selection.step === "picking-brawl-zones" && player.alive && player.id !== state.players[state.currentPlayerIndex].id) {
-    const chosenZone = selection.zones[player.id];
-    const zoneWrapper = document.createElement("div");
-    zoneWrapper.className = "cards";
-    zoneWrapper.appendChild(
-      button(chosenZone === "hand" ? "✓ Bỏ kèm: tay" : "Bỏ kèm: tay", () => handlers.onBrawlZonePick(player.id, "hand"))
-    );
-    zoneWrapper.appendChild(
-      button(chosenZone === "equipment" ? "✓ Bỏ kèm: sân" : "Bỏ kèm: sân", () =>
-        handlers.onBrawlZonePick(player.id, "equipment")
-      )
-    );
-    el.appendChild(zoneWrapper);
-  }
-
-  return el;
-}
-
-// Mở rộng Dodge City, mục 1.2 + mục C — nút "Dùng kỹ năng" cho 4 nhân vật
-// dùng chung USE_ABILITY (Sid Ketchum/Chuck Wengam/José Delgado/Doc Holyday).
-// Gọi cho MỌI seat (không chỉ người đang tới lượt) — Sid Ketchum dùng được
-// BẤT CỨ LÚC NÀO, kể cả không phải lượt/phản ứng của chính mình.
-function renderAbilitySection(
-  container: HTMLElement,
-  state: GameState,
-  player: PlayerState,
-  selection: Selection,
-  handlers: UiHandlers
-): void {
-  if (!player.alive || !player.characterId) return;
-  // effectiveCharacterId() — Vera Custer mượn khả năng chủ động của Sid
-  // Ketchum/Chuck Wengam/José Delgado/Doc Holyday/Jonny Bettor/The DareDevil
-  // vẫn phải hiện đúng nút "Dùng kỹ năng".
-  const def = getCharacterDefinition(effectiveCharacterId(state.veraCusterBorrowedCharacterId, player.characterId));
-  if (!def) return;
-
-  const isMyTurnNoPending =
-    state.pending.length === 0 &&
-    state.turnPhase === "play" &&
-    state.players[state.currentPlayerIndex].id === player.id;
-
-  if (selection.step === "idle") {
-    if (def.canSelfHeal && player.hand.length >= 2) {
-      container.appendChild(
-        button("Dùng kỹ năng: bỏ 2 lá hồi 1 máu", () => handlers.onArmAbility(player.id, "sid_ketchum"))
-      );
-    } else if (def.canPayLifeToDraw && isMyTurnNoPending && player.hp > 1) {
-      container.appendChild(
-        button("Dùng kỹ năng: mất 1 máu rút 2 lá", () => handlers.onUseChuckWengamAbility(player.id))
-      );
-    } else if (
-      def.canDiscardEquipmentToDraw &&
-      isMyTurnNoPending &&
-      state.joseDelgadoUsesThisTurn < 2 &&
-      player.hand.some((id) => isSelfEquipBlueCardName(cardNameFromId(id)))
-    ) {
-      container.appendChild(
-        button("Dùng kỹ năng: bỏ 1 lá xanh dương rút 2 lá", () => handlers.onArmAbility(player.id, "jose_delgado"))
-      );
-    } else if (
-      def.canDiscardTwoForBang &&
-      isMyTurnNoPending &&
-      !state.docHolydayUsedThisTurn &&
-      player.hand.length >= 2
-    ) {
-      container.appendChild(
-        button("Dùng kỹ năng: bỏ 2 lá bắn Bang!", () => handlers.onArmAbility(player.id, "doc_holyday"))
-      );
-    } else if (
-      def.canDiscardTwoToGambleDraw &&
-      isMyTurnNoPending &&
-      state.gamblerUsesThisTurn < 2 &&
-      player.hand.length >= 2
-    ) {
-      container.appendChild(
-        button("Dùng kỹ năng: bỏ 2 lá, lật bài (đỏ rút 3, đen rút 1)", () =>
-          handlers.onArmAbility(player.id, "the_gambler")
-        )
-      );
-    } else if (
-      def.canShootByLosingLife &&
-      isMyTurnNoPending &&
-      !state.fairKillerUsedThisTurn &&
-      player.hp > 1
-    ) {
-      container.appendChild(
-        button("Dùng kỹ năng: mất 1 máu bắn Bang! (bỏ qua khoảng cách)", () =>
-          handlers.onArmFairKillerAbility(player.id)
-        )
-      );
-    }
-  }
-
-  if (selection.step === "picking-ability-cards" && selection.playerId === player.id) {
-    const info = document.createElement("p");
-    info.textContent = `Đã chọn ${selection.selectedCardIds.length}/${selection.needed} lá cho kỹ năng`;
-    container.appendChild(info);
-    const confirmBtn = button("Xác nhận", () => handlers.onConfirmAbilityCards());
-    confirmBtn.disabled = selection.selectedCardIds.length !== selection.needed;
-    container.appendChild(confirmBtn);
-  }
-}
-
-// Mô tả ngắn gọn 1 mục pending BẤT KỲ trong stack (không chỉ đỉnh) — dùng để
-// vẽ cả stack ở renderPendingPanel(), không nhắc "đang chờ" (chữ đó tuỳ vị trí
-// trong stack: đỉnh thì đang chờ THẬT, phía dưới thì "sắp tới" — thêm ở nơi gọi).
-function pendingDescription(state: GameState, item: PendingAction): string {
-  const player = state.players.find((p) => p.id === item.player)!.name;
-
-  switch (item.kind) {
-    case "NEED_MISSED":
-      return `${player} đỡ Bang! bằng Missed! (hoặc chịu mất máu)`;
-    case "NEED_DISCARD_BANG":
-      return `${player} bỏ 1 lá Bang! (hoặc chịu mất máu)`;
-    case "NEED_DUEL_RESPONSE":
-      return `${player} bỏ 1 lá Bang! trong Đấu tay đôi (hoặc chịu mất máu)`;
-    case "NEED_PICK_STORE_CARD":
-      return `${player} chọn 1 lá từ Cửa hàng tổng hợp`;
-    case "NEED_DISCARD_FROM_ZONE":
-      return `${player} chọn 1 lá để bỏ (${item.zone === "hand" ? "trên tay" : "trên sân"})`;
-    case "NEED_DRAW_CHECK":
-      return `${player} lật bài kiểm tra (draw!)`;
-    case "NEED_PICK_DRAW_SOURCE":
-      return `${player} chọn lấy lá trên cùng chồng bỏ hay rút bộ bài`;
-    case "NEED_PICK_DRAW_TARGET":
-      return `${player} chọn rút bộ bài hay lấy 1 lá từ tay người khác`;
-    case "NEED_GIVE_CARD_TO_PLAYER":
-      return `${player} chọn 1 lá của mình để đưa`;
-    case "NEED_PICK_KEPT_CARDS":
-      return `${player} xem 3 lá đầu bộ bài, chọn giữ 2 bỏ 1`;
-    case "NEED_PICK_DRAW_OR_EQUIPMENT":
-      return `${player} chọn rút bộ bài hay lấy 1 lá trang bị của người khác`;
-    case "NEED_PICK_BORROWED_CHARACTER":
-      return `${player} chọn mượn khả năng của 1 người chơi khác`;
-    case "NEED_PICK_ARMED":
-      return `${player} (Elena Noir) chọn vũ trang khả năng Miễn Tử cho lượt này hay không`;
-    case "NEED_PICK_MARCEL_COMPANION":
-      return `${player} (Marcel Marcelo) chọn 1 người cùng vào tù`;
-    case "NEED_PICK_THIEF_TARGET":
-      return `${player} (The Thief) chọn 1 người để cướp bài (hoặc bỏ qua)`;
-    case "NEED_BLOOD_BROTHERS_GIFT":
-      return `${player} chọn tặng 1 máu cho ai đó (hoặc bỏ qua)`;
-    case "NEED_PICK_HARD_LIQUOR":
-      return `${player} chọn bỏ qua pha rút để hồi 1 máu, hay rút bài như thường`;
-    case "NEED_MISSED_FOR_EQUIPMENT":
-      return `${player} đỡ đòn Ricochet bằng Missed! (hoặc mất lá trang bị)`;
-    case "NEED_RANCH_EXCHANGE":
-      return `${player} chọn đổi bài (hoặc bỏ qua)`;
-    case "NEED_DISCARD_MISSED_OR_DAMAGE":
-      return `${player} bỏ 1 lá Missed! (Russian Roulette, hoặc chịu mất 2 máu)`;
-    case "NEED_USE_DRIFTER_SHIELD":
-      return `${player} chọn dùng lá chắn hay không (bí mật)`;
-    case "NEED_USE_DEALER_TRADE":
-      return `${player} (Envoy Evy) chọn đưa 2 lá cho người vừa đánh mình hay chịu mất máu`;
-    case "NEED_SENTINEL_REVIVE": {
-      const targetName = state.players.find((p) => p.id === item.targetId)?.name ?? "?";
-      return `${player} (Aura The Soul-Weaver) chọn trả 2 máu tối đa vĩnh viễn để hồi sinh ${targetName} hay không`;
-    }
-    default: {
-      const neverKind: never = item;
-      throw new Error(`Chưa biết mô tả cho pending: ${JSON.stringify(neverKind)}`);
-    }
-  }
-}
-
-// Vẽ TOÀN BỘ stack pending (việc 2.4), không chỉ đỉnh — mục 5 file luật: "Việc
-// đang chờ là mảng dùng như stack, luôn xử lý phần tử CUỐI cùng". Đỉnh (phần
-// tử cuối mảng) là việc đang chờ THẬT SỰ, có nút bấm phản hồi; các mục còn lại
-// chỉ để NGƯỜI CHƠI BIẾT trước việc gì sẽ tới, không bấm được (bấm sai thứ tự
-// stack là sai luật — xem mục 5 CLAUDE.md).
-function renderPendingPanel(container: HTMLElement, state: GameState, handlers: UiHandlers, selection: Selection): void {
-  if (state.pending.length === 0) return;
-
-  // Mục 8 UI/UX — "băng thông báo đầu bàn": luôn hiện ĐỈNH stack làm dòng
-  // chính (⚠ + in đậm), các mục còn lại (nếu có) chỉ liệt kê phụ bên dưới —
-  // cập nhật tự động theo đỉnh mỗi lần stack thay đổi (Gatling→Barrel→draw!...).
-  const top = state.pending[state.pending.length - 1];
-
-  const panel = document.createElement("div");
-  panel.className = "reaction-banner" + (isReactionBannerStickyEnabled() ? " reaction-banner--sticky" : "");
-
-  const head = document.createElement("p");
-  head.className = "reaction-banner__head";
-  head.textContent = `⚠ Đang chờ: ${pendingDescription(state, top)}`;
-  panel.appendChild(head);
-
-  if (state.pending.length > 1) {
-    const note = document.createElement("p");
-    note.className = "reaction-banner__note";
-    note.textContent = `+${state.pending.length - 1} việc khác đang chờ (xử lý sau khi xong việc trên):`;
-    panel.appendChild(note);
-
-    const list = document.createElement("ol");
-    list.className = "pending-list";
-    // Duyệt từ NGAY DƯỚI đỉnh xuống đáy — đúng thứ tự sẽ được xử lý sau đó.
-    for (let i = state.pending.length - 2; i >= 0; i--) {
-      const item = state.pending[i];
-      const li = document.createElement("li");
-      li.className = "pending-item";
-      li.textContent = `Sắp tới: ${pendingDescription(state, item)}`;
-      list.appendChild(li);
-    }
-    panel.appendChild(list);
-  }
-
-  // Nút phản hồi CHỈ áp dụng cho đỉnh stack — các mục "sắp tới" không có nút,
-  // vì chưa tới lượt xử lý (phải giải quyết xong đỉnh trước).
-  if (top.kind === "NEED_PICK_STORE_CARD") {
-    const wrapper = document.createElement("div");
-    wrapper.className = "cards";
-    for (const cardId of top.options) {
-      wrapper.appendChild(cardButton(cardId, () => handlers.onStoreOptionClick(cardId)));
-    }
-    panel.appendChild(wrapper);
-  } else if (top.kind === "NEED_DRAW_CHECK") {
-    panel.appendChild(button("Lật bài", () => handlers.onRespondTakeConsequence()));
-  } else if (
-    top.kind === "NEED_MISSED" ||
-    top.kind === "NEED_DISCARD_BANG" ||
-    top.kind === "NEED_DUEL_RESPONSE" ||
-    top.kind === "NEED_DISCARD_MISSED_OR_DAMAGE"
-  ) {
-    panel.appendChild(button("Chịu mất máu (không đỡ)", () => handlers.onRespondTakeConsequence()));
-  } else if (top.kind === "NEED_PICK_DRAW_SOURCE") {
-    const topOfDiscard = state.discardPile[state.discardPile.length - 1];
-    if (topOfDiscard) {
-      const wrapper = document.createElement("div");
-      wrapper.className = "cards";
-      wrapper.appendChild(cardButton(topOfDiscard, () => handlers.onPickDrawSource(topOfDiscard)));
-      panel.appendChild(wrapper);
-    }
-    panel.appendChild(button("Rút từ bộ bài", () => handlers.onRespondTakeConsequence()));
-  } else if (top.kind === "NEED_PICK_DRAW_TARGET") {
-    panel.appendChild(button("Rút từ bộ bài", () => handlers.onRespondTakeConsequence()));
-    for (const p of state.players) {
-      if (!p.alive || p.id === top.player) continue;
-      panel.appendChild(button(`${p.name}: để họ tự chọn lá đưa`, () => handlers.onPickDrawTarget(p.id, true)));
-      panel.appendChild(button(`${p.name}: cướp ngẫu nhiên`, () => handlers.onPickDrawTarget(p.id, false)));
-    }
-  } else if (top.kind === "NEED_GIVE_CARD_TO_PLAYER") {
-    panel.appendChild(button("Không chọn — rút ngẫu nhiên thay tôi", () => handlers.onRespondTakeConsequence()));
-  } else if (top.kind === "NEED_PICK_KEPT_CARDS") {
-    const selectedIds = selection.step === "picking-kit-carlson-kept" ? selection.selectedCardIds : [];
-    const wrapper = document.createElement("div");
-    wrapper.className = "cards";
-    for (const cardId of top.cards) {
-      const checked = selectedIds.includes(cardId);
-      wrapper.appendChild(
-        cardButton(cardId, () => handlers.onPickKeptCard(cardId), checked ? "card-box--checked" : undefined)
-      );
-    }
-    panel.appendChild(wrapper);
-    const info = document.createElement("p");
-    info.className = "reaction-banner__note";
-    info.textContent = `Bấm lần lượt từng lá muốn giữ — đã chọn ${selectedIds.length}/${top.keepCount}.`;
-    panel.appendChild(info);
-    panel.appendChild(
-      button(`Giữ ${top.keepCount} lá đầu (mặc định, hết giờ)`, () => handlers.onRespondTakeConsequence())
-    );
-  } else if (top.kind === "NEED_PICK_DRAW_OR_EQUIPMENT") {
-    panel.appendChild(button("Rút bộ bài", () => handlers.onRespondTakeConsequence()));
-    for (const p of state.players) {
-      if (!p.alive || p.id === top.player || p.equipment.length === 0) continue;
-      const label = document.createElement("p");
-      label.textContent = `Lấy trang bị của ${p.name}:`;
-      panel.appendChild(label);
-      const wrapper = document.createElement("div");
-      wrapper.className = "cards";
-      for (const cardId of p.equipment) {
-        wrapper.appendChild(cardButton(cardId, () => handlers.onPickEquipmentFromPlayer(p.id, cardId)));
-      }
-      panel.appendChild(wrapper);
-    }
-  } else if (top.kind === "NEED_PICK_BORROWED_CHARACTER") {
-    for (const p of state.players) {
-      if (!p.alive || p.id === top.player || !p.characterId) continue;
-      panel.appendChild(
-        button(`Mượn khả năng của ${p.name} (${characterLabel(p.characterId)})`, () =>
-          handlers.onPickBorrowedCharacter(p.id)
-        )
-      );
-    }
-  } else if (top.kind === "NEED_PICK_ARMED") {
-    panel.appendChild(button("Vũ trang (rút 1 lá)", () => handlers.onPickArmed(true)));
-    panel.appendChild(button("Không vũ trang (rút 2 lá)", () => handlers.onPickArmed(false)));
-  } else if (top.kind === "NEED_USE_DRIFTER_SHIELD") {
-    // Bộ mở rộng "custom_characters" (Nomad Norman) — hotseat dùng chung 1 màn
-    // hình nên không có bí mật thật (đúng tiền lệ NEED_PICK_KEPT_CARDS/Kit
-    // Carlson), cứ đọc thẳng state.drifterShield để gợi ý cho tiện.
-    const hint = document.createElement("p");
-    hint.textContent = state.drifterShield[top.player]
-      ? "(Đang có lá chắn.)"
-      : "(Hiện KHÔNG có lá chắn — dùng cũng vô tác dụng.)";
-    panel.appendChild(hint);
-    panel.appendChild(button("Dùng lá chắn (chặn trọn đòn)", () => handlers.onUseDrifterShield()));
-    panel.appendChild(button("Không dùng (để dành)", () => handlers.onRespondTakeConsequence()));
-  } else if (top.kind === "NEED_USE_DEALER_TRADE") {
-    const attackerName = state.players.find((p) => p.id === top.missedTop.source.from)?.name ?? "?";
-    panel.appendChild(
-      button(`Đưa 2 lá ngẫu nhiên cho ${attackerName} (vô hiệu đòn)`, () => handlers.onUseDealerTrade())
-    );
-    panel.appendChild(button("Không, chịu mất máu", () => handlers.onRespondTakeConsequence()));
-  } else if (top.kind === "NEED_SENTINEL_REVIVE") {
-    const targetName = state.players.find((p) => p.id === top.targetId)?.name ?? "?";
-    const sentinel = state.players.find((p) => p.id === top.player);
-    const newMaxHp = sentinel ? sentinel.maxHp - 2 : null;
-    panel.appendChild(
-      button(
-        `Trả 2 máu tối đa vĩnh viễn (còn ${newMaxHp}) để hồi sinh ${targetName} (1 máu)`,
-        () => handlers.onUseSentinelRevive()
-      )
-    );
-    panel.appendChild(button("Từ chối", () => handlers.onRespondTakeConsequence()));
-  } else if (top.kind === "NEED_PICK_MARCEL_COMPANION") {
-    for (const p of state.players) {
-      if (!p.alive || p.id === top.player) continue;
-      panel.appendChild(button(`Chỉ định ${p.name} cùng vào tù`, () => handlers.onPickMarcelCompanion(p.id)));
-    }
-  } else if (top.kind === "NEED_PICK_THIEF_TARGET") {
-    panel.appendChild(button("Bỏ qua", () => handlers.onRespondTakeConsequence()));
-    for (const p of state.players) {
-      if (!p.alive || p.id === top.player) continue;
-      panel.appendChild(button(`Cướp 1 lá của ${p.name}`, () => handlers.onPickThiefTarget(p.id)));
-    }
-  } else if (top.kind === "NEED_PICK_HARD_LIQUOR") {
-    panel.appendChild(button("Bỏ qua rút bài, hồi 1 máu", () => handlers.onPickHardLiquor()));
-    panel.appendChild(button("Rút bài bình thường", () => handlers.onRespondTakeConsequence()));
-  } else if (top.kind === "NEED_BLOOD_BROTHERS_GIFT") {
-    panel.appendChild(button("Không tặng ai", () => handlers.onRespondTakeConsequence()));
-    for (const p of state.players) {
-      if (!p.alive || p.id === top.player || p.hp >= p.maxHp) continue;
-      panel.appendChild(button(`Tặng 1 máu cho ${p.name}`, () => handlers.onGiveBloodBrothersGift(p.id)));
-    }
-  } else if (top.kind === "NEED_RANCH_EXCHANGE") {
-    const selectedCount = selection.step === "picking-ranch-exchange" ? selection.selectedCardIds.length : 0;
-    const info = document.createElement("p");
-    info.textContent = `Bấm từng lá trên tay muốn đổi — đã chọn ${selectedCount} lá.`;
-    panel.appendChild(info);
-    panel.appendChild(button(`Đổi ${selectedCount} lá đã chọn`, () => handlers.onConfirmRanchExchange()));
-    panel.appendChild(button("Không đổi lá nào", () => handlers.onRespondTakeConsequence()));
-  }
-
-  container.appendChild(panel);
-}
-
-function renderPhaseActions(
-  container: HTMLElement,
-  state: GameState,
-  options: RenderOptions,
-  handlers: UiHandlers
-): void {
-  if (state.pending.length > 0 || state.winner) return;
-
-  const panel = document.createElement("div");
-  panel.className = "panel";
-
-  if (state.turnPhase === "draw") {
-    panel.appendChild(button("Rút bài", () => handlers.onDrawCards()));
-  } else if (state.turnPhase === "discard") {
-    const player = state.players[state.currentPlayerIndex];
-    const excess = player.hand.length - player.hp;
-    const selectedCount = options.discardSelection.length;
-    const info = document.createElement("p");
-    info.textContent = `Cần bỏ ${excess} lá — đã chọn ${selectedCount}`;
-    panel.appendChild(info);
-    const confirmBtn = button("Xác nhận bỏ bài", () => handlers.onConfirmDiscard());
-    confirmBtn.disabled = selectedCount !== excess;
-    panel.appendChild(confirmBtn);
-  } else {
-    panel.appendChild(button("Kết thúc lượt", () => handlers.onEndTurn()));
-  }
-
-  container.appendChild(panel);
-}
-
-// Giai đoạn 5, cơ chế "phát 2 lá nhân vật, chọn giữ 1" (hotseat) — hiện ra
-// TRƯỚC renderApp() khi state.characterSelection còn khác null (xem main.ts).
-// Hotseat vốn KHÔNG có khái niệm "ẩn thông tin với người khác" (dùng thẳng
-// GameState đầy đủ, tin tưởng mọi người cùng ngồi 1 máy — xem ghi chú việc
-// 3.10) nên hiện LUÔN cả 2 lá của MỌI người cùng lúc, ai xong trước bấm
-// trước, không cần đúng thứ tự (đúng khớp characterSelection là 1 MẢNG độc
-// lập, không phải ngăn xếp — xem CharacterChoice ở types.ts).
-export interface CharacterSelectionHandlers {
-  // Bấm 1 trong 2 lá — CHỈ đánh dấu "đang cân nhắc" (armed), CHƯA gửi đi thật.
-  // Bấm lá KIA thì tự đổi armed sang lá đó — không cần huỷ trước.
-  onArmCharacterChoice(playerId: string, characterId: string): void;
-  // Bấm nút "Xác nhận" riêng mới thật sự gửi CHOOSE_CHARACTER — tách hẳn khỏi
-  // bấm lá (xem ghi chú characterButton()/characterOptionCard() ở trên: tránh
-  // bấm nhầm lúc chỉ định xem mô tả chức năng, đặc biệt trên điện thoại).
-  onConfirmCharacterChoice(playerId: string): void;
-}
-
 // Đợt sửa giao diện "Chọn nhân vật" — hàng tổng quan trạng thái mọi người
 // (avatar chữ cái đầu tên + "✓ đã chọn"/"đang chọn"), giống hệt bản xem trước
 // đã duyệt (Artifact). Dùng CHUNG cho cả hotseat lẫn qua mạng — 2 kiểu dữ
@@ -3194,29 +2122,33 @@ function renderCharacterSelectionRoster(
 ): void {
   const roster = document.createElement("div");
   roster.className = "roster";
+  const seatNumbers = computeSeatNumbers(players);
 
   for (const choice of choices) {
-    const player = players.find((p) => p.id === choice.playerId);
-    const playerName = player?.name ?? choice.playerId;
+    const index = players.findIndex((p) => p.id === choice.playerId);
+    const player = players[index];
     const isMe = choice.playerId === viewerId;
 
     const chip = document.createElement("div");
     chip.className = "roster-chip" + (isMe ? " roster-chip--me" : "") + (choice.chosen ? " roster-chip--done" : "");
+    if (index !== -1) chip.appendChild(seatBadgeSpan(seatNumbers[index]));
 
-    const avatar = document.createElement("span");
-    avatar.className = "roster-chip__avatar";
-    avatar.textContent = playerName.charAt(0).toUpperCase();
-    chip.appendChild(avatar);
-
-    chip.appendChild(document.createTextNode(playerName + (isMe ? " (bạn)" : "")));
+    const name = document.createElement("span");
+    name.className = "roster-chip__name";
+    name.textContent = isMe ? "Bạn" : (player?.name ?? choice.playerId);
+    name.title = player?.name ?? choice.playerId;
+    chip.appendChild(name);
+    if (player?.role === "sheriff") {
+      const star = document.createElement("span");
+      star.textContent = "★";
+      star.title = ROLE_LABELS.sheriff;
+      star.setAttribute("aria-label", ROLE_LABELS.sheriff);
+      chip.appendChild(star);
+    }
 
     const status = document.createElement("span");
     status.className = "roster-chip__status";
-    // Vai chỉ hiện khi đã lộ (chính mình + Cảnh sát trưởng, xem viewRole() ở
-    // view.ts) — giữ đúng thông tin đợt trước đã bổ sung (hiện vai ngay từ
-    // lúc chọn nhân vật), gộp vào cùng dòng trạng thái cho gọn.
-    const statusText = choice.chosen ? "✓ đã chọn" : "đang chọn";
-    status.textContent = player?.role ? `${statusText} — ${ROLE_LABELS[player.role]}` : statusText;
+    status.textContent = choice.chosen ? "✓ đã chọn" : "đang chọn…";
     chip.appendChild(status);
 
     roster.appendChild(chip);
@@ -3239,232 +2171,9 @@ function renderCharacterDuel(
 
   duel.appendChild(characterOptionCard(options[0], role, options[0] === armedId, () => onArm(options[0])));
 
-  const divider = document.createElement("span");
-  divider.className = "duel__divider";
-  divider.textContent = "hoặc";
-  duel.appendChild(divider);
-
   duel.appendChild(characterOptionCard(options[1], role, options[1] === armedId, () => onArm(options[1])));
 
   container.appendChild(duel);
-}
-
-export function renderCharacterSelectionScreen(
-  container: HTMLElement,
-  players: PlayerState[],
-  characterSelection: CharacterChoice[],
-  // playerId -> characterId đang được người đó "cầm lên" chờ xác nhận, chưa
-  // gửi đi — trạng thái TẠM THỜI chỉ có ở client (main.ts), không phải
-  // GameState (giống hệt `selection` dùng cho chọn mục tiêu Bang!/Panic!...).
-  armedChoices: Record<string, string>,
-  handlers: CharacterSelectionHandlers
-): void {
-  container.replaceChildren();
-
-  const heading = document.createElement("h1");
-  heading.className = "screen-title";
-  heading.textContent = "Chọn nhân vật";
-  container.appendChild(heading);
-
-  const rule = document.createElement("p");
-  rule.className = "rule-text";
-  rule.textContent =
-    "Mỗi người xem 2 lá nhân vật riêng của mình rồi chọn giữ 1 lá — bấm được theo bất kỳ thứ tự nào, không cần chờ ai. " +
-    "Bấm 1 lá để xem kỹ, rồi bấm \"Xác nhận\" mới thật sự chọn.";
-  container.appendChild(rule);
-
-  renderCharacterSelectionRoster(container, characterSelection, players, null);
-
-  // Hotseat: KHÔNG có khái niệm "chính mình" — ai CHƯA chọn cũng có khu chọn
-  // riêng (đúng luồng "bấm được theo bất kỳ thứ tự nào" — cùng 1 máy, mọi
-  // người đều bấm được, không phải riêng 1 người). Người ĐÃ chọn không cần
-  // khu riêng nữa, hàng tổng quan ở trên đã đủ (khớp đổi ở bản network).
-  for (const choice of characterSelection) {
-    if (choice.chosen) continue;
-    const player = players.find((p) => p.id === choice.playerId);
-    const playerName = player?.name ?? choice.playerId;
-    const armedId = armedChoices[choice.playerId];
-
-    const section = document.createElement("div");
-    section.className = "pick-section";
-
-    const nameEl = document.createElement("h2");
-    nameEl.className = "pick-section__heading";
-    nameEl.textContent = `${playerName} — chọn 1 trong 2 lá`;
-    section.appendChild(nameEl);
-
-    renderCharacterDuel(section, choice.options, player?.role ?? null, armedId, (characterId) =>
-      handlers.onArmCharacterChoice(choice.playerId, characterId)
-    );
-
-    if (armedId) {
-      const confirmBtn = document.createElement("button");
-      confirmBtn.type = "button";
-      confirmBtn.className = "btn-primary";
-      confirmBtn.textContent = `Xác nhận chọn ${characterLabel(armedId)}`;
-      confirmBtn.addEventListener("click", () => handlers.onConfirmCharacterChoice(choice.playerId));
-      section.appendChild(confirmBtn);
-    }
-
-    container.appendChild(section);
-  }
-}
-
-export interface RenderOptions {
-  selection: Selection;
-  error: string | null;
-  discardSelection: string[]; // các cardId đã chọn để bỏ, chỉ có ý nghĩa khi turnPhase === "discard"
-  lastDrawCheck: DrawCheckNotice;
-  log: string[]; // việc 4.2: nhật ký ván đấu, mới nhất ở đầu mảng
-  expandedSeatIds: string[]; // Đợt 2 UI/UX (mục 4) — playerId nào đang "nở" khu trang bị khi bàn >6 người
-  logDialogOpen: boolean; // Đợt 3 UI/UX (mục 9)
-  settingsDialogOpen: boolean;
-  // Bổ sung — dialog "Thư viện bài" mở giữa ván (xem renderGameToolbar()).
-  cardReferenceDialogOpen: boolean;
-  // Bổ sung 2026-08-08 — nội dung đang gõ trong ô tìm kiếm của dialog trên.
-  cardReferenceSearchQuery: string;
-  // Bổ sung — đang ở bước xác nhận "huỷ ván hiện tại để bắt đầu ván mới"
-  // BÊN TRONG dialog Cài đặt (chỉ có ý nghĩa khi settingsDialogOpen === true).
-  confirmingNewGame: boolean;
-  // Đợt sửa giao diện bàn chơi — xem GameToolbarOptions.equipmentCompactMode.
-  equipmentCompactMode: boolean;
-}
-
-export function renderApp(
-  container: HTMLElement,
-  state: GameState,
-  options: RenderOptions,
-  handlers: UiHandlers
-): void {
-  container.replaceChildren();
-
-  // Phản hồi thật: thanh nút góc trên (`.game-toolbar`) trước đây `position:
-  // fixed` NỔI ĐÈ lên nội dung — seat trên cùng của bàn tròn hay bị che
-  // khuất. Vẽ toolbar NGAY ĐẦU (trước mọi nội dung khác) + CSS đổi sang
-  // `position: sticky` (xem style.css): giờ nó CHIẾM 1 hàng thật ở đầu
-  // trang, nội dung phía dưới luôn bắt đầu SAU nó, không bao giờ bị che.
-  renderGameToolbar(container, {
-    onOpenLog: handlers.onOpenLogDialog,
-    onOpenSettings: handlers.onOpenSettingsDialog,
-    onOpenCardReference: handlers.onOpenCardReferenceDialog,
-    onOpenRoomCode: undefined,
-    equipmentCompactMode: options.equipmentCompactMode,
-    onToggleEquipmentCompactMode: handlers.onToggleEquipmentCompactMode,
-    // Hotseat dùng chung 1 máy — không có khái niệm "bạn" riêng biệt.
-    myStatus: undefined,
-  });
-
-  // Yêu cầu chủ dự án (2026-09-09) — băng thông báo phản ứng (+ đồng hồ nếu
-  // có) dời lên NGAY DƯỚI hàng nút toolbar, đứng TRƯỚC cả tóm tắt lượt/khu
-  // giữa bàn — tránh phải cuộn/liếc qua khu bộ bài mới thấy đang cần phản hồi
-  // gì. Trước đây gọi ở cuối (sau renderPendingPanel cũ, ngay trước
-  // renderPhaseActions) — dời nguyên hàm lên đây, không đổi logic bên trong.
-  renderPendingPanel(container, state, handlers, options.selection);
-
-  if (options.error) {
-    const errorEl = document.createElement("p");
-    errorEl.className = "error";
-    errorEl.textContent = options.error;
-    container.appendChild(errorEl);
-  }
-
-  const summary = document.createElement("p");
-  summary.className = "summary";
-  const nameOfPlayer = (id: string) => state.players.find((p) => p.id === id)?.name ?? id;
-  summary.textContent =
-    `Giai đoạn lượt: ${TURN_PHASE_LABELS[state.turnPhase]}` +
-    (state.winner ? ` · VÁN KẾT THÚC — thắng: ${describeWinner(state.winner, nameOfPlayer)}` : "");
-  container.appendChild(summary);
-
-  container.appendChild(
-    renderTableCenter(
-      state.deck.length,
-      state.discardPile,
-      state.activeEventId,
-      state.eventDeck.length > 0 ? state.eventDeck[state.eventDeck.length - 1] : null
-    )
-  );
-
-  renderActiveHouseRules(container, state.houseRules);
-  renderActiveExpansions(container, state.expansions);
-
-  renderDrawCheckNotice(container, options.lastDrawCheck);
-
-  if (state.winner) {
-    const panel = document.createElement("div");
-    panel.className = "panel";
-    panel.appendChild(button("Chơi ván mới", () => handlers.onPlayAgain()));
-    container.appendChild(panel);
-  }
-
-  if (options.selection.step !== "idle") {
-    const hint = document.createElement("div");
-    hint.className = "panel";
-    hint.appendChild(document.createTextNode(selectionHintText(options.selection) + " "));
-    // Brawl (mở rộng Dodge City) — chỉ hiện nút "Tiếp tục" khi ĐÃ chọn đủ vùng
-    // cho MỌI người khác còn sống (khác chính người đánh).
-    if (options.selection.step === "picking-brawl-zones") {
-      const sel = options.selection;
-      const others = state.players.filter((p) => p.alive && p.id !== state.players[state.currentPlayerIndex].id);
-      if (others.length > 0 && others.every((p) => sel.zones[p.id] !== undefined)) {
-        hint.appendChild(button("Tiếp tục — chọn lá phụ", () => handlers.onBrawlZonesConfirmed()));
-      }
-    }
-    // Mở rộng A Fistful of Cards, lá "Sniper"/"Ricochet" — hỏi dùng cách bắn
-    // đặc biệt hay Bang! bình thường (xem onConfirmBangMode() ở main.ts).
-    if (options.selection.step === "picking-sniper-confirm") {
-      hint.appendChild(button("Bang! thường (không dùng Sniper)", () => handlers.onConfirmBangMode(false)));
-      hint.appendChild(button("Bắn kiểu Sniper (bỏ thêm 1 Bang!)", () => handlers.onConfirmBangMode(true)));
-    }
-    if (options.selection.step === "picking-ricochet-confirm") {
-      hint.appendChild(button("Bang! thường (gây sát thương)", () => handlers.onConfirmBangMode(false)));
-      hint.appendChild(button("Bắn kiểu Ricochet (bắn rụng trang bị)", () => handlers.onConfirmBangMode(true)));
-    }
-    hint.appendChild(button("Huỷ", () => handlers.onCancelSelection()));
-    container.appendChild(hint);
-  }
-
-  renderPhaseActions(container, state, options, handlers);
-
-  const playersEl = document.createElement("div");
-  playersEl.className = "players";
-  const seatNumbers = computeSeatNumbers(state.players);
-  for (const [index, player] of state.players.entries()) {
-    playersEl.appendChild(renderPlayer(state, player, index, seatNumbers[index], options, handlers));
-  }
-  container.appendChild(playersEl);
-
-  if (options.logDialogOpen) {
-    renderDialog("Nhật ký ván đấu", handlers.onCloseLogDialog, (body) => renderLogDialogBody(body, options.log));
-  }
-  if (options.cardReferenceDialogOpen) {
-    renderDialog(
-      "Thư viện bài",
-      handlers.onCloseCardReferenceDialog,
-      (body) => {
-        renderCardReferenceSearchBox(body, options.cardReferenceSearchQuery, handlers.onCardReferenceSearchChange);
-        renderCardReferenceBody(body, options.cardReferenceSearchQuery);
-      }
-    );
-  }
-  if (options.settingsDialogOpen) {
-    renderDialog("Cài đặt", handlers.onCloseSettingsDialog, (body) =>
-      renderSettingsDialogBody(body, "Về màn hình chính", handlers.onLeaveGame, {
-        visible: true,
-        confirmingNewGame: options.confirmingNewGame,
-        onRequestNewGame: handlers.onRequestNewGame,
-        onConfirmNewGame: handlers.onConfirmNewGame,
-        onCancelNewGameConfirm: handlers.onCancelNewGameConfirm,
-      })
-    );
-  }
-  reconcileOpenDialog(
-    [
-      options.logDialogOpen && "Nhật ký ván đấu",
-      options.cardReferenceDialogOpen && "Thư viện bài",
-      options.settingsDialogOpen && "Cài đặt",
-    ].filter((v): v is string => v !== false)
-  );
 }
 
 // ----- Việc 2.5: màn hình thiết lập ván mới (chế độ hotseat — 2-8 người
@@ -3474,87 +2183,11 @@ export function renderApp(
 // nhận GameState làm tham số như renderApp() — chỉ nhận danh sách tên đang
 // gõ dở.
 
-export interface SetupHandlers {
-  onNameChange(index: number, value: string): void;
-  onAddPlayer(): void;
-  onRemovePlayer(): void;
-  onToggleHouseRule(id: HouseRuleId): void;
-  onToggleExpansion(id: ExpansionId): void;
-  onEventDeckSizeChange(size: number): void;
-  onStartGame(): void;
-}
-
-const MIN_PLAYERS = 2; // biến thể 2 người (xem docs/roadmap/LO-TRINH.md) — setup.ts's isDuelMode()
-const MAX_PLAYERS = 8; // biến thể 8 người (xem docs/roadmap/LO-TRINH.md) — setup.ts's ROLE_SETS đã hỗ trợ
-
-export function renderSetupScreen(
-  container: HTMLElement,
-  names: string[],
-  error: string | null,
-  selectedHouseRules: HouseRuleId[],
-  selectedExpansions: ExpansionId[],
-  eventDeckSize: number,
-  handlers: SetupHandlers
-): void {
-  container.replaceChildren();
-
-  const heading = document.createElement("h2");
-  heading.textContent = "Thiết lập ván mới (chơi chung 1 máy)";
-  container.appendChild(heading);
-
-  const hint = document.createElement("p");
-  hint.textContent = `Cần 2-8 người chơi — đang có ${names.length}. Mỗi người tự gõ tên của mình.`;
-  container.appendChild(hint);
-
-  if (error) {
-    const errorEl = document.createElement("p");
-    errorEl.className = "error";
-    errorEl.textContent = error;
-    container.appendChild(errorEl);
-  }
-
-  const list = document.createElement("div");
-  list.className = "setup-list";
-  names.forEach((name, index) => {
-    const input = document.createElement("input");
-    input.type = "text";
-    input.value = name;
-    input.placeholder = `Người chơi ${index + 1}`;
-    // CHỈ cập nhật biến ở main.ts, KHÔNG render lại ở đây — render lại giữa
-    // lúc đang gõ sẽ xoá và tạo lại input mới, làm mất luôn con trỏ đang gõ.
-    input.addEventListener("input", () => handlers.onNameChange(index, input.value));
-    list.appendChild(input);
-  });
-  container.appendChild(list);
-
-  const controls = document.createElement("div");
-  controls.className = "panel";
-  const addBtn = button("+ Thêm người chơi", () => handlers.onAddPlayer());
-  addBtn.disabled = names.length >= MAX_PLAYERS;
-  controls.appendChild(addBtn);
-  const removeBtn = button("- Bớt người chơi", () => handlers.onRemovePlayer());
-  removeBtn.disabled = names.length <= MIN_PLAYERS;
-  controls.appendChild(removeBtn);
-  container.appendChild(controls);
-
-  renderHouseRuleCheckboxes(container, selectedHouseRules, handlers.onToggleHouseRule);
-  renderExpansionCheckboxes(
-    container,
-    selectedExpansions,
-    handlers.onToggleExpansion,
-    eventDeckSize,
-    handlers.onEventDeckSizeChange
-  );
-
-  container.appendChild(button("Bắt đầu ván", () => handlers.onStartGame()));
-}
-
 // ----- Việc 3.9: chọn chế độ chơi + lobby qua mạng (tạo phòng / vào phòng
 // bằng mã 6 ký tự). Màn hình bàn chơi qua mạng ở đây CHỈ hiển thị tối giản
 // (đọc PlayerView, KHÔNG bấm bài được) — nối tương tác thật để dành việc 3.10.
 
 export interface HomeHandlers {
-  onPlayLocal(): void;
   onPlayNetwork(): void;
   onShowCardReference(): void;
   onBackToHub(): void;
@@ -3626,9 +2259,6 @@ export function renderHomeScreen(container: HTMLElement, betaLink: BetaLinkInfo,
   ticketBody.className = "ticket__body";
   ticketBody.appendChild(
     modeButton("Chơi cùng bạn bè", "Tạo phòng, gửi mã — mỗi người một máy, ở đâu cũng chơi được", () => handlers.onPlayNetwork(), true)
-  );
-  ticketBody.appendChild(
-    modeButton("Chơi chung một máy", "Ngồi cùng nhau, truyền tay 1 điện thoại hoặc máy tính", () => handlers.onPlayLocal(), false)
   );
   ticketBody.appendChild(
     modeButton("Thư viện bài", "Tra cứu lá bài và nhân vật trước khi chơi", () => handlers.onShowCardReference(), false)
@@ -4204,10 +2834,9 @@ export interface NetworkGameHandlers {
   onToggleRanchCard(cardId: string): void;
   onConfirmRanchExchange(): void;
   onConfirmBangMode(useSpecial: boolean): void;
-  // Đợt 2 UI/UX (mục 4) — giống hệt UiHandlers (hotseat), xem ghi chú ở đó.
-  onToggleSeatExpanded(playerId: string): void;
-  // Đợt sửa giao diện bàn chơi — giống hệt UiHandlers (hotseat), xem ghi chú ở đó.
-  onToggleEquipmentCompactMode(): void;
+  // Bố cục bàn chơi mới (2026-11-08) — nút 👁 trên ô người chơi mở/đóng panel chi tiết.
+  onOpenPlayerPanel(playerId: string): void;
+  onClosePlayerPanel(): void;
   // Đợt 3 UI/UX (mục 9) — giống UiHandlers (hotseat), cộng thêm dialog Mã
   // phòng/Mời (CHỈ qua mạng — hotseat không có mã phòng).
   onOpenLogDialog(): void;
@@ -4250,7 +2879,7 @@ export interface NetworkGameOptions {
   deadline: DeadlineInfo | null;
   log: string[]; // việc 4.2: nhật ký ván đấu, mới nhất ở đầu mảng
   connectedPlayerIds: string[]; // việc 4.3: ai đang có socket mở thật sự
-  expandedSeatIds: string[]; // Đợt 2 UI/UX (mục 4) — giống RenderOptions (hotseat)
+  inspectPlayerId: string | null; // Bố cục bàn chơi mới — người đang mở panel 👁 (null = không mở)
   logDialogOpen: boolean; // Đợt 3 UI/UX (mục 9)
   settingsDialogOpen: boolean;
   cardReferenceDialogOpen: boolean; // bổ sung — giống RenderOptions (hotseat)
@@ -4260,7 +2889,6 @@ export interface NetworkGameOptions {
   roomCodeDialogOpen: boolean;
   roomCode: string;
   roomCodeCopyStatus: string | null; // thông báo tạm thời sau khi bấm "Chép mã"
-  equipmentCompactMode: boolean; // Đợt sửa giao diện bàn chơi — giống RenderOptions (hotseat)
   confirmingReturnToLobby: boolean; // bổ sung — xem ReturnToLobbySettingsOptions
 }
 
@@ -4393,11 +3021,7 @@ function networkRenderEquipmentSection(
   view: PlayerView,
   player: PlayerHandView,
   selection: Selection,
-  handlers: NetworkGameHandlers,
-  // Đợt sửa giao diện bàn chơi — giống hệt renderEquipmentSection() (hotseat),
-  // NHƯNG qua mạng còn phải tự MIỄN TRỪ đúng bài của CHÍNH VIEWER (dù có bật
-  // Tinh gọn hay không) — xem lời gọi hàm này ở networkRenderPlayer().
-  compactMode: boolean
+  handlers: NetworkGameHandlers
 ): void {
   const wrapper = document.createElement("div");
   wrapper.className = "cards";
@@ -4465,9 +3089,7 @@ function networkRenderEquipmentSection(
       continue;
     }
 
-    wrapper.appendChild(
-      compactMode && player.id !== view.viewerId ? cardNameChip(cardId, dangerClass) : cardChip(cardId, dangerClass)
-    );
+    wrapper.appendChild(cardChip(cardId, dangerClass));
   }
 
   container.appendChild(wrapper);
@@ -4488,90 +3110,81 @@ function buildSeatOrder(view: PlayerView): { player: PlayerHandView; originalInd
 
 type SeatEntry = { player: PlayerHandView; originalIndex: number };
 
-// Phản hồi thật — bỏ hẳn bàn tròn (`position: absolute`, từng gây tràn ngang
-// nhiều lần dù đã sửa công thức toạ độ mấy lần liền). Đối thủ (không tính
-// bản thân — luôn ở 1 hàng riêng dưới cùng, xem `.player--own-row`) giờ dàn
-// thành ĐÚNG 1 hàng ngang bình thường (nằm trong luồng tài liệu).
-//
-// LỊCH SỬ (để hiểu vì sao đơn giản như hiện tại): từng thử "gấp rắn"
-// (boustrophedon) chia far/near/hàng-lẻ để mô phỏng vòng bàn, rồi thử ngưỡng
-// "ít đối thủ mới gộp 1 hàng, đông thì vẫn chia" — CẢ 2 ĐỀU BỊ BÁO LỖI THẬT
-// (ít đối thủ: 3 hàng-1-người nhìn như cột dọc; đủ ngưỡng vẫn chia: 5 người
-// chơi bị tách 3+1 thành 2 hàng, sai ý "tất cả đối thủ phải cùng 1 hàng").
-// Chốt lại: MỌI đối thủ, bất kể bao nhiêu, LUÔN đúng 1 `.opponent-row` duy
-// nhất — CSS đổi `flex-wrap: wrap` → `nowrap` + `overflow-x: auto` (xem
-// style.css) để hàng không bao giờ tự xuống dòng, chỉ cuộn ngang nếu màn quá
-// hẹp cho hết số đối thủ.
-//
-// Tính liền kề theo THỨ TỰ LƯỢT vẫn ĐÚNG mà KHÔNG cần đảo/gấp gì — xem
-// `buildSeatOrder()`: mảng đã xoay để bắt đầu từ người NGAY SAU bản thân,
-// kết thúc ở người NGAY TRƯỚC bản thân — xếp thẳng theo đúng thứ tự đó vào 1
-// hàng, 2 ĐẦU HÀNG (trái/phải) LUÔN ĐÚNG LÀ 2 người liền kề bản thân trong
-// vòng lượt, không phụ thuộc bao nhiêu đối thủ.
+// ----- Bố cục bàn chơi mới (2026-11-08) -----
+// Ô đối thủ KHÔNG hiện từng lá trang bị nữa mà gom thành nhóm biểu tượng theo
+// CÔNG DỤNG trong ván: Barrel tách khỏi lá đỡ vàng (Barrel phải lật bài may
+// rủi, lá vàng đỡ chắc chắn); Jail/Dynamite mỗi lá 1 nhóm vì đặc tả mục 5 cần
+// cảnh báo riêng. Muốn xem từng lá thì bấm nút 👁 (renderPlayerPanelBody()).
+interface EquipmentGroupDef {
+  icon: string;
+  label: string;
+  color: "blue" | "yellow";
+  cards: readonly CardName[];
+  danger?: boolean;
+}
 
-function networkRenderPlayer(
-  view: PlayerView,
-  player: PlayerHandView,
-  originalIndex: number,
-  seatNumber: number,
-  // Đổi layout (bỏ bàn tròn): không còn góc/toạ độ gì để tính — chỉ cần biết
-  // đây có phải "hàng riêng của mình" hay không (`.player--own-row`, full độ
-  // rộng, luôn dưới cùng) hay là 1 trong các đối thủ nằm trong `.opponent-row`
-  // (xem renderNetworkGame()).
-  isOwnRow: boolean,
-  options: NetworkGameOptions,
-  handlers: NetworkGameHandlers
-): HTMLElement {
-  const { selection } = options;
-  const el = document.createElement("article");
-  el.className = "player" + (isOwnRow ? " player--own-row" : "");
+const WEAPON_GROUP: EquipmentGroupDef = {
+  icon: "🔫",
+  label: "Súng",
+  color: "blue",
+  cards: ["volcanic", "schofield", "remington", "rev_carabine", "winchester"],
+};
 
-  // Đợt 1 UI/UX (mục 1+8) — cùng logic ưu tiên trạng thái với renderPlayer()
-  // (hotseat), viết riêng vì đọc PlayerView/PlayerHandView đã lọc, không phải
-  // GameState/PlayerState đầy đủ.
-  const topPending = view.pending[view.pending.length - 1];
-  const isTargeted = player.alive && topPending !== undefined && topPending.player === player.id;
-  const isCurrentTurn = player.alive && view.pending.length === 0 && originalIndex === view.currentPlayerIndex;
-  if (!player.alive) el.classList.add("player--dead");
-  else if (isTargeted) el.classList.add("player--targeted");
-  else if (isCurrentTurn) el.classList.add("player--current");
-  else el.classList.add("player--waiting");
+const EQUIPMENT_GROUPS: readonly EquipmentGroupDef[] = [
+  WEAPON_GROUP,
+  { icon: "🔭", label: "Ngắm (nhìn người khác gần hơn)", color: "blue", cards: ["scope", "binocular"] },
+  { icon: "🐎", label: "Né (người khác nhìn xa hơn)", color: "blue", cards: ["mustang", "hideout"] },
+  { icon: "🛢️", label: "Barrel", color: "blue", cards: ["barrel"] },
+  { icon: "⛓️", label: "Nhà tù", color: "blue", cards: ["jail"], danger: true },
+  { icon: "🧨", label: "Thuốc nổ", color: "blue", cards: ["dynamite"], danger: true },
+  { icon: "🛡️", label: "Đỡ đòn (lá vàng)", color: "yellow", cards: ["bible", "sombrero", "ten_gallon_hat", "iron_plate"] },
+  { icon: "🗡️", label: "Đòn chờ (lá vàng)", color: "yellow", cards: ["derringer", "knife", "pepperbox", "buffalo_rifle", "howitzer"] },
+  { icon: "🧰", label: "Tiện ích (lá vàng)", color: "yellow", cards: ["canteen", "pony_express", "conestoga", "can_can"] },
+];
 
-  const headingRow = document.createElement("div");
-  headingRow.className = "player__heading-row";
-  headingRow.appendChild(seatBadgeSpan(seatNumber));
-  // Đợt 5 UI/UX (mục 4 ý a) — giống hotseat, dùng characterId mới thêm vào
-  // PlayerHandView (core/view.ts) — công khai, không cần lọc gì thêm ở đây.
-  if (player.characterId) {
-    headingRow.appendChild(characterChip(player.characterId));
+function renderEquipmentGroups(equipment: readonly string[]): HTMLElement {
+  const wrap = document.createElement("div");
+  wrap.className = "seat-chip__equip";
+  const entries = EQUIPMENT_GROUPS.map((group) => ({
+    group,
+    ids: equipment.filter((id) => group.cards.includes(cardNameFromId(id))),
+  }));
+  // Lá trang bị chưa có nhóm (vd bộ mở rộng thêm sau) vẫn phải hiện, không được lặng lẽ biến mất.
+  const ungrouped = equipment.filter((id) => !EQUIPMENT_GROUPS.some((g) => g.cards.includes(cardNameFromId(id))));
+  if (ungrouped.length > 0) entries.push({ group: { icon: "📦", label: "Khác", color: "blue", cards: [] }, ids: ungrouped });
+
+  for (const { group, ids } of entries) {
+    if (ids.length === 0) continue;
+    const isWeapon = group === WEAPON_GROUP;
+    // Súng: số là tầm bắn; nhóm khác: số là số lá (1 lá thì không ghi số).
+    const number = isWeapon ? WEAPON_RANGES[cardNameFromId(ids[0]) as WeaponCardName] : ids.length;
+    const pill = document.createElement("span");
+    pill.className = `equip-group equip-group--${group.color}` + (group.danger ? " equip-group--danger" : "");
+    pill.textContent = group.icon + (isWeapon || number > 1 ? String(number) : "");
+    pill.title = `${group.label}${isWeapon ? ` tầm ${number}` : ""}: ${ids.map((id) => cardLabel(id)).join(", ")}`;
+    pill.setAttribute("aria-label", pill.title);
+    wrap.appendChild(pill);
   }
-  const heading = document.createElement("h3");
-  heading.textContent =
-    player.name +
-    (isCurrentTurn ? " ← đang tới lượt" : "") +
-    (player.id === view.viewerId ? " (bạn)" : "") +
-    // Việc 4.3: không tính chính mình — chính socket đang vẽ màn hình này thì
-    // chắc chắn đang kết nối, không cần báo lại chuyện hiển nhiên đó.
-    (player.id !== view.viewerId && !options.connectedPlayerIds.includes(player.id) ? " ⚠ đã mất kết nối" : "");
-  headingRow.appendChild(heading);
-  el.appendChild(headingRow);
+  return wrap;
+}
 
-  if (isTargeted) {
-    const targetedLabel = document.createElement("p");
-    targetedLabel.className = "player--targeted-label";
-    targetedLabel.textContent = "⚠ cần phản hồi";
-    el.appendChild(targetedLabel);
-  }
+// Vị trí từng đối thủ quanh bàn (ô lưới CSS, xem .round-table ở style.css),
+// theo thứ tự ghế từ người NGAY SAU bạn (dưới-trái) đi lên, qua đỉnh, xuống
+// dưới-phải (người NGAY TRƯỚC bạn) — 2 người sát bạn luôn nằm gần khay của bạn.
+// Dùng lưới thay vì toạ độ `position: absolute` vì cách cũ từng gây tràn ngang nhiều lần.
+const TABLE_SLOTS: Record<number, readonly string[]> = {
+  1: ["top-mid"],
+  2: ["top-left", "top-right"],
+  3: ["top-left", "top-mid", "top-right"],
+  4: ["mid-left", "top-left", "top-right", "mid-right"],
+  5: ["mid-left", "top-left", "top-mid", "top-right", "mid-right"],
+  6: ["low-left", "mid-left", "top-left", "top-right", "mid-right", "low-right"],
+  7: ["low-left", "mid-left", "top-left", "top-mid", "top-right", "mid-right", "low-right"],
+};
 
-  const roleText = player.role ? ROLE_LABELS[player.role] : "(ẩn)";
-  const roleAndHp = document.createElement("p");
-  roleAndHp.appendChild(document.createTextNode(`${roleText} · Máu: `));
-  roleAndHp.appendChild(renderHpTrack(player.hp, player.maxHp));
-  roleAndHp.appendChild(
-    document.createTextNode(` · ${player.alive ? "Còn sống" : "Đã chết"}`)
-  );
-  el.appendChild(roleAndHp);
-
+// Nhãn trạng thái hiếm gặp (Elena Noir Miễn Tử, Marcel Marcelo cùng vào tù) —
+// dùng chung cho khay của bạn, ô đối thủ và panel 👁.
+function appendPlayerStatusLabels(el: HTMLElement, view: PlayerView, player: PlayerHandView): void {
   // Bộ mở rộng "custom_characters" (Elena Noir) — giống hệt renderPlayer()
   // (hotseat), xem ghi chú ở đó (effectiveCharacterId() — Vera Custer mượn).
   if (
@@ -4605,32 +3218,17 @@ function networkRenderPlayer(
     el.appendChild(label);
   }
 
-  const handLabel = document.createElement("p");
-  handLabel.textContent = "Bài trên tay:";
-  el.appendChild(handLabel);
-  networkRenderHandSection(el, view, player, options, handlers);
-  networkRenderAbilitySection(el, view, player, selection, handlers);
+}
 
-  // Đợt 2 UI/UX (mục 4) — seat của BẠN LUÔN đầy đủ ("Seat của BẠN (đáy): luôn
-  // hiện đầy đủ", khác quy tắc >6 người thu gọn áp cho người khác) — vế đầu
-  // đã đủ bao quát ca "chính mình đang cần bấm bỏ trang bị" nên không cần lặp
-  // lại điều kiện NEED_DISCARD_FROM_ZONE riêng như bên hotseat.
-  const forceShowEquipment =
-    player.id === view.viewerId ||
-    (selection.step === "picking-panic-equipment" && selection.targetId === player.id) ||
-    // Lá "Ricochet" — cùng lý do Panic! ở trên.
-    (selection.step === "picking-ricochet-equipment" && selection.targetId === player.id);
-  renderPlayerEquipmentArea(
-    el,
-    view.players.length,
-    player.id,
-    player.equipment.length,
-    options.expandedSeatIds,
-    () => handlers.onToggleSeatExpanded(player.id),
-    forceShowEquipment,
-    () => networkRenderEquipmentSection(el, view, player, selection, handlers, options.equipmentCompactMode)
-  );
-
+// Nút chọn mục tiêu/vùng bài theo bước đang chọn — dùng chung cho ô đối thủ
+// lẫn khay của bạn (Tequila cho tự chọn chính mình).
+function appendSeatSelectionControls(
+  el: HTMLElement,
+  view: PlayerView,
+  player: PlayerHandView,
+  selection: Selection,
+  handlers: NetworkGameHandlers
+): void {
   // Chọn mục tiêu: chỉ hiện nút này khi CHÍNH MÌNH đang chọn mục tiêu, cho
   // người KHÁC mình. NGOẠI LỆ: Tequila (mở rộng Dodge City) cho tự chọn
   // chính mình — xem ghi chú y hệt ở renderPlayer() (hotseat).
@@ -4684,6 +3282,337 @@ function networkRenderPlayer(
     );
     el.appendChild(zoneWrapper);
   }
+
+}
+
+// Nút 👁 mở panel chi tiết — có ở mọi ô đối thủ lẫn khay của bạn (xem chức năng bài trên tay).
+function inspectButton(player: PlayerHandView, handlers: NetworkGameHandlers): HTMLButtonElement {
+  const inspect = document.createElement("button");
+  inspect.type = "button";
+  inspect.className = "seat-chip__inspect";
+  inspect.textContent = "👁";
+  inspect.setAttribute("aria-label", `Xem chi tiết ${player.name}`);
+  inspect.addEventListener("click", () => handlers.onOpenPlayerPanel(player.id));
+  return inspect;
+}
+
+// Ô gọn của 1 đối thủ: số ghế, tên, nút 👁, máu, số bài trên tay, nhóm trang
+// bị, khoảng cách 2 chiều (→ bạn tới họ, ← họ tới bạn; ✓ = trong tầm súng).
+function networkRenderSeatChip(
+  view: PlayerView,
+  player: PlayerHandView,
+  originalIndex: number,
+  seatNumber: number,
+  slot: string,
+  options: NetworkGameOptions,
+  handlers: NetworkGameHandlers
+): HTMLElement {
+  const el = document.createElement("article");
+  el.className = `seat-chip seat-chip--${slot}`;
+  const topPending = view.pending[view.pending.length - 1];
+  const isTargeted = player.alive && topPending !== undefined && topPending.player === player.id;
+  const isCurrentTurn = player.alive && view.pending.length === 0 && originalIndex === view.currentPlayerIndex;
+  if (!player.alive) el.classList.add("seat-chip--dead");
+  else if (isTargeted) el.classList.add("seat-chip--targeted");
+  else if (isCurrentTurn) el.classList.add("seat-chip--current");
+
+  const head = document.createElement("div");
+  head.className = "seat-chip__head";
+  head.appendChild(seatBadgeSpan(seatNumber));
+  const name = document.createElement("span");
+  name.className = "seat-chip__name";
+  name.textContent = player.name;
+  name.title = player.name;
+  head.appendChild(name);
+  if (player.role === "sheriff") {
+    const star = document.createElement("span");
+    star.className = "seat-chip__icon";
+    star.textContent = "★";
+    star.title = ROLE_LABELS.sheriff;
+    star.setAttribute("aria-label", ROLE_LABELS.sheriff);
+    head.appendChild(star);
+  }
+  if (!options.connectedPlayerIds.includes(player.id)) {
+    const offline = document.createElement("span");
+    offline.className = "seat-chip__icon seat-chip__icon--danger";
+    offline.textContent = "⚠";
+    offline.title = "Đã mất kết nối";
+    offline.setAttribute("aria-label", "Đã mất kết nối");
+    head.appendChild(offline);
+  }
+  head.appendChild(inspectButton(player, handlers));
+  el.appendChild(head);
+
+  if (!player.alive) {
+    const note = document.createElement("p");
+    note.className = "seat-chip__note";
+    note.textContent = "Đã loại" + (player.role ? ` · ${ROLE_LABELS[player.role]}` : "");
+    el.appendChild(note);
+    return el;
+  }
+
+  const stats = document.createElement("div");
+  stats.className = "seat-chip__stats";
+  stats.appendChild(renderHpTrack(player.hp, player.maxHp));
+  const hand = document.createElement("span");
+  hand.textContent = `✋${player.handCount}`;
+  hand.title = "Số bài trên tay";
+  stats.appendChild(hand);
+  el.appendChild(stats);
+
+  el.appendChild(renderEquipmentGroups(player.equipment));
+
+  const d = view.distances[player.id];
+  if (d) {
+    const line = document.createElement("div");
+    line.className = "seat-chip__dist";
+    const iReach = d.toThem <= d.myRange;
+    const theyReach = d.toMe <= d.theirRange;
+    const out = document.createElement("span");
+    out.className = iReach ? "seat-chip__dist--ok" : "";
+    out.textContent = `→${d.toThem} ${iReach ? "✓" : "✗"}`;
+    out.title = `Bạn → ${player.name}: khoảng cách ${d.toThem}, tầm súng của bạn ${d.myRange}`;
+    const inc = document.createElement("span");
+    inc.className = theyReach ? "seat-chip__dist--danger" : "";
+    inc.textContent = `←${d.toMe} ${theyReach ? "✓" : "✗"}`;
+    inc.title = `${player.name} → bạn: khoảng cách ${d.toMe}, tầm súng của họ ${d.theirRange}`;
+    line.appendChild(out);
+    line.appendChild(inc);
+    el.appendChild(line);
+  }
+
+  if (isTargeted) {
+    const label = document.createElement("p");
+    label.className = "player--targeted-label";
+    label.textContent = "⚠ cần phản hồi";
+    el.appendChild(label);
+  }
+  appendPlayerStatusLabels(el, view, player);
+
+  // Panic!/Ricochet đang chọn lá trang bị của ĐÚNG người này — phải thấy từng lá để bấm.
+  const sel = options.selection;
+  if ((sel.step === "picking-panic-equipment" || sel.step === "picking-ricochet-equipment") && sel.targetId === player.id) {
+    networkRenderEquipmentSection(el, view, player, sel, handlers);
+  }
+  appendSeatSelectionControls(el, view, player, sel, handlers);
+  return el;
+}
+
+// Nội dung panel 👁: nhân vật (kỹ năng), khoảng cách/tầm bắn 2 chiều, từng lá trang bị.
+function renderPlayerPanelBody(body: HTMLElement, view: PlayerView, player: PlayerHandView, seatNumber: number): void {
+  const meta = document.createElement("div");
+  meta.className = "player-panel__meta";
+  meta.appendChild(seatBadgeSpan(seatNumber));
+  const role = document.createElement("span");
+  role.textContent = player.role ? ROLE_LABELS[player.role] : "Vai trò ẩn";
+  meta.appendChild(role);
+  meta.appendChild(renderHpTrack(player.hp, player.maxHp));
+  const hand = document.createElement("span");
+  hand.textContent = `✋${player.handCount}` + (player.alive ? "" : " · Đã loại");
+  meta.appendChild(hand);
+  body.appendChild(meta);
+  appendPlayerStatusLabels(body, view, player);
+
+  const section = (title: string): void => {
+    const h = document.createElement("h4");
+    h.className = "player-panel__section";
+    h.textContent = title;
+    body.appendChild(h);
+  };
+
+  if (player.characterId) {
+    section("Nhân vật");
+    const row = document.createElement("div");
+    row.className = "player-panel__row";
+    row.appendChild(characterChip(player.characterId));
+    const text = document.createElement("div");
+    const title = document.createElement("strong");
+    title.textContent = characterLabel(player.characterId);
+    const desc = document.createElement("p");
+    desc.textContent = CHARACTER_DESCRIPTIONS[player.characterId] ?? "";
+    text.appendChild(title);
+    text.appendChild(desc);
+    const borrowed = effectiveCharacterId(view.veraCusterBorrowedCharacterId, player.characterId);
+    if (borrowed && borrowed !== player.characterId) {
+      const note = document.createElement("p");
+      note.textContent = `Đang mượn kỹ năng: ${characterLabel(borrowed)}`;
+      text.appendChild(note);
+    }
+    row.appendChild(text);
+    body.appendChild(row);
+  }
+
+  const d = view.distances[player.id];
+  if (d) {
+    section("Khoảng cách và tầm bắn");
+    const cols = document.createElement("div");
+    cols.className = "player-panel__dist";
+    const col = (heading: string, distance: number, rangeLabel: string, range: number, verdict: string, danger: boolean): HTMLElement => {
+      const c = document.createElement("div");
+      c.className = "player-panel__dist-col" + (danger ? " player-panel__dist-col--danger" : "");
+      const h = document.createElement("p");
+      h.className = "player-panel__dist-heading";
+      h.textContent = heading;
+      const rowOf = (label: string, value: number): HTMLElement => {
+        const r = document.createElement("p");
+        r.className = "player-panel__kv";
+        const l = document.createElement("span");
+        l.textContent = label;
+        const v = document.createElement("strong");
+        v.textContent = String(value);
+        r.appendChild(l);
+        r.appendChild(v);
+        return r;
+      };
+      const v = document.createElement("p");
+      v.className = "player-panel__verdict";
+      v.textContent = verdict;
+      c.appendChild(h);
+      c.appendChild(rowOf("Khoảng cách", distance));
+      c.appendChild(rowOf(rangeLabel, range));
+      c.appendChild(v);
+      return c;
+    };
+    const iReach = d.toThem <= d.myRange;
+    const theyReach = d.toMe <= d.theirRange;
+    cols.appendChild(
+      col(`Bạn → ${player.name}`, d.toThem, "Tầm bắn của bạn", d.myRange, iReach ? "✓ Bắn tới" : "✗ Không bắn tới", false)
+    );
+    cols.appendChild(
+      col(`${player.name} → Bạn`, d.toMe, `Tầm bắn của ${player.name}`, d.theirRange, theyReach ? "⚠ Bắn tới bạn" : "✗ Không bắn tới bạn", theyReach)
+    );
+    body.appendChild(cols);
+  }
+
+  const cardRow = (cardId: string): HTMLElement => {
+    const name = cardNameFromId(cardId);
+    const row = document.createElement("div");
+    row.className = "player-panel__row";
+    row.appendChild(cardChip(cardId, player.equipment.includes(cardId) ? equipmentDangerClass(name) : undefined));
+    const text = document.createElement("div");
+    const title = document.createElement("strong");
+    title.textContent = cardLabel(cardId);
+    const desc = document.createElement("p");
+    desc.textContent = CARD_DESCRIPTIONS[name] ?? "";
+    text.appendChild(title);
+    text.appendChild(desc);
+    row.appendChild(text);
+    return row;
+  };
+
+  // Chỉ người xem có `hand` (viewFor() ẩn bài tay người khác) — panel của chính mình để đọc chức năng từng lá.
+  if (player.hand) {
+    section(player.hand.length > 0 ? `Bài trên tay · ${player.hand.length} lá` : "Không còn bài trên tay");
+    for (const cardId of player.hand) body.appendChild(cardRow(cardId));
+  }
+
+  section(player.equipment.length > 0 ? `Đang trang bị · ${player.equipment.length} lá` : "Chưa trang bị gì");
+  for (const cardId of player.equipment) {
+    const row = cardRow(cardId);
+    if (isDelayedEquipmentCardName(cardNameFromId(cardId)) && view.equipmentPlayedTurn[cardId] === view.turnNumber) {
+      const note = document.createElement("p");
+      note.className = "player-panel__muted";
+      note.textContent = "Vừa bày lượt này — dùng được từ lượt sau.";
+      row.lastElementChild?.appendChild(note);
+    }
+    body.appendChild(row);
+  }
+}
+
+// Phản hồi thật — bỏ hẳn bàn tròn (`position: absolute`, từng gây tràn ngang
+// nhiều lần dù đã sửa công thức toạ độ mấy lần liền). Đối thủ (không tính
+// bản thân — luôn ở 1 hàng riêng dưới cùng, xem `.player--own-row`) giờ dàn
+// thành ĐÚNG 1 hàng ngang bình thường (nằm trong luồng tài liệu).
+//
+// LỊCH SỬ (để hiểu vì sao đơn giản như hiện tại): từng thử "gấp rắn"
+// (boustrophedon) chia far/near/hàng-lẻ để mô phỏng vòng bàn, rồi thử ngưỡng
+// "ít đối thủ mới gộp 1 hàng, đông thì vẫn chia" — CẢ 2 ĐỀU BỊ BÁO LỖI THẬT
+// (ít đối thủ: 3 hàng-1-người nhìn như cột dọc; đủ ngưỡng vẫn chia: 5 người
+// chơi bị tách 3+1 thành 2 hàng, sai ý "tất cả đối thủ phải cùng 1 hàng").
+// Chốt lại: MỌI đối thủ, bất kể bao nhiêu, LUÔN đúng 1 `.opponent-row` duy
+// nhất — CSS đổi `flex-wrap: wrap` → `nowrap` + `overflow-x: auto` (xem
+// style.css) để hàng không bao giờ tự xuống dòng, chỉ cuộn ngang nếu màn quá
+// hẹp cho hết số đối thủ.
+//
+// Tính liền kề theo THỨ TỰ LƯỢT vẫn ĐÚNG mà KHÔNG cần đảo/gấp gì — xem
+// `buildSeatOrder()`: mảng đã xoay để bắt đầu từ người NGAY SAU bản thân,
+// kết thúc ở người NGAY TRƯỚC bản thân — xếp thẳng theo đúng thứ tự đó vào 1
+// hàng, 2 ĐẦU HÀNG (trái/phải) LUÔN ĐÚNG LÀ 2 người liền kề bản thân trong
+// vòng lượt, không phụ thuộc bao nhiêu đối thủ.
+
+function networkRenderPlayer(
+  view: PlayerView,
+  player: PlayerHandView,
+  originalIndex: number,
+  seatNumber: number,
+  options: NetworkGameOptions,
+  handlers: NetworkGameHandlers
+): HTMLElement {
+  const { selection } = options;
+  const el = document.createElement("article");
+  el.className = "player player--own-row";
+
+  // Đợt 1 UI/UX (mục 1+8) — cùng logic ưu tiên trạng thái với renderPlayer()
+  // (hotseat), viết riêng vì đọc PlayerView/PlayerHandView đã lọc, không phải
+  // GameState/PlayerState đầy đủ.
+  const topPending = view.pending[view.pending.length - 1];
+  const isTargeted = player.alive && topPending !== undefined && topPending.player === player.id;
+  const isCurrentTurn = player.alive && view.pending.length === 0 && originalIndex === view.currentPlayerIndex;
+  if (!player.alive) el.classList.add("player--dead");
+  else if (isTargeted) el.classList.add("player--targeted");
+  else if (isCurrentTurn) el.classList.add("player--current");
+  else el.classList.add("player--waiting");
+
+  const headingRow = document.createElement("div");
+  headingRow.className = "player__heading-row";
+  headingRow.appendChild(seatBadgeSpan(seatNumber));
+  // Đợt 5 UI/UX (mục 4 ý a) — giống hotseat, dùng characterId mới thêm vào
+  // PlayerHandView (core/view.ts) — công khai, không cần lọc gì thêm ở đây.
+  if (player.characterId) {
+    headingRow.appendChild(characterChip(player.characterId));
+  }
+  const heading = document.createElement("h3");
+  heading.textContent =
+    player.name +
+    (isCurrentTurn ? " ← đang tới lượt" : "") +
+    (player.id === view.viewerId ? " (bạn)" : "") +
+    // Việc 4.3: không tính chính mình — chính socket đang vẽ màn hình này thì
+    // chắc chắn đang kết nối, không cần báo lại chuyện hiển nhiên đó.
+    (player.id !== view.viewerId && !options.connectedPlayerIds.includes(player.id) ? " ⚠ đã mất kết nối" : "");
+  headingRow.appendChild(heading);
+  headingRow.appendChild(inspectButton(player, handlers));
+  el.appendChild(headingRow);
+
+  if (isTargeted) {
+    const targetedLabel = document.createElement("p");
+    targetedLabel.className = "player--targeted-label";
+    targetedLabel.textContent = "⚠ cần phản hồi";
+    el.appendChild(targetedLabel);
+  }
+
+  const roleText = player.role ? ROLE_LABELS[player.role] : "(ẩn)";
+  const roleAndHp = document.createElement("p");
+  roleAndHp.appendChild(document.createTextNode(`${roleText} · Máu: `));
+  roleAndHp.appendChild(renderHpTrack(player.hp, player.maxHp));
+  roleAndHp.appendChild(
+    document.createTextNode(` · ${player.alive ? "Còn sống" : "Đã chết"}`)
+  );
+  el.appendChild(roleAndHp);
+
+  appendPlayerStatusLabels(el, view, player);
+
+  const handLabel = document.createElement("p");
+  handLabel.textContent = "Bài trên tay:";
+  el.appendChild(handLabel);
+  networkRenderHandSection(el, view, player, options, handlers);
+  networkRenderAbilitySection(el, view, player, selection, handlers);
+
+  const equipLabel = document.createElement("p");
+  equipLabel.textContent = "Trang bị:";
+  el.appendChild(equipLabel);
+  networkRenderEquipmentSection(el, view, player, selection, handlers);
+
+  appendSeatSelectionControls(el, view, player, selection, handlers);
 
   return el;
 }
@@ -5084,60 +4013,59 @@ export function renderNetworkCharacterSelectionScreen(
   container: HTMLElement,
   view: PlayerView,
   deadline: DeadlineInfo | null,
-  // characterId đang được CHÍNH MÌNH "cầm lên" chờ xác nhận — chỉ cần 1 giá
-  // trị (không phải map theo playerId như hotseat), vì qua mạng chỉ CHÍNH
-  // MÌNH mới bấm chọn được cho chính mình.
+  // characterId đang được CHÍNH MÌNH "cầm lên" chờ xác nhận.
   armedCharacterId: string | null,
   handlers: NetworkCharacterSelectionHandlers
 ): void {
   container.replaceChildren();
 
+  const choices: CharacterChoiceView[] = view.characterSelection ?? [];
   const heading = document.createElement("h1");
   heading.className = "screen-title";
   heading.textContent = "Chọn nhân vật";
+  const progress = document.createElement("span");
+  progress.className = "pick-progress";
+  progress.textContent = ` · ${choices.filter((c) => c.chosen).length}/${choices.length} người đã chọn`;
+  heading.appendChild(progress);
   container.appendChild(heading);
 
-  const rule = document.createElement("p");
-  rule.className = "rule-text";
-  rule.textContent =
-    "Xem 2 lá nhân vật riêng của bạn rồi chọn giữ 1 lá — không cần chờ người khác chọn xong. " +
-    "Bấm 1 lá để xem kỹ, rồi bấm \"Xác nhận\" mới thật sự chọn.";
-  container.appendChild(rule);
-
-  renderCountdown(container, deadline, view.players);
-
-  const choices: CharacterChoiceView[] = view.characterSelection ?? [];
-  // Vai chỉ lộ với chính mình + Cảnh sát trưởng (viewRole(), view.ts, quy tắc
-  // 6) — hàng tổng quan tự hiện đúng theo đó, không lộ thêm gì so với trước.
+  // Vai chỉ lộ với chính mình + Cảnh sát trưởng (viewRole(), view.ts, quy tắc 6).
   renderCharacterSelectionRoster(container, choices, view.players, view.viewerId);
 
-  const my = choices.find((choice) => choice.playerId === view.viewerId);
-  if (!my || my.chosen) return;
-
   const player = view.players.find((p) => p.id === view.viewerId);
-  const section = document.createElement("div");
-  section.className = "pick-section";
-
-  const nameEl = document.createElement("h2");
-  nameEl.className = "pick-section__heading";
-  nameEl.textContent = "Bạn — chọn 1 trong 2 lá";
-  section.appendChild(nameEl);
-
-  if (my.options) {
-    renderCharacterDuel(section, my.options, player?.role ?? null, armedCharacterId ?? undefined, (characterId) =>
-      handlers.onArmCharacterChoice(characterId)
-    );
-
-    if (armedCharacterId) {
-      const confirmBtn = document.createElement("button");
-      confirmBtn.type = "button";
-      confirmBtn.className = "btn-primary";
-      confirmBtn.textContent = `Xác nhận chọn ${characterLabel(armedCharacterId)}`;
-      confirmBtn.addEventListener("click", () => handlers.onConfirmCharacterChoice());
-      section.appendChild(confirmBtn);
-    }
+  if (player?.role) {
+    const roleLine = document.createElement("p");
+    roleLine.className = "pick-role";
+    roleLine.textContent =
+      `Vai trò của bạn: ${ROLE_LABELS[player.role]}` + (player.role === "sheriff" ? " — mọi người đều biết" : " — chỉ bạn thấy");
+    container.appendChild(roleLine);
   }
 
+  const my = choices.find((choice) => choice.playerId === view.viewerId);
+  if (!my || my.chosen || !my.options) {
+    renderCountdown(container, deadline, view.players);
+    return;
+  }
+
+  const section = document.createElement("div");
+  section.className = "pick-section";
+  renderCharacterDuel(section, my.options, player?.role ?? null, armedCharacterId ?? undefined, (characterId) =>
+    handlers.onArmCharacterChoice(characterId)
+  );
+  renderCountdown(section, deadline, view.players);
+  if (armedCharacterId) {
+    const confirmBtn = document.createElement("button");
+    confirmBtn.type = "button";
+    confirmBtn.className = "btn-primary pick-confirm";
+    confirmBtn.textContent = `Chọn ${characterLabel(armedCharacterId)}`;
+    confirmBtn.addEventListener("click", () => handlers.onConfirmCharacterChoice());
+    section.appendChild(confirmBtn);
+  } else {
+    const hint = document.createElement("p");
+    hint.className = "pick-hint";
+    hint.textContent = "Chạm 1 lá để đánh dấu, rồi bấm Chọn.";
+    section.appendChild(hint);
+  }
   container.appendChild(section);
 }
 
@@ -5164,8 +4092,6 @@ export function renderNetworkGame(
     onOpenSettings: handlers.onOpenSettingsDialog,
     onOpenCardReference: handlers.onOpenCardReferenceDialog,
     onOpenRoomCode: handlers.onOpenRoomCodeDialog,
-    equipmentCompactMode: options.equipmentCompactMode,
-    onToggleEquipmentCompactMode: handlers.onToggleEquipmentCompactMode,
     myStatus:
       myPlayer && myIndex !== -1
         ? { seatNumber: seatNumbers[myIndex], hp: myPlayer.hp, maxHp: myPlayer.maxHp }
@@ -5208,13 +4134,6 @@ export function renderNetworkGame(
     (view.winner ? ` · VÁN KẾT THÚC — thắng: ${describeWinner(view.winner, nameOfPlayer)}` : "");
   container.appendChild(summary);
 
-  container.appendChild(renderTableCenter(view.deckCount, view.discardPile, view.activeEventId, view.nextEventId));
-
-  renderActiveHouseRules(container, view.houseRules);
-  renderActiveExpansions(container, view.expansions);
-
-  renderDrawCheckNotice(container, options.lastDrawCheck);
-
   if (options.selection.step !== "idle") {
     const hint = document.createElement("div");
     hint.className = "panel";
@@ -5240,44 +4159,42 @@ export function renderNetworkGame(
     container.appendChild(hint);
   }
 
-  networkRenderPhaseActions(container, view, options, handlers);
-
-  // Bug đã sửa (báo lỗi thật từ chủ dự án — 5 người chơi, 4 đối thủ bị tách
-  // 3+1 thành 2 hàng): thuật toán "gấp rắn" chia far/near/odd trước đây CHỈ
-  // né được ca ÍT đối thủ (≤4, gộp sẵn 1 hàng — sửa ở đợt trước), nhưng với
-  // ≥5 đối thủ vẫn tự chia nhiều hàng — SAI Ý CHỦ DỰ ÁN: MỌI đối thủ (bất kể
-  // bao nhiêu), trừ bản thân, phải nằm ĐÚNG 1 HÀNG NGANG DUY NHẤT. Bỏ hẳn
-  // buildOpponentRows()/khái niệm "hàng xa/gần/lẻ" — chỉ còn ĐÚNG 1
-  // `.opponent-row`, CSS đổi `flex-wrap: wrap` → `nowrap` + `overflow-x:
-  // auto` (xem style.css) để hàng không bao giờ tự xuống dòng, chỉ cuộn
-  // ngang nếu màn quá hẹp — không còn "hàng trên/hàng dưới" gây hiểu nhầm.
-  //
-  // Tính liền kề vẫn ĐÚNG mà KHÔNG cần đảo/gấp gì cả: `buildSeatOrder()` đã
-  // xoay để mảng bắt đầu từ người NGAY SAU bản thân theo thứ tự lượt, kết
-  // thúc ở người NGAY TRƯỚC bản thân (opponents[0] và opponents[n-1]) — xếp
-  // thẳng theo đúng thứ tự đó vào 1 hàng, 2 ĐẦU HÀNG (trái/phải) LUÔN ĐÚNG
-  // LÀ 2 người liền kề bản thân trong vòng lượt, không phụ thuộc bao nhiêu
-  // đối thủ.
-  const tableEl = document.createElement("div");
-  tableEl.className = "table";
   const seatOrder = buildSeatOrder(view);
   const opponents = seatOrder.slice(0, -1);
   const ownEntry = seatOrder[seatOrder.length - 1] as SeatEntry | undefined;
 
-  if (opponents.length > 0) {
-    const rowEl = document.createElement("div");
-    rowEl.className = "players opponent-row";
-    for (const { player, originalIndex } of opponents) {
-      rowEl.appendChild(networkRenderPlayer(view, player, originalIndex, seatNumbers[originalIndex], false, options, handlers));
-    }
-    tableEl.appendChild(rowEl);
-  }
+  const tableEl = document.createElement("div");
+  tableEl.className = "round-table";
+  const slots = TABLE_SLOTS[opponents.length] ?? [];
+  opponents.forEach(({ player, originalIndex }, k) => {
+    tableEl.appendChild(
+      networkRenderSeatChip(view, player, originalIndex, seatNumbers[originalIndex], slots[k] ?? "top-mid", options, handlers)
+    );
+  });
+  const center = document.createElement("div");
+  center.className = "round-table__center";
+  center.appendChild(renderTableCenter(view.deckCount, view.discardPile, view.activeEventId, view.nextEventId));
+  tableEl.appendChild(center);
   container.appendChild(tableEl);
 
+  renderDrawCheckNotice(container, options.lastDrawCheck);
+
+  // Khay của bạn (nhân vật, bài trên tay, trang bị) + nút hành động ngay bên dưới.
   if (ownEntry) {
     container.appendChild(
-      networkRenderPlayer(view, ownEntry.player, ownEntry.originalIndex, seatNumbers[ownEntry.originalIndex], true, options, handlers)
+      networkRenderPlayer(view, ownEntry.player, ownEntry.originalIndex, seatNumbers[ownEntry.originalIndex], options, handlers)
     );
+  }
+  networkRenderPhaseActions(container, view, options, handlers);
+
+  renderActiveHouseRules(container, view.houseRules);
+  renderActiveExpansions(container, view.expansions);
+
+  const inspected = options.inspectPlayerId ? view.players.find((p) => p.id === options.inspectPlayerId) : undefined;
+  const panelTitle = inspected ? `Người chơi: ${inspected.name}` : null;
+  if (inspected && panelTitle) {
+    const inspectedSeat = seatNumbers[view.players.indexOf(inspected)];
+    renderDialog(panelTitle, handlers.onClosePlayerPanel, (panelBody) => renderPlayerPanelBody(panelBody, view, inspected, inspectedSeat));
   }
 
   if (options.logDialogOpen) {
@@ -5327,6 +4244,7 @@ export function renderNetworkGame(
       options.cardReferenceDialogOpen && "Thư viện bài",
       options.settingsDialogOpen && "Cài đặt",
       options.roomCodeDialogOpen && "Mã phòng / Mời",
+      panelTitle ?? false,
     ].filter((v): v is string => v !== false)
   );
 }

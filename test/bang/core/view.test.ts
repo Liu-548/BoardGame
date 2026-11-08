@@ -243,3 +243,61 @@ describe("viewFor — characterSelection (cơ chế phát 2 lá nhân vật, ch�
     ]);
   });
 });
+
+describe("viewFor — distances (khoảng cách/tầm bắn 2 chiều, bố cục bàn chơi mới)", () => {
+  // Vòng tròn 5 người a-b-c-d-e, người xem là a.
+  function fivePlayers(): PlayerState[] {
+    return ["a", "b", "c", "d", "e"].map((id) => makePlayer(id));
+  }
+
+  it("không có trang bị: 2 chiều bằng nhau, tầm súng mặc định 1", () => {
+    const view = viewFor(makeState(fivePlayers()), "a");
+    expect(view.distances.b).toEqual({ toThem: 1, toMe: 1, myRange: 1, theirRange: 1 });
+    expect(view.distances.c).toEqual({ toThem: 2, toMe: 2, myRange: 1, theirRange: 1 });
+    expect(view.distances.e.toThem).toBe(1); // đi vòng chiều ngược lại
+    expect(view.distances.a).toBeUndefined(); // không có mục cho chính mình
+  });
+
+  it("Mustang của người kia chỉ làm xa chiều 'bạn → họ'; Scope của bạn chỉ làm gần chiều đó", () => {
+    const players = fivePlayers();
+    players[1] = makePlayer("b", { equipment: ["mustang_1"] });
+    players[0] = makePlayer("a", { equipment: ["scope_1"] });
+    const view = viewFor(makeState(players), "a");
+    expect(view.distances.b.toThem).toBe(1); // 1 ghế +1 Mustang −1 Scope
+    expect(view.distances.b.toMe).toBe(1); // b nhìn a: không có gì cộng thêm
+    expect(view.distances.c.toThem).toBe(1); // 2 ghế −1 Scope
+    expect(view.distances.c.toMe).toBe(2);
+  });
+
+  it("tầm súng 2 bên lấy theo súng đang trang bị", () => {
+    const players = fivePlayers();
+    players[2] = makePlayer("c", { equipment: ["winchester_1"] });
+    players[0] = makePlayer("a", { equipment: ["schofield_1"] });
+    const view = viewFor(makeState(players), "a");
+    expect(view.distances.c.theirRange).toBe(5);
+    expect(view.distances.c.myRange).toBe(2);
+    expect(view.distances.b.myRange).toBe(2); // tầm của bạn giống nhau ở mọi mục
+  });
+
+  it("house rule extra_distance cộng 1 cho cả 2 chiều", () => {
+    const view = viewFor(makeState(fivePlayers(), { houseRules: ["extra_distance"] }), "a");
+    expect(view.distances.b.toThem).toBe(2);
+    expect(view.distances.b.toMe).toBe(2);
+  });
+
+  it("bỏ qua người đã chết (vòng tròn co lại) và không có mục cho họ", () => {
+    const players = fivePlayers();
+    players[1] = makePlayer("b", { alive: false });
+    const view = viewFor(makeState(players), "a");
+    expect(view.distances.b).toBeUndefined();
+    expect(view.distances.c.toThem).toBe(1);
+  });
+
+  it("rỗng khi người xem đã chết hoặc đang chọn nhân vật", () => {
+    const players = fivePlayers();
+    players[0] = makePlayer("a", { alive: false });
+    expect(viewFor(makeState(players), "a").distances).toEqual({});
+    const choosing = makeState(fivePlayers(), { characterSelection: [] });
+    expect(viewFor(choosing, "a").distances).toEqual({});
+  });
+});

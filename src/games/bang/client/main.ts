@@ -23,9 +23,7 @@
 
 import { cardNameFromId, isDelayedEquipmentCardName, yellowCardActsAsMissed } from "../core/cards";
 import type { CardName } from "../core/cards";
-import { reduce } from "../core/reduce";
-import { setupGame } from "../core/setup";
-import type { Action, ExpansionId, GameState, HouseRuleId } from "../core/types";
+import type { Action, ExpansionId, HouseRuleId } from "../core/types";
 import type { PlayerView } from "../core/view";
 import { RoomConnection } from "./net";
 import type { DeadlineInfo, ServerMessage } from "../protocol";
@@ -36,15 +34,12 @@ import {
   cardActsAsBang,
   DEFAULT_EVENT_DECK_SIZE,
   describeEvent,
-  renderApp,
   renderCardReferenceScreen,
-  renderCharacterSelectionScreen,
   renderHomeScreen,
   renderNetworkCharacterSelectionScreen,
   renderNetworkGame,
   renderNetworkLobby,
   renderNetworkLobbyForm,
-  renderSetupScreen,
   triggerVisualEffect,
   vibrateForTurn,
 } from "./ui";
@@ -84,13 +79,9 @@ function cardNeedsTarget(cardId: string, characterId: string | null): boolean {
 // Balou, xem onPlayerClick() bên dưới) — quyết định ở onEquipmentClick().
 const NO_TARGET_YELLOW_ACTIVATIONS = new Set<CardName>(["canteen", "pony_express", "howitzer"]);
 
-const DEFAULT_PLAYER_NAMES = ["An", "Bình", "Chi", "Dũng"];
-
 type Screen =
   | "inactive" // Bang! không vẽ gì — Sảnh (src/main.ts) hoặc game khác đang dùng #game-root
   | "home"
-  | "local-setup"
-  | "local-game"
   | "network-form"
   | "network-lobby"
   | "network-game"
@@ -100,57 +91,6 @@ let screen: Screen = "inactive";
 // Gọi khi bấm "về Sảnh" — do src/main.ts truyền vào qua mountBang().
 let exitToHub: () => void = () => {};
 
-// ----- Chế độ chơi chung 1 máy (hotseat, việc 2.x) -----
-let playerNames: string[] = [...DEFAULT_PLAYER_NAMES];
-let setupError: string | null = null;
-// Việc 5.3 (house rules) — chọn ở màn hình thiết lập, chỉ áp dụng cho VÁN
-// SẮP bắt đầu (không phải cấu hình toàn cục). GIỮ NGUYÊN qua "Chơi ván mới"
-// (onPlayAgain) — giống cách playerNames được giữ nguyên — CHỈ reset khi tạo
-// tab/phiên mới (tải lại trang). Bổ sung theo yêu cầu chủ dự án: trước đây bị
-// reset về [] mỗi lần chơi ván mới, gây bực vì phải tick lại từ đầu dù vẫn
-// muốn giữ đúng cấu hình cũ.
-let selectedHouseRules: HouseRuleId[] = [];
-// Mở rộng Dodge City — cùng quy tắc giữ nguyên như selectedHouseRules ở trên.
-let selectedExpansions: ExpansionId[] = [];
-// Mở rộng High Noon/A Fistful of Cards, mục 1.6 — số lá sự kiện "thường"
-// muốn rút vào ván (CHỈ có ý nghĩa khi selectedExpansions có cả 2 id, xem
-// RuleOptions.eventDeckSize ở setup.ts). Cùng quy tắc giữ nguyên qua "Chơi
-// ván mới" như 2 biến trên.
-let selectedEventDeckSize: number = DEFAULT_EVENT_DECK_SIZE;
-let state: GameState; // chỉ tồn tại sau khi bấm "Bắt đầu ván"
-// Việc bổ sung sau Giai đoạn 5 — màn hình chọn nhân vật: playerId -> lá đang
-// "cầm lên" chờ bấm "Xác nhận" mới thật sự gửi CHOOSE_CHARACTER (tránh bấm
-// nhầm lúc chỉ định xem mô tả chức năng). Trạng thái TẠM THỜI chỉ ở client,
-// reset về {} mỗi khi bắt đầu ván mới.
-let characterArmedChoices: Record<string, string> = {};
-let selection: Selection = { step: "idle" };
-let discardSelectionIds: string[] = [];
-let error: string | null = null;
-// Lá vừa lật khi draw! (Barrel/Jail/Dynamite...), tính lại sau MỖI dispatch —
-// yêu cầu thiết kế: check bài phải công khai cho tất cả mọi người xem.
-let lastDrawCheck: DrawCheckNotice = null;
-// Việc 4.2: nhật ký ván đấu — mỗi GameEvent dịch sẵn ra 1 dòng tiếng Việt
-// (describeEvent() ở ui.ts) rồi thêm vào ĐẦU mảng (mới nhất lên trên, khỏi
-// phải tự cuộn xuống cuối mỗi lần có hành động mới).
-let gameLog: string[] = [];
-// Đợt 2 UI/UX (mục 4) — playerId nào đang "nở" khu trang bị khi bàn >6 người
-// (client-only, xem renderPlayerEquipmentArea() ở ui.ts). Reset về [] mỗi khi
-// bắt đầu ván mới, giống characterArmedChoices ở trên.
-let expandedSeatIds: string[] = [];
-// Đợt sửa giao diện bàn chơi — "Bình thường"/"Tinh gọn" cho trang bị của
-// NGƯỜI KHÁC (nút mới ở toolbar, xem GameToolbarOptions ở ui.ts). Đây là SỞ
-// THÍCH CÁ NHÂN của trình duyệt (giống theme/cỡ chữ — lưu localStorage, đọc
-// applyStoredSettings()-style ở ui.ts), KHÔNG PHẢI trạng thái của 1 ván cụ
-// thể nên KHÔNG reset khi bắt đầu ván mới (khác expandedSeatIds ngay trên).
-const EQUIPMENT_COMPACT_STORAGE_KEY = "bang_equipment_compact";
-let equipmentCompactMode = localStorage.getItem(EQUIPMENT_COMPACT_STORAGE_KEY) === "on";
-// Đợt 3 UI/UX (mục 9) — 2 dialog góc màn hình (nhật ký/cài đặt), client-only,
-// giống expandedSeatIds. Reset về false mỗi khi bắt đầu ván mới.
-let logDialogOpen = false;
-let settingsDialogOpen = false;
-// Bổ sung — dialog "Thư viện bài" mở giữa ván (xem ghi chú UiHandlers ở
-// ui.ts). Client-only, giống 2 dialog trên.
-let cardReferenceDialogOpen = false;
 // Bổ sung 2026-08-08 — nội dung ô tìm kiếm Thư viện bài. DÙNG CHUNG cho cả 3
 // nơi hiện thư viện (màn hình đầy đủ vào từ home, dialog hotseat, dialog qua
 // mạng) — 1 người chỉ ở đúng 1 trong 3 ngữ cảnh tại 1 thời điểm nên không cần
@@ -158,10 +98,6 @@ let cardReferenceDialogOpen = false;
 // onOpenCardReferenceDialog()/onNetworkOpenCardReferenceDialog()) để không
 // giữ lại từ khoá cũ từ lần xem trước.
 let cardReferenceSearchQuery = "";
-// Bổ sung — đang ở bước xác nhận "huỷ ván hiện tại để bắt đầu ván mới" BÊN
-// TRONG dialog Cài đặt (chỉ có ý nghĩa khi settingsDialogOpen === true).
-let confirmingNewGame = false;
-
 // ----- Chế độ chơi qua mạng (việc 3.9) -----
 let networkName = "";
 let networkCode = "";
@@ -178,8 +114,8 @@ let networkArmedCharacterId: string | null = null;
 let networkDiscardSelectionIds: string[] = [];
 let networkLastDrawCheck: DrawCheckNotice = null;
 let networkGameLog: string[] = []; // việc 4.2, xem ghi chú ở gameLog phía trên
-// Đợt 2 UI/UX (mục 4) — giống expandedSeatIds ở hotseat, xem ghi chú ở đó.
-let networkExpandedSeatIds: string[] = [];
+// Bố cục bàn chơi mới — người đang mở panel 👁 (null = không mở panel nào).
+let networkInspectPlayerId: string | null = null;
 // Đợt 3 UI/UX (mục 9) — giống logDialogOpen/settingsDialogOpen ở hotseat,
 // cộng thêm dialog Mã phòng (chỉ qua mạng) và thông báo tạm thời sau khi
 // bấm "Chép mã" (null = chưa bấm lần nào từ lúc dialog này mở).
@@ -241,7 +177,7 @@ let countdownTickId: ReturnType<typeof setInterval> | null = null;
 // stylesheet mặc định overflow: auto + giới hạn theo viewport), không phải
 // `.log-list`/`.opponent-row` như 2 selector cũ — trước đây không nằm trong
 // danh sách này nên mỗi lần render() lại (mỗi phím gõ) bị mất vị trí cuộn.
-const SCROLLABLE_SELECTORS = [".opponent-row", ".log-list", "dialog.app-dialog"];
+const SCROLLABLE_SELECTORS = [".log-list", "dialog.app-dialog"];
 
 function captureScrollPositions(): Map<string, { left: number; top: number }> {
   const positions = new Map<string, { left: number; top: number }>();
@@ -345,102 +281,10 @@ function renderScreen(): void {
 
   switch (screen) {
     case "home":
-      renderHomeScreen(root, betaLinkInfo(), { onPlayLocal, onPlayNetwork, onShowCardReference, onBackToHub });
+      renderHomeScreen(root, betaLinkInfo(), { onPlayNetwork, onShowCardReference, onBackToHub });
       return;
     case "card-reference":
       renderCardReferenceScreen(root, cardReferenceSearchQuery, { onBack: onBackToHome, onSearchChange: onCardReferenceSearchChange });
-      return;
-    case "local-setup":
-      renderSetupScreen(root, playerNames, setupError, selectedHouseRules, selectedExpansions, selectedEventDeckSize, {
-        onNameChange,
-        onAddPlayer,
-        onRemovePlayer,
-        onToggleHouseRule,
-        onToggleExpansion,
-        onEventDeckSizeChange,
-        onStartGame,
-      });
-      return;
-    case "local-game":
-      // Giai đoạn 5, cơ chế chọn nhân vật — hiện màn hình riêng TRƯỚC bàn chơi
-      // thật, cho tới khi mọi người chọn xong (state.characterSelection về null).
-      if (state.characterSelection) {
-        renderCharacterSelectionScreen(root, state.players, state.characterSelection, characterArmedChoices, {
-          onArmCharacterChoice,
-          onConfirmCharacterChoice,
-        });
-        return;
-      }
-      renderApp(
-        root,
-        state,
-        {
-          selection,
-          discardSelection: discardSelectionIds,
-          error,
-          lastDrawCheck,
-          log: gameLog,
-          expandedSeatIds,
-          logDialogOpen,
-          settingsDialogOpen,
-          cardReferenceDialogOpen,
-          cardReferenceSearchQuery,
-          confirmingNewGame,
-          equipmentCompactMode,
-        },
-        {
-          onDrawCards,
-          onEndTurn,
-          onToggleDiscardCard,
-          onConfirmDiscard,
-          onHandCardClick,
-          onEquipmentClick,
-          onPlayerClick,
-          onStoreOptionClick,
-          onZoneClick,
-          onRespondTakeConsequence,
-          onCancelSelection,
-          onPlayAgain,
-          onPickDrawSource,
-          onPickDrawTarget,
-          onPickKeptCard,
-          onPickEquipmentFromPlayer,
-          onPickBorrowedCharacter,
-          onPickArmed,
-          onUseDrifterShield,
-          onUseDealerTrade,
-          onUseSentinelRevive,
-          onPickMarcelCompanion,
-          onPickThiefTarget,
-          onPickHardLiquor,
-          onGiveBloodBrothersGift,
-          onToggleRanchCard,
-          onConfirmRanchExchange,
-          onConfirmBangMode,
-          onBrawlZonePick,
-          onBrawlZonesConfirmed,
-          onExtraDiscardCardClick,
-          onArmAbility,
-          onUseChuckWengamAbility,
-          onArmFairKillerAbility,
-          onToggleAbilityCard,
-          onConfirmAbilityCards,
-          onAbilityTargetClick,
-          onToggleSeatExpanded,
-          onToggleEquipmentCompactMode,
-          onOpenLogDialog,
-          onCloseLogDialog,
-          onOpenSettingsDialog,
-          onCloseSettingsDialog,
-          onOpenCardReferenceDialog,
-          onCloseCardReferenceDialog,
-          onCardReferenceSearchChange,
-          onLeaveGame: onBackToHome,
-          onRequestNewGame,
-          onConfirmNewGame,
-          onCancelNewGameConfirm,
-        }
-      );
       return;
     case "network-form":
       renderNetworkLobbyForm(root, networkName, networkCode, networkError, {
@@ -494,7 +338,7 @@ function renderScreen(): void {
             deadline: networkDeadline,
             log: networkGameLog,
             connectedPlayerIds: networkConnectedIds,
-            expandedSeatIds: networkExpandedSeatIds,
+            inspectPlayerId: networkInspectPlayerId,
             logDialogOpen: networkLogDialogOpen,
             settingsDialogOpen: networkSettingsDialogOpen,
             cardReferenceDialogOpen: networkCardReferenceDialogOpen,
@@ -504,7 +348,6 @@ function renderScreen(): void {
             roomCodeDialogOpen: networkRoomCodeDialogOpen,
             roomCode: networkCode,
             roomCodeCopyStatus: networkRoomCodeCopyStatus,
-            equipmentCompactMode,
             confirmingReturnToLobby: networkConfirmingReturnToLobby,
           },
           {
@@ -544,11 +387,8 @@ function renderScreen(): void {
             onToggleAbilityCard: onNetworkToggleAbilityCard,
             onConfirmAbilityCards: onNetworkConfirmAbilityCards,
             onAbilityTargetClick: onNetworkAbilityTargetClick,
-            onToggleSeatExpanded: onNetworkToggleSeatExpanded,
-            // Sở thích cá nhân CHUNG (không phải state của 1 ván) — dùng
-            // THẲNG 1 hàm duy nhất cho cả hotseat lẫn qua mạng, xem ghi chú
-            // khai báo equipmentCompactMode ở trên.
-            onToggleEquipmentCompactMode,
+            onOpenPlayerPanel: onNetworkOpenPlayerPanel,
+            onClosePlayerPanel: onNetworkClosePlayerPanel,
             onOpenLogDialog: onNetworkOpenLogDialog,
             onCloseLogDialog: onNetworkCloseLogDialog,
             onOpenSettingsDialog: onNetworkOpenSettingsDialog,
@@ -587,11 +427,6 @@ function onBackToHub(): void {
   exitToHub();
 }
 
-function onPlayLocal(): void {
-  screen = "local-setup";
-  render();
-}
-
 function onPlayNetwork(): void {
   screen = "network-form";
   render();
@@ -619,34 +454,6 @@ function onBackToHome(): void {
 
 // ----- Chế độ chơi chung 1 máy (hotseat) -----
 
-// KHÔNG render() ở đây — render lại giữa lúc đang gõ sẽ xoá và tạo lại input
-// mới, làm mất con trỏ đang gõ (xem ghi chú ở ui.ts).
-function onNameChange(index: number, value: string): void {
-  playerNames[index] = value;
-}
-
-// Hỗ trợ 2-8 người (xem docs/roadmap/LO-TRINH.md — 2/3 người là biến thể riêng của dự
-// án, 4-8 người theo luật gốc BANG!, setup.ts's setupGame() lo phần chia
-// vai đúng theo từng cỡ bàn).
-function onAddPlayer(): void {
-  if (playerNames.length >= 8) return;
-  playerNames.push("");
-  render();
-}
-
-function onRemovePlayer(): void {
-  if (playerNames.length <= 2) return;
-  playerNames.pop();
-  render();
-}
-
-function onToggleHouseRule(id: HouseRuleId): void {
-  selectedHouseRules = selectedHouseRules.includes(id)
-    ? selectedHouseRules.filter((existing) => existing !== id)
-    : [...selectedHouseRules, id];
-  render();
-}
-
 // Mở rộng High Noon + A Fistful of Cards — TẠM GỘP thành 1 nút trên giao diện
 // (xem EVENT_CARDS_EXPANSION_LABEL ở ui.ts): mỗi bộ RIÊNG LẺ còn thiếu khá
 // nhiều lá (Ghost Town/Dead Man/Law of the West/Peyote chưa cài), nên bật/tắt
@@ -659,114 +466,6 @@ function toggleExpansionId(current: ExpansionId[], id: ExpansionId): ExpansionId
     return bothOn ? withoutEventCards : [...withoutEventCards, "high_noon", "a_fistful_of_cards"];
   }
   return current.includes(id) ? current.filter((existing) => existing !== id) : [...current, id];
-}
-
-function onToggleExpansion(id: ExpansionId): void {
-  selectedExpansions = toggleExpansionId(selectedExpansions, id);
-  render();
-}
-
-function onEventDeckSizeChange(size: number): void {
-  selectedEventDeckSize = size;
-  render();
-}
-
-function onStartGame(): void {
-  const trimmedNames = playerNames.map((name) => name.trim());
-  if (trimmedNames.some((name) => name.length === 0)) {
-    setupError = "Mọi người chơi phải có tên, không được để trống";
-    render();
-    return;
-  }
-
-  setupError = null;
-  const ids = trimmedNames.map((_, index) => `p${index}`);
-  state = setupGame(ids, Date.now(), {
-    dealCharacterCards: true,
-    houseRules: selectedHouseRules,
-    expansions: selectedExpansions,
-    eventDeckSize: selectedEventDeckSize,
-  });
-  // setupGame() tạm dùng id làm tên hiển thị (xem ghi chú trong setup.ts) —
-  // gán lại tên thật người chơi vừa gõ.
-  state.players.forEach((player, index) => {
-    player.name = trimmedNames[index];
-  });
-
-  screen = "local-game";
-  selection = { step: "idle" };
-  discardSelectionIds = [];
-  error = null;
-  gameLog = [];
-  characterArmedChoices = {};
-  expandedSeatIds = [];
-  logDialogOpen = false;
-  settingsDialogOpen = false;
-  cardReferenceDialogOpen = false;
-  confirmingNewGame = false;
-  render();
-}
-
-function onPlayAgain(): void {
-  screen = "local-setup";
-  // GIỮ NGUYÊN selectedHouseRules/selectedExpansions/selectedEventDeckSize —
-  // trước đây reset về [] ở đây, khiến mọi lựa chọn ván trước mất sạch dù
-  // không hề tạo phòng/tab mới (yêu cầu chủ dự án 2026-08-11: chỉ reset khi
-  // thật sự bắt đầu phiên chơi mới, không phải mỗi lần "Chơi ván mới").
-  confirmingNewGame = false;
-  render();
-}
-
-// Gọi reduce() thật — mọi hành động của người chơi đều đi qua đây. Bấm sai
-// (sai lượt, ngoài tầm, sai mục tiêu...) sẽ ném lỗi tiếng Việt sẵn có từ
-// reduce.ts, chỉ cần hiện ra, không cần dịch lại.
-function dispatch(action: Action): void {
-  // Bổ sung 2026-08-10 — hiệu ứng "tới lượt của mình": hotseat dùng chung 1
-  // màn hình cho mọi người (không có khái niệm "viewer" riêng như qua mạng),
-  // nên cứ đổi người-đang-đi (currentPlayerIndex) là coi như "tới lượt mới",
-  // xem triggerVisualEffect() ở ui.ts.
-  const previousPlayerId = currentPlayerId();
-  // Bổ sung — rung màn hình khi tới lượt HOẶC cần phản hồi (khác điều kiện
-  // effect-my-turn ở trên, xem ghi chú actingPlayerId()). Đang ở màn hình
-  // chọn nhân vật/ván đã kết thúc thì coi như "chưa có ai đang cần hành
-  // động" (null) — tránh rung sai lúc đang chọn nhân vật (currentPlayerIndex
-  // lúc đó không mang ý nghĩa "tới lượt").
-  const previousActingId =
-    state.characterSelection || state.winner
-      ? null
-      : actingPlayerId(state.pending, state.players, state.currentPlayerIndex);
-  try {
-    const result = reduce(state, action);
-    state = result.state;
-    error = null;
-    const checkEvent = result.events.find((e) => e.type === "DRAW_CHECK_RESOLVED");
-    lastDrawCheck = checkEvent
-      ? {
-          playerName: state.players.find((p) => p.id === checkEvent.playerId)!.name,
-          cardId: checkEvent.cardId,
-          matched: checkEvent.matched,
-        }
-      : null;
-    const nameOf = (id: string) => state.players.find((p) => p.id === id)?.name ?? id;
-    for (const event of result.events) {
-      gameLog.unshift(describeEvent(event, nameOf));
-      if (event.type === "DYNAMITE_EXPLODED") triggerVisualEffect("effect-dynamite");
-    }
-    if (currentPlayerId() !== previousPlayerId) triggerVisualEffect("effect-my-turn");
-    if (!state.characterSelection && !state.winner) {
-      const newActingId = actingPlayerId(state.pending, state.players, state.currentPlayerIndex);
-      if (newActingId !== null && newActingId !== previousActingId) vibrateForTurn();
-    }
-  } catch (e) {
-    error = e instanceof Error ? e.message : "Có lỗi không rõ khi thực hiện hành động";
-  }
-  selection = { step: "idle" };
-  discardSelectionIds = [];
-  render();
-}
-
-function currentPlayerId(): string {
-  return state.players[state.currentPlayerIndex].id;
 }
 
 // Bổ sung — "người đang cần hành động", dùng để rung màn hình (xem
@@ -784,565 +483,6 @@ function actingPlayerId(
 ): string | null {
   if (pending.length > 0) return pending[pending.length - 1].player;
   return players[currentPlayerIndex]?.id ?? null;
-}
-
-function onDrawCards(): void {
-  dispatch({ type: "DRAW_CARDS", playerId: currentPlayerId() });
-}
-
-function onEndTurn(): void {
-  dispatch({ type: "END_TURN", playerId: currentPlayerId() });
-}
-
-function onToggleDiscardCard(cardId: string): void {
-  const index = discardSelectionIds.indexOf(cardId);
-  if (index === -1) {
-    discardSelectionIds.push(cardId);
-  } else {
-    discardSelectionIds.splice(index, 1);
-  }
-  render();
-}
-
-function onConfirmDiscard(): void {
-  dispatch({ type: "DISCARD_CARDS", playerId: currentPlayerId(), cardIds: discardSelectionIds });
-}
-
-// Bấm 1 lá trên tay — nghĩa của cú bấm phụ thuộc bối cảnh hiện tại:
-// - Đang có pending chờ MÌNH trả lời -> đây là RESPOND kèm lá này.
-// - Không thì đang là lượt "đánh bài" của mình -> đây là PLAY_CARD, nhưng nếu
-//   lá cần mục tiêu thì chỉ "cầm lên" (chuyển sang bước chọn mục tiêu), chưa
-//   gọi reduce() ngay.
-function onHandCardClick(cardId: string): void {
-  const top = state.pending[state.pending.length - 1];
-  if (top) {
-    dispatch({ type: "RESPOND", playerId: top.player, cardId });
-    return;
-  }
-
-  const name = cardNameFromId(cardId);
-  // Mở rộng Dodge City, mục 1.2 — Brawl/Whisky KHÔNG cần chọn mục tiêu (Brawl
-  // nhắm TẤT CẢ người khác, Whisky chỉ tự dùng), nhưng CẦN bỏ kèm 1 lá phụ —
-  // xem discardExtraCard()/playBrawl()/playWhisky() ở reduce.ts.
-  if (name === "brawl") {
-    selection = { step: "picking-brawl-zones", cardId, zones: {} };
-    render();
-    return;
-  }
-  if (name === "whisky") {
-    selection = { step: "picking-extra-discard", cardId };
-    render();
-    return;
-  }
-  if (cardNeedsTarget(cardId, state.players[state.currentPlayerIndex].characterId)) {
-    selection = { step: "picking-target", cardId, cardName: name };
-    render();
-  } else {
-    dispatch({ type: "PLAY_CARD", playerId: currentPlayerId(), cardId });
-  }
-}
-
-// Bấm 1 lá trang bị trên sân ai đó — 4 tình huống dùng tới: Cat Balou/Can Can
-// bắt bỏ 1 lá cụ thể trên sân (RESPOND), Panic!/Conestoga cướp lá trang bị cụ
-// thể khi tay mục tiêu đã hết bài (bước 2 của PLAY_CARD), mở rộng Dodge City
-// mục 1.1 — dùng lá vàng "trì hoãn" TRÊN SÂN MÌNH đỡ Bang!/Gatling (RESPOND,
-// giống hệt lá trên tay), hoặc KÍCH HOẠT lá vàng đã bày sẵn từ lượt trước
-// (PLAY_CARD — reduce() tự nhận ra đây là kích hoạt vì cardId không còn trong
-// tay, xem activateDelayedEquipment() trong reduce.ts).
-function onEquipmentClick(ownerId: string, cardId: string): void {
-  // Mở rộng A Fistful of Cards, lá "Ricochet" — đã chọn "Bắn kiểu Ricochet",
-  // bấm ĐÚNG 1 lá trang bị của mục tiêu để bắn rụng.
-  if (selection.step === "picking-ricochet-equipment" && ownerId === selection.targetId) {
-    dispatch({
-      type: "PLAY_CARD",
-      playerId: currentPlayerId(),
-      cardId: selection.cardId,
-      targetId: selection.targetId,
-      targetCardId: cardId,
-    });
-    return;
-  }
-
-  if (selection.step === "picking-panic-equipment") {
-    // Rag Time (mở rộng Dodge City) — cùng bước chọn lá trang bị cụ thể như
-    // Panic!/Conestoga, nhưng còn PHẢI chọn tiếp lá phụ để bỏ kèm trước khi
-    // gửi đi (khác Panic!/Conestoga, dispatch thẳng).
-    if (cardNameFromId(selection.cardId) === "rag_time") {
-      selection = {
-        step: "picking-extra-discard",
-        cardId: selection.cardId,
-        targetId: selection.targetId,
-        targetCardId: cardId,
-      };
-      render();
-      return;
-    }
-    dispatch({
-      type: "PLAY_CARD",
-      playerId: currentPlayerId(),
-      cardId: selection.cardId,
-      targetId: selection.targetId,
-      targetCardId: cardId,
-    });
-    return;
-  }
-
-  const top = state.pending[state.pending.length - 1];
-  if (top && top.kind === "NEED_DISCARD_FROM_ZONE" && top.player === ownerId) {
-    dispatch({ type: "RESPOND", playerId: top.player, cardId });
-    return;
-  }
-
-  if (top && top.kind === "NEED_MISSED" && top.player === ownerId) {
-    dispatch({ type: "RESPOND", playerId: top.player, cardId });
-    return;
-  }
-
-  if (!top && selection.step === "idle" && ownerId === currentPlayerId()) {
-    const name = cardNameFromId(cardId);
-    if (isDelayedEquipmentCardName(name) && !yellowCardActsAsMissed(name)) {
-      if (NO_TARGET_YELLOW_ACTIVATIONS.has(name)) {
-        dispatch({ type: "PLAY_CARD", playerId: currentPlayerId(), cardId });
-      } else {
-        selection = { step: "picking-target", cardId, cardName: name };
-        render();
-      }
-    }
-  }
-}
-
-// Bấm chọn 1 người làm mục tiêu — chỉ có ý nghĩa khi đang ở bước
-// "picking-target" (đã cầm sẵn 1 lá cần mục tiêu, từ tay hoặc từ sân — mở
-// rộng Dodge City mục 1.1).
-function onPlayerClick(targetId: string): void {
-  if (selection.step !== "picking-target") return;
-  const { cardId, cardName } = selection;
-
-  // Rag Time (mở rộng Dodge City) — CÙNG luồng Panic!/Conestoga (chọn lá
-  // trang bị cụ thể khi tay mục tiêu hết bài), nhưng còn cần chọn lá phụ để
-  // bỏ kèm trước khi gửi đi — route qua "picking-extra-discard" thay vì
-  // dispatch thẳng.
-  if (cardName === "panic" || cardName === "conestoga" || cardName === "rag_time") {
-    const target = state.players.find((p) => p.id === targetId)!;
-    if (target.hand.length > 0) {
-      if (cardName === "rag_time") {
-        selection = { step: "picking-extra-discard", cardId, targetId };
-        render();
-      } else {
-        dispatch({ type: "PLAY_CARD", playerId: currentPlayerId(), cardId, targetId });
-      }
-    } else {
-      selection = { step: "picking-panic-equipment", cardId, targetId };
-      render();
-    }
-    return;
-  }
-
-  // Can Can (mở rộng Dodge City) — bản "delayed" của Cat Balou, cùng luồng
-  // hỏi bắt bỏ tay hay sân.
-  if (cardName === "cat_balou" || cardName === "can_can") {
-    selection = { step: "picking-cat-balou-zone", cardId, targetId };
-    render();
-    return;
-  }
-
-  // Springfield/Tequila (mở rộng Dodge City) — đã có mục tiêu, còn cần chọn
-  // lá phụ để bỏ kèm trước khi gửi đi.
-  if (cardName === "springfield" || cardName === "tequila") {
-    selection = { step: "picking-extra-discard", cardId, targetId };
-    render();
-    return;
-  }
-
-  // Mở rộng A Fistful of Cards, lá "Sniper" — đã chọn Bang! + mục tiêu (y hệt
-  // Bang! thường), sự kiện đang chạy VÀ còn ≥1 lá Bang! khác trên tay: hỏi
-  // thêm bắn kiểu Sniper hay Bang! thường (xem onConfirmBangMode()).
-  if (cardName === "bang" && state.activeEventId === "sniper") {
-    const actor = state.players[state.currentPlayerIndex];
-    if (actor.hand.some((id) => id !== cardId && cardNameFromId(id) === "bang")) {
-      selection = { step: "picking-sniper-confirm", cardId, targetId };
-      render();
-      return;
-    }
-  }
-
-  // Lá "Ricochet" — cùng thời điểm hỏi, chỉ khi mục tiêu có ít nhất 1 lá
-  // trang bị để bắn rụng.
-  if (cardName === "bang" && state.activeEventId === "ricochet") {
-    const target = state.players.find((p) => p.id === targetId);
-    if (target && target.equipment.length > 0) {
-      selection = { step: "picking-ricochet-confirm", cardId, targetId };
-      render();
-      return;
-    }
-  }
-
-  dispatch({ type: "PLAY_CARD", playerId: currentPlayerId(), cardId, targetId });
-}
-
-function onStoreOptionClick(cardId: string): void {
-  const top = state.pending[state.pending.length - 1];
-  if (top) dispatch({ type: "RESPOND", playerId: top.player, cardId });
-}
-
-function onZoneClick(zone: "hand" | "equipment"): void {
-  if (selection.step !== "picking-cat-balou-zone") return;
-  dispatch({
-    type: "PLAY_CARD",
-    playerId: currentPlayerId(),
-    cardId: selection.cardId,
-    targetId: selection.targetId,
-    targetZone: zone,
-  });
-}
-
-// Brawl (mở rộng Dodge City) — người đánh chọn VÙNG bỏ bài riêng cho 1 nạn
-// nhân (`targetId`), không dispatch ngay — còn phải chọn đủ cho MỌI nạn nhân
-// khác (xem renderApp() ở ui.ts: nút "Tiếp tục" chỉ hiện khi đã chọn đủ).
-function onBrawlZonePick(targetId: string, zone: "hand" | "equipment"): void {
-  if (selection.step !== "picking-brawl-zones") return;
-  selection.zones[targetId] = zone;
-  render();
-}
-
-// Brawl — đã chọn đủ vùng cho mọi nạn nhân, chuyển sang bước cuối: chọn lá
-// phụ để bỏ kèm.
-function onBrawlZonesConfirmed(): void {
-  if (selection.step !== "picking-brawl-zones") return;
-  selection = { step: "picking-extra-discard", cardId: selection.cardId, brawlZones: selection.zones };
-  render();
-}
-
-// Mở rộng Dodge City, mục 1.2 — bước CUỐI CÙNG của Brawl/Rag Time/Springfield/
-// Tequila/Whisky: đã gom đủ targetId/targetCardId/brawlZones (nếu có) từ các
-// bước trước, giờ chọn `extraCardId` làm lá phụ rồi gửi PLAY_CARD thật sự.
-function onExtraDiscardCardClick(extraCardId: string): void {
-  if (selection.step !== "picking-extra-discard") return;
-  dispatch({
-    type: "PLAY_CARD",
-    playerId: currentPlayerId(),
-    cardId: selection.cardId,
-    targetId: selection.targetId,
-    targetCardId: selection.targetCardId,
-    brawlZones: selection.brawlZones,
-    extraDiscardCardId: extraCardId,
-  });
-}
-
-// Mở rộng Dodge City, mục C — USE_ABILITY. Sid Ketchum/José Delgado/Doc
-// Holyday cần chọn ĐỦ số lá trên tay trước khi gửi đi — `playerId` là CHỦ
-// NHÂN kỹ năng, KHÔNG chắc là người đang tới lượt (Sid Ketchum dùng được bất
-// cứ lúc nào). `needed` = 1 cho José Delgado (1 lá xanh dương), 2 cho 2 người
-// còn lại.
-function onArmAbility(playerId: string, ability: UseAbilityCharacter): void {
-  const needed = ability === "jose_delgado" ? 1 : 2;
-  selection = { step: "picking-ability-cards", playerId, ability, needed, selectedCardIds: [] };
-  render();
-}
-
-// Chuck Wengam — không cần bỏ lá nào (chỉ tốn máu), gửi đi ngay.
-function onUseChuckWengamAbility(playerId: string): void {
-  dispatch({ type: "USE_ABILITY", playerId, cardIds: [] });
-}
-
-// Bộ mở rộng "custom_characters" (The DareDevil) — cũng không cần bỏ lá
-// nào (giống Chuck Wengam) NHƯNG cần chọn mục tiêu (giống Doc Holyday) — nhảy
-// THẲNG sang bước chọn mục tiêu, bỏ qua "picking-ability-cards" (0 lá thì
-// không có gì để chọn).
-function onArmFairKillerAbility(playerId: string): void {
-  selection = { step: "picking-ability-target", playerId, cardIds: [] };
-  render();
-}
-
-// Bấm 1 lá trong lúc đang chọn lá cho kỹ năng — bấm lại lá đã chọn để bỏ
-// chọn; đã đủ số lượng cần thì không cho chọn thêm (phải bỏ bớt trước).
-function onToggleAbilityCard(cardId: string): void {
-  if (selection.step !== "picking-ability-cards") return;
-  const index = selection.selectedCardIds.indexOf(cardId);
-  if (index === -1) {
-    if (selection.selectedCardIds.length >= selection.needed) return;
-    selection.selectedCardIds.push(cardId);
-  } else {
-    selection.selectedCardIds.splice(index, 1);
-  }
-  render();
-}
-
-// Đã chọn đủ lá cho kỹ năng — Doc Holyday còn cần chọn mục tiêu tiếp, 2 người
-// còn lại gửi đi luôn.
-function onConfirmAbilityCards(): void {
-  if (selection.step !== "picking-ability-cards" || selection.selectedCardIds.length !== selection.needed) return;
-  const { playerId, ability, selectedCardIds } = selection;
-  if (ability === "doc_holyday") {
-    selection = { step: "picking-ability-target", playerId, cardIds: selectedCardIds };
-    render();
-    return;
-  }
-  dispatch({ type: "USE_ABILITY", playerId, cardIds: selectedCardIds });
-}
-
-// Doc Holyday — đã chọn đủ 2 lá, giờ chọn mục tiêu để bắn.
-function onAbilityTargetClick(targetId: string): void {
-  if (selection.step !== "picking-ability-target") return;
-  dispatch({ type: "USE_ABILITY", playerId: selection.playerId, cardIds: selection.cardIds, targetId });
-}
-
-// "Chịu hậu quả" dùng chung cho: chịu mất máu thay vì đỡ (Missed!/Indians!/
-// Duel), và tự lật bài kiểm tra (draw!) — cả 2 đều là RESPOND không kèm cardId.
-// Cũng tái dùng cho "rút bộ bài"/"rút ngẫu nhiên"/"giữ 2 lá đầu" (3 nhân vật
-// bên dưới) — đều là RESPOND không kèm cardId/targetId, y hệt.
-function onRespondTakeConsequence(): void {
-  const top = state.pending[state.pending.length - 1];
-  if (top) dispatch({ type: "RESPOND", playerId: top.player });
-}
-
-// Pedro Ramirez — lấy đúng lá trên cùng chồng bỏ làm lá 1.
-function onPickDrawSource(cardId: string): void {
-  const top = state.pending[state.pending.length - 1];
-  if (top) dispatch({ type: "RESPOND", playerId: top.player, cardId });
-}
-
-// Jesse Jones (bước 1) — chọn lấy bài từ tay ai, và có để họ tự chọn lá không.
-function onPickDrawTarget(targetId: string, letTargetChoose: boolean): void {
-  const top = state.pending[state.pending.length - 1];
-  if (top) dispatch({ type: "RESPOND", playerId: top.player, targetId, letTargetChoose });
-}
-
-// Kit Carlson — bấm LẦN LƯỢT từng lá muốn GIỮ (không phải bỏ). Tích luỹ vào
-// `selection` cho tới khi đủ `top.keepCount` lá thì gửi RESPOND ngay, không
-// cần nút xác nhận riêng; bấm lại lá đã chọn thì bỏ chọn (sửa lại nếu lỡ tay).
-function onPickKeptCard(cardId: string): void {
-  const top = state.pending[state.pending.length - 1];
-  if (!top || top.kind !== "NEED_PICK_KEPT_CARDS") return;
-  const selectedCardIds = selection.step === "picking-kit-carlson-kept" ? [...selection.selectedCardIds] : [];
-  const index = selectedCardIds.indexOf(cardId);
-  if (index === -1) {
-    selectedCardIds.push(cardId);
-  } else {
-    selectedCardIds.splice(index, 1);
-  }
-  if (selectedCardIds.length >= top.keepCount) {
-    dispatch({ type: "RESPOND", playerId: top.player, cardIds: selectedCardIds });
-    return;
-  }
-  selection = { step: "picking-kit-carlson-kept", selectedCardIds };
-  render();
-}
-
-// Mở rộng Dodge City, mục C nhóm A (Pat Brennan) — lấy đúng lá trang bị
-// `cardId` của người chơi `targetId` thay vì rút bài.
-function onPickEquipmentFromPlayer(targetId: string, cardId: string): void {
-  const top = state.pending[state.pending.length - 1];
-  if (top) dispatch({ type: "RESPOND", playerId: top.player, targetId, cardId });
-}
-
-// Mở rộng Dodge City, mục C nhóm C (Vera Custer) — chọn mượn khả năng của
-// người chơi `targetId`.
-function onPickBorrowedCharacter(targetId: string): void {
-  const top = state.pending[state.pending.length - 1];
-  if (top) dispatch({ type: "RESPOND", playerId: top.player, targetId });
-}
-
-// Bộ mở rộng "custom_characters" (Elena Noir) — trả lời NEED_PICK_ARMED.
-function onPickArmed(armed: boolean): void {
-  const top = state.pending[state.pending.length - 1];
-  if (top) dispatch({ type: "RESPOND", playerId: top.player, armed });
-}
-
-// Bộ mở rộng "custom_characters" (Nomad Norman) — trả lời NEED_USE_DRIFTER_SHIELD
-// muốn dùng lá chắn. Nút "Không dùng" tái dùng onRespondTakeConsequence().
-function onUseDrifterShield(): void {
-  const top = state.pending[state.pending.length - 1];
-  if (top) dispatch({ type: "RESPOND", playerId: top.player, useShield: true });
-}
-
-// Bộ mở rộng "custom_characters" (Envoy Evy) — trả lời NEED_USE_DEALER_TRADE
-// muốn đưa 2 lá cho người vừa đánh mình. Nút "Không, chịu mất máu" tái dùng
-// onRespondTakeConsequence().
-function onUseDealerTrade(): void {
-  const top = state.pending[state.pending.length - 1];
-  if (top) dispatch({ type: "RESPOND", playerId: top.player, useDealerTrade: true });
-}
-
-// Bộ mở rộng "custom_characters" (Aura The Soul-Weaver) — trả lời NEED_SENTINEL_REVIVE
-// đồng ý trả 2 máu tối đa vĩnh viễn để hồi sinh. Nút "Từ chối" tái dùng
-// onRespondTakeConsequence().
-function onUseSentinelRevive(): void {
-  const top = state.pending[state.pending.length - 1];
-  if (top) dispatch({ type: "RESPOND", playerId: top.player, reviveTarget: true });
-}
-
-// Bộ mở rộng "custom_characters" (Marcel Marcelo) — trả lời NEED_PICK_MARCEL_COMPANION.
-function onPickMarcelCompanion(targetId: string): void {
-  const top = state.pending[state.pending.length - 1];
-  if (top) dispatch({ type: "RESPOND", playerId: top.player, targetId });
-}
-
-// Bộ mở rộng "custom_characters" (The Thief) — trả lời NEED_PICK_THIEF_TARGET.
-function onPickThiefTarget(targetId: string): void {
-  const top = state.pending[state.pending.length - 1];
-  if (top) dispatch({ type: "RESPOND", playerId: top.player, targetId });
-}
-
-// Mở rộng A Fistful of Cards, lá "Hard Liquor" — trả lời NEED_PICK_HARD_LIQUOR.
-function onPickHardLiquor(): void {
-  const top = state.pending[state.pending.length - 1];
-  if (top) dispatch({ type: "RESPOND", playerId: top.player, skipDrawForHardLiquor: true });
-}
-
-// Lá "Blood Brothers" — trả lời NEED_BLOOD_BROTHERS_GIFT.
-function onGiveBloodBrothersGift(targetId: string): void {
-  const top = state.pending[state.pending.length - 1];
-  if (top) dispatch({ type: "RESPOND", playerId: top.player, targetId });
-}
-
-// Lá "Ranch" — trả lời NEED_RANCH_EXCHANGE: bấm TỪNG lá muốn đổi (tích luỹ
-// vào selection, KHÔNG tự gửi — khác Kit Carlson không có số lá cố định phải
-// chọn), rồi bấm nút "Đổi bài" riêng (onConfirmRanchExchange).
-function onToggleRanchCard(cardId: string): void {
-  const top = state.pending[state.pending.length - 1];
-  if (!top || top.kind !== "NEED_RANCH_EXCHANGE") return;
-  const selectedCardIds = selection.step === "picking-ranch-exchange" ? [...selection.selectedCardIds] : [];
-  const index = selectedCardIds.indexOf(cardId);
-  if (index === -1) selectedCardIds.push(cardId);
-  else selectedCardIds.splice(index, 1);
-  selection = { step: "picking-ranch-exchange", selectedCardIds };
-  render();
-}
-
-function onConfirmRanchExchange(): void {
-  const top = state.pending[state.pending.length - 1];
-  if (!top || top.kind !== "NEED_RANCH_EXCHANGE") return;
-  const cardIds = selection.step === "picking-ranch-exchange" ? selection.selectedCardIds : [];
-  dispatch({ type: "RESPOND", playerId: top.player, cardIds });
-}
-
-// Lá "Sniper"/"Ricochet" — đã chọn Bang! + mục tiêu, sự kiện tương ứng đang
-// chạy: hỏi dùng cách bắn đặc biệt hay Bang! bình thường (xem
-// onPlayerClick()). `false` gửi PLAY_CARD ngay y hệt Bang! thường; `true`
-// chuyển tiếp bước kế (Sniper: chọn lá Bang! phụ, tái dùng "picking-extra-
-// discard" với restrictToCardName — Ricochet: chọn trang bị của mục tiêu).
-function onConfirmBangMode(useSpecial: boolean): void {
-  if (selection.step === "picking-sniper-confirm") {
-    const { cardId, targetId } = selection;
-    if (useSpecial) {
-      selection = { step: "picking-extra-discard", cardId, targetId, restrictToCardName: "bang" };
-      render();
-    } else {
-      dispatch({ type: "PLAY_CARD", playerId: currentPlayerId(), cardId, targetId });
-    }
-    return;
-  }
-  if (selection.step === "picking-ricochet-confirm") {
-    const { cardId, targetId } = selection;
-    if (useSpecial) {
-      selection = { step: "picking-ricochet-equipment", cardId, targetId };
-      render();
-    } else {
-      dispatch({ type: "PLAY_CARD", playerId: currentPlayerId(), cardId, targetId });
-    }
-  }
-}
-
-function onCancelSelection(): void {
-  selection = { step: "idle" };
-  render();
-}
-
-// Đợt 2 UI/UX (mục 4) — bấm "nở"/"thu gọn" khu trang bị của 1 seat khi bàn >6
-// người. Client-only, không gửi action gì lên reduce()/server.
-function onToggleSeatExpanded(playerId: string): void {
-  expandedSeatIds = expandedSeatIds.includes(playerId)
-    ? expandedSeatIds.filter((id) => id !== playerId)
-    : [...expandedSeatIds, playerId];
-  render();
-}
-
-// Đợt sửa giao diện bàn chơi — xem ghi chú khai báo equipmentCompactMode ở
-// trên (sở thích cá nhân, lưu localStorage, dùng chung cho cả hotseat lẫn
-// qua mạng vì đây là 1 biến duy nhất trên trình duyệt, không phải GameState).
-function onToggleEquipmentCompactMode(): void {
-  equipmentCompactMode = !equipmentCompactMode;
-  localStorage.setItem(EQUIPMENT_COMPACT_STORAGE_KEY, equipmentCompactMode ? "on" : "off");
-  render();
-}
-
-// Đợt 3 UI/UX (mục 9) — mở/đóng 2 dialog góc màn hình (nhật ký/cài đặt).
-// Client-only, không gửi action gì lên reduce().
-function onOpenLogDialog(): void {
-  logDialogOpen = true;
-  render();
-}
-
-function onCloseLogDialog(): void {
-  logDialogOpen = false;
-  render();
-}
-
-function onOpenSettingsDialog(): void {
-  settingsDialogOpen = true;
-  render();
-}
-
-function onCloseSettingsDialog(): void {
-  settingsDialogOpen = false;
-  confirmingNewGame = false; // đóng dialog thì huỷ luôn bước xác nhận dở dang, tránh hiện lại lần mở sau
-  render();
-}
-
-// Bổ sung — dialog "Thư viện bài" mở giữa ván (xem ghi chú UiHandlers ở
-// ui.ts). KHÔNG đụng gì `state`/`screen` — chỉ là 1 dialog nổi lên trên,
-// đóng lại là chơi tiếp đúng y như trước khi mở.
-function onOpenCardReferenceDialog(): void {
-  cardReferenceDialogOpen = true;
-  cardReferenceSearchQuery = "";
-  render();
-}
-
-function onCloseCardReferenceDialog(): void {
-  cardReferenceDialogOpen = false;
-  render();
-}
-
-// Bổ sung — nút "Bắt đầu ván mới" trong dialog Cài đặt (hotseat). Ván ĐÃ kết
-// thúc thì bắt đầu ngay (tái dùng onPlayAgain() có sẵn — quay lại màn hình
-// thiết lập); CHƯA kết thúc thì chuyển dialog sang bước xác nhận trước.
-function onRequestNewGame(): void {
-  if (state.winner) {
-    onPlayAgain();
-    return;
-  }
-  confirmingNewGame = true;
-  render();
-}
-
-function onConfirmNewGame(): void {
-  onPlayAgain();
-}
-
-function onCancelNewGameConfirm(): void {
-  confirmingNewGame = false;
-  render();
-}
-
-// Giai đoạn 5, cơ chế chọn nhân vật — KHÔNG dùng currentPlayerId() như các
-// handler khác ở trên: chọn nhân vật KHÔNG phải hành động "đúng lượt", MỖI
-// người tự chọn ĐỘC LẬP (xem core/types.ts's CharacterChoice), nên playerId
-// tới thẳng từ người vừa bấm (renderCharacterSelectionScreen truyền vào).
-//
-// Việc bổ sung sau Giai đoạn 5 — tách hẳn "cầm lên xem" (onArmCharacterChoice,
-// chỉ đổi state client, CHƯA gửi gì) khỏi "xác nhận thật" (onConfirmCharacterChoice,
-// mới thật sự dispatch CHOOSE_CHARACTER) — tránh 1 cú bấm nhầm lúc đang xem mô
-// tả chức năng vô tình chốt luôn nhân vật, đặc biệt khó undo trên điện thoại.
-function onArmCharacterChoice(playerId: string, characterId: string): void {
-  characterArmedChoices = { ...characterArmedChoices, [playerId]: characterId };
-  render();
-}
-
-function onConfirmCharacterChoice(playerId: string): void {
-  const characterId = characterArmedChoices[playerId];
-  if (!characterId) return;
-  dispatch({ type: "CHOOSE_CHARACTER", playerId, characterId });
 }
 
 // ----- Chế độ chơi qua mạng (việc 3.9) -----
@@ -1446,7 +586,7 @@ function onJoinRoom(): void {
   networkSelectedExpansions = [];
   networkSelectedEventDeckSize = DEFAULT_EVENT_DECK_SIZE;
   networkArmedCharacterId = null;
-  networkExpandedSeatIds = [];
+  networkInspectPlayerId = null;
   networkLogDialogOpen = false;
   networkSettingsDialogOpen = false;
   networkCardReferenceDialogOpen = false;
@@ -1563,7 +703,7 @@ function onNetworkMessage(message: ServerMessage): void {
       networkDeadline = null;
       networkConnectedIds = [];
       networkArmedCharacterId = null;
-      networkExpandedSeatIds = [];
+      networkInspectPlayerId = null;
       networkLogDialogOpen = false;
       networkSettingsDialogOpen = false;
       networkCardReferenceDialogOpen = false;
@@ -2049,12 +1189,13 @@ function onNetworkCancelSelection(): void {
   render();
 }
 
-// Đợt 2 UI/UX (mục 4) — giống hệt onToggleSeatExpanded (hotseat), xem ghi chú
-// ở đó.
-function onNetworkToggleSeatExpanded(playerId: string): void {
-  networkExpandedSeatIds = networkExpandedSeatIds.includes(playerId)
-    ? networkExpandedSeatIds.filter((id) => id !== playerId)
-    : [...networkExpandedSeatIds, playerId];
+function onNetworkOpenPlayerPanel(playerId: string): void {
+  networkInspectPlayerId = playerId;
+  render();
+}
+
+function onNetworkClosePlayerPanel(): void {
+  networkInspectPlayerId = null;
   render();
 }
 

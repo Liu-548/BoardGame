@@ -22,6 +22,7 @@
 // lá vừa xem RIÊNG, phải ẩn với mọi người TRỪ đúng chủ nhân (xem
 // PendingActionView/viewPendingItem() bên dưới).
 
+import { computeDistance, getWeaponRange } from "./distance";
 import type { CharacterChoice, ExpansionId, GameState, HouseRuleId, PendingAction, PlayerState, Role } from "./types";
 
 export interface PlayerHandView {
@@ -63,6 +64,18 @@ export interface CharacterChoiceView {
   playerId: string;
   options: [string, string] | null;
   chosen: string | null;
+}
+
+// Khoảng cách/tầm bắn 2 chiều giữa NGƯỜI XEM và 1 người chơi khác. Mọi thứ
+// dùng để tính (thứ tự ghế, trang bị bày ngửa, nhân vật, lá sự kiện, luật bổ
+// sung) đều công khai, nên lộ ra không giúp gian lận gì — server tính sẵn bằng
+// đúng computeDistance()/getWeaponRange() để giao diện KHÔNG phải tự cài lại
+// luật khoảng cách (tự cài lại rất dễ lệch, như lỗi cardActsAsMissed cũ).
+export interface DistanceInfo {
+  toThem: number; // khoảng cách từ người xem tới người này
+  toMe: number; // khoảng cách từ người này tới người xem (có thể khác toThem: Mustang/Scope/nhân vật)
+  myRange: number; // tầm súng của người xem
+  theirRange: number; // tầm súng của người này
 }
 
 export interface PlayerView {
@@ -141,6 +154,9 @@ export interface PlayerView {
   // (giống elenaNoirArmed/marcelJailCompanion — ai mượn khả năng gì công khai,
   // như bài Vera Custer lật ngửa ngoài đời thật).
   veraCusterBorrowedCharacterId: GameState["veraCusterBorrowedCharacterId"];
+  // Bố cục bàn chơi mới (2026-11-08) — theo id từng người CÒN SỐNG khác người
+  // xem. Rỗng khi người xem đã chết/không ngồi trong ván, hoặc đang chọn nhân vật.
+  distances: Record<string, DistanceInfo>;
 }
 
 function viewRole(player: PlayerState, viewerId: string): Role | null {
@@ -152,6 +168,29 @@ function viewRole(player: PlayerState, viewerId: string): Role | null {
   if (player.role === "police" || player.role === "criminal" || player.role === "traitor") return player.role;
   if (!player.alive) return player.role; // lật vai công khai khi bị loại
   return null;
+}
+
+// Xem DistanceInfo ở trên.
+// shortcut: computeDistance() đọc Scope/Binocular của người "đánh" KHÔNG qua
+// getEffectiveEquipment() (vì trong reduce.ts người đánh luôn là người đang tới
+// lượt) — nên chiều toMe có thể lệch 1 khi đang là lượt Belle Star (cô ta vô
+// hiệu trang bị người khác). Sửa trong computeDistance() nếu cần số đúng tuyệt đối.
+function viewDistances(state: GameState, viewerId: string): Record<string, DistanceInfo> {
+  const me = state.players.find((p) => p.id === viewerId);
+  if (!me || !me.alive || state.characterSelection) return {};
+  const extraDistance = state.houseRules.includes("extra_distance") ? 1 : 0; // giống hệt reduce.ts
+  const myRange = getWeaponRange(state, me);
+  const result: Record<string, DistanceInfo> = {};
+  for (const other of state.players) {
+    if (other.id === viewerId || !other.alive) continue;
+    result[other.id] = {
+      toThem: computeDistance(state, me.id, other.id, extraDistance),
+      toMe: computeDistance(state, other.id, me.id, extraDistance),
+      myRange,
+      theirRange: getWeaponRange(state, other),
+    };
+  }
+  return result;
 }
 
 // Giai đoạn 5 (Kit Carlson, đợt 6) — ẩn `cards` với bất kỳ ai KHÔNG PHẢI
@@ -218,5 +257,6 @@ export function viewFor(state: GameState, viewerId: string): PlayerView {
     nextEventId: state.eventDeck.length > 0 ? state.eventDeck[state.eventDeck.length - 1] : null,
     eventDiscard: [...state.eventDiscard],
     veraCusterBorrowedCharacterId: state.veraCusterBorrowedCharacterId,
+    distances: viewDistances(state, viewerId),
   };
 }
