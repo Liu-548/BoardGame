@@ -5,12 +5,14 @@
   "durable_objects": {
     "bindings": [
       { "name": "ROOM", "class_name": "Room" },
-      { "name": "WEREWOLF_ROOM", "class_name": "WerewolfRoom" }
+      { "name": "WEREWOLF_ROOM", "class_name": "WerewolfRoom" },
+      { "name": "CAU_CA_ROOM", "class_name": "CauCaRoom" }
     ]
   },
   "migrations": [
     { "tag": "v1", "new_sqlite_classes": ["Room"] },
-    { "tag": "v2", "new_sqlite_classes": ["WerewolfRoom"] }
+    { "tag": "v2", "new_sqlite_classes": ["WerewolfRoom"] },
+    { "tag": "v3", "new_sqlite_classes": ["CauCaRoom"] }
   ],
   // Phục vụ file client đã build (npm run build -> dist/) CHUNG domain với
   // Worker. "run_worker_first": ["/room/*", "/werewolf/*"] nghĩa là đường dẫn /room/... LUÔN
@@ -18,7 +20,7 @@
   // phục vụ thẳng file tĩnh trong dist/, không chạy Worker cho nhanh.
   "assets": {
     "directory": "./dist",
-    "run_worker_first": ["/room/*", "/werewolf/*"]
+    "run_worker_first": ["/room/*", "/werewolf/*", "/cau-ca/*"]
   },
   // Bản Beta song song — Worker RIÊNG (`bang-boardgame-beta`, ra URL riêng
   // .../bang-boardgame-beta.<tài khoản>.workers.dev), deploy bằng `npm run
@@ -38,7 +40,8 @@
       "durable_objects": {
         "bindings": [
           { "name": "ROOM", "class_name": "Room" },
-          { "name": "WEREWOLF_ROOM", "class_name": "WerewolfRoom" }
+          { "name": "WEREWOLF_ROOM", "class_name": "WerewolfRoom" },
+          { "name": "CAU_CA_ROOM", "class_name": "CauCaRoom" }
         ]
       }
     }

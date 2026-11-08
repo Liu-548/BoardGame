@@ -6,6 +6,7 @@ import { renderHubScreen } from "./hub/ui";
 import type { HubGameId } from "./hub/ui";
 import { mountBang } from "./games/bang/client/main";
 import { mountWerewolf, resumeWerewolf } from "./games/werewolf/client/main";
+import { mountCauCa, resumeCauCa } from "./games/cau-ca/client/main";
 
 const root = document.getElementById("game-root") as HTMLDivElement;
 
@@ -27,6 +28,9 @@ function onSelectGame(id: HubGameId): void {
   } else if (id === "werewolf") {
     document.body.classList.remove("landing-bg");
     mountWerewolf(root, showHub);
+  } else if (id === "cau-ca") {
+    document.body.classList.remove("landing-bg");
+    mountCauCa(root, showHub);
   }
 }
 
@@ -36,4 +40,4 @@ function onToggleLockedNote(id: HubGameId): void {
 }
 
 // F5 khi đang ở phòng Ma Sói → vào lại đúng phòng (xem resumeWerewolf()); không thì vẽ Sảnh.
-if (!resumeWerewolf(root, showHub)) showHub();
+if (!resumeWerewolf(root, showHub) && !resumeCauCa(root, showHub)) showHub();

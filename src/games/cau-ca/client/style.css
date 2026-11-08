@@ -1,0 +1,169 @@
+/* CSS riêng Câu cá. Màu nền/chữ/viền dùng biến chung (src/shared/style.css) nên tự theo chế độ Tối. */
+
+.cc-screen {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+.cc-title {
+  margin: 0;
+}
+.cc-h2 {
+  font-size: 1rem;
+  margin: 0.6rem 0 0;
+}
+.cc-muted {
+  color: var(--color-text-muted);
+}
+.cc-error {
+  color: var(--color-danger);
+  margin: 0;
+}
+.cc-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+.cc-label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-weight: bold;
+}
+.cc-code {
+  font-size: 1.3rem;
+  letter-spacing: 0.15em;
+}
+.cc-list {
+  margin: 0;
+  padding-left: 1.2rem;
+}
+
+.cc-btn {
+  border: 1px solid var(--color-border);
+  border-radius: 0.4rem;
+  background: var(--color-bg-panel);
+  color: inherit;
+}
+.cc-btn--primary {
+  background: #1f6f8b;
+  border-color: #1f6f8b;
+  color: #fff;
+}
+.cc-btn--ghost {
+  background: transparent;
+}
+.cc-btn--small {
+  font-size: 0.85rem;
+  padding: 0.3rem 0.7rem;
+  margin-left: auto;
+}
+.cc-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.cc-status {
+  margin: 0;
+  padding: 0.5rem 0.7rem;
+  border-radius: 0.4rem;
+  background: var(--color-bg-alt);
+}
+.cc-status--me {
+  outline: 2px solid #1f6f8b;
+  font-weight: bold;
+}
+.cc-last,
+.cc-peek {
+  margin: 0;
+}
+.cc-peek {
+  font-style: italic;
+}
+.cc-clock {
+  font-weight: bold;
+}
+
+.cc-seats {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr));
+  gap: 0.5rem;
+}
+.cc-seat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.5rem;
+  border: 1px solid var(--color-card-border);
+  border-radius: 0.4rem;
+  font-size: 0.9rem;
+}
+.cc-seat--turn {
+  border-color: #1f6f8b;
+  box-shadow: 0 0 0 2px #1f6f8b;
+}
+
+.cc-cards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+.cc-card {
+  min-width: 3rem;
+  height: 4.2rem;
+  padding: 0 0.4rem;
+  font-size: 1.15rem;
+  font-weight: bold;
+  border: 1px solid var(--color-card-border);
+  border-radius: 0.4rem;
+  background: #fff;
+  color: #222;
+}
+.cc-card--red {
+  color: #c0392b;
+}
+.cc-card:disabled {
+  cursor: default;
+  opacity: 1; /* bài không bấm được vẫn phải đọc rõ */
+}
+.cc-card--can {
+  border-color: #1f6f8b;
+}
+.cc-card--sel {
+  transform: translateY(-0.4rem);
+  box-shadow: 0 0 0 3px #1f6f8b;
+}
+.cc-card--lit {
+  box-shadow: 0 0 0 3px #e6a700;
+}
+
+.cc-scores {
+  border-collapse: collapse;
+}
+.cc-scores th,
+.cc-scores td {
+  padding: 0.3rem 0.8rem;
+  border-bottom: 1px solid var(--color-card-border);
+  text-align: left;
+}
+.cc-win {
+  color: #2e7d4f;
+  font-weight: bold;
+}
+.cc-lose {
+  color: var(--color-danger);
+  font-weight: bold;
+}
+
+.cc-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 1.5rem;
+  transform: translateX(-50%);
+  padding: 0.6rem 1rem;
+  border-radius: 0.4rem;
+  background: #333;
+  color: #fff;
+  z-index: 100;
+}

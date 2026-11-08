@@ -8,11 +8,13 @@
 // gì trên URL thì vào đúng phòng đó, kể cả mã tự bịa.
 
 import { WerewolfRoom } from "../games/werewolf/server/room";
+import { CauCaRoom } from "../games/cau-ca/server/room";
 import { Room } from "../games/bang/server/room";
 
 export interface Env {
   ROOM: DurableObjectNamespace;
   WEREWOLF_ROOM: DurableObjectNamespace;
+  CAU_CA_ROOM: DurableObjectNamespace;
 }
 
 export default {
@@ -21,6 +23,8 @@ export default {
     // D-02: Ma Sói có đường riêng, nhánh /room/<mã> của Bang! giữ nguyên.
     const werewolf = url.pathname.match(/^\/werewolf\/room\/([^/]+)\/?$/);
     if (werewolf) return env.WEREWOLF_ROOM.get(env.WEREWOLF_ROOM.idFromName(werewolf[1])).fetch(request);
+    const cauCa = url.pathname.match(/^\/cau-ca\/room\/([^/]+)\/?$/);
+    if (cauCa) return env.CAU_CA_ROOM.get(env.CAU_CA_ROOM.idFromName(cauCa[1])).fetch(request);
 
     const match = url.pathname.match(/^\/room\/([^/]+)\/?$/);
 
@@ -35,4 +39,4 @@ export default {
   },
 };
 
-export { Room, WerewolfRoom };
+export { Room, WerewolfRoom, CauCaRoom };
