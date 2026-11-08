@@ -196,6 +196,7 @@ Nguyên tắc chung:
 | 2 | **`main` chỉ chứa bản hoàn thiện.** Không code/commit thẳng lên `main`. Trước khi bắt đầu việc gì, kiểm tra đang ở nhánh nào; đang ở `main` thì tạo/chuyển sang nhánh của game đó trước. |
 | 3 | **Chỉ merge vào `main` khi đã test đầy đủ:** `tsc --noEmit` sạch, `vitest run` pass hết, tự kiểm bằng trình duyệt thật (cả máy tính lẫn điện thoại) cho phần đã đổi, và **chủ dự án đồng ý** merge. Thiếu 1 trong các bước này thì chưa merge. |
 | 4 | Bản chính chỉ deploy từ `main`. Muốn thử bản đang làm trên nhánh thì deploy lên bản beta. |
+| 5 | **Commit không ghi công AI** (2026-11-09): KHÔNG thêm dòng `Co-Authored-By: Claude…`, `Claude-Session: …` hay `🤖 Generated with Claude Code` vào commit message hoặc mô tả PR. Tác giả commit là chủ dự án. |
 
 ## Trạng thái hiện tại
 
