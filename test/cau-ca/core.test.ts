@@ -23,6 +23,7 @@ function mkState(over: Partial<GameState> = {}): GameState {
     currentSeat: 0,
     pending: [],
     lastDiscard: null,
+    lastMove: null,
     peek: C(2, "s"),
     over: false,
     ...over,
@@ -56,37 +57,46 @@ describe("Câu cá — luật ăn", () => {
   });
   it("chỉ được hạ lá không câu được lá nào", () => {
     expect(canDiscard(C(3, "h"), [C(7, "d")])).toBe(false);
-    const r = reduce(mkState(), { type: "DISCARD", playerId: "p0", card: C(3, "h") });
+    const r = reduce(mkState(), { type: "DISCARD", now: 0, playerId: "p0", card: C(3, "h") });
     expect(r.error).toBeDefined();
   });
   it("sai lượt bị chặn", () => {
-    expect(reduce(mkState(), { type: "DISCARD", playerId: "p1", card: C(4, "c") }).error).toBeDefined();
+    expect(reduce(mkState(), { type: "DISCARD", now: 0, playerId: "p1", card: C(4, "c") }).error).toBeDefined();
   });
   it("luật 7: hạ 8♠, lật 2♣ → bắt buộc ăn 8♠ dù bàn có 8♥", () => {
-    const { state } = reduce(mkState(), { type: "DISCARD", playerId: "p0", card: C(8, "s") });
+    const { state } = reduce(mkState(), { type: "DISCARD", now: 0, playerId: "p0", card: C(8, "s") });
     expect(state.players[0].captured).toEqual([C(2, "c"), C(8, "s")]);
     expect(state.table).toEqual([C(8, "h"), C(7, "d")]);
     expect(state.currentSeat).toBe(1);
   });
   it("lá lật có 2 lựa chọn → chờ người chơi chọn", () => {
     const start = mkState({ table: [C(1, "h"), C(1, "s"), C(7, "c")], stock: [C(9, "c")] });
-    let { state } = reduce(start, { type: "CAPTURE", playerId: "p0", card: C(3, "h"), target: C(7, "c") });
-    expect(state.pending).toEqual([{ kind: "NEED_FLIP_TARGET", playerId: "p0", card: C(9, "c") }]);
-    expect(reduce(state, { type: "DISCARD", playerId: "p0", card: C(8, "s") }).error).toBeDefined();
-    ({ state } = reduce(state, { type: "PICK_FLIP_TARGET", playerId: "p0", target: C(1, "h") }));
+    let { state } = reduce(start, { type: "CAPTURE", now: 0, playerId: "p0", card: C(3, "h"), target: C(7, "c") });
+    expect(state.pending).toEqual([{ kind: "NEED_FLIP_TARGET", playerId: "p0", card: C(9, "c"), endsAt: 15000 }]);
+    expect(reduce(state, { type: "DISCARD", now: 0, playerId: "p0", card: C(8, "s") }).error).toBeDefined();
+    ({ state } = reduce(state, { type: "PICK_FLIP_TARGET", now: 0, playerId: "p0", target: C(1, "h") }));
     expect(state.table).toEqual([C(1, "s")]);
     expect(state.currentSeat).toBe(1);
+  });
+  it("hết giờ chọn → máy tự lấy lá nhiều điểm nhất; alarm sớm bị bỏ qua", () => {
+    const start = mkState({ table: [C(1, "s"), C(1, "h"), C(7, "c")], stock: [C(9, "c")] });
+    const { state } = reduce(start, { type: "CAPTURE", now: 1000, playerId: "p0", card: C(3, "h"), target: C(7, "c") });
+    const endsAt = state.pending[0].endsAt;
+    expect(reduce(state, { type: "TIME_UP", now: endsAt - 1 }).state).toBe(state);
+    const after = reduce(state, { type: "TIME_UP", now: endsAt }).state;
+    expect(after.table).toEqual([C(1, "s")]); // lấy A♥ (20 điểm), bỏ A♠ (0 điểm khi chơi 3)
+    expect(after.lastMove).toEqual({ playerId: "p0", played: C(3, "h"), playedTook: [C(7, "c")], flipped: C(9, "c"), flipTook: [C(1, "h")] });
   });
   it("bộ ba lúc chia: lá thứ 4 ăn cả 3", () => {
     const start = mkState({ table: [C(12, "h"), C(12, "s"), C(12, "d")], stock: [C(2, "c")] });
     start.players[0].hand = [C(12, "c")];
-    const { state } = reduce(start, { type: "CAPTURE", playerId: "p0", card: C(12, "c"), target: C(12, "s") });
+    const { state } = reduce(start, { type: "CAPTURE", now: 0, playerId: "p0", card: C(12, "c"), target: C(12, "s") });
     expect(state.players[0].captured).toHaveLength(4);
   });
   it("reduce không sửa state truyền vào", () => {
     const start = mkState();
     const copy = structuredClone(start);
-    reduce(start, { type: "DISCARD", playerId: "p0", card: C(8, "s") });
+    reduce(start, { type: "DISCARD", now: 0, playerId: "p0", card: C(8, "s") });
     expect(start).toEqual(copy);
   });
 });
@@ -118,14 +128,14 @@ describe("Câu cá — bot chơi ngẫu nhiên đến hết ván", () => {
           const p = s.players[s.currentSeat];
           const top = s.pending[s.pending.length - 1];
           const r = top
-            ? reduce(s, { type: "PICK_FLIP_TARGET", playerId: p.id, target: captureTargets(top.card, s.table)[0] })
+            ? reduce(s, { type: "PICK_FLIP_TARGET", now: 0, playerId: p.id, target: captureTargets(top.card, s.table)[0] })
             : (() => {
                 const caps = p.hand.flatMap((c) => captureTargets(c, s.table).map((t) => ({ c, t })));
                 const dis = p.hand.filter((c) => canDiscard(c, s.table));
                 pick = (pick * 31 + 7) % 101;
                 return dis.length && (pick < 30 || !caps.length)
-                  ? reduce(s, { type: "DISCARD", playerId: p.id, card: dis[0] })
-                  : reduce(s, { type: "CAPTURE", playerId: p.id, card: caps[0].c, target: caps[0].t });
+                  ? reduce(s, { type: "DISCARD", now: 0, playerId: p.id, card: dis[0] })
+                  : reduce(s, { type: "CAPTURE", now: 0, playerId: p.id, card: caps[0].c, target: caps[0].t });
               })();
           expect(r.error).toBeUndefined();
           s = r.state;

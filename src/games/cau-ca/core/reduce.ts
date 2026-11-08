@@ -1,17 +1,18 @@
 // reduce(state, action) => state mới. Thuần: không sửa state truyền vào.
 import type { Action, Card, GameState } from "./types";
-import { DEAL } from "./types";
+import { DEAL, FLIP_PICK_MS } from "./types";
 import { canCapture, captureTargets, cardPoints, isTriple, lastSeat, sameCard } from "./rules";
 
 type Result = { state: GameState; error?: string };
 
 const fail = (state: GameState, error: string): Result => ({ state, error });
 
-/** Lá `by` ăn `target` (bộ ba thì ăn cả 3), cho vào chồng của người đang tới lượt. */
-function take(s: GameState, by: Card, target: Card) {
+/** Lá `by` ăn `target` (bộ ba thì ăn cả 3), cho vào chồng của người đang tới lượt. Trả các lá bị ăn. */
+function take(s: GameState, by: Card, target: Card): Card[] {
   const taken = isTriple(target.rank, s.table) ? s.table.filter((t) => t.rank === target.rank) : [target];
   s.table = s.table.filter((t) => !taken.some((x) => sameCard(x, t)));
   s.players[s.currentSeat].captured.push(by, ...taken);
+  return taken;
 }
 
 function endTurn(s: GameState) {
@@ -26,29 +27,43 @@ function endTurn(s: GameState) {
   s.currentSeat = (s.currentSeat + 1) % s.playerCount; // thuận kim đồng hồ
 }
 
+/** Lá lật `card` ăn `target`, ghi vào lượt vừa rồi, kết thúc lượt. */
+function flipTake(s: GameState, card: Card, target: Card) {
+  s.lastMove!.flipTook = take(s, card, target);
+  endTurn(s);
+}
+
 /** Bước 2 của lượt: lật 1 lá nọc. Ăn được thì BẮT BUỘC ăn. */
-function flip(s: GameState) {
+function flip(s: GameState, now: number) {
   const card = s.stock.shift()!;
+  s.lastMove!.flipped = card;
   // Luật 7: lá lật ăn được lá vừa hạ → bắt buộc ăn đúng lá đó.
-  if (s.lastDiscard && canCapture(card, s.lastDiscard)) {
-    take(s, card, s.lastDiscard);
-    return endTurn(s);
-  }
+  if (s.lastDiscard && canCapture(card, s.lastDiscard)) return flipTake(s, card, s.lastDiscard);
   const targets = captureTargets(card, s.table);
   if (targets.length === 0) {
     s.table.push(card);
     return endTurn(s);
   }
-  if (targets.length === 1) {
-    take(s, card, targets[0]);
-    return endTurn(s);
-  }
+  if (targets.length === 1) return flipTake(s, card, targets[0]);
   // >1 lựa chọn → chờ người đang tới lượt chọn (§1.2).
-  s.pending.push({ kind: "NEED_FLIP_TARGET", playerId: s.players[s.currentSeat].id, card });
+  s.pending.push({ kind: "NEED_FLIP_TARGET", playerId: s.players[s.currentSeat].id, card, endsAt: now + FLIP_PICK_MS });
+}
+
+/** Hết giờ chọn → máy tự chọn lá nhiều điểm nhất. */
+function timeUp(state: GameState, now: number): Result {
+  const top = state.pending[state.pending.length - 1];
+  if (!top || now < top.endsAt) return { state }; // alarm cũ/sớm: bỏ qua, không báo lỗi
+  const s: GameState = structuredClone(state);
+  s.pending.pop();
+  const targets = captureTargets(top.card, s.table);
+  const best = targets.reduce((a, b) => (cardPoints(b, s.playerCount) > cardPoints(a, s.playerCount) ? b : a));
+  flipTake(s, top.card, best);
+  return { state: s };
 }
 
 export function reduce(state: GameState, action: Action): Result {
   if (state.over) return fail(state, "Ván đã kết thúc");
+  if (action.type === "TIME_UP") return timeUp(state, action.now);
   const seat = state.players.findIndex((p) => p.id === action.playerId);
   if (seat !== state.currentSeat) return fail(state, "Chưa tới lượt bạn");
 
@@ -61,8 +76,7 @@ export function reduce(state: GameState, action: Action): Result {
       return fail(state, "Lá lật không ăn được lá này");
     }
     s.pending.pop();
-    take(s, top.card, action.target);
-    endTurn(s);
+    flipTake(s, top.card, action.target);
     return { state: s };
   }
 
@@ -75,7 +89,8 @@ export function reduce(state: GameState, action: Action): Result {
     const onTable = s.table.some((t) => sameCard(t, action.target));
     if (!onTable || !canCapture(action.card, action.target)) return fail(state, "Không câu được lá này");
     hand.splice(index, 1);
-    take(s, action.card, action.target);
+    s.lastMove = { playerId: action.playerId, played: action.card, playedTook: [], flipped: null, flipTook: [] };
+    s.lastMove.playedTook = take(s, action.card, action.target);
   } else {
     // Câu là tự nguyện, nhưng lá hạ phải không ăn được lá nào (§1.3).
     if (captureTargets(action.card, s.table).length > 0) {
@@ -84,8 +99,9 @@ export function reduce(state: GameState, action: Action): Result {
     hand.splice(index, 1);
     s.table.push(action.card);
     s.lastDiscard = action.card;
+    s.lastMove = { playerId: action.playerId, played: action.card, playedTook: [], flipped: null, flipTook: [] };
   }
-  flip(s);
+  flip(s, action.now);
   return { state: s };
 }
 

@@ -1,5 +1,5 @@
 // viewFor: state đã lọc gửi cho 1 người. Ẩn bài tay người khác, nọc, và lá kinh.
-import type { Card, GameState, Pending } from "./types";
+import type { Card, GameState, LastMove, Pending } from "./types";
 import { lastSeat } from "./rules";
 import { finalScores } from "./reduce";
 
@@ -22,6 +22,7 @@ export interface CauCaView {
   lastSeat: number;
   currentSeat: number;
   pending: Pending | null;
+  lastMove: LastMove | null;
   peek: Card | null; // chỉ người đi cuối thấy, trừ khi là A (cả bàn thấy)
   over: boolean;
   scores: ReturnType<typeof finalScores> | null;
@@ -48,6 +49,7 @@ export function viewFor(state: GameState, playerId: string): CauCaView {
     lastSeat: last,
     currentSeat: state.currentSeat,
     pending: state.pending[state.pending.length - 1] ?? null,
+    lastMove: state.lastMove,
     peek: showPeek ? state.peek : null,
     over: state.over,
     scores: state.over ? finalScores(state) : null,

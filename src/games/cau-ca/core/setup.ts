@@ -48,6 +48,7 @@ export function setupGame(players: { id: string; name: string }[], seed: number)
     currentSeat: firstSeat,
     pending: [],
     lastDiscard: null,
+    lastMove: null,
     peek,
     over: false,
   };
